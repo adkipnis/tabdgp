@@ -13,13 +13,13 @@ from tabdgp.hyperprior import (
 )
 
 __all__ = [
-    'draw',
-    'Hyperprior',
-    'Dataset',
-    'Uniform',
-    'LogUniform',
-    'UniformInt',
-    'LogUniformInt',
     'Beta',
+    'Dataset',
     'Dirichlet',
+    'Hyperprior',
+    'LogUniform',
+    'LogUniformInt',
+    'Uniform',
+    'UniformInt',
+    'draw',
 ]
