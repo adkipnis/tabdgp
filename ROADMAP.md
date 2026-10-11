@@ -13,7 +13,8 @@ repository.
   metabeta's envelope rule 7, within-group time, binary treatment; metabeta.mixed's slice A1
   starts after this
 - [ ] **3 Measurement pass and proofs.** The measurement pass over mixedbench's cached tables
-  (a mixedbench issue: the quirk statistics per column and per factor) and the two proof
+  ([mixedbench#71](https://github.com/adkipnis/mixedbench/issues/71): the quirk statistics per
+  column and per factor, released on PyPI before this item's spec) and the two proof
   tests, the two-sample test and the containment test
 - [ ] **4 Quirk axes.** The quirk axes the pass justifies and the matched, widened hyperprior
 - [ ] **5 Outcome node.** The optional outcome node for white-box misspecified datasets
