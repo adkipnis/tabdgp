@@ -2,7 +2,7 @@
 
 pipeline:
 ---------
-the resolved hyperprior and the observed node count
+the resolved hyperprior and the observed names
 -> the names in topological order, latent hubs first     _names
 -> the edge logits: Cauchy node terms and a block bonus  _logits
 -> the adjacency                                         connect
@@ -22,9 +22,9 @@ from tabdgp.hyperprior import Hyperprior
 # =====================================================================================
 
 
-def connect(resolved: Hyperprior, n_observed: int, rng: np.random.Generator) -> Graph:
+def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator) -> Graph:
     """The graph over the latent and observed nodes; weights are not kept."""
-    names = _names(resolved.latent_nodes, n_observed, rng)
+    names = _names(resolved.latent_nodes, observed, rng)
     n = len(names)
     logits = _logits(resolved, n, rng)  # (n, n)
     probability = 0.5 * (1 + np.tanh(logits / 2))  # (n, n), a sigmoid that cannot overflow
@@ -38,12 +38,11 @@ def connect(resolved: Hyperprior, n_observed: int, rng: np.random.Generator) -> 
     return Graph(names=names, parents=parents, latent=latent, mechanism=mechanism)
 
 
-def _names(n_latent: int, n_observed: int, rng: np.random.Generator) -> list[str]:
+def _names(n_latent: int, observed: list[str], rng: np.random.Generator) -> list[str]:
     # the observed names permute the column plan, so a column's position reveals nothing of its
     # place in the graph
     latent = [f'z{i}' for i in range(n_latent)]
-    observed = [f'x{k}' for k in rng.permutation(n_observed)]
-    return latent + observed
+    return latent + [observed[k] for k in rng.permutation(len(observed))]
 
 
 def _logits(resolved: Hyperprior, n: int, rng: np.random.Generator) -> np.ndarray:
