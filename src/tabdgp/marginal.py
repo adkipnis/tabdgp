@@ -1,4 +1,4 @@
-"""marginal.py defines the marginals: the catalogue of families a continuous column's values are sampled from.
+"""marginal.py defines the marginals: the families a continuous column's values are sampled from.
 
 pipeline:
 ---------
