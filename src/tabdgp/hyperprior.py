@@ -50,15 +50,19 @@ class Uniform(_Interval):
         return float(rng.uniform(self.low, self.high))
 
 
-@dataclass(frozen=True)
-class LogUniform(_Interval):
-    low: float
-    high: float
+class _LogInterval(_Interval):
+    """An interval whose logarithm is drawn, so it must lie above 0."""
 
     def __post_init__(self) -> None:
         super().__post_init__()
         if self.low <= 0:
             raise ValueError(f'a log-uniform needs low > 0, got {self.low}')
+
+
+@dataclass(frozen=True)
+class LogUniform(_LogInterval):
+    low: float
+    high: float
 
     def draw(self, rng: np.random.Generator) -> float:
         return math.exp(rng.uniform(math.log(self.low), math.log(self.high)))
@@ -74,14 +78,9 @@ class UniformInt(_Interval):
 
 
 @dataclass(frozen=True)
-class LogUniformInt(_Interval):
+class LogUniformInt(_LogInterval):
     low: int
     high: int
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.low <= 0:
-            raise ValueError(f'a log-uniform needs low > 0, got {self.low}')
 
     def draw(self, rng: np.random.Generator) -> int:
         # the floor of a log-uniform on [low, high + 1) gives each integer k the mass log(1 + 1/k);
