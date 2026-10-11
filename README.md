@@ -41,7 +41,13 @@ uv sync
 
 ## Quickstart
 
-The first call arrives with roadmap item 1; see [`ROADMAP.md`](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md).
+```python
+from tabdgp import draw
+
+dataset = draw(seed=0, index=0)  # a pure function of its key
+for name, column in dataset.metadata.items():
+    print(name, column.type, column.levels, column.marginal, dataset.columns[name][:3])
+```
 
 ## Contents
 
