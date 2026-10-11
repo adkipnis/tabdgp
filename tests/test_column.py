@@ -173,3 +173,14 @@ def test_plan_and_apply_are_deterministic_under_a_fixed_generator(column: Column
     assert _plan(7) == _plan(7)
     node = _node(1)
     assert np.array_equal(_apply_to(node, column, 7), _apply_to(node, column, 7))
+
+
+def test_a_large_level_alpha_gives_even_level_counts() -> None:
+    """level_alpha is the Dirichlet concentration of the level shares,
+    so a large one leaves each share near 1/K.
+    """
+    column = Column(type='ordered', levels=5)
+    rng = np.random.default_rng(0)
+    resolved = Hyperprior(level_alpha=1e4).resolve(rng)
+    codes = apply(rng.standard_normal(1000), column, resolved, rng)
+    np.testing.assert_allclose(np.bincount(codes), 200, atol=10)
