@@ -58,13 +58,13 @@ def _logits(resolved: Hyperprior, n: int, rng: np.random.Generator) -> np.ndarra
     return logits + resolved.block_bonus * same_block
 
 
-def _child(parents: np.ndarray, latent: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+def _child(edges: np.ndarray, latent: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     # a latent node is a hub or a confounder, never a dead end: a childless one gets one child
     # drawn uniformly from the nodes after it, if there are any
-    n = len(parents)
-    childless = np.flatnonzero(latent & ~parents.any(axis=0))  # (c,)
+    n = len(edges)
+    childless = np.flatnonzero(latent & ~edges.any(axis=0))  # (c,)
     childless = childless[childless < n - 1]
     children = rng.integers(childless + 1, n)  # (c,)
-    forced = parents.copy()
+    forced = edges.copy()
     forced[children, childless] = True
     return forced
