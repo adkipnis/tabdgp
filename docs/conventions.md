@@ -26,6 +26,7 @@ modules arrive:
 | `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent hubs first, the block bonus, the family per node | draw |
 | `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |
 | `marginal` | the catalogue of continuous families and rank matching: a continuous column gets exactly its family's sample, in the node's order | draw |
+| `draw` | the key and the pipeline: one generator per key, threaded through the modules in a fixed order | the package's `__init__` |
 
 ## Design
 
