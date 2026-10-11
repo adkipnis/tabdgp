@@ -31,6 +31,8 @@ Family = Literal[
 ]
 
 
+# every family takes (n, resolved, rng), so FAMILIES calls them alike; normal and uniform have
+# no parameter to read from resolved
 def _normal(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
     return rng.standard_normal(n)
 
@@ -71,3 +73,7 @@ FAMILIES = {
     'zero_inflated_lognormal': _zero_inflated_lognormal,
     'normal_mixture': _normal_mixture,
 }
+
+# a family added to marginal_shares or to the catalogue alone fails here, not when drawn
+if set(FAMILIES) != set(Hyperprior.categories('marginal_shares')):
+    raise ValueError(f'families {list(FAMILIES)} differ from marginal_shares')
