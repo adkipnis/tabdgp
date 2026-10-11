@@ -17,3 +17,11 @@ repository.
   tests, the two-sample test and the containment test
 - [ ] **4 Quirk axes.** The quirk axes the pass justifies and the matched, widened hyperprior
 - [ ] **5 Outcome node.** The optional outcome node for white-box misspecified datasets
+- [ ] **6 Extensions for other amortization targets.** Data that amortized inference and
+  prior-data fitted networks (PFNs) train on beyond GLMMs, each a new node type or an entry of
+  the outcome catalogue rather than a redesign: survival data (event times, censoring
+  mechanisms, frailty grouping) for metasurv; item response theory (IRT) data (persons and
+  items as crossed factors with features on each, binary or ordered responses); missingness
+  at random or not at random as indicator nodes; dyadic and network data (two factors sharing one level
+  set); spatial dependence (a kernel on the node noise). Each extension is specced when a
+  consumer needs it
