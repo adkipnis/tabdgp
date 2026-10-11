@@ -5,12 +5,15 @@ from __future__ import annotations
 import numpy as np
 
 from tabdgp.dataset import Graph
-from tabdgp.hyperprior import Hyperprior, Shares
+from tabdgp.hyperprior import Hyperprior
 
 
-def point(field: str, category: str) -> Shares:
+def point(field: str, category: str) -> dict[str, float]:
     """Shares of a hyperprior field that put all mass on one category."""
-    return Shares.point(Hyperprior.categories(field), category)
+    shares = {}
+    for name in Hyperprior.categories(field):
+        shares[name] = 1.0 if name == category else 0.0
+    return shares
 
 
 def graphOf(parents: list[list[int]], mechanism: list[str] | None = None) -> Graph:
