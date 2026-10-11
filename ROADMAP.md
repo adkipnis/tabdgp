@@ -14,7 +14,9 @@ repository.
   starts after this. Before its spec, the prior-art search (`docs/prior-art.md`) extended to
   the newest reports of TabPFN, Mitra and LimiX (technical reports, papers and posts on how the
   cutting edge simulates tabular training data, not its source code), amending the ADRs or the
-  remaining roadmap items where they warrant it
+  remaining roadmap items where they warrant it; then whether TabPFN v2's DAG can be built from
+  what is published and, if so, whether it replaces the Cauchy DAG or joins it as a second
+  graph family
 - [ ] **3 Measurement pass and proofs.** The measurement pass over mixedbench's cached tables
   ([mixedbench#71](https://github.com/adkipnis/mixedbench/issues/71): the quirk statistics per
   column and per factor, released on PyPI before this item's spec) and the two proof
