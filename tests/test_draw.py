@@ -9,9 +9,10 @@ import numpy as np
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from tabdgp.dataset import Dataset
 from tabdgp.draw import draw
-from tabdgp.dataset import Column, Dataset
 from tabdgp.hyperprior import Hyperprior, UniformInt
+from tests.fixtures.build import point
 
 
 def _assert_identical(a: Dataset, b: Dataset) -> None:
@@ -28,11 +29,6 @@ def _assert_identical(a: Dataset, b: Dataset) -> None:
     assert np.array_equal(a.graph.parents, b.graph.parents)
     assert np.array_equal(a.graph.latent, b.graph.latent)
     assert (a.hyperparameters, a.key, a.version) == (b.hyperparameters, b.key, b.version)
-
-
-def _width(column: Column) -> int:
-    """A column's width in the design matrix: 1 if continuous, K − 1 otherwise."""
-    return 1 if column.levels is None else column.levels - 1
 
 
 SEEDS = st.integers(0, 2**32)
@@ -89,7 +85,7 @@ def test_every_override_is_honoured(
     )
     dataset = draw(0, 0, hyperprior)
     metadata = dataset.metadata.values()
-    assert sum(_width(column) for column in metadata) == design_columns
+    assert sum(column.width for column in metadata) == design_columns
     for column in metadata:
         assert column.levels is None or column.levels <= max_levels
     assert len(dataset.latent) == latent_nodes
@@ -138,17 +134,6 @@ def test_every_column_is_finite_and_every_continuous_column_non_constant() -> No
                 assert np.isfinite(values).all()
 
 
-TYPES = ['continuous', 'binary', 'categorical', 'ordered']
-
-
-def _corner(type: str) -> dict[str, float]:
-    """Type shares that put all mass on one type."""
-    shares = {}
-    for name in TYPES:
-        shares[name] = 1.0 if name == type else 0.0
-    return shares
-
-
 def _neighbour_agreement(codes: np.ndarray, parent: np.ndarray) -> float:
     """The share of rows whose code equals the next row's in the parent's order.
 
@@ -171,7 +156,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
         hyperprior = Hyperprior(
             n_obs=1000,
             design_columns=4,
-            type_shares=_corner(type),
+            type_shares=point('type_shares', type),
             latent_nodes=1,
             mechanism_shares={'linear': 1.0, 'mlp': 0.0},
             noise_scale=0.01,

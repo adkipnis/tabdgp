@@ -8,6 +8,7 @@ from tabdgp.dataset import Graph
 from tabdgp.graph import connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
+from tests.fixtures.build import graphOf, point
 
 OBSERVED = list('abcdefghijkl')
 
@@ -20,9 +21,9 @@ def _matrix(nodes: dict[str, np.ndarray]) -> np.ndarray:
 def _propagate(seed: int, n_observed: int, n_obs: int, **overrides: object) -> np.ndarray:
     """Node values over a graph drawn by connect, as one matrix."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolve(rng)
+    resolved = Hyperprior(n_obs=n_obs, **overrides).resolve(rng)
     graph = connect(resolved, OBSERVED[:n_observed], rng)
-    return _matrix(propagate(graph, resolved, n_obs, rng))
+    return _matrix(propagate(graph, resolved, rng))
 
 
 def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
@@ -31,9 +32,9 @@ def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
     A view into every node's values would keep them all alive and read strided.
     """
     rng = np.random.default_rng(0)
-    resolved = Hyperprior(latent_nodes=2).resolve(rng)
+    resolved = Hyperprior(n_obs=100, latent_nodes=2).resolve(rng)
     graph = connect(resolved, OBSERVED[:4], rng)
-    nodes = propagate(graph, resolved, 100, rng)
+    nodes = propagate(graph, resolved, rng)
     assert list(nodes) == graph.names
     for values in nodes.values():
         assert values.shape == (100,)
@@ -50,28 +51,16 @@ def test_every_node_is_z_scored() -> None:
         np.testing.assert_allclose(values.std(axis=0), 1, atol=1e-5)
 
 
-def _graph(parents: list[list[int]], mechanism: list[str]) -> Graph:
-    """A hand-built graph of observed nodes, parents[j] listing node j's parents."""
-    n = len(parents)
-    adjacency = np.zeros((n, n), dtype=bool)  # (n, n)
-    for j, parents_of_j in enumerate(parents):
-        adjacency[j, parents_of_j] = True
-    names = [f'x{j}' for j in range(n)]
-    return Graph(
-        names=names, parents=adjacency, latent=np.zeros(n, dtype=bool), mechanism=mechanism
-    )
-
-
 def _run(graph: Graph, n_obs: int, seed: int = 0, **overrides: object) -> np.ndarray:
     """Node values over a hand-built graph, as one matrix."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolve(rng)
-    return _matrix(propagate(graph, resolved, n_obs, rng))
+    resolved = Hyperprior(n_obs=n_obs, **overrides).resolve(rng)
+    return _matrix(propagate(graph, resolved, rng))
 
 
 def test_a_root_is_noise() -> None:
     """A root's values are its own standard-normal noise: independent of every other root."""
-    graph = _graph([[], [], [], []], ['noise'] * 4)
+    graph = graphOf([[], [], [], []])
     values = _run(graph, 20000)
     correlations = np.corrcoef(values.T)  # (4, 4)
     off_diagonal = correlations[~np.eye(4, dtype=bool)]
@@ -89,7 +78,7 @@ def test_a_node_with_parents_correlates_with_them_at_low_noise() -> None:
     An MLP with the identity activation is linear too, so both families must keep it.
     """
     for family in ['linear', 'mlp']:
-        graph = _graph([[], [0]], ['noise', family])
+        graph = graphOf([[], [0]], ['noise', family])
         for seed in range(10):
             values = _run(graph, 2000, seed, noise_scale=0.01, activation_shares=IDENTITY)
             correlation = np.corrcoef(values.T)[0, 1]
@@ -104,21 +93,13 @@ def test_a_constant_mechanism_output_z_scores_to_zeros() -> None:
     At this width and row count the readout's BLAS sums leave rows a last bit apart, the residue
     a guard of std > 0 would scale up.
     """
-    graph = _graph([[], [0], [1]], ['noise', 'mlp', 'linear'])
+    graph = graphOf([[], [0], [1]], ['noise', 'mlp', 'linear'])
     for seed in range(10):
         values = _run(graph, 1001, seed, init_scale=0.0, noise_scale=0.0, hidden=64)
         assert (values[:, 1:] == 0).all()
 
 
 ACTIVATIONS = ['tanh', 'relu', 'sin', 'identity']
-
-
-def _corner(names: list[str], name: str) -> dict[str, float]:
-    """Shares that put all mass on one name."""
-    shares = {}
-    for other in names:
-        shares[other] = 1.0 if other == name else 0.0
-    return shares
 
 
 def test_values_are_finite_for_every_family() -> None:
@@ -130,8 +111,8 @@ def test_values_are_finite_for_every_family() -> None:
     for activation in ACTIVATIONS:
         for family in ['linear', 'mlp']:
             shares = {
-                'activation_shares': _corner(ACTIVATIONS, activation),
-                'mechanism_shares': _corner(['linear', 'mlp'], family),
+                'activation_shares': point('activation_shares', activation),
+                'mechanism_shares': point('mechanism_shares', family),
             }
             for seed in range(5):
                 values = _propagate(seed, 12, 1000, edge_offset=2.0, **steep, **shares)
@@ -148,6 +129,6 @@ def test_propagate_is_deterministic_under_a_fixed_generator() -> None:
 def test_an_empty_graph_gives_rows_without_columns() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
-    resolved = Hyperprior(latent_nodes=0).resolve(rng)
+    resolved = Hyperprior(n_obs=50, latent_nodes=0).resolve(rng)
     graph = connect(resolved, [], rng)
-    assert propagate(graph, resolved, 50, rng) == {}
+    assert propagate(graph, resolved, rng) == {}

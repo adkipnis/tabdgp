@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from tabdgp.dataset import Column, Dataset, Graph, Key
 from tabdgp.hyperprior import Hyperprior
+from tests.fixtures.build import graphOf
 
 
 def test_a_column_type_outside_the_four_fails() -> None:
@@ -45,6 +46,22 @@ def test_an_unknown_marginal_family_fails_at_construction() -> None:
         Column(type='continuous', marginal='gamma')
 
 
+WIDTHS = [
+    pytest.param(Column(type='continuous', marginal='beta'), 1, id='continuous'),
+    pytest.param(Column(type='binary', levels=2), 1, id='binary'),
+    pytest.param(Column(type='categorical', levels=5), 4, id='categorical'),
+    pytest.param(Column(type='ordered', levels=3), 2, id='ordered'),
+]
+
+
+@pytest.mark.parametrize(('column', 'width'), WIDTHS)
+def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
+    column: Column, width: int
+) -> None:
+    """The design-column budget counts metabeta's dummy coding: K levels take K − 1 columns."""
+    assert column.width == width
+
+
 @pytest.mark.parametrize(('seed', 'index'), [(-1, 0), (0, -1)])
 def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
     """default_rng([seed, index]) rejects negative entries, so the key fails where it is written."""
@@ -52,25 +69,13 @@ def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
         Key(seed=seed, index=index)
 
 
-def _graph(parents: np.ndarray) -> Graph:
-    """A graph of observed nodes over the given adjacency, roots with the noise mechanism."""
-    n = len(parents)
-    roots = ~parents.any(axis=1)
-    return Graph(
-        names=[f'x{i}' for i in range(n)],
-        parents=parents,
-        latent=np.zeros(n, dtype=bool),
-        mechanism=['noise' if root else 'linear' for root in roots],
-    )
-
-
 @pytest.mark.parametrize(('child', 'parent'), [(0, 1), (1, 1)], ids=['above', 'on'])
 def test_a_parent_on_or_above_the_diagonal_fails(child: int, parent: int) -> None:
     """parents[j, i] says i is a parent of j; only i < j keeps the names in topological order."""
-    parents = np.zeros((2, 2), dtype=bool)
-    parents[child, parent] = True
+    parents = [[], []]
+    parents[child].append(parent)
     with pytest.raises(ValidationError):
-        _graph(parents)
+        graphOf(parents)
 
 
 MISMATCHED = [
@@ -106,7 +111,7 @@ def test_noise_is_the_mechanism_of_exactly_the_roots(mechanism: list[str]) -> No
 
 def test_an_empty_graph_is_valid() -> None:
     """A budget of 0 with no latent nodes draws a dataset of rows and no nodes at all."""
-    _graph(np.zeros((0, 0), dtype=bool))
+    graphOf([])
 
 
 def test_a_dataset_holds_its_arrays_without_copying() -> None:
@@ -116,7 +121,7 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
     dataset = Dataset(
         columns={'x0': values},
         metadata={'x0': Column(type='continuous', marginal='normal')},
-        graph=_graph(np.zeros((2, 2), dtype=bool)),
+        graph=graphOf([[], []]),
         latent={'z0': latent},
         hyperparameters=Hyperprior().resolve(np.random.default_rng(0)),
         key=Key(seed=0, index=0),

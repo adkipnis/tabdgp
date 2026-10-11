@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from typing import get_args
+
 import numpy as np
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
+from tabdgp.dataset import Mechanism
 from tabdgp.hyperprior import (
     Beta,
     Dirichlet,
@@ -15,9 +18,12 @@ from tabdgp.hyperprior import (
     Hyperprior,
     LogUniform,
     LogUniformInt,
+    Shares,
     Uniform,
     UniformInt,
 )
+from tabdgp.marginal import FAMILIES
+from tabdgp.mechanism import ACTIVATIONS
 
 
 def test_the_defaults_validate() -> None:
@@ -98,6 +104,46 @@ def test_a_distribution_override_resolves_inside_its_support(
     hyperprior = Hyperprior(**{field: distribution(low, low + width)})
     resolved = hyperprior.resolve(np.random.default_rng(seed))
     assert low <= getattr(resolved, field) <= low + width
+
+
+def test_resolved_shares_choose_a_category_by_its_share() -> None:
+    """column, graph and mechanism draw categories from resolved shares, one or an array at a time."""
+    rng = np.random.default_rng(0)
+    types = {'continuous': 0.0, 'binary': 1.0, 'categorical': 0.0, 'ordered': 0.0}
+    resolved = Hyperprior(type_shares=types, mechanism_shares={'linear': 0.5, 'mlp': 0.5}).resolve(
+        rng
+    )
+    assert resolved.type_shares.choose(rng) == 'binary'
+    chosen = resolved.mechanism_shares.choose(rng, size=200)  # (200,)
+    assert chosen.shape == (200,)
+    assert set(chosen) == {'linear', 'mlp'}
+
+
+def test_a_shares_field_names_its_default_categories() -> None:
+    """The catalogues and the point masses read a field's categories from its default."""
+    assert Hyperprior.categories('mechanism_shares') == ['linear', 'mlp']
+
+
+def test_a_point_mass_puts_every_share_on_its_category() -> None:
+    """Tests force one type, family or activation through a point mass over the field's categories."""
+    shares = Shares.point(Hyperprior.categories('type_shares'), 'ordered')
+    assert shares == {'continuous': 0.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 1.0}
+    assert Hyperprior(type_shares=shares).type_shares == shares
+
+
+CATALOGUES = [
+    pytest.param(set(FAMILIES), 'marginal_shares', id='marginal families'),
+    pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
+    pytest.param(set(get_args(Mechanism)) - {'noise'}, 'mechanism_shares', id='mechanism families'),
+]
+
+
+@pytest.mark.parametrize(('catalogue', 'field'), CATALOGUES)
+def test_each_catalogue_names_exactly_the_hyperprior_defaults_categories(
+    catalogue: set[str], field: str
+) -> None:
+    """A category with a share but no entry in its catalogue would fail only when drawn."""
+    assert catalogue == set(Hyperprior.categories(field))
 
 
 INVALID = [

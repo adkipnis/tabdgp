@@ -11,21 +11,9 @@ from tabdgp.column import apply, plan
 from tabdgp.dataset import Column
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.marginal import Family
+from tests.fixtures.build import point
 
 TYPES = ['continuous', 'binary', 'categorical', 'ordered']
-
-
-def _corner(type: str) -> dict[str, float]:
-    """Type shares that put all mass on one type."""
-    shares = {}
-    for name in TYPES:
-        shares[name] = 1.0 if name == type else 0.0
-    return shares
-
-
-def _cost(column: Column) -> int:
-    """A column's width in the design matrix: 1 if continuous, K − 1 otherwise."""
-    return 1 if column.levels is None else column.levels - 1
 
 
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
@@ -44,20 +32,26 @@ def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_co
     """
     for budget in range(20):
         for seed in range(10):
-            columns = _plan(seed, design_columns=budget, type_shares=_corner(type))
-            assert sum(_cost(column) for column in columns.values()) == budget
+            columns = _plan(seed, design_columns=budget, type_shares=point('type_shares', type))
+            assert sum(column.width for column in columns.values()) == budget
 
 
 def test_k_is_clipped_when_it_would_overflow_the_budget() -> None:
     """A tiny levels_p draws K in the millions; with a budget of 3, one column of K = 4 fills it."""
-    columns = _plan(0, design_columns=3, type_shares=_corner('categorical'), levels_p=1e-6)
+    columns = _plan(
+        0, design_columns=3, type_shares=point('type_shares', 'categorical'), levels_p=1e-6
+    )
     assert list(columns.values()) == [Column(type='categorical', levels=4)]
 
 
 def test_max_levels_caps_k() -> None:
     """metabeta passes 10, so no categorical or ordered column may exceed it however large K is drawn."""
     columns = _plan(
-        0, design_columns=19, type_shares=_corner('ordered'), levels_p=1e-6, max_levels=10
+        0,
+        design_columns=19,
+        type_shares=point('type_shares', 'ordered'),
+        levels_p=1e-6,
+        max_levels=10,
     )
     assert list(columns.values()) == [
         Column(type='ordered', levels=10),
@@ -68,7 +62,7 @@ def test_max_levels_caps_k() -> None:
 
 def test_plan_names_its_columns_x0_to_x_p_minus_1() -> None:
     """The one home of the rule that plan column k is node x{k}; every later step reads the names."""
-    columns = _plan(0, design_columns=4, type_shares=_corner('continuous'))
+    columns = _plan(0, design_columns=4, type_shares=point('type_shares', 'continuous'))
     assert list(columns) == ['x0', 'x1', 'x2', 'x3']
 
 

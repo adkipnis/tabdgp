@@ -50,6 +50,7 @@ quote-style = "single"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not slow' --import-mode=importlib"
+pythonpath = ["."]
 markers = [
     "slow: draws thousands of datasets (the proofs against mixedbench's registry); runs by `-m slow`",
 ]
