@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 from tabdgp.dataset import Graph
-from tabdgp.hyperprior import Hyperprior
+from tabdgp.hyperprior import Hyperprior, Shares
 
 # =====================================================================================
 # the generating graph
@@ -70,10 +70,8 @@ def _child(parents: np.ndarray, latent: np.ndarray, rng: np.random.Generator) ->
     return forced
 
 
-def _mechanism(
-    shares: dict[str, float], parents: np.ndarray, rng: np.random.Generator
-) -> list[str]:
+def _mechanism(shares: Shares, parents: np.ndarray, rng: np.random.Generator) -> list[str]:
     n = len(parents)
-    families = rng.choice(list(shares), size=n, p=list(shares.values()))  # (n,)
+    families = shares.choose(rng, size=n)  # (n,)
     roots = ~parents.any(axis=1)  # (n,)
     return np.where(roots, 'noise', families).tolist()
