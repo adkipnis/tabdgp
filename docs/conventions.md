@@ -159,6 +159,22 @@ Markdown meets the same bar as code: simple, and read top to bottom.
   quickstart box, contents, contributing, citing, licence. Its links are absolute to `main`,
   so PyPI renders them.
 
+### Explaining the design
+
+How the docs and the paper explain TabDGP to a reader with only a vague idea of it:
+
+- Top down, one level before the next: why it exists, the concepts it needs, the blueprint
+  (the modules and how they work together), then the detail.
+- Short plain sentences, one idea per bullet; a term defined before it is used, in
+  `CONTEXT.md`'s words; an acronym spelled out at its first use.
+- An abstract mechanism gets a worked example small enough to check by eye (three values
+  through rank matching).
+- A design choice names the alternatives considered, the verdict and why, as a table when
+  there are several, each citing its source: an ADR, the spec, a row of the audit.
+- A choice without a recorded reason says so ("a guess, fitted in item 4") instead of
+  inventing one; an opinion is marked as one, apart from the facts.
+- What is left out says where it lives: a later roadmap item, an appendix.
+
 ## Data
 
 - The registry statistics the proofs read are mixedbench's, pinned by version, never edited
