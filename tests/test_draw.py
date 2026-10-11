@@ -151,7 +151,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
     One latent root and no drawn edges leave the root's forced child as the only node with a
     parent, so the typed column must follow that root's values.
     """
-    isolated = dict(edge_offset=-30.0, hub_scale=0.0, block_bonus=0.0)
+    isolated = {'edge_offset': -30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
     for type in ['binary', 'categorical', 'ordered']:
         hyperprior = Hyperprior(
             n_obs=1000,
