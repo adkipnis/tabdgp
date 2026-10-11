@@ -44,8 +44,8 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin, 'identity': _ident
 
 def propagate(
     graph: Graph, resolved: Hyperprior, n_obs: int, rng: np.random.Generator
-) -> np.ndarray:
-    """Every node's values in the graph's order, each z-scored."""
+) -> dict[str, np.ndarray]:
+    """Every node's values by name in the graph's order, each z-scored and its own array."""
     n = len(graph.names)
     shares = resolved.activation_shares
     activations = rng.choice(list(shares), size=n, p=list(shares.values()))  # (n,)
@@ -61,7 +61,7 @@ def propagate(
         # relative noise: its scale is relative to the z-scored output, so scales never run
         # away through depth
         values[:, j] = _zscore(_zscore(output) + resolved.noise_scale * noise)
-    return values
+    return {name: values[:, j].copy() for j, name in enumerate(graph.names)}  # (N,) each
 
 
 def _mlp(
