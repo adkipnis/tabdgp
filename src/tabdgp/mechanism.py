@@ -55,6 +55,8 @@ def propagate(
     """Every node's values by name in the graph's order, each z-scored and its own array."""
     n = len(graph.names)
     n_obs = resolved.n_obs
+    # a root draws an activation it never uses; dropping that draw shifts every later one, so it
+    # waits for a version change
     activations = resolved.activation_shares.chooseMany(rng, n)  # (n,)
     values = np.empty((n_obs, n), dtype=np.float32)  # (N, n)
     for j in range(n):

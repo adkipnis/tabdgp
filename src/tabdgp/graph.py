@@ -34,6 +34,8 @@ def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator)
     edges[child, parent] = rng.uniform(size=len(child)) < probability[child, parent]
     latent = np.arange(n) < resolved.latent_nodes  # (n,)
     parents = _child(edges, latent, rng)  # (n, n)
+    # a root draws a family it never uses; dropping that draw shifts every later one, so it waits
+    # for a version change
     mechanism = resolved.mechanism_shares.chooseMany(rng, n).tolist()
     return Graph(names=names, parents=parents, latent=latent, mechanism=mechanism)
 
