@@ -1,4 +1,4 @@
-"""graph.py defines the generating graph: which nodes a dataset has, which are latent, and who is whose parent.
+"""graph.py defines the generating graph: its nodes, which are latent, and who is whose parent.
 
 pipeline:
 ---------
