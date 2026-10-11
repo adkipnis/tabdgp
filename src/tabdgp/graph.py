@@ -7,7 +7,7 @@ the resolved hyperprior and the observed names
 -> the edge logits: Cauchy node terms and a block bonus  _logits
 -> the adjacency                                         connect
 -> one child for a latent node that drew none            _child
--> the mechanism family per node, noise for a root       _mechanism
+-> the mechanism family per node                         connect
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 from tabdgp.dataset import Graph
-from tabdgp.hyperprior import Hyperprior, Shares
+from tabdgp.hyperprior import Hyperprior
 
 # =====================================================================================
 # the generating graph
@@ -34,7 +34,7 @@ def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator)
     edges[child, parent] = rng.uniform(size=len(child)) < probability[child, parent]
     latent = np.arange(n) < resolved.latent_nodes  # (n,)
     parents = _child(edges, latent, rng)  # (n, n)
-    mechanism = _mechanism(resolved.mechanism_shares, parents, rng)
+    mechanism = resolved.mechanism_shares.choose(rng, size=n).tolist()
     return Graph(names=names, parents=parents, latent=latent, mechanism=mechanism)
 
 
@@ -68,10 +68,3 @@ def _child(parents: np.ndarray, latent: np.ndarray, rng: np.random.Generator) ->
     forced = parents.copy()
     forced[children, childless] = True
     return forced
-
-
-def _mechanism(shares: Shares, parents: np.ndarray, rng: np.random.Generator) -> list[str]:
-    n = len(parents)
-    families = shares.choose(rng, size=n)  # (n,)
-    roots = ~parents.any(axis=1)  # (n,)
-    return np.where(roots, 'noise', families).tolist()
