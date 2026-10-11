@@ -14,7 +14,6 @@ from tabdgp.dataset import ColumnType, Mechanism
 from tabdgp.hyperprior import (
     Beta,
     Dirichlet,
-    Distribution,
     Hyperprior,
     LogUniform,
     LogUniformInt,
@@ -40,10 +39,11 @@ def test_a_point_override_resolves_to_itself() -> None:
 
 
 def test_the_resolved_hyperprior_has_no_distribution_left() -> None:
-    """Dataset.hyperparameters holds the resolved hyperprior, which a caller reads as points."""
+    """Dataset.hyperparameters holds the resolved hyperprior, which a caller reads as points.
+    A distribution left over would be drawn again, so resolving twice would change it.
+    """
     resolved = Hyperprior().resolve(np.random.default_rng(0))
-    values = [getattr(resolved, name) for name in Hyperprior.model_fields]
-    assert not any(isinstance(value, Distribution) for value in values)
+    assert resolved.resolve(np.random.default_rng(1)) == resolved
 
 
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
