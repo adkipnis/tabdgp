@@ -21,12 +21,12 @@ modules arrive:
 | module | owns | imported by |
 |---|---|---|
 | `hyperprior` | how a field is a point or a distribution, its bounds, and its resolution to points | every module |
-| `dataset` | the output contract: what one draw returns and what each of its types guarantees on its own | every module |
+| `dataset` | the output contract: what one draw returns and what each of its types guarantees on its own, the generator a key gives | every module |
 | `column` | the design-column budget and the post-hoc types: each column's name, type and K, and its values from its node's ranks | draw |
 | `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent hubs first, the block bonus, the family per node | draw |
 | `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |
 | `marginal` | the catalogue of continuous families: a sample of each, in its standard form | dataset, column |
-| `draw` | the key and the pipeline: one generator per key, threaded through the modules in a fixed order, nodes joined to columns by name | the package's `__init__` |
+| `draw` | the pipeline: the key's generator, threaded through the modules in a fixed order, nodes joined to columns by name | the package's `__init__` |
 
 ## Design
 
