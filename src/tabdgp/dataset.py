@@ -11,6 +11,8 @@ from pydantic.dataclasses import dataclass
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.marginal import Family
 
+Mechanism = Literal['linear', 'mlp', 'noise']
+
 # =====================================================================================
 # the key
 # =====================================================================================
@@ -51,6 +53,11 @@ class Column:
         if self.type != 'continuous' and self.marginal is not None:
             raise ValueError(f'a {self.type} column has no marginal, got {self.marginal}')
 
+    @property
+    def width(self) -> int:
+        """Its design columns: 1 if continuous, K − 1 if not."""
+        return 1 if self.levels is None else self.levels - 1
+
 
 # =====================================================================================
 # the generating graph
@@ -64,7 +71,7 @@ class Graph:
     names: list[str]
     parents: np.ndarray  # (n, n) bool, parents[j, i] if i is a parent of j
     latent: np.ndarray  # (n,) bool
-    mechanism: list[Literal['linear', 'mlp', 'noise']]
+    mechanism: list[Mechanism]
 
     def __post_init__(self) -> None:
         n = len(self.names)
