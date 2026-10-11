@@ -1,6 +1,6 @@
 [project]
 name = "tabdgp"
-version = "0.0.0"
+version = "0.0.1"
 description = "A data-generating process for grouped and flat tables, matched to a registry of real tables"
 readme = "README.md"
 license = "MIT"
