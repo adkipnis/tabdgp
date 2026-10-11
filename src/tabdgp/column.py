@@ -1,4 +1,4 @@
-"""column.py defines the observed columns: their types and levels under the design-column budget, and their values.
+"""column.py defines the observed columns: their types and levels, and their values.
 
 pipeline:
 ---------
