@@ -9,6 +9,7 @@ from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
 from tabdgp.hyperprior import Hyperprior
+from tabdgp.marginal import Family
 
 # =====================================================================================
 # the key
@@ -35,7 +36,7 @@ class Column:
     type: Literal['continuous', 'binary', 'categorical', 'ordered']
     levels: int | None = None  # K
     role: Literal['covariate'] = 'covariate'
-    marginal: str | None = None  # the family a continuous column was matched to
+    marginal: Family | None = None  # the family a continuous column was matched to
 
     def __post_init__(self) -> None:
         # binary is exactly K = 2 and categorical or ordered K ≥ 3, so no two types overlap
