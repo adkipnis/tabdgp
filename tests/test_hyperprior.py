@@ -114,7 +114,7 @@ def test_resolved_shares_choose_a_category_by_its_share() -> None:
         rng
     )
     assert resolved.type_shares.choose(rng) == 'binary'
-    chosen = resolved.mechanism_shares.choose(rng, size=200)  # (200,)
+    chosen = resolved.mechanism_shares.chooseMany(rng, 200)  # (200,)
     assert chosen.shape == (200,)
     assert set(chosen) == {'linear', 'mlp'}
 

@@ -129,10 +129,11 @@ class Shares(dict[str, float]):
             shares[name] = 1.0 if name == category else 0.0
         return shares
 
-    def choose(self, rng: np.random.Generator, size: int | None = None) -> str | np.ndarray:
-        """One category, or an array of `size` categories."""
-        chosen = rng.choice(list(self), size=size, p=list(self.values()))
-        return str(chosen) if size is None else chosen
+    def choose(self, rng: np.random.Generator) -> str:
+        return str(rng.choice(list(self), p=list(self.values())))
+
+    def chooseMany(self, rng: np.random.Generator, size: int) -> np.ndarray:
+        return rng.choice(list(self), size=size, p=list(self.values()))  # (size,)
 
 
 Integer = int | UniformInt | LogUniformInt

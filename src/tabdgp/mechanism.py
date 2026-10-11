@@ -55,7 +55,7 @@ def propagate(
     """Every node's values by name in the graph's order, each z-scored and its own array."""
     n = len(graph.names)
     n_obs = resolved.n_obs
-    activations = resolved.activation_shares.choose(rng, size=n)  # (n,)
+    activations = resolved.activation_shares.chooseMany(rng, n)  # (n,)
     values = np.empty((n_obs, n), dtype=np.float32)  # (N, n)
     for j in range(n):
         noise = rng.standard_normal(n_obs, dtype=np.float32)  # (N,)
