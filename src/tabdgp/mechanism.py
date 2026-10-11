@@ -14,10 +14,11 @@ the generating graph in topological order
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import get_args
 
 import numpy as np
 
-from tabdgp.dataset import Graph
+from tabdgp.dataset import Graph, Mechanism
 from tabdgp.hyperprior import Hyperprior
 
 # =====================================================================================
@@ -36,6 +37,12 @@ def _identity(x: np.ndarray) -> np.ndarray:
 
 ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin, 'identity': _identity}
 
+# a category added to the hyperprior's shares or to a catalogue alone fails here, not when drawn
+if set(ACTIVATIONS) != set(Hyperprior.categories('activation_shares')):
+    raise ValueError(f'activations {list(ACTIVATIONS)} differ from activation_shares')
+if set(get_args(Mechanism)) != {'noise', *Hyperprior.categories('mechanism_shares')}:
+    raise ValueError(f'mechanisms {get_args(Mechanism)} differ from mechanism_shares and noise')
+
 
 # =====================================================================================
 # propagation
@@ -43,12 +50,12 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin, 'identity': _ident
 
 
 def propagate(
-    graph: Graph, resolved: Hyperprior, n_obs: int, rng: np.random.Generator
+    graph: Graph, resolved: Hyperprior, rng: np.random.Generator
 ) -> dict[str, np.ndarray]:
     """Every node's values by name in the graph's order, each z-scored and its own array."""
     n = len(graph.names)
-    shares = resolved.activation_shares
-    activations = rng.choice(list(shares), size=n, p=list(shares.values()))  # (n,)
+    n_obs = resolved.n_obs
+    activations = resolved.activation_shares.choose(rng, size=n)  # (n,)
     values = np.empty((n_obs, n), dtype=np.float32)  # (N, n)
     for j in range(n):
         noise = rng.standard_normal(n_obs, dtype=np.float32)  # (N,)
