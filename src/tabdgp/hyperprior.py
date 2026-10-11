@@ -169,7 +169,7 @@ class Hyperprior(BaseModel):
         {'continuous': 0.88, 'binary': 0.66, 'categorical': 0.38, 'ordered': 0.08}
     )  # twice the envelope witnesses' shares, so that corners get mass
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # K is 2 + Geometric(levels_p)
-    max_levels: Annotated[int, Field(ge=2)] | None = None  # caps K; none keeps the registry's tail
+    max_levels: Annotated[int, Field(ge=3)] | None = None  # caps K; none keeps the registry's tail
 
     # graph
     latent_nodes: Count = UniformInt(0, 3)
