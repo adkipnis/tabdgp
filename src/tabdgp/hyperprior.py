@@ -234,7 +234,9 @@ class Hyperprior(BaseModel):
             min(shares.values()) < 0 or not math.isclose(sum(shares.values()), 1)
         ):
             raise ValueError(f'shares {shares} do not lie on the simplex')
-        return value if isinstance(value, Dirichlet) else Shares(value)
+        # a draw takes the categories by place, so they follow the default's order, not the override's
+        ordered = {name: shares[name] for name in categories}
+        return Dirichlet(ordered) if isinstance(value, Dirichlet) else Shares(ordered)
 
     @classmethod
     def categories(cls, field: str) -> list[str]:
