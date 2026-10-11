@@ -56,7 +56,7 @@ OUT_OF_RANGE = [
     pytest.param({'levels_p': 1.5}, id='a probability above 1'),
     pytest.param({'zero_share': 1.0}, id='a point on an open bound'),
     pytest.param({'student_df': Uniform(-1, 5)}, id='a support across zero for a positive field'),
-    pytest.param({'max_levels': 1}, id='fewer than two levels'),
+    pytest.param({'max_levels': 2}, id='a cap that leaves no categorical'),
     pytest.param({'type_shares': ALL_CONTINUOUS | {'binary': 0.5}}, id='shares above 1'),
     pytest.param(
         {'type_shares': ALL_CONTINUOUS | {'continuous': 1.5, 'binary': -0.5}}, id='a negative share'
