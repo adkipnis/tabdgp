@@ -119,8 +119,8 @@ the overrides and the hyperprior
   on how, then the pipeline, one `-> result` line per step with its function on the right.
   Who imports the module is the [map](#modules)'s.
 - `# ====` banners separate globals, classes and main, `# ----` banners subsections. Each is
-  named in plain words, with one comment line on why the section exists unless a class
-  docstring below says it.
+  named in plain words, with one comment line on why the section exists where neither the
+  name nor a class docstring below says it.
 - Public functions first, then the `_` steps in run order; the docstring's pipeline is the
   module's table of contents.
 - A script's `__main__` reads as the run's table of contents.
