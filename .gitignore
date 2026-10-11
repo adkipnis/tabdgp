@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+# local agent instructions (docs/conventions.md is the public part)
+CLAUDE.md
