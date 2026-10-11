@@ -5,8 +5,11 @@ reasons behind the larger rules are in the [ADRs](adr).
 
 ## Tooling
 
-- Python 3.14 through `uv` only; `uv run` for everything, every command from the repository
-  root, without `cd`.
+- Python through `uv` only; `uv run` for everything, every command from the repository root,
+  without `cd`.
+- Python 3.12 and newer supported, developed on 3.14, CI on both.
+  The floor rises only when a dependency or a language feature needs it,
+  and never past the oldest version [SPEC 0](https://scientific-python.org/specs/spec-0000/) supports.
 - `ruff format` and `pytest`, run by CI.
 - Open an issue before adding a heavyweight dependency.
 

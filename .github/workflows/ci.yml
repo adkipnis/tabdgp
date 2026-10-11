@@ -1,5 +1,5 @@
-# Format check and the fast tests on three operating systems; the slow proofs run by hand or
-# on the cluster (`uv run pytest -m slow`).
+# Format check and the fast tests on three operating systems and on the oldest and newest
+# supported Python; the slow proofs run by hand or on the cluster (`uv run pytest -m slow`).
 name: CI
 
 on:
@@ -13,12 +13,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ['3.12', '3.14']
+    name: ${{ matrix.os }}, Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0  # setup-uv publishes no major tag
         with:
-          python-version: '3.14'
+          python-version: ${{ matrix.python }}
       - run: uv sync
       - run: uv run ruff format --check .
       - run: uv run pytest -rs

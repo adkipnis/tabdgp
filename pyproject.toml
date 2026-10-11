@@ -6,11 +6,13 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Alex Kipnis", email = "adkipnis@users.noreply.github.com" }]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 classifiers = [
     "Development Status :: 1 - Planning",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
