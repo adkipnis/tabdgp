@@ -25,6 +25,7 @@ modules arrive:
 | `column` | the design-column budget and the post-hoc types: each column's type and K, and its codes | draw |
 | `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent hubs first, the block bonus, the family per node | draw |
 | `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |
+| `marginal` | the catalogue of continuous families and rank matching: a continuous column gets exactly its family's sample, in the node's order | draw |
 
 ## Design
 
