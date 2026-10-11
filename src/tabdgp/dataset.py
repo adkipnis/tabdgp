@@ -11,7 +11,7 @@ from pydantic.dataclasses import dataclass
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.marginal import Family
 
-Mechanism = Literal['linear', 'mlp', 'noise']
+Mechanism = Literal['linear', 'mlp']
 
 # =====================================================================================
 # the key
@@ -24,6 +24,9 @@ class Key:
 
     seed: Annotated[int, Field(ge=0)]
     index: Annotated[int, Field(ge=0)]
+
+    def generator(self) -> np.random.Generator:
+        return np.random.default_rng([self.seed, self.index])
 
 
 # =====================================================================================
@@ -71,7 +74,7 @@ class Graph:
     names: list[str]
     parents: np.ndarray  # (n, n) bool, parents[j, i] if i is a parent of j
     latent: np.ndarray  # (n,) bool
-    mechanism: list[Mechanism]
+    mechanism: list[Mechanism]  # a root's values are its noise whatever its family
 
     def __post_init__(self) -> None:
         n = len(self.names)
@@ -80,10 +83,6 @@ class Graph:
             raise ValueError(f'{n} names, but parents, latent and mechanism have shapes {shapes}')
         if np.triu(self.parents).any():
             raise ValueError('a parent on or above the diagonal breaks the topological order')
-        roots = ~self.parents.any(axis=1)  # (n,)
-        noise = np.array(self.mechanism) == 'noise'  # (n,)
-        if (roots != noise).any():
-            raise ValueError(f'noise must be the mechanism of exactly the roots {roots.tolist()}')
 
 
 # =====================================================================================
