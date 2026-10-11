@@ -28,14 +28,14 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
     while remainder > 0:
         column = _column(resolved, remainder, rng)
         columns[f'x{len(columns)}'] = column
-        remainder -= 1 if column.levels is None else column.levels - 1
+        remainder -= column.width
     return columns
 
 
 def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> Column:
-    type = _choose(resolved.type_shares, rng)
+    type = resolved.type_shares.choose(rng)
     if type == 'continuous':
-        return Column(type=type, marginal=_choose(resolved.marginal_shares, rng))
+        return Column(type=type, marginal=resolved.marginal_shares.choose(rng))
     levels = 2 if type == 'binary' else 2 + int(rng.geometric(resolved.levels_p))
     if resolved.max_levels is not None:
         levels = min(levels, resolved.max_levels)
@@ -44,10 +44,6 @@ def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> C
     if levels == 2:
         type = 'binary'
     return Column(type=type, levels=levels)
-
-
-def _choose(shares: dict[str, float], rng: np.random.Generator) -> str:
-    return str(rng.choice(list(shares), p=list(shares.values())))
 
 
 # =====================================================================================
