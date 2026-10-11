@@ -24,6 +24,7 @@ modules arrive:
 | `dataset` | the output contract: what one draw returns and what each of its types guarantees on its own | every module |
 | `column` | the design-column budget and the post-hoc types: each column's type and K, and its codes | draw |
 | `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent hubs first, the block bonus, the family per node | draw |
+| `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |
 
 ## Design
 
