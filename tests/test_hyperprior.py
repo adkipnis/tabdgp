@@ -134,7 +134,7 @@ def test_a_point_mass_puts_every_share_on_its_category() -> None:
 CATALOGUES = [
     pytest.param(set(FAMILIES), 'marginal_shares', id='marginal families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
-    pytest.param(set(get_args(Mechanism)) - {'noise'}, 'mechanism_shares', id='mechanism families'),
+    pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
 ]
 
 

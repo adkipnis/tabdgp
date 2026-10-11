@@ -69,6 +69,13 @@ def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
         Key(seed=seed, index=index)
 
 
+def test_a_key_generator_is_default_rng_of_seed_and_index() -> None:
+    """The key-to-generator rule is the corpus's identity; a change to it redraws every dataset."""
+    key = Key(seed=3, index=5)
+    expected = np.random.default_rng([3, 5]).bit_generator.state
+    assert key.generator().bit_generator.state == expected
+
+
 @pytest.mark.parametrize(('child', 'parent'), [(0, 1), (1, 1)], ids=['above', 'on'])
 def test_a_parent_on_or_above_the_diagonal_fails(child: int, parent: int) -> None:
     """parents[j, i] says i is a parent of j; only i < j keeps the names in topological order."""
@@ -81,7 +88,7 @@ def test_a_parent_on_or_above_the_diagonal_fails(child: int, parent: int) -> Non
 MISMATCHED = [
     pytest.param({'names': ['x0', 'x1']}, id='names one short'),
     pytest.param({'latent': np.zeros(2, dtype=bool)}, id='latent one short'),
-    pytest.param({'mechanism': ['noise', 'noise']}, id='mechanism one short'),
+    pytest.param({'mechanism': ['linear', 'linear']}, id='mechanism one short'),
     pytest.param({'parents': np.zeros((3, 2), dtype=bool)}, id='parents not square'),
 ]
 
@@ -93,20 +100,10 @@ def test_graph_fields_of_different_lengths_fail(change: dict) -> None:
         'names': ['x0', 'x1', 'x2'],
         'parents': np.zeros((3, 3), dtype=bool),
         'latent': np.zeros(3, dtype=bool),
-        'mechanism': ['noise', 'noise', 'noise'],
+        'mechanism': ['linear', 'linear', 'linear'],
     }
     with pytest.raises(ValidationError):
         Graph(**fields | change)
-
-
-@pytest.mark.parametrize('mechanism', [['linear', 'mlp'], ['noise', 'noise']])
-def test_noise_is_the_mechanism_of_exactly_the_roots(mechanism: list[str]) -> None:
-    """A root's mechanism is its noise; a node with parents computes from them."""
-    parents = np.array([[False, False], [True, False]])
-    with pytest.raises(ValidationError):
-        Graph(
-            names=['x0', 'x1'], parents=parents, latent=np.zeros(2, dtype=bool), mechanism=mechanism
-        )
 
 
 def test_an_empty_graph_is_valid() -> None:

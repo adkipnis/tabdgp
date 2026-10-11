@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from tabdgp.dataset import Graph
 from tabdgp.graph import connect
 from tabdgp.hyperprior import Hyperprior
+from tests.fixtures.build import point
 
 # connect carries whatever names the plan gives it; letters show that it mints none of its own
 OBSERVED = list('abcdefghij')
@@ -41,14 +43,12 @@ def test_latent_nodes_precede_observed_ones() -> None:
     assert sorted(graph.names[3:]) == ['a', 'b', 'c', 'd', 'e']
 
 
-def test_a_root_has_the_noise_mechanism_and_every_other_node_a_drawn_family() -> None:
-    """A node without parents is its noise; the rest follow the per-dataset mechanism shares."""
-    all_mlp = {'linear': 0.0, 'mlp': 1.0}
+@pytest.mark.parametrize('family', ['linear', 'mlp'])
+def test_every_node_draws_its_family_from_the_mechanism_shares(family: str) -> None:
+    """The mechanism shares are honoured for every node, roots included."""
     for seed in range(20):
-        graph = _connect(seed, 8, mechanism_shares=all_mlp)
-        roots = ~graph.parents.any(axis=1)  # (n,)
-        expected = ['noise' if root else 'mlp' for root in roots]
-        assert graph.mechanism == expected
+        graph = _connect(seed, 8, mechanism_shares=point('mechanism_shares', family))
+        assert graph.mechanism == [family] * len(graph.names)
 
 
 def _density(offset: float, **overrides: object) -> float:
