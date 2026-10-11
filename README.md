@@ -27,7 +27,11 @@ covariates with the quirks of real data.
 
 ## Install
 
-Not yet released. From source:
+```
+pip install tabdgp
+```
+
+From source:
 
 ```
 git clone https://github.com/adkipnis/tabdgp
