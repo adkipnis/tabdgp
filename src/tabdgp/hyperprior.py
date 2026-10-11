@@ -129,7 +129,7 @@ def _within(
 ) -> AfterValidator:
     """A field's bounds, checked on a point or on the closure of a distribution's support."""
 
-    def check(value: int | float | Distribution) -> int | float | Distribution:
+    def check(value: float | Distribution) -> float | Distribution:
         # an open bound admits a support that touches it: the endpoint is drawn with probability 0
         if isinstance(value, Distribution):
             low, high = value.support()
