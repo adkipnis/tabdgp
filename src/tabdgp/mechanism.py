@@ -40,8 +40,8 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin, 'identity': _ident
 # a category added to the hyperprior's shares or to a catalogue alone fails here, not when drawn
 if set(ACTIVATIONS) != set(Hyperprior.categories('activation_shares')):
     raise ValueError(f'activations {list(ACTIVATIONS)} differ from activation_shares')
-if set(get_args(Mechanism)) != {'noise', *Hyperprior.categories('mechanism_shares')}:
-    raise ValueError(f'mechanisms {get_args(Mechanism)} differ from mechanism_shares and noise')
+if set(get_args(Mechanism)) != set(Hyperprior.categories('mechanism_shares')):
+    raise ValueError(f'mechanisms {get_args(Mechanism)} differ from mechanism_shares')
 
 
 # =====================================================================================
@@ -59,7 +59,7 @@ def propagate(
     values = np.empty((n_obs, n), dtype=np.float32)  # (N, n)
     for j in range(n):
         noise = rng.standard_normal(n_obs, dtype=np.float32)  # (N,)
-        if graph.mechanism[j] == 'noise':
+        if not graph.parents[j].any():  # a root is its noise
             values[:, j] = _zscore(noise)
             continue
         layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
