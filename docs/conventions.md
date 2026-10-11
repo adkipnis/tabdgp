@@ -20,6 +20,7 @@ modules arrive:
 
 | module | owns | imported by |
 |---|---|---|
+| `hyperprior` | how a field is a point or a distribution, its bounds, and its resolution to points | every module |
 
 ## Design
 
