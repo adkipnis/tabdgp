@@ -16,7 +16,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.3,<3",
+]
 
 [project.urls]
 Repository = "https://github.com/adkipnis/tabdgp"
@@ -28,6 +30,7 @@ dev = [
     "pytest",
     "hypothesis",
     "ruff",
+    "ipykernel",
 ]
 
 [build-system]
