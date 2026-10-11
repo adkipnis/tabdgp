@@ -17,12 +17,12 @@ from tabdgp.hyperprior import (
     Hyperprior,
     LogUniform,
     LogUniformInt,
-    Shares,
     Uniform,
     UniformInt,
 )
 from tabdgp.marginal import FAMILIES
 from tabdgp.mechanism import ACTIVATIONS
+from tests.fixtures.build import point
 
 
 def test_the_defaults_validate() -> None:
@@ -126,7 +126,7 @@ def test_a_shares_field_names_its_default_categories() -> None:
 
 def test_a_point_mass_puts_every_share_on_its_category() -> None:
     """Tests force one type, family or activation through a point mass over the field's categories."""
-    shares = Shares.point(Hyperprior.categories('type_shares'), 'ordered')
+    shares = point('type_shares', 'ordered')
     assert shares == {'continuous': 0.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 1.0}
     assert Hyperprior(type_shares=shares).type_shares == shares
 
