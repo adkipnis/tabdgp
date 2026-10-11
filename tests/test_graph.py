@@ -112,3 +112,20 @@ def test_every_latent_node_has_a_child_when_a_later_node_exists() -> None:
         assert has_child[graph.latent].all()
     last = _connect(0, 0, latent_nodes=1, **sparse)
     assert not last.parents.any()
+
+
+def _degree_spread(hub_scale: float) -> float:
+    """The mean over 50 graphs of 10 nodes of the standard deviation of the nodes' degrees."""
+    spreads = []
+    for seed in range(50):
+        graph = _connect(
+            seed, 10, latent_nodes=0, edge_offset=0.0, hub_scale=hub_scale, block_bonus=0.0
+        )
+        degree = graph.parents.sum(axis=0) + graph.parents.sum(axis=1)  # (n,)
+        spreads.append(degree.std())
+    return float(np.mean(spreads))
+
+
+def test_a_larger_hub_scale_spreads_the_degrees() -> None:
+    """hub_scale scales the Cauchy node terms, so a large one makes a few nodes hubs."""
+    assert _degree_spread(2.0) > 1.2 * _degree_spread(0.0)
