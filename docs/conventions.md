@@ -21,6 +21,7 @@ modules arrive:
 | module | owns | imported by |
 |---|---|---|
 | `hyperprior` | how a field is a point or a distribution, its bounds, and its resolution to points | every module |
+| `dataset` | the output contract: what one draw returns and what each of its types guarantees on its own | every module |
 
 ## Design
 
