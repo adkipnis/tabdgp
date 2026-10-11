@@ -134,3 +134,12 @@ def test_an_empty_graph_gives_rows_without_columns() -> None:
     resolved = Hyperprior(n_obs=50, latent_nodes=0).resolve(rng)
     graph = connect(resolved, [], rng)
     assert propagate(graph, resolved, rng) == {}
+
+
+def test_an_mlp_node_with_a_non_identity_activation_is_non_linear_in_its_parent() -> None:
+    """At low noise, a linear map keeps the parent's correlation near 1; a sin MLP must lose it."""
+    graph = graphOf([[], [0]], ['linear', 'mlp'])
+    sin = point('activation_shares', 'sin')
+    for seed in range(10):
+        values = _run(graph, 2000, seed, noise_scale=0.01, init_scale=3.0, activation_shares=sin)
+        assert abs(np.corrcoef(values.T)[0, 1]) < 0.9
