@@ -1,13 +1,14 @@
-"""marginal.py defines the marginals: the catalogue of families a continuous column is mapped onto, and rank matching.
+"""marginal.py defines the marginals: the catalogue of families a continuous column's values are sampled from.
 
 pipeline:
 ---------
 a family and its resolved parameters
 -> a sample of size N                                    FAMILIES
--> placed by the ranks of the node's values              match
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 import numpy as np
 
@@ -18,6 +19,16 @@ from tabdgp.hyperprior import Hyperprior
 # =====================================================================================
 # scamd's marginal catalogue, narrowed to continuous families: skewed, heavy-tailed, bounded,
 # zero-inflated and bimodal, each in its standard form: no field draws a location or scale.
+
+Family = Literal[
+    'normal',
+    'lognormal',
+    'student_t',
+    'beta',
+    'uniform',
+    'zero_inflated_lognormal',
+    'normal_mixture',
+]
 
 
 def _normal(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
@@ -60,19 +71,3 @@ FAMILIES = {
     'zero_inflated_lognormal': _zero_inflated_lognormal,
     'normal_mixture': _normal_mixture,
 }
-
-
-# =====================================================================================
-# rank matching
-# =====================================================================================
-
-
-def match(
-    values: np.ndarray, family: str, resolved: Hyperprior, rng: np.random.Generator
-) -> np.ndarray:
-    """The node's values replaced by a sample of the family, keeping their ranks."""
-    sample = np.sort(FAMILIES[family](len(values), resolved, rng))  # (N,)
-    # Iman and Conover (1982), https://doi.org/10.1080/03610918208812265: the sorted sample
-    # placed by the node's ranks is a permutation of it, never a quantile lookup that resamples
-    ranks = np.argsort(np.argsort(values))  # (N,)
-    return sample[ranks].astype(np.float32)
