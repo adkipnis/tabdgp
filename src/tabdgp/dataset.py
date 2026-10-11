@@ -41,7 +41,7 @@ class Column:
 
     type: ColumnType
     levels: int | None = None  # K
-    role: Literal['covariate'] = 'covariate'
+    role: Literal['covariate'] = 'covariate'  # the only role until grouping factors arrive
     marginal: Family | None = None  # the family a continuous column was matched to
 
     def __post_init__(self) -> None:
