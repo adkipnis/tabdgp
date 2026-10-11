@@ -1,0 +1,49 @@
+[project]
+name = "tabdgp"
+version = "0.0.0"
+description = "A data-generating process for grouped and flat tables, matched to a registry of real tables"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Alex Kipnis", email = "adkipnis@users.noreply.github.com" }]
+requires-python = ">=3.14"
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/adkipnis/tabdgp"
+Issues = "https://github.com/adkipnis/tabdgp/issues"
+Roadmap = "https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "hypothesis",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]  # PEP 639 licence expression and licence files
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tabdgp"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not slow' --import-mode=importlib"
+markers = [
+    "slow: draws thousands of datasets (the proofs against mixedbench's registry); runs by `-m slow`",
+]
