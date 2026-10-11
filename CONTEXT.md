@@ -48,6 +48,22 @@ _Avoid_: dtype, encoding (the design matrix's)
 
 ### The draw
 
+**Draw**:
+The one public call: given a key and a hyperprior, one dataset, a pure function of both. Who
+draws many loops over indices.
+_Avoid_: sample (a row or a value), generate, batch
+
+**Key**:
+A seed and an index, the identity of one dataset: the same key, hyperprior and TabDGP version
+give the same dataset bitwise, whatever the batch, worker or shard it is drawn in.
+_Avoid_: rng, random state, seed alone
+
+**Dataset**:
+What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
+generating graph, the latent nodes' values, the hyperparameters every field resolved to, and
+the key. Never padded, never a file.
+_Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
+
 **Hyperprior**:
 The one config of distributions from which every quantity of a dataset is drawn: sizes,
 graph, mechanisms, marginals, types, quirks. Its defaults are matched to mixedbench's registry
