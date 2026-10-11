@@ -121,9 +121,9 @@ the overrides and the hyperprior
 - `# ====` banners separate globals, classes and main, `# ----` banners subsections. Each is
   named in plain words, with one comment line on why the section exists unless a class
   docstring below says it.
-- One pipeline class per module: public methods first, then its steps in run order under a
-  `# ----` banner naming the pipeline.
-- A script's `__main__` creates its pipeline class and reads as the run's table of contents.
+- Public functions first, then the `_` steps in run order; the docstring's pipeline is the
+  module's table of contents.
+- A script's `__main__` reads as the run's table of contents.
 
 ## Comments and docstrings
 
