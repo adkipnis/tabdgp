@@ -121,14 +121,6 @@ class Dirichlet(Distribution):
 class Shares(dict[str, float]):
     """A point on the simplex: each category's share, from which a category is chosen."""
 
-    @classmethod
-    def point(cls, categories: list[str], category: str) -> Shares:
-        """All mass on one category."""
-        shares = cls()
-        for name in categories:
-            shares[name] = 1.0 if name == category else 0.0
-        return shares
-
     def choose(self, rng: np.random.Generator) -> str:
         return str(rng.choice(list(self), p=list(self.values())))
 
