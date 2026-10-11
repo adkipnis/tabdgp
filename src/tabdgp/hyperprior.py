@@ -119,9 +119,26 @@ class Dirichlet(Distribution):
         return dict(zip(self.alpha, shares.tolist()))
 
 
+class Shares(dict[str, float]):
+    """A point on the simplex: each category's share, from which a category is chosen."""
+
+    @classmethod
+    def point(cls, categories: list[str], category: str) -> Shares:
+        """All mass on one category."""
+        shares = cls()
+        for name in categories:
+            shares[name] = 1.0 if name == category else 0.0
+        return shares
+
+    def choose(self, rng: np.random.Generator, size: int | None = None) -> str | np.ndarray:
+        """One category, or an array of `size` categories."""
+        chosen = rng.choice(list(self), size=size, p=list(self.values()))
+        return str(chosen) if size is None else chosen
+
+
 Integer = int | UniformInt | LogUniformInt
 Real = float | Uniform | LogUniform | Beta
-Shares = dict[str, float] | Dirichlet
+Simplex = dict[str, float] | Dirichlet
 
 
 def _within(
@@ -165,7 +182,7 @@ class Hyperprior(BaseModel):
     # sizes and columns
     n_obs: PositiveCount = LogUniformInt(20, 15000)  # rows
     design_columns: Count = UniformInt(0, 19)  # metabeta's d − 1
-    type_shares: Shares = Dirichlet(
+    type_shares: Simplex = Dirichlet(
         {'continuous': 0.88, 'binary': 0.66, 'categorical': 0.38, 'ordered': 0.08}
     )  # twice the envelope witnesses' shares, so that corners get mass
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # K is 2 + Geometric(levels_p)
@@ -180,15 +197,15 @@ class Hyperprior(BaseModel):
     block_bonus: NonNegative = Uniform(0, 3)  # added to the edge logit within a block
 
     # mechanisms
-    mechanism_shares: Shares = Dirichlet({'linear': 1, 'mlp': 1})
+    mechanism_shares: Simplex = Dirichlet({'linear': 1, 'mlp': 1})
     hidden: PositiveCount = LogUniformInt(4, 64)  # MLP width
     layers: PositiveCount = UniformInt(1, 3)  # MLP depth
-    activation_shares: Shares = Dirichlet({'tanh': 1, 'relu': 1, 'sin': 1, 'identity': 1})
+    activation_shares: Simplex = Dirichlet({'tanh': 1, 'relu': 1, 'sin': 1, 'identity': 1})
     init_scale: NonNegative = LogUniform(0.1, 3)  # MLP weights are N(0, init_scale² / fan_in)
     noise_scale: NonNegative = LogUniform(0.01, 1)  # relative to the z-scored node
 
     # marginals
-    marginal_shares: Shares = Dirichlet(
+    marginal_shares: Simplex = Dirichlet(
         {
             'normal': 1,
             'lognormal': 1,
@@ -209,16 +226,21 @@ class Hyperprior(BaseModel):
 
     @field_validator('type_shares', 'mechanism_shares', 'activation_shares', 'marginal_shares')
     @classmethod
-    def _shares_name_the_default_categories(cls, value: Shares, info: ValidationInfo) -> Shares:
-        categories = cls.model_fields[info.field_name].default.alpha.keys()
+    def _shares_name_the_default_categories(cls, value: Simplex, info: ValidationInfo) -> Simplex:
+        categories = cls.categories(info.field_name)
         shares = value.alpha if isinstance(value, Dirichlet) else value
-        if shares.keys() != categories:
-            raise ValueError(f'shares name {list(shares)}, not {list(categories)}')
+        if shares.keys() != set(categories):
+            raise ValueError(f'shares name {list(shares)}, not {categories}')
         if not isinstance(value, Dirichlet) and (
             min(shares.values()) < 0 or not math.isclose(sum(shares.values()), 1)
         ):
             raise ValueError(f'shares {shares} do not lie on the simplex')
-        return value
+        return value if isinstance(value, Dirichlet) else Shares(value)
+
+    @classmethod
+    def categories(cls, field: str) -> list[str]:
+        """The categories a shares field names, in its default's order."""
+        return list(cls.model_fields[field].default.alpha)
 
     def resolve(self, rng: np.random.Generator) -> Hyperprior:
         """The same fields with every distribution replaced by one draw from it."""
