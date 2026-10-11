@@ -1,10 +1,11 @@
-"""column.py defines the observed columns: their types and levels under the design-column budget, and their codes.
+"""column.py defines the observed columns: their types and levels under the design-column budget, and their values.
 
 pipeline:
 ---------
 the resolved shares and budget
--> one column after another until the budget is met            plan
--> per column, codes cut from the node's ranks at level shares    apply
+-> one named column after another until the budget is met     plan
+-> per column, a sorted marginal sample or codes in order      apply, _codes
+-> placed by the node's ranks                                  apply
 """
 
 from __future__ import annotations
@@ -13,19 +14,20 @@ import numpy as np
 
 from tabdgp.dataset import Column
 from tabdgp.hyperprior import Hyperprior
+from tabdgp.marginal import FAMILIES
 
 # =====================================================================================
 # the column plan
 # =====================================================================================
 
 
-def plan(resolved: Hyperprior, rng: np.random.Generator) -> list[Column]:
-    """Columns drawn one after another until their design columns fill the budget exactly."""
-    columns = []
+def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
+    """Columns x0, x1, … drawn one after another until their design columns fill the budget exactly."""
+    columns = {}
     remainder = resolved.design_columns
     while remainder > 0:
         column = _column(resolved, remainder, rng)
-        columns.append(column)
+        columns[f'x{len(columns)}'] = column
         remainder -= 1 if column.levels is None else column.levels - 1
     return columns
 
@@ -49,15 +51,27 @@ def _choose(shares: dict[str, float], rng: np.random.Generator) -> str:
 
 
 # =====================================================================================
-# the codes
+# the values
 # =====================================================================================
 
 
 def apply(
     values: np.ndarray, column: Column, resolved: Hyperprior, rng: np.random.Generator
 ) -> np.ndarray:
-    """Codes 0..K−1 cut from the values' ranks at drawn level shares, every level present if N ≥ K."""
-    n = len(values)
+    """The column's values in the node's order: its marginal's sample if continuous, its codes if not."""
+    if column.type == 'continuous':
+        sample = FAMILIES[column.marginal](len(values), resolved, rng)  # (N,)
+        by_rank = np.sort(sample).astype(np.float32)  # (N,)
+    else:
+        by_rank = _codes(len(values), column, resolved, rng)  # (N,)
+    # Iman and Conover (1982), https://doi.org/10.1080/03610918208812265: the sorted values
+    # placed by the node's ranks are a permutation of them, never a quantile lookup that resamples
+    ranks = np.argsort(np.argsort(values))  # (N,)
+    return by_rank[ranks]
+
+
+def _codes(n: int, column: Column, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
+    # codes 0..K−1 in rank order, cut at drawn level shares, every level present if N ≥ K
     k = column.levels
     shares = rng.dirichlet(np.full(k, resolved.level_alpha))  # (K,)
     # one row per level first, the rest split at the shares' quantiles
@@ -68,5 +82,4 @@ def apply(
     if column.type == 'categorical':
         # nominal levels have no order along the node; permuting the labels is TabICL v1's idea
         codes_by_rank = rng.permutation(k)[codes_by_rank]
-    ranks = np.argsort(np.argsort(values))  # (N,)
-    return codes_by_rank[ranks]
+    return codes_by_rank
