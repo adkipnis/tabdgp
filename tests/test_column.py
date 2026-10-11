@@ -108,6 +108,15 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
             assert np.array_equal(np.unique(codes), np.arange(column.levels))
 
 
+def test_apply_gives_valid_codes_when_n_is_below_k() -> None:
+    """A small n_obs override can leave fewer rows than levels; each row still gets a code below K."""
+    column = Column(type='categorical', levels=6)
+    for seed in range(10):
+        codes = _apply(3, column, seed)
+        assert len(codes) == 3
+        assert set(codes.tolist()) <= set(range(column.levels))
+
+
 def _monotone(n: int, column: Column, seed: int) -> bool:
     """Whether the codes never decrease as the values increase."""
     rng = np.random.default_rng(seed)
