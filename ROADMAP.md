@@ -26,3 +26,22 @@ repository.
   at random or not at random as indicator nodes; dyadic and network data (two factors sharing one level
   set); spatial dependence (a kernel on the node noise). Each extension is specced when a
   consumer needs it
+
+## Release and paper
+
+Decided on 2026-10-11 (ADR 0002): a package release and a JOSS paper first; the matched
+hyperprior's validation as a section of the metabeta paper; a standalone paper only with a
+finding of its own.
+
+- [ ] **7 Release.** After item 4 or 5: PyPI, the Zenodo DOI, the demo notebook, and the
+  JOSS paper as a citable handle; the README states the proofs as consistency checks on the
+  summary vector, never as realism
+- [ ] **8 Quirk census ownership.** Before the mixedbench paper is drafted: decide whether the
+  quirk statistics of the measurement pass (mb#71) go into mixedbench's registry census or
+  stay for TabDGP's paper
+- [ ] **9 Downstream ablations.** Once metabeta.mixed's slice A1 trains: the posterior trained
+  on TabDGP against an i.i.d. prior and a TabICL-style prior, scored on mixedbench; then each
+  quirk axis switched off by an override in turn. The first goes into the metabeta paper
+- [ ] **10 Standalone paper.** Only if item 9's per-quirk ablation shows an effect and a second
+  consumer (item 6, metasurv) exists: TMLR, or NeurIPS Datasets & Benchmarks in a cycle other
+  than mixedbench's; the Table Representation Learning workshop as a first test
