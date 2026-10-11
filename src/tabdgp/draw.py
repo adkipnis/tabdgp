@@ -1,4 +1,4 @@
-"""draw.py defines the key and the pipeline: one dataset as a pure function of its seed and index.
+"""draw.py defines the pipeline: one dataset as a pure function of its seed and index.
 
 One generator is threaded through the steps in a fixed order; a change of that order changes
 every dataset, so it is a version change.
