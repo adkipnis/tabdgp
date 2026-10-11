@@ -47,6 +47,12 @@ line-length = 100
 [tool.ruff.format]
 quote-style = "single"
 
+[tool.ruff.lint]
+ignore = ["RUF015"]  # suggests next() on a generator, which the conventions rule out
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_readme.py" = ["S102"]  # runs the README's quickstart
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not slow' --import-mode=importlib"
