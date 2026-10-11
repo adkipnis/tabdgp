@@ -84,7 +84,7 @@ harder to understand or change; it accrues one small edit at a time.
   not `for`/`else`, `while True` or `next()` on a generator.
 - `a if c else b` only on a short line. Lookup tables are literal dicts or `if` chains, not
   built with comprehensions, `dict.fromkeys` or `|`.
-- A class per concept a reader should hold apart (a mechanism family, a pipeline), static
+- A class per concept a reader should hold apart (a distribution, a column's metadata), static
   methods where it holds no state. A helper or constant used by one class lives on it; module
   functions are for what spans classes.
 - Wrap `argparse` blocks in `# fmt: off` / `# fmt: on`.
