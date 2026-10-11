@@ -10,15 +10,21 @@ the resolved shares and budget
 
 from __future__ import annotations
 
+from typing import get_args
+
 import numpy as np
 
-from tabdgp.dataset import Column
+from tabdgp.dataset import Column, ColumnType
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.marginal import FAMILIES
 
 # =====================================================================================
 # the column plan
 # =====================================================================================
+
+# a type added to type_shares or to Column alone fails here, not when drawn
+if set(get_args(ColumnType)) != set(Hyperprior.categories('type_shares')):
+    raise ValueError(f'column types {get_args(ColumnType)} differ from type_shares')
 
 
 def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:

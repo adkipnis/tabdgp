@@ -10,7 +10,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from tabdgp.dataset import Mechanism
+from tabdgp.dataset import ColumnType, Mechanism
 from tabdgp.hyperprior import (
     Beta,
     Dirichlet,
@@ -161,6 +161,7 @@ CATALOGUES = [
     pytest.param(set(FAMILIES), 'marginal_shares', id='marginal families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
+    pytest.param(set(get_args(ColumnType)), 'type_shares', id='column types'),
 ]
 
 

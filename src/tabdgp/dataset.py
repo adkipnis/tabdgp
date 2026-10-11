@@ -12,6 +12,7 @@ from tabdgp.hyperprior import Hyperprior
 from tabdgp.marginal import Family
 
 Mechanism = Literal['linear', 'mlp']
+ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
 
 # =====================================================================================
 # the key
@@ -38,7 +39,7 @@ class Key:
 class Column:
     """The metadata of one observed column."""
 
-    type: Literal['continuous', 'binary', 'categorical', 'ordered']
+    type: ColumnType
     levels: int | None = None  # K
     role: Literal['covariate'] = 'covariate'
     marginal: Family | None = None  # the family a continuous column was matched to
