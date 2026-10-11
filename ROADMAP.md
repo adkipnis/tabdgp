@@ -12,9 +12,9 @@ repository.
 - [ ] **2 Grouping nodes.** Group-level and within-group covariates, the imbalance draw of
   metabeta's envelope rule 7, within-group time, binary treatment; metabeta.mixed's slice A1
   starts after this. Before its spec, the prior-art search (`docs/prior-art.md`) extended to
-  TabPFN's newest reports (technical reports, papers and posts on how the cutting edge
-  simulates tabular training data, not its source code), amending the ADRs or the remaining
-  roadmap items where they warrant it
+  the newest reports of TabPFN, Mitra and LimiX (technical reports, papers and posts on how the
+  cutting edge simulates tabular training data, not its source code), amending the ADRs or the
+  remaining roadmap items where they warrant it
 - [ ] **3 Measurement pass and proofs.** The measurement pass over mixedbench's cached tables
   ([mixedbench#71](https://github.com/adkipnis/mixedbench/issues/71): the quirk statistics per
   column and per factor, released on PyPI before this item's spec) and the two proof
