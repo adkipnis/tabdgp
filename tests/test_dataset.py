@@ -39,6 +39,12 @@ def test_a_marginal_on_a_discrete_column_fails() -> None:
         Column(type='binary', levels=2, marginal='lognormal')
 
 
+def test_an_unknown_marginal_family_fails_at_construction() -> None:
+    """A family outside the catalogue would otherwise fail only when the column is matched."""
+    with pytest.raises(ValidationError):
+        Column(type='continuous', marginal='gamma')
+
+
 @pytest.mark.parametrize(('seed', 'index'), [(-1, 0), (0, -1)])
 def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
     """default_rng([seed, index]) rejects negative entries, so the key fails where it is written."""

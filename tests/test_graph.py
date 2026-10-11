@@ -8,11 +8,14 @@ from tabdgp.dataset import Graph
 from tabdgp.graph import connect
 from tabdgp.hyperprior import Hyperprior
 
+# connect carries whatever names the plan gives it; letters show that it mints none of its own
+OBSERVED = list('abcdefghij')
+
 
 def _connect(seed: int, n_observed: int, **overrides: object) -> Graph:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolve(rng)
-    return connect(resolved, n_observed, rng)
+    return connect(resolved, OBSERVED[:n_observed], rng)
 
 
 def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
@@ -35,7 +38,7 @@ def test_latent_nodes_precede_observed_ones() -> None:
     graph = _connect(0, 5, latent_nodes=3)
     assert graph.latent.tolist() == [True] * 3 + [False] * 5
     assert graph.names[:3] == ['z0', 'z1', 'z2']
-    assert sorted(graph.names[3:]) == [f'x{k}' for k in range(5)]
+    assert sorted(graph.names[3:]) == ['a', 'b', 'c', 'd', 'e']
 
 
 def test_a_root_has_the_noise_mechanism_and_every_other_node_a_drawn_family() -> None:

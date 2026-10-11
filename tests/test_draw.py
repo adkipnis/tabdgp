@@ -108,7 +108,8 @@ def test_a_distribution_override_is_honoured() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
         dataset = draw(0, index, Hyperprior(n_obs=UniformInt(30, 40), design_columns=1))
-        assert 30 <= len(dataset.columns['x0']) <= 40
+        [values] = dataset.columns.values()
+        assert 30 <= len(values) <= 40
 
 
 def test_a_budget_of_0_gives_no_columns() -> None:

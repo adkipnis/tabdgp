@@ -9,13 +9,35 @@ from tabdgp.graph import connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
 
+OBSERVED = list('abcdefghijkl')
+
+
+def _matrix(nodes: dict[str, np.ndarray]) -> np.ndarray:
+    """(N, n): the nodes side by side in the graph's order."""
+    return np.stack(list(nodes.values()), axis=1)
+
 
 def _propagate(seed: int, n_observed: int, n_obs: int, **overrides: object) -> np.ndarray:
-    """Node values over a graph drawn by connect."""
+    """Node values over a graph drawn by connect, as one matrix."""
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolve(rng)
-    graph = connect(resolved, n_observed, rng)
-    return propagate(graph, resolved, n_obs, rng)
+    graph = connect(resolved, OBSERVED[:n_observed], rng)
+    return _matrix(propagate(graph, resolved, n_obs, rng))
+
+
+def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
+    """draw joins nodes to columns by name and hands the latent ones out as they are.
+
+    A view into every node's values would keep them all alive and read strided.
+    """
+    rng = np.random.default_rng(0)
+    resolved = Hyperprior(latent_nodes=2).resolve(rng)
+    graph = connect(resolved, OBSERVED[:4], rng)
+    nodes = propagate(graph, resolved, 100, rng)
+    assert list(nodes) == graph.names
+    for values in nodes.values():
+        assert values.shape == (100,)
+        assert values.flags.c_contiguous and values.base is None
 
 
 def test_every_node_is_z_scored() -> None:
@@ -41,10 +63,10 @@ def _graph(parents: list[list[int]], mechanism: list[str]) -> Graph:
 
 
 def _run(graph: Graph, n_obs: int, seed: int = 0, **overrides: object) -> np.ndarray:
-    """Node values over a hand-built graph."""
+    """Node values over a hand-built graph, as one matrix."""
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolve(rng)
-    return propagate(graph, resolved, n_obs, rng)
+    return _matrix(propagate(graph, resolved, n_obs, rng))
 
 
 def test_a_root_is_noise() -> None:
@@ -125,5 +147,7 @@ def test_propagate_is_deterministic_under_a_fixed_generator() -> None:
 
 def test_an_empty_graph_gives_rows_without_columns() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
-    values = _propagate(0, 0, 50, latent_nodes=0)
-    assert values.shape == (50, 0)
+    rng = np.random.default_rng(0)
+    resolved = Hyperprior(latent_nodes=0).resolve(rng)
+    graph = connect(resolved, [], rng)
+    assert propagate(graph, resolved, 50, rng) == {}
