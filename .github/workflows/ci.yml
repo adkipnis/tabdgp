@@ -1,5 +1,6 @@
-# Format check and the fast tests on three operating systems and on the oldest and newest
-# supported Python; the slow proofs run by hand or on the cluster (`uv run pytest -m slow`).
+# Format and lint checks and the fast tests,
+# on three operating systems and on the oldest and newest supported Python;
+# the slow proofs run by hand or on the cluster (`uv run pytest -m slow`).
 name: CI
 
 on:
@@ -23,4 +24,5 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync
       - run: uv run ruff format --check .
+      - run: uv run ruff check .
       - run: uv run pytest -rs
