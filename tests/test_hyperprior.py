@@ -131,6 +131,32 @@ def test_a_point_mass_puts_every_share_on_its_category() -> None:
     assert Hyperprior(type_shares=shares).type_shares == shares
 
 
+@pytest.mark.parametrize(
+    'shares',
+    [
+        pytest.param(
+            {'continuous': 0.4, 'binary': 0.3, 'categorical': 0.2, 'ordered': 0.1}, id='point'
+        ),
+        pytest.param(
+            Dirichlet({'continuous': 1, 'binary': 2, 'categorical': 3, 'ordered': 4}),
+            id='dirichlet',
+        ),
+    ],
+)
+def test_the_order_an_override_lists_its_categories_in_changes_no_draw(
+    shares: dict[str, float] | Dirichlet,
+) -> None:
+    """A category is chosen by its place in the shares,
+    so an override listed in another order must not reorder them.
+    """
+    alpha = shares.alpha if isinstance(shares, Dirichlet) else shares
+    reversed_alpha = dict(reversed(alpha.items()))
+    reversed_shares = Dirichlet(reversed_alpha) if isinstance(shares, Dirichlet) else reversed_alpha
+    listed = Hyperprior(type_shares=shares).resolve(np.random.default_rng(0))
+    reversed_listed = Hyperprior(type_shares=reversed_shares).resolve(np.random.default_rng(0))
+    assert list(reversed_listed.type_shares.items()) == list(listed.type_shares.items())
+
+
 CATALOGUES = [
     pytest.param(set(FAMILIES), 'marginal_shares', id='marginal families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
