@@ -8,7 +8,7 @@ pipeline:
 the generating graph in topological order
 -> the activation per node, from the resolved shares     propagate
 -> per node, its parents' values through its family      _mlp
--> relative noise, z-scored                              propagate
+-> relative noise, z-scored                              _zscore
 """
 
 from __future__ import annotations
