@@ -4,6 +4,12 @@ What scamd (`~/Code/scamd`, the prototype) and TabICL's prior (`~/Code/tabicl/sr
 BSD-3, read at commit c91f00d) do, read for ideas only: no code is copied, and a mechanism one
 of them inspired names it in a comment. Read 2026-10-11.
 
+- [`scamd-audit.md`](scamd-audit.md): each of scamd's graph and typed-column choices, with a
+  verdict against spec #1 (include, delay to an item, reject).
+- [`related-simulators.md`](related-simulators.md): the other simulators (PFN priors, causal
+  benchmarks, fit-to-data synthesizers, R study tools, amortized-inference frameworks), what
+  TabDGP should adopt from them and what sets it apart.
+
 ## Shared by both
 
 - PyTorch tensors, one dataset at a time: neither batches inside its SCM. TabICL batches by
