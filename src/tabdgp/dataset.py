@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from pydantic import ConfigDict, Field, NonNegativeInt
+from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
@@ -13,22 +13,6 @@ from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 Mechanism = Literal['linear', 'mlp']
 Activation = Literal['tanh', 'relu', 'sin', 'identity']
 ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
-
-# =====================================================================================
-# the key
-# =====================================================================================
-
-
-@pydantic_dataclass(frozen=True)
-class Key:
-    """The identity of one dataset: its generator is default_rng([seed, index])."""
-
-    seed: NonNegativeInt
-    index: NonNegativeInt
-
-    def generator(self) -> np.random.Generator:
-        return np.random.default_rng([self.seed, self.index])
-
 
 # =====================================================================================
 # columns
@@ -133,5 +117,6 @@ class Dataset:
     graph: Graph
     latent: dict[str, np.ndarray]  # (N,) float32 each, z-scored
     hyperparameters: Hyperprior  # resolved, except the fields each column or node draws
-    key: Key
+    seed: int  # the corpus
+    index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version

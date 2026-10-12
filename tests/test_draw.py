@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 import numpy as np
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -30,7 +31,15 @@ def _assert_identical(a: Dataset, b: Dataset) -> None:
     assert np.array_equal(a.graph.latent, b.graph.latent)
     assert np.array_equal(a.graph.noise_scale, b.graph.noise_scale, equal_nan=True)
     assert np.array_equal(a.graph.init_scale, b.graph.init_scale, equal_nan=True)
-    assert (a.hyperparameters, a.key, a.version) == (b.hyperparameters, b.key, b.version)
+    assert (a.seed, a.index, a.version) == (b.seed, b.index, b.version)
+    assert a.hyperparameters == b.hyperparameters
+
+
+@pytest.mark.parametrize(('seed', 'index'), [(-1, 0), (0, -1)])
+def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
+    """default_rng([seed, index]) rejects negative entries, so a bad key fails before any draw."""
+    with pytest.raises(ValueError):
+        draw(seed, index)
 
 
 SEEDS = st.integers(0, 2**32)

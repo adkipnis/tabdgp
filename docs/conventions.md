@@ -21,7 +21,7 @@ modules arrive:
 | module | owns | imported by |
 |---|---|---|
 | `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, and which fields each column or node draws, by marginal family for a continuous column | every module |
-| `dataset` | the output contract: what one draw returns and what each of its types guarantees on its own, the generator a key gives | every module |
+| `dataset` | the output contract: what one draw returns and what each of its types guarantees on its own | every module |
 | `column` | the design-column budget and the post-hoc types: each column's name, type, K and own parameters, and its values: a sample of its marginal family or its codes, placed by its node's ranks | draw |
 | `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent hubs first, the block bonus, each node's family, activation and scales | draw |
 | `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |

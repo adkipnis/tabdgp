@@ -1,4 +1,4 @@
-"""The output contract's seams: what Column, Key, Graph and Dataset guarantee on their own."""
+"""The output contract's seams: what Column, Graph and Dataset guarantee on their own."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from tabdgp.dataset import Column, Dataset, Graph, Key
+from tabdgp.dataset import Column, Dataset, Graph
 from tabdgp.hyperprior import Hyperprior
 from tests.fixtures.build import graphOf
 
@@ -121,20 +121,6 @@ def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
     assert column.design_columns == design_columns
 
 
-@pytest.mark.parametrize(('seed', 'index'), [(-1, 0), (0, -1)])
-def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
-    """default_rng([seed, index]) rejects negative entries, so the key fails where it is written."""
-    with pytest.raises(ValidationError):
-        Key(seed=seed, index=index)
-
-
-def test_a_key_generator_is_default_rng_of_seed_and_index() -> None:
-    """The key-to-generator rule is the corpus's identity; a change to it redraws every dataset."""
-    key = Key(seed=3, index=5)
-    expected = np.random.default_rng([3, 5]).bit_generator.state
-    assert key.generator().bit_generator.state == expected
-
-
 @pytest.mark.parametrize(('child', 'parent'), [(0, 1), (1, 1)], ids=['above', 'on'])
 def test_a_parent_on_or_above_the_diagonal_fails(child: int, parent: int) -> None:
     """parents[j, i] says i is a parent of j; only i < j keeps the names in topological order."""
@@ -238,7 +224,8 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
         graph=graphOf([[], []]),
         latent={'z0': latent},
         hyperparameters=Hyperprior().resolveDataset(np.random.default_rng(0)),
-        key=Key(seed=0, index=0),
+        seed=0,
+        index=0,
         version='0.0.1',
     )
     assert dataset.columns['x0'] is values and dataset.latent['z0'] is latent

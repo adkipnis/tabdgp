@@ -6,7 +6,7 @@ every dataset, so it is a version change.
 pipeline:
 ---------
 the key
--> one generator from the key                        Key.generator
+-> one generator from the key                        default_rng
 -> the resolved hyperprior                           Hyperprior.resolveDataset
 -> the column plan                                   plan
 -> the graph                                         connect
@@ -19,8 +19,10 @@ from __future__ import annotations
 
 from importlib.metadata import version
 
+import numpy as np
+
 from tabdgp.column import apply, plan
-from tabdgp.dataset import Dataset, Key
+from tabdgp.dataset import Dataset
 from tabdgp.graph import connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
@@ -35,8 +37,7 @@ VERSION = version('tabdgp')
 
 def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
-    key = Key(seed=seed, index=index)
-    rng = key.generator()
+    rng = np.random.default_rng([seed, index])  # the key's generator
     resolved = (hyperprior or Hyperprior()).resolveDataset(rng)
     metadata = plan(resolved, rng)
     graph = connect(resolved, list(metadata), rng)
@@ -49,6 +50,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset
         graph=graph,
         latent=latent,
         hyperparameters=resolved,
-        key=key,
+        seed=seed,
+        index=index,
         version=VERSION,
     )
