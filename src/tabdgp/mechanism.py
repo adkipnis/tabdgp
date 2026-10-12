@@ -1,8 +1,9 @@
-"""mechanism.py defines how a node's values follow from its parents' values and its noise.
+"""mechanism.py defines how a node's values are computed from its parents' values + its noise.
 
-A linear node is the readout of its parents; an MLP node puts hidden layers before the same
-readout. Width and depth are the dataset's; the activation, init scale and noise scale are the
-node's own, read from the graph.
+- A linear node is the readout of its parents.
+- An MLP node puts hidden layers before the same readout.
+- MLP width and depth are the dataset's, shared by all its MLP nodes.
+- The activation, init scale and noise scale are the node's own (read from the graph).
 
 pipeline:
 ---------
@@ -39,17 +40,21 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin}
 
 
 def _mapParents(
-    values: np.ndarray, j: int, graph: Graph, resolved: Hyperprior, rng: np.random.Generator
+    nodes: dict[str, np.ndarray],
+    j: int,
+    graph: Graph,
+    resolved: Hyperprior,
+    rng: np.random.Generator,
 ) -> np.ndarray:
     layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
-    # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
-    # (LeCun et al. 1998); a bias per unit moves relu kinks and tanh and sin centres off the
-    # parents' mean, as scamd's RandomScale did
-    hidden = values[:, graph.parents[j]]  # (N, p)
+    parents = [nodes[graph.names[i]] for i in np.flatnonzero(graph.parents[j])]
+    # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width (LeCun et al. 1998)
+    hidden = np.stack(parents, axis=1)  # (N, p)
     for _ in range(layers):
         fan_in = hidden.shape[1]
         scale = graph.init_scale[j] / fan_in**0.5
         weights = scale * rng.standard_normal((fan_in, resolved.hidden), dtype=np.float32)
+        # a bias per unit moves the activation off the parents' mean, after scamd's RandomScale
         bias = rng.standard_normal(resolved.hidden, dtype=np.float32)  # (hidden,)
         hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (N, hidden)
     # the readout's scale vanishes in the z-score that follows; only the relative weights count
@@ -58,8 +63,7 @@ def _mapParents(
 
 
 def _zscore(x: np.ndarray) -> np.ndarray:
-    # a constant (a dead relu, or the layer after one) z-scores to zeros, never to NaN nor to
-    # the mean's rounding residue scaled up to unit variance
+    # a constant (a dead relu, or the layer after one) z-scores to zeros
     centred = x - x.mean()
     std = centred.std()
     residue = 1000 * np.finfo(x.dtype).eps * np.abs(x).max()
@@ -72,16 +76,13 @@ def propagate(
     graph: Graph, resolved: Hyperprior, rng: np.random.Generator
 ) -> dict[str, np.ndarray]:
     """Every node's values by name in the graph's order, each z-scored and its own array."""
-    n = len(graph.names)
-    rows = resolved.rows
-    values = np.empty((rows, n), dtype=np.float32)  # (N, n)
-    for j in range(n):
-        noise = rng.standard_normal(rows, dtype=np.float32)  # (N,)
+    nodes: dict[str, np.ndarray] = {}
+    for j, name in enumerate(graph.names):
+        noise = rng.standard_normal(resolved.rows, dtype=np.float32)  # (N,)
         if not graph.parents[j].any():  # a root is its noise
-            values[:, j] = _zscore(noise)
+            nodes[name] = _zscore(noise)
             continue
-        output = _mapParents(values, j, graph, resolved, rng)  # (N,)
-        # relative noise: its scale is relative to the z-scored output, so scales never run
-        # away through depth
-        values[:, j] = _zscore(_zscore(output) + graph.noise_scale[j] * noise)
-    return {name: values[:, j].copy() for j, name in enumerate(graph.names)}  # (N,) each
+        output = _mapParents(nodes, j, graph, resolved, rng)  # (N,)
+        # noise scale is relative to the z-scored output
+        nodes[name] = _zscore(_zscore(output) + graph.noise_scale[j] * noise)
+    return nodes
