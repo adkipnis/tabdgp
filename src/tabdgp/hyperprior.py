@@ -173,8 +173,8 @@ MARGINAL_FIELDS = {
     'uniform': [],
     'zero_inflated_lognormal': ['lognormal_sigma', 'zero_share'],
     'normal_mixture': ['mixture_gap', 'mixture_weight'],
-} # ported from scamd
-Family = Literal[tuple(MARGINAL_FIELDS)] # for pydantic
+}  # based on scamd's marginals
+Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
 
 
 class Hyperprior(BaseModel):
