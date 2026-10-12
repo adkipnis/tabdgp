@@ -33,7 +33,8 @@ _Avoid_: hidden unit, confounder (a role a latent node can play)
 
 **Column**:
 A node observed in the table, with its metadata: type (continuous, binary, categorical,
-ordered), levels, and role (grouping factor, covariate, time, treatment, outcome).
+ordered), levels, role (grouping factor, covariate, time, treatment, outcome), and the
+parameters its values were drawn with.
 _Avoid_: feature, variable unqualified
 
 **Marginal**:
@@ -60,8 +61,8 @@ _Avoid_: rng, random state, seed alone
 
 **Dataset**:
 What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
-generating graph, the latent nodes' values, the hyperparameters every field resolved to, and
-the key. Never padded, never a file.
+generating graph, the latent nodes' values, the hyperparameters every field resolved to except
+those each column or node draws for itself, and the key. Never padded, never a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
 **Hyperprior**:

@@ -20,6 +20,11 @@ modules arrive:
 
 | module | owns | imported by |
 |---|---|---|
+| `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, and which fields each column or node draws, by marginal family for a continuous column | every module |
+| `column` | the design-column budget and the post-hoc types: each column's name, type, K and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks | draw |
+| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent nodes first, the block bonus, each node's family, activation and scales, and what the graph guarantees | mechanism, draw |
+| `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |
+| `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, nodes joined to columns by name, and what one draw returns | the package's `__init__` |
 
 ## Design
 
@@ -50,7 +55,7 @@ harder to understand or change; it accrues one small edit at a time.
   extras. Leave adjacent code, comments and formatting untouched.
 - Written from scratch: scamd and TabICL's prior are read for ideas, never copied. A mechanism
   one of them inspired names it in a comment. Where a formula comes from a paper, the comment
-  cites it (a link, an equation number).
+  cites it (authors and year, an equation number).
 - A task that repeats, or is error-prone by hand, gets a `.py` or `.sh` script.
 
 ## Names
@@ -59,6 +64,14 @@ harder to understand or change; it accrues one small edit at a time.
   `__all__`.
 - `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
   `snake_case` for variables, `UPPER_SNAKE_CASE` for constants.
+- A config field that counts is a plural noun (`rows`, `latent_nodes`), without an `n_` prefix.
+- A function in `src/` is named for what it does, a verb and its object (`_resolveColumn`),
+  not for what it returns (`_column`). A test helper is read inside an assert, so it may name
+  what it returns (`_density`).
+- Methods that do one thing at different scopes share its verb, and each names its scope:
+  `resolveDataset` for every field drawn once per dataset, `resolveField` for one field.
+- A quantity counted at different scopes keeps one name: the budget's `design_columns` and a
+  column's `design_columns`.
 - A directory is `dir`, not `folder`. A DataFrame is a `table`, several are `tables`, never
   `df` or `frame`.
 - A leading `_` marks a pipeline step and anything no other module imports.
@@ -68,26 +81,45 @@ harder to understand or change; it accrues one small edit at a time.
 ## Code
 
 - Absolute imports: `from tabdgp.x import y`.
+- Import a library's names when they are unmistakable (`BaseModel`), rename one that shadows a
+  standard-library name (`dataclass as pydantic_dataclass`), and alias a module only by its
+  community's convention (`np`, `pd`).
 - Modern typing: `X | Y`, built-in generics, `from __future__ import annotations`.
   `Literal[...]` for an argument with a fixed set of options, a type alias once it repeats.
-  Config models are Pydantic.
+  Config models are Pydantic: a check a type can state is its constraint (`PositiveFloat`,
+  `Field(ge=3)`), and `__post_init__` holds only the checks across fields.
+- A default the hyperprior guesses is a round number; only a fitted one carries more digits.
 - f-strings, one statement per line, a long expression named on the line before.
 - A method lists its steps in the order you would describe them; a step with its own `if`
   ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
-  not `for`/`else`, `while True` or `next()` on a generator.
+  not `for`/`else`, `while True` or `next()` on a generator. A loop fills its result as it
+  goes; a second loop that only repackages the first one's output folds into it.
 - `a if c else b` only on a short line. Lookup tables are literal dicts or `if` chains, not
-  built with comprehensions, `dict.fromkeys` or `|`.
-- A class per concept a reader should hold apart (a mechanism family, a pipeline), static
+  built with comprehensions, `dict.fromkeys` or `|`. Cases that read different arguments are a
+  `match` over their `Literal`, not a dict of wrappers that share one signature.
+- Names listed in two modules (a `Literal`, a catalogue, a shares field's categories, the
+  per-column or per-node fields) are checked against each other by a test; `src/` checks
+  nothing at import. Names listed twice in one module are checked by a test, if at all.
+- A class per concept a reader should hold apart (a distribution, a column's metadata), static
   methods where it holds no state. A helper or constant used by one class lives on it; module
   functions are for what spans classes.
+- A data class holds its fields and the checks across them; the function that draws it is a
+  module function beside it (`plan`, `connect`, `draw`), not a method of the class.
+- A base class holds a skeleton its subclasses inherit: fields, methods or checks. Classes
+  that only an `isinstance` check groups are a union alias, not an empty base.
 - Wrap `argparse` blocks in `# fmt: off` / `# fmt: on`.
 
 ### Arrays and tensors
 
-- Annotate shapes inline (`# (B, N, p)` for B datasets of N rows and p columns), reshape with
+- Annotate shapes inline (`# (B, n, p)` for B datasets of n rows and p columns), reshape with
   `einops` where the library has it, never mutate a reused array in place. Vectorise with
   broadcasting and advanced indexing, not loops; batch over datasets.
+- One letter per quantity, whatever its case: `n` counts rows, in code and in shape comments
+  alike, and `d` counts nodes.
 - Every draw takes an explicit generator or key; nothing reads global random state.
+- A scalar the config draws or a mechanism reads is a Python `int` or `float`, its arithmetic
+  `math`'s: a numpy float64 scalar would promote float32 arrays to float64.
+- One marker for a missing value: `None`, in a list of Python scalars, never NaN in an array.
 
 ## File layout
 
@@ -112,11 +144,12 @@ the overrides and the hyperprior
   on how, then the pipeline, one `-> result` line per step with its function on the right.
   Who imports the module is the [map](#modules)'s.
 - `# ====` banners separate globals, classes and main, `# ----` banners subsections. Each is
-  named in plain words, with one comment line on why the section exists unless a class
-  docstring below says it.
-- One pipeline class per module: public methods first, then its steps in run order under a
-  `# ----` banner naming the pipeline.
-- A script's `__main__` creates its pipeline class and reads as the run's table of contents.
+  named in plain words, with one comment line on why the section exists where neither the
+  name nor a class docstring below says it.
+- Functions in the order of the docstring's pipeline, public or not, so the pipeline is the
+  module's table of contents. A function that runs other steps follows them, as the step that
+  returns their result. The constants, aliases and data classes the steps use come first.
+- A script's `__main__` reads as the run's table of contents.
 
 ## Comments and docstrings
 
@@ -126,9 +159,13 @@ the overrides and the hyperprior
   none on a method its name and body already explain, never a chain of `;` clauses. Detail
   goes into inline comments that say why and cite sources, and into trailing comments on
   config fields.
+- A config or data class's docstring introduces the concepts its fields name, a short bullet
+  each. A field whose name does not say what it is ends in a short trailing comment.
+- A block of checks opens with one plain sentence on what it checks.
 - A comment explains the code, not its history: the case behind a rule goes to the test that
   pins it, a definition to `CONTEXT.md`, how it was decided to an ADR or a lab note.
-- Code in `src/` states its rules without citing an ADR; the ADR keeps the reason.
+- Code in `src/` states its rules without citing an ADR or naming a consumer (metabeta,
+  metasurv); the ADR keeps the reason.
 
 ## Tests
 
@@ -151,6 +188,22 @@ Markdown meets the same bar as code: simple, and read top to bottom.
 - `README.md` is for users and fits one screen: badges, a short what and why, install, one
   quickstart box, contents, contributing, citing, licence. Its links are absolute to `main`,
   so PyPI renders them.
+
+### Explaining the design
+
+How the docs and the paper explain TabDGP to a reader with only a vague idea of it:
+
+- Top down, one level before the next: why it exists, the concepts it needs, the blueprint
+  (the modules and how they work together), then the detail.
+- Short plain sentences, one idea per bullet; a term defined before it is used, in
+  `CONTEXT.md`'s words; an acronym spelled out at its first use.
+- An abstract mechanism gets a worked example small enough to check by eye (three values
+  through rank matching).
+- A design choice names the alternatives considered, the verdict and why, as a table when
+  there are several, each citing its source: an ADR, the spec, a row of the audit.
+- A choice without a recorded reason says so ("a guess, fitted in item 4") instead of
+  inventing one; an opinion is marked as one, apart from the facts.
+- What is left out says where it lives: a later roadmap item, an appendix.
 
 ## Data
 

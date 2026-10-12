@@ -16,7 +16,10 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.3,<3",
+    "pydantic>=2.12,<3",
+]
 
 [project.urls]
 Repository = "https://github.com/adkipnis/tabdgp"
@@ -28,6 +31,7 @@ dev = [
     "pytest",
     "hypothesis",
     "ruff",
+    "ipykernel",
 ]
 
 [build-system]
@@ -39,13 +43,21 @@ packages = ["src/tabdgp"]
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["lab"]  # dated records, never imported; they drift from src by design
 
 [tool.ruff.format]
 quote-style = "single"
 
+[tool.ruff.lint]
+ignore = ["RUF015"]  # suggests next() on a generator, which the conventions rule out
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_readme.py" = ["S102"]  # runs the README's quickstart
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not slow' --import-mode=importlib"
+pythonpath = ["."]
 markers = [
     "slow: draws thousands of datasets (the proofs against mixedbench's registry); runs by `-m slow`",
 ]

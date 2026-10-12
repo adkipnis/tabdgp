@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-11
+amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16)
 ---
 
 # 0001 — One dataset per draw, keyed by seed and index, in numpy
@@ -55,7 +56,8 @@ TabDGP never pads, never batches across datasets and never writes a file.
   group indices as floats, and both consumers derive what they need from the metadata anyway.
   `Dataset` holds the columns as named one-dimensional arrays in their natural dtype, the
   column metadata, the generating graph with every node including the latent ones, the latent
-  nodes' values, the hyperparameters every field resolved to, and the key.
+  nodes' values, the hyperparameters every field resolved to, and the key. A field each column
+  or node draws for itself is recorded with that column or in the graph instead (#16).
 
 ## Consequences
 
@@ -66,12 +68,23 @@ TabDGP never pads, never batches across datasets and never writes a file.
 - The end-to-end test draws dataset `i` alone and inside two different index sets and asserts
   bitwise equality; the proofs draw their fixed-seed datasets by index and store nothing.
 - The hyperprior and its resolution share one Pydantic type: an override is a point value or
-  a distribution on a field, a resolved hyperparameter a point value on the same field.
-- Throughput is a bar, not a hope: the spec's first ticket is a lab note timing the core draw
-  (graph, MLP propagation, one rank-matched marginal, one binary threshold) on one core at
-  N in {100, 1k, 10k} and the scaling of a process pool over indices. If the core draw falls
-  under about 500 datasets per second per core at the mean v1 size, a padded torch batch
-  behind the same one-dataset interface is the fallback.
+  a distribution on a field, a resolved hyperparameter a point value on the same field. A
+  field each column or node draws for itself keeps its override there, and the column
+  metadata and the graph record the values drawn (#16).
+- Throughput is a bar, not a hope: a node's CPU workers draw datasets at least as fast as its
+  GPU trains on them. For metabeta (4 to 8 cores and one GPU per node, epochs of 4,192
+  datasets in minibatches of 16 to 64) that is at least 1,000 datasets per second on 4
+  workers at the mean v1 size, about 1 ms per dataset. The throughput lab note
+  (`lab/2026-10-11-throughput/`) measured about 250 per second per core in float32 on an M3,
+  so numpy holds; the draw is bound by arithmetic, not by the interpreter, so a padded torch
+  batch on CPU buys nothing and one on the node's only GPU takes time from training. The
+  bar was first set at 500 per core, before the consumer's numbers were known.
+- Continuous columns and latent values are float32, the precision the network trains in, so
+  `torch.from_numpy` hands them over unconverted; single precision also runs the
+  activations three to four times faster.
+- When online drawing falls behind, or several models (4 to 16) train at once, a consumer
+  draws a corpus once, stores it and lets every run read it, dividing the cost; storage
+  stays the consumer's, TabDGP still writes no file.
 - A DataFrame is `pandas.DataFrame(dataset.columns)` and needs no dependency here.
 - For `metabeta.mixed`'s slice A1: generate per epoch from `(seed, index)` in dataloader
   workers, pin TabDGP, snapshot validation and test sets, draw an epoch's sizes first (its
