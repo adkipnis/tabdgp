@@ -91,7 +91,11 @@ harder to understand or change; it accrues one small edit at a time.
   ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
   not `for`/`else`, `while True` or `next()` on a generator.
 - `a if c else b` only on a short line. Lookup tables are literal dicts or `if` chains, not
-  built with comprehensions, `dict.fromkeys` or `|`.
+  built with comprehensions, `dict.fromkeys` or `|`. Cases that read different arguments are a
+  `match` over their `Literal`, not a dict of wrappers that share one signature.
+- Names listed in two places (a `Literal`, a catalogue, a shares field's categories, the
+  per-column or per-node fields) are checked against each other at import, in the module that
+  reads them.
 - A class per concept a reader should hold apart (a distribution, a column's metadata), static
   methods where it holds no state. A helper or constant used by one class lives on it; module
   functions are for what spans classes.
