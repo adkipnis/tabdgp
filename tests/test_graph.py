@@ -128,7 +128,7 @@ def test_the_adjacency_is_strictly_lower_triangular() -> None:
 
 
 def test_latent_nodes_precede_observed_ones() -> None:
-    """A latent node is a hub or a confounder, never a sink, so it sits before every observed node."""
+    """A latent node can be a common cause of columns but never an effect of one."""
     graph = _connect(0, 5, latent_nodes=3)
     assert graph.latent.tolist() == [True] * 3 + [False] * 5
     assert graph.names[:3] == ['z0', 'z1', 'z2']
@@ -239,17 +239,6 @@ def test_connect_is_deterministic_under_a_fixed_generator() -> None:
     assert np.array_equal(first.parents, second.parents)
     assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
     assert (first.noise_scale, first.init_scale) == (second.noise_scale, second.init_scale)
-
-
-def test_every_latent_node_has_a_child_when_a_later_node_exists() -> None:
-    """A latent node is a hub or a confounder; one with no children would be a dead latent column."""
-    sparse = {'edge_offset': -30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
-    for seed in range(20):
-        graph = _connect(seed, 5, latent_nodes=3, **sparse)
-        has_child = graph.parents.any(axis=0)  # (n,)
-        assert has_child[graph.latent].all()
-    last = _connect(0, 0, latent_nodes=1, **sparse)
-    assert not last.parents.any()
 
 
 def _degree_spread(hub_scale: float) -> float:

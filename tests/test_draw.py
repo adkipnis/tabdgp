@@ -188,26 +188,26 @@ def _neighbour_agreement(codes: np.ndarray, parent: np.ndarray) -> float:
 def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_low_noise() -> None:
     """scamd's categoricals were nearly independent of their parents, and only shapes were tested.
 
-    One latent root and no drawn edges leave the root's forced child as the only node with a
-    parent, so the typed column must follow that root's values.
+    One latent root, one typed column of K ≤ 3 and a sure edge between them, so the column must
+    follow the root's values.
     """
-    isolated = {'edge_offset': -30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
-    for type in ['binary', 'categorical', 'ordered']:
+    dense = {'edge_offset': 30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
+    for type, design_columns in [('binary', 1), ('categorical', 2), ('ordered', 2)]:
         hyperprior = Hyperprior(
             rows=1000,
-            design_columns=4,
+            design_columns=design_columns,
             type_shares=point('type_shares', type),
+            max_levels=3,
             latent_nodes=1,
             mechanism_shares={'linear': 1.0, 'mlp': 0.0},
             noise_scale=0.01,
             level_alpha=5.0,
-            **isolated,
+            **dense,
         )
         for index in range(10):
             dataset = draw(0, index, hyperprior)
-            graph = dataset.graph
-            child = graph.names[int(np.flatnonzero(graph.parents[:, 0])[0])]
-            agreement = _neighbour_agreement(dataset.columns[child], dataset.latent['z0'])
+            assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
+            agreement = _neighbour_agreement(dataset.columns['x0'], dataset.latent['z0'])
             assert agreement > 0.95
 
 
