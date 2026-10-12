@@ -6,9 +6,10 @@ amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column
 
 # 0001 — One dataset per draw, keyed by seed and index, in numpy
 
-TabDGP's first consumer, `metabeta.mixed`, trains on simulated datasets whose sizes, groups
-and columns all vary; its roadmap puts padding, masking, collate and the `.npz` corpus on
-`metabeta.core`, and its Simulator adds the outcome before anything is written. Grilled on
+TabDGP's first consumer, `metabeta.mixed` in the private repository metabeta-v3, trains on
+simulated datasets whose sizes, groups and columns all vary; its roadmap puts padding,
+masking, collate and the `.npz` corpus on `metabeta.core`, and its Simulator adds the outcome
+before anything is written. Grilled on
 2026-10-11 (storage, batch layout, tensor library, item 1 of `ROADMAP.md`), the decision is:
 **the seed is the corpus.** Dataset `i` is a pure function of its key `(seed, index)`, the
 hyperprior with its overrides and the installed TabDGP version. The public call draws one
@@ -74,7 +75,7 @@ TabDGP never pads, never batches across datasets and never writes a file.
 - Throughput is a bar, not a hope: a node's CPU workers draw datasets at least as fast as its
   GPU trains on them. For metabeta (4 to 8 cores and one GPU per node, epochs of 4,192
   datasets in minibatches of 16 to 64) that is at least 1,000 datasets per second on 4
-  workers at the mean v1 size, about 1 ms per dataset. The throughput lab note
+  workers at the mean v1 size, about 1 ms per dataset. The unpublished throughput lab note
   (`lab/2026-10-11-throughput/`) measured about 250 per second per core in float32 on an M3,
   so numpy holds; the draw is bound by arithmetic, not by the interpreter, so a padded torch
   batch on CPU buys nothing and one on the node's only GPU takes time from training. The
