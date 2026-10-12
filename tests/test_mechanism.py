@@ -103,6 +103,18 @@ def test_a_constant_mechanism_output_z_scores_to_zeros() -> None:
         assert (values[:, 1:] == 0).all()
 
 
+def test_a_deep_mlp_at_the_default_init_scale_floor_never_goes_constant() -> None:
+    """Each layer shrinks the signal by its init scale while the N(0, 1) biases keep an offset
+    near 1, so a deep MLP at a small init scale can leave less spread than the z-score's guard.
+    At 0.1, three tanh layers of width 8 went constant in 101 of 500 seeds; at 0.3 in none.
+    """
+    floor = Hyperprior().init_scale.low
+    graph = graphOf([[], [0]], [None, 'mlp'], noise_scale=0.0, init_scale=floor)
+    for seed in range(20):
+        values = _run(graph, 2000, seed, layers=3, hidden=8)
+        assert values[:, 1].std() > 0
+
+
 def test_values_are_finite_for_every_family() -> None:
     """No family may overflow or divide by zero, even at the widest, deepest and steepest MLP.
 

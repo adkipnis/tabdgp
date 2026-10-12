@@ -242,7 +242,7 @@ class Hyperprior(BaseModel):
     hidden: PositiveCount = LogUniformInt(4, 64)  # MLP width
     layers: PositiveCount = UniformInt(1, 3)  # MLP depth
     activation_shares: Simplex = Dirichlet({'tanh': 1, 'relu': 1, 'sin': 1})
-    init_scale: NonNegative = LogUniform(0.1, 3)  # MLP weights are N(0, init_scale² / fan_in)
+    init_scale: NonNegative = LogUniform(0.3, 3)  # MLP weights are N(0, init_scale² / fan_in)
     noise_scale: NonNegative = LogUniform(0.01, 1)  # relative to the z-scored node
 
     # marginals
