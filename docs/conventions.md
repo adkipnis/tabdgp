@@ -77,7 +77,8 @@ harder to understand or change; it accrues one small edit at a time.
 - Absolute imports: `from tabdgp.x import y`.
 - Modern typing: `X | Y`, built-in generics, `from __future__ import annotations`.
   `Literal[...]` for an argument with a fixed set of options, a type alias once it repeats.
-  Config models are Pydantic.
+  Config models are Pydantic: a check a type can state is its constraint (`PositiveFloat`,
+  `Field(ge=3)`), and `__post_init__` holds only the checks across fields.
 - f-strings, one statement per line, a long expression named on the line before.
 - A method lists its steps in the order you would describe them; a step with its own `if`
   ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
@@ -87,6 +88,8 @@ harder to understand or change; it accrues one small edit at a time.
 - A class per concept a reader should hold apart (a distribution, a column's metadata), static
   methods where it holds no state. A helper or constant used by one class lives on it; module
   functions are for what spans classes.
+- A base class holds a skeleton its subclasses inherit: fields, methods or checks. Classes
+  that only an `isinstance` check groups are a union alias, not an empty base.
 - Wrap `argparse` blocks in `# fmt: off` / `# fmt: on`.
 
 ### Arrays and tensors
@@ -95,6 +98,8 @@ harder to understand or change; it accrues one small edit at a time.
   `einops` where the library has it, never mutate a reused array in place. Vectorise with
   broadcasting and advanced indexing, not loops; batch over datasets.
 - Every draw takes an explicit generator or key; nothing reads global random state.
+- A scalar the config draws or a mechanism reads is a Python `int` or `float`, its arithmetic
+  `math`'s: a numpy float64 scalar would promote float32 arrays to float64.
 
 ## File layout
 
