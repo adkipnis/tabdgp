@@ -55,7 +55,7 @@ harder to understand or change; it accrues one small edit at a time.
   extras. Leave adjacent code, comments and formatting untouched.
 - Written from scratch: scamd and TabICL's prior are read for ideas, never copied. A mechanism
   one of them inspired names it in a comment. Where a formula comes from a paper, the comment
-  cites it (a link, an equation number).
+  cites it (authors and year, an equation number).
 - A task that repeats, or is error-prone by hand, gets a `.py` or `.sh` script.
 
 ## Names
@@ -65,6 +65,8 @@ harder to understand or change; it accrues one small edit at a time.
 - `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
   `snake_case` for variables, `UPPER_SNAKE_CASE` for constants.
 - A config field that counts is a plural noun (`rows`, `latent_nodes`), without an `n_` prefix.
+- A function is named for what it does, a verb and its object (`_resolveColumn`), not for
+  what it returns (`_column`).
 - Methods that do one thing at different scopes share its verb, and each names its scope:
   `resolveDataset` for every field drawn once per dataset, `resolveField` for one field.
 - A quantity counted at different scopes keeps one name: the budget's `design_columns` and a
@@ -94,8 +96,8 @@ harder to understand or change; it accrues one small edit at a time.
   built with comprehensions, `dict.fromkeys` or `|`. Cases that read different arguments are a
   `match` over their `Literal`, not a dict of wrappers that share one signature.
 - Names listed in two modules (a `Literal`, a catalogue, a shares field's categories, the
-  per-column or per-node fields) are checked against each other at import, in the module that
-  reads them. Names listed twice in one module are checked by a test, if at all.
+  per-column or per-node fields) are checked against each other by a test; `src/` checks
+  nothing at import. Names listed twice in one module are checked by a test, if at all.
 - A class per concept a reader should hold apart (a distribution, a column's metadata), static
   methods where it holds no state. A helper or constant used by one class lives on it; module
   functions are for what spans classes.
