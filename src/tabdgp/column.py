@@ -1,17 +1,17 @@
-"""column.py defines the observed columns: their types and levels, and their values.
+"""column.py defines the column types and levels, and the column values.
 
 pipeline:
 ---------
-the resolved shares and budget
+resolved shares and budget
 -> one named column after another until the budget is met     plan
--> per column, its type, K and own parameters                  _column
--> per column, a sorted marginal sample or codes               _sample, _codes
--> placed by the node's ranks                                  apply
+-> per column, its type, K and own parameters                 _resolveColumn
+-> per column, a sorted sample                                _sampleMarginal, _sampleCodes
+-> sorted by the node's ranks                                 apply
 """
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import Literal
 
 import numpy as np
 from pydantic import Field
@@ -22,7 +22,7 @@ from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
 
 # =====================================================================================
-# the column metadata
+# column metadata
 # =====================================================================================
 
 
@@ -65,23 +65,20 @@ class Column:
 # the column plan
 # =====================================================================================
 
-# a type added to type_shares or to Column alone fails here, not when drawn
-if set(get_args(ColumnType)) != set(Hyperprior.categories('type_shares')):
-    raise ValueError(f'column types {get_args(ColumnType)} differ from type_shares')
-
 
 def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
     """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly."""
     columns = {}
     remainder = resolved.design_columns
     while remainder > 0:
-        column = _column(resolved, remainder, rng)
+        column = _resolveColumn(resolved, remainder, rng)
         columns[f'x{len(columns)}'] = column
         remainder -= column.design_columns
     return columns
 
 
-def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> Column:
+def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> Column:
+    """One column's type, its K or marginal family (and its own parameters)."""
     type = resolved.type_shares.choose(rng)
     if type == 'continuous':
         family = resolved.marginal_shares.choose(rng)
@@ -104,18 +101,17 @@ def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> C
 
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in its node's order: a marginal sample if continuous, codes if not."""
+    """The column's values in its node's order: a marginal sample if continuous, level codes otherwise."""
     if column.type == 'continuous':
-        by_rank = np.sort(_sample(len(node), column, rng)).astype(np.float32)  # (N,)
+        by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (N,)
     else:
-        by_rank = _codes(len(node), column, rng)  # (N,)
-    # Iman and Conover (1982), https://doi.org/10.1080/03610918208812265: the sorted values
-    # placed by the node's ranks are a permutation of them, never a quantile lookup that resamples
+        by_rank = _sampleCodes(len(node), column, rng)  # (N,)
+    # the sorted values placed by the node's ranks are just a permutation of them (Iman and Conover, 1982)
     ranks = np.argsort(np.argsort(node))  # (N,)
     return by_rank[ranks]
 
 
-def _sample(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
+def _sampleMarginal(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
     parameters = column.parameters
     match column.marginal:
         case 'normal':
@@ -136,8 +132,8 @@ def _sample(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
             return rng.standard_normal(n) + parameters['mixture_gap'] * minor
 
 
-def _codes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """Codes 0..K−1 in rank order, cut at drawn level shares, each level present if N ≥ K."""
+def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
+    """N level codes in rank order, in K blocks sized by drawn shares."""
     k = column.levels
     shares = rng.dirichlet(np.full(k, column.parameters['level_alpha']))  # (K,)
     # one row per level first, the rest split in proportion to the shares
