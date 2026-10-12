@@ -1,12 +1,38 @@
 # TabDGP
 
 A data-generating process for grouped and flat tables: what is drawn, how, and from which
-distributions. Covariate generator, design matrix, within-group and group-level covariate,
-group-confounded and quirk are metabeta's GLMM glossary's (`packages/mixed/CONTEXT.md` of
-metabeta-v3) and are not redefined here; statistical terms (grouping factor, family, link)
-too.
+distributions. The covariate terms are those of metabeta's GLMM glossary
+(`packages/mixed/CONTEXT.md` of metabeta-v3, a private repository), restated here in its words;
+statistical terms (grouping factor, family, link) are not redefined.
 
 ## Language
+
+### Covariates
+
+**Covariate generator**:
+The process that draws a dataset's grouping structure and its typed covariate columns,
+continuous, binary, categorical or ordered, each within-group or group-level, with the quirks
+of real tables. TabDGP is one; it draws an outcome only as the optional outcome node.
+_Avoid_: predictor simulation, feature matrix, X generator, design-matrix generator
+
+**Design matrix**:
+The coding of the covariates the linear predictor sees: an intercept column, z-scored
+continuous columns, 0/1 binary columns, K − 1 treatment-coded columns per categorical.
+Derived from the covariates, never drawn; the hyperprior's design-column budget counts its
+columns besides the intercept.
+_Avoid_: X for the uncoded covariates, features
+
+**Within-group covariate** / **group-level covariate**:
+A covariate that varies within the groups of a factor, versus one constant within each group
+of some factor (a school's size, a person's sex). A within-group covariate whose mean differs
+between groups is **group-confounded**.
+_Avoid_: level-1 and level-2 variable, cluster-level, contextual variable
+
+**Quirk**:
+A property of real tables that an independent and identically distributed (i.i.d.) simulator
+lacks and on which an amortized posterior goes wrong: group confounding, empty cells, rare
+levels, ties, bounds, irregular time, near dependence, leverage points.
+_Avoid_: edge case, noise, messiness
 
 ### The graph
 
