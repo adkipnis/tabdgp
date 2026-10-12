@@ -71,7 +71,9 @@ def test_a_root_is_noise() -> None:
 
 
 def test_a_node_with_parents_correlates_with_them_at_low_noise() -> None:
-    """The mechanism carries the parent's signal: with little noise, a linear map stays a linear map."""
+    """The mechanism carries the parent's signal:
+    with little noise, a linear map stays a linear map.
+    """
     graph = graphOf([[], [0]], noise_scale=0.01)
     for seed in range(10):
         values = _run(graph, 2000, seed)
@@ -139,7 +141,7 @@ def test_propagate_is_deterministic_under_a_fixed_generator() -> None:
     assert np.array_equal(first, second)
 
 
-def test_an_empty_graph_gives_rows_without_columns() -> None:
+def test_an_empty_graph_propagates_to_no_nodes() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=50, latent_nodes=0).resolveDataset(rng)
