@@ -9,8 +9,7 @@ import pytest
 
 from tabdgp.column import apply, plan
 from tabdgp.dataset import Column
-from tabdgp.hyperprior import Hyperprior
-from tabdgp.marginal import PARAMETERS, Family
+from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 from tests.fixtures.build import point
 
 TYPES = ['continuous', 'binary', 'categorical', 'ordered']
@@ -103,14 +102,6 @@ def test_a_point_override_gives_every_column_its_value() -> None:
         assert column.parameters == {'lognormal_sigma': 0.7}
 
 
-def test_the_fields_drawn_per_column_are_the_families_and_the_level_concentration() -> None:
-    """A field drawn per column that no column reads would silently stay a distribution."""
-    read = {'level_alpha'}
-    for fields in PARAMETERS.values():
-        read.update(fields)
-    assert read == set(Hyperprior.PER_COLUMN)
-
-
 def test_plan_names_its_columns_x0_to_x_p_minus_1() -> None:
     """The one home of the rule that plan column k is node x{k}; every later step reads the names."""
     columns = _plan(0, design_columns=4, type_shares=point('type_shares', 'continuous'))
@@ -175,7 +166,7 @@ def test_ordered_codes_are_monotone_in_the_values() -> None:
 
 def _continuous(family: str) -> Column:
     """A continuous column of the family with its example parameters."""
-    parameters = {field: EXAMPLE[field] for field in PARAMETERS[family]}
+    parameters = {field: EXAMPLE[field] for field in MARGINAL_FIELDS[family]}
     return Column(type='continuous', marginal=family, parameters=parameters)
 
 
@@ -238,3 +229,62 @@ def test_a_large_level_alpha_gives_even_level_counts() -> None:
     rng = np.random.default_rng(0)
     codes = apply(rng.standard_normal(1000), column, rng)
     np.testing.assert_allclose(np.bincount(codes), 200, atol=10)
+
+
+def _from_defaults(family: str, n: int, seed: int) -> np.ndarray:
+    """A column of the family under parameters drawn from the defaults, as plan draws them."""
+    rng = np.random.default_rng(seed)
+    hyperprior = Hyperprior()
+    parameters = {field: hyperprior.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
+    column = Column(type='continuous', marginal=family, parameters=parameters)
+    return apply(rng.standard_normal(n), column, rng)
+
+
+SUPPORTS = {
+    'normal': (-np.inf, np.inf),
+    'lognormal': (0, np.inf),
+    'student_t': (-np.inf, np.inf),
+    'beta': (0, 1),
+    'uniform': (0, 1),
+    'zero_inflated_lognormal': (0, np.inf),
+    'normal_mixture': (-np.inf, np.inf),
+}
+
+
+@pytest.mark.parametrize('family', get_args(Family))
+def test_each_familys_values_lie_in_its_support(family: str) -> None:
+    """A bounded column stays bounded and every column is finite, over many drawn parameters.
+
+    Closed bounds: a zero-inflated or uniform draw can be 0.
+    """
+    low, high = SUPPORTS[family]
+    for seed in range(50):
+        values = _from_defaults(family, 500, seed)
+        assert np.isfinite(values).all()
+        assert (low <= values).all() and (values <= high).all()
+
+
+def _large(family: str, **parameters: float) -> np.ndarray:
+    """A column of 100,000 rows, so that its statistics sit within 0.01 of their law's."""
+    column = Column(type='continuous', marginal=family, parameters=parameters)
+    rng = np.random.default_rng(0)
+    return apply(rng.standard_normal(100_000), column, rng)
+
+
+def test_each_familys_parameters_are_honoured() -> None:
+    """Each family reads its own parameters; expected values are closed forms, not the sampler's.
+
+    The mixture's gap is set wide, so the share above half of it is the minor weight.
+    The t's two-tailed P(|T| > 3) at df = 3 is 0.0577, from its closed-form CDF.
+    """
+    lognormal = _large('lognormal', lognormal_sigma=0.5)
+    assert abs(np.log(lognormal).std() - 0.5) < 0.01
+    inflated = _large('zero_inflated_lognormal', lognormal_sigma=1.0, zero_share=0.3)
+    assert abs((inflated == 0).mean() - 0.3) < 0.01
+    beta = _large('beta', beta_a=2.0, beta_b=5.0)
+    assert abs(beta.mean() - 2 / 7) < 0.01
+    mixture = _large('normal_mixture', mixture_gap=20.0, mixture_weight=0.2)
+    assert abs((mixture > 10).mean() - 0.2) < 0.01
+    assert abs(mixture[mixture > 10].mean() - 20) < 0.05
+    student = _large('student_t', student_df=3.0)
+    assert abs((np.abs(student) > 3).mean() - 0.0577) < 0.005
