@@ -29,8 +29,7 @@ def _assert_identical(a: Dataset, b: Dataset) -> None:
     assert (a.graph.mechanism, a.graph.activation) == (b.graph.mechanism, b.graph.activation)
     assert np.array_equal(a.graph.parents, b.graph.parents)
     assert np.array_equal(a.graph.latent, b.graph.latent)
-    assert np.array_equal(a.graph.noise_scale, b.graph.noise_scale, equal_nan=True)
-    assert np.array_equal(a.graph.init_scale, b.graph.init_scale, equal_nan=True)
+    assert (a.graph.noise_scale, a.graph.init_scale) == (b.graph.noise_scale, b.graph.init_scale)
     assert (a.seed, a.index, a.version) == (b.seed, b.index, b.version)
     assert a.hyperparameters == b.hyperparameters
 
@@ -109,8 +108,7 @@ def test_every_override_is_honoured(
         latent_nodes,
     )
     assert (resolved.max_levels, resolved.noise_scale) == (max_levels, 0.5)
-    noise_scale = dataset.graph.noise_scale  # (n,)
-    assert (noise_scale[~np.isnan(noise_scale)] == 0.5).all()
+    assert set(dataset.graph.noise_scale) <= {None, 0.5}
 
 
 def test_the_hyperparameters_keep_the_fields_drawn_per_column_or_node_as_given() -> None:

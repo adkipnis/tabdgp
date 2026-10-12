@@ -84,14 +84,14 @@ def _child(edges: np.ndarray, latent: np.ndarray, rng: np.random.Generator) -> n
 
 def _choices(
     parents: np.ndarray, resolved: Hyperprior, rng: np.random.Generator
-) -> tuple[list[Mechanism | None], list[Activation | None], np.ndarray, np.ndarray]:
+) -> tuple[list[Mechanism | None], list[Activation | None], list[float | None], list[float | None]]:
     # a root is its noise and draws nothing; a node with parents draws its family and noise scale,
     # an MLP node also its activation and init scale
     n = len(parents)
     mechanism = [None] * n
     activation = [None] * n
-    noise_scale = np.full(n, np.nan)  # (n,)
-    init_scale = np.full(n, np.nan)  # (n,)
+    noise_scale = [None] * n
+    init_scale = [None] * n
     for j in np.flatnonzero(parents.any(axis=1)):
         mechanism[j] = resolved.mechanism_shares.choose(rng)
         noise_scale[j] = resolved.resolveField('noise_scale', rng)

@@ -130,15 +130,15 @@ def test_a_parent_on_or_above_the_diagonal_fails(child: int, parent: int) -> Non
         graphOf(parents)
 
 
-# x0 -> x1 -> x2: a root, a linear node and an MLP node, each with exactly the choices it uses
+# x0 -> x1 -> x2: a root, a linear node and an MLP node, each with exactly the fields it draws
 CHAIN = {
     'names': ['x0', 'x1', 'x2'],
     'parents': np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=bool),
     'latent': np.zeros(3, dtype=bool),
     'mechanism': [None, 'linear', 'mlp'],
     'activation': [None, None, 'tanh'],
-    'noise_scale': np.array([np.nan, 0.1, 0.2]),
-    'init_scale': np.array([np.nan, np.nan, 1.5]),
+    'noise_scale': [None, 0.1, 0.2],
+    'init_scale': [None, None, 1.5],
 }
 
 MISMATCHED = [
@@ -147,8 +147,8 @@ MISMATCHED = [
     pytest.param({'mechanism': [None, 'linear']}, id='mechanism one short'),
     pytest.param({'parents': np.zeros((3, 2), dtype=bool)}, id='parents not square'),
     pytest.param({'activation': [None, None]}, id='activation one short'),
-    pytest.param({'noise_scale': np.array([np.nan, 0.1])}, id='noise scale one short'),
-    pytest.param({'init_scale': np.array([np.nan, np.nan])}, id='init scale one short'),
+    pytest.param({'noise_scale': [None, 0.1]}, id='noise scale one short'),
+    pytest.param({'init_scale': [None, None]}, id='init scale one short'),
 ]
 
 
@@ -172,39 +172,35 @@ def test_a_latent_mask_that_disagrees_with_the_names_fails(change: dict) -> None
         Graph(**CHAIN | change)
 
 
-def test_a_graph_records_each_nodes_own_choices() -> None:
+def test_a_graph_records_what_each_node_draws_for_itself() -> None:
     """Each node draws its own family, noise scale, activation and init scale;
     keeping them keeps the dataset white-box.
     """
     graph = Graph(**CHAIN)
     assert graph.mechanism == [None, 'linear', 'mlp']
     assert graph.activation == [None, None, 'tanh']
-    np.testing.assert_array_equal(graph.noise_scale, [np.nan, 0.1, 0.2])
-    np.testing.assert_array_equal(graph.init_scale, [np.nan, np.nan, 1.5])
+    assert graph.noise_scale == [None, 0.1, 0.2]
+    assert graph.init_scale == [None, None, 1.5]
 
 
 UNUSED_OR_MISSING = [
     pytest.param({'mechanism': ['linear', 'linear', 'mlp']}, id='a root with a family'),
     pytest.param({'mechanism': [None, None, 'mlp']}, id='a node with parents without a family'),
-    pytest.param({'noise_scale': np.array([0.1, 0.1, 0.2])}, id='a root with a noise scale'),
+    pytest.param({'noise_scale': [0.1, 0.1, 0.2]}, id='a root with a noise scale'),
     pytest.param(
-        {'noise_scale': np.array([np.nan, np.nan, 0.2])},
+        {'noise_scale': [None, None, 0.2]},
         id='a node with parents without a noise scale',
     ),
     pytest.param({'activation': [None, 'tanh', 'tanh']}, id='a linear node with an activation'),
-    pytest.param(
-        {'init_scale': np.array([np.nan, 1.0, 1.5])}, id='a linear node with an init scale'
-    ),
+    pytest.param({'init_scale': [None, 1.0, 1.5]}, id='a linear node with an init scale'),
     pytest.param({'activation': [None, None, None]}, id='an mlp node without an activation'),
-    pytest.param(
-        {'init_scale': np.array([np.nan, np.nan, np.nan])}, id='an mlp node without an init scale'
-    ),
+    pytest.param({'init_scale': [None, None, None]}, id='an mlp node without an init scale'),
 ]
 
 
 @pytest.mark.parametrize('change', UNUSED_OR_MISSING)
-def test_a_choice_a_node_does_not_use_or_lacks_fails(change: dict) -> None:
-    """A recorded choice that played no part would claim it did; a missing one hides a draw."""
+def test_a_node_holds_a_value_exactly_for_the_fields_it_draws(change: dict) -> None:
+    """A recorded value that played no part would claim it did; a missing one hides a draw."""
     with pytest.raises(ValidationError):
         Graph(**CHAIN | change)
 

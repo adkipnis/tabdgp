@@ -66,12 +66,12 @@ class Graph:
     names: list[str]
     parents: np.ndarray  # (n, n) bool, parents[j, i] if i is a parent of j
     latent: np.ndarray  # (n,) bool
-    # each node's own choices, None or NaN where it uses none: a root is its noise, a linear
+    # each node's own choices, None where it uses none: a root is its noise, a linear
     # node has no activation and no init scale
     mechanism: list[Mechanism | None]
     activation: list[Activation | None]
-    noise_scale: np.ndarray  # (n,) float
-    init_scale: np.ndarray  # (n,) float
+    noise_scale: list[float | None]
+    init_scale: list[float | None]
 
     def __post_init__(self) -> None:
         n = len(self.names)
@@ -80,10 +80,10 @@ class Graph:
             self.latent.shape,
             len(self.mechanism),
             len(self.activation),
-            self.noise_scale.shape,
-            self.init_scale.shape,
+            len(self.noise_scale),
+            len(self.init_scale),
         )
-        if shapes != ((n, n), (n,), n, n, (n,), (n,)):
+        if shapes != ((n, n), (n,), n, n, n, n):
             raise ValueError(f'{n} names, but the per-node fields have shapes {shapes}')
         named_latent = [name.startswith('z') for name in self.names]  # (n,)
         if not np.array_equal(self.latent, named_latent):
@@ -93,12 +93,13 @@ class Graph:
         root = ~self.parents.any(axis=1)  # (n,)
         not_mlp = np.array([family != 'mlp' for family in self.mechanism])  # (n,)
         unused = {
-            'mechanism': ([family is None for family in self.mechanism], root),
-            'noise_scale': (np.isnan(self.noise_scale), root),
-            'activation': ([name is None for name in self.activation], not_mlp),
-            'init_scale': (np.isnan(self.init_scale), not_mlp),
+            'mechanism': (self.mechanism, root),
+            'noise_scale': (self.noise_scale, root),
+            'activation': (self.activation, not_mlp),
+            'init_scale': (self.init_scale, not_mlp),
         }
-        for field, (missing, unused_by) in unused.items():
+        for field, (values, unused_by) in unused.items():
+            missing = [value is None for value in values]  # (n,)
             if not np.array_equal(missing, unused_by):
                 raise ValueError(f'{field} is missing for nodes {missing}, unused by {unused_by}')
 

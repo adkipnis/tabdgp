@@ -88,7 +88,7 @@ def test_each_node_takes_its_own_noise_scale() -> None:
     """Two children of one root differ only in their noise: the quiet one follows the root,
     the loud one barely (R² = 1 / (1 + 10²), a correlation of 0.1).
     """
-    graph = replace(graphOf([[], [0], [0]]), noise_scale=np.array([np.nan, 0.01, 10.0]))
+    graph = replace(graphOf([[], [0], [0]]), noise_scale=[None, 0.01, 10.0])
     correlations = np.corrcoef(_run(graph, 2000).T)[0]  # (3,)
     assert abs(correlations[1]) > 0.99
     assert abs(correlations[2]) < 0.2

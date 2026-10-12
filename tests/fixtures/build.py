@@ -43,6 +43,6 @@ def graphOf(
         latent=np.zeros(n, dtype=bool),
         mechanism=mechanism,
         activation=[activation if is_mlp else None for is_mlp in mlp],
-        noise_scale=np.where(root, np.nan, noise_scale),
-        init_scale=np.where(mlp, init_scale, np.nan),
+        noise_scale=[None if is_root else noise_scale for is_root in root],
+        init_scale=[init_scale if is_mlp else None for is_mlp in mlp],
     )

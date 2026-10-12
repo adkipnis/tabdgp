@@ -64,12 +64,11 @@ def propagate(
             continue
         layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
         inputs = values[:, graph.parents[j]]  # (N, p)
-        # python floats, since a numpy float64 scalar would promote the float32 arithmetic
-        init_scale, noise_scale = float(graph.init_scale[j]), float(graph.noise_scale[j])
-        output = _mlp(inputs, layers, graph.activation[j], init_scale, resolved, rng)  # (N,)
+        activation, init_scale = graph.activation[j], graph.init_scale[j]
+        output = _mlp(inputs, layers, activation, init_scale, resolved, rng)  # (N,)
         # relative noise: its scale is relative to the z-scored output, so scales never run
         # away through depth
-        values[:, j] = _zscore(_zscore(output) + noise_scale * noise)
+        values[:, j] = _zscore(_zscore(output) + graph.noise_scale[j] * noise)
     return {name: values[:, j].copy() for j, name in enumerate(graph.names)}  # (N,) each
 
 
@@ -77,7 +76,7 @@ def _mlp(
     inputs: np.ndarray,
     layers: int,
     activation: Activation | None,
-    init_scale: float,
+    init_scale: float | None,
     resolved: Hyperprior,
     rng: np.random.Generator,
 ) -> np.ndarray:

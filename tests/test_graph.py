@@ -64,8 +64,8 @@ DENSE = {'edge_offset': 30.0, 'hub_scale': 0.0, 'latent_nodes': 0}
 def test_each_node_with_parents_draws_its_own_noise_scale() -> None:
     """Real tables mix strong and weak dependence, so the nodes of one dataset differ in noise."""
     graph = _connect(0, 6, **DENSE)
-    assert np.isnan(graph.noise_scale[0])
-    assert len(set(graph.noise_scale[1:].tolist())) == 5
+    assert graph.noise_scale[0] is None
+    assert len(set(graph.noise_scale[1:])) == 5
 
 
 def test_each_mlp_node_draws_its_own_activation_and_init_scale_and_a_linear_node_neither() -> None:
@@ -75,11 +75,11 @@ def test_each_mlp_node_draws_its_own_activation_and_init_scale_and_a_linear_node
         0, 6, mechanism_shares=point('mechanism_shares', 'mlp'), activation_shares=sin, **DENSE
     )
     assert mlp.activation == [None] + ['sin'] * 5
-    assert np.isnan(mlp.init_scale[0])
-    assert len(set(mlp.init_scale[1:].tolist())) == 5
+    assert mlp.init_scale[0] is None
+    assert len(set(mlp.init_scale[1:])) == 5
     linear = _connect(0, 6, mechanism_shares=point('mechanism_shares', 'linear'), **DENSE)
     assert linear.activation == [None] * 6
-    assert np.isnan(linear.init_scale).all()
+    assert linear.init_scale == [None] * 6
 
 
 def test_a_point_override_gives_every_node_its_value() -> None:
@@ -92,8 +92,8 @@ def test_a_point_override_gives_every_node_its_value() -> None:
         **DENSE,
         mechanism_shares=point('mechanism_shares', 'mlp'),
     )
-    np.testing.assert_array_equal(graph.noise_scale[1:], 0.3)
-    np.testing.assert_array_equal(graph.init_scale[1:], 2.0)
+    assert graph.noise_scale[1:] == [0.3] * 5
+    assert graph.init_scale[1:] == [2.0] * 5
 
 
 def _density(offset: float, **overrides: object) -> float:
@@ -146,8 +146,7 @@ def test_connect_is_deterministic_under_a_fixed_generator() -> None:
     assert first.names == second.names
     assert np.array_equal(first.parents, second.parents)
     assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
-    np.testing.assert_array_equal(first.noise_scale, second.noise_scale)
-    np.testing.assert_array_equal(first.init_scale, second.init_scale)
+    assert (first.noise_scale, first.init_scale) == (second.noise_scale, second.init_scale)
 
 
 def test_every_latent_node_has_a_child_when_a_later_node_exists() -> None:
