@@ -1,9 +1,10 @@
 # TabDGP
 
 A data-generating process for grouped and flat tables: what is drawn, how, and from which
-distributions. The covariate terms are those of metabeta's GLMM glossary
-(`packages/mixed/CONTEXT.md` of metabeta-v3, a private repository), restated here in its words;
-statistical terms (grouping factor, family, link) are not redefined.
+distributions. The covariate terms are those of metabeta's generalized linear mixed
+model (GLMM) glossary (`packages/mixed/CONTEXT.md` of metabeta-v3, a private repository),
+restated here in its words and adapted where TabDGP differs; statistical terms (grouping
+factor, family, link) are not redefined.
 
 ## Language
 
@@ -93,8 +94,8 @@ _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of
 
 **Hyperprior**:
 The one config of distributions from which every quantity of a dataset is drawn: sizes,
-graph, mechanisms, marginals, types, quirks. Its defaults are matched to mixedbench's registry
-and then widened; they are what the proofs certify.
+graph, mechanisms, marginals, types, quirks. Its defaults are to be matched to mixedbench's
+registry and then widened; they are what the proofs certify.
 _Avoid_: prior (the fitter's, over parameters), config unqualified, meta-distribution
 
 **Override**:
