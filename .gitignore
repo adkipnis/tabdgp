@@ -11,3 +11,8 @@ dist/
 .claude/
 # local agent instructions (docs/conventions.md is the public part)
 CLAUDE.md
+# design notes kept local: the lab notes and the prior-art survey
+lab/
+docs/prior-art.md
+docs/scamd-audit.md
+docs/related-simulators.md
