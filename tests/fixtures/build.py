@@ -28,19 +28,19 @@ def graphOf(
     Without a mechanism, a root has none and every other node is linear.
     A node with parents takes the noise scale; an MLP node also the activation and the init scale.
     """
-    n = len(parents)
-    adjacency = np.zeros((n, n), dtype=bool)  # (n, n)
+    d = len(parents)
+    adjacency = np.zeros((d, d), dtype=bool)  # (d, d)
     for j, parents_of_j in enumerate(parents):
         adjacency[j, parents_of_j] = True
     if mechanism is None:
         mechanism = [None if not parents_of_j else 'linear' for parents_of_j in parents]
-    mlp = np.array([family == 'mlp' for family in mechanism], dtype=bool)  # (n,)
-    root = ~adjacency.any(axis=1)  # (n,)
-    names = [f'x{j}' for j in range(n)]
+    mlp = np.array([family == 'mlp' for family in mechanism], dtype=bool)  # (d,)
+    root = ~adjacency.any(axis=1)  # (d,)
+    names = [f'x{j}' for j in range(d)]
     return Graph(
         names=names,
         parents=adjacency,
-        latent=np.zeros(n, dtype=bool),
+        latent=np.zeros(d, dtype=bool),
         mechanism=mechanism,
         activation=[activation if is_mlp else None for is_mlp in mlp],
         noise_scale=[None if is_root else noise_scale for is_root in root],
