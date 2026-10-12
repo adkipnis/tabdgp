@@ -7,8 +7,9 @@
 
 A data-generating process (DGP) for grouped and flat tables.
 
-TabDGP simulates tabular datasets from a random structural causal model (SCM).
-Each table comes with the graph and the settings that generated it, and aims to reproduce the quirks of real data.
+TabDGP simulates tabular datasets from a random structural causal model (SCM) and aims to
+reproduce the quirks of real data. Each table comes with the graph and the settings that
+generated it.
 
 > **Alpha.** Release 0.1 draws flat tables from defaults that are round guesses; the rest follows
 > the [roadmap](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md). Before 1.0, a release
