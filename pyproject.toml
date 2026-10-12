@@ -43,7 +43,6 @@ packages = ["src/tabdgp"]
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["lab"]  # dated records, never imported; they drift from src by design
 
 [tool.ruff.format]
 quote-style = "single"
