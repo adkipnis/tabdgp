@@ -137,7 +137,9 @@ def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray
 
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in its node's order: a marginal sample if continuous, level codes otherwise."""
+    """The column's values in its node's order:
+    a marginal sample if continuous, level codes otherwise.
+    """
     if column.type == 'continuous':
         by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (n,)
     else:
