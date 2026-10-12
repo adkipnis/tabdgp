@@ -7,12 +7,8 @@
 
 A data-generating process (DGP) for grouped and flat tables.
 
-TabDGP simulates tables of typed covariates from a random structural causal model (SCM). Each
-table comes with the graph and the settings that generated it: the ground truth for a simulation
-study, or for a model trained on simulated tables. Generators such as
-[SDV](https://github.com/sdv-dev/SDV) learn to imitate real data, and priors such as
-[TabPFN](https://github.com/PriorLabs/TabPFN)'s draw independent rows; TabDGP aims to draw
-grouped tables with the quirks of real ones.
+TabDGP simulates tabular datasets from a random structural causal model (SCM).
+Each table comes with the graph and the settings that generated it, and aims to reproduce the quirks of real data.
 
 > **Alpha.** Release 0.1 draws flat tables from defaults that are round guesses; the rest follows
 > the [roadmap](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md). Before 1.0, a release
@@ -24,7 +20,6 @@ grouped tables with the quirks of real ones.
 - **Reproducible.** A dataset is a pure function of its key, a seed and an index, whatever batch
   or worker draws it.
 - **Overridable.** Replace any default distribution by a point value or another distribution.
-- **Covariates only.** Continuous, binary, categorical and ordered columns; the outcome is yours.
 
 ## Install
 
@@ -63,9 +58,7 @@ x3 continuous [0.25 0.42 0.1 ]
 ## Learn more
 
 [`CONTEXT.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTEXT.md) defines the vocabulary,
-[`docs/adr/`](https://github.com/adkipnis/tabdgp/tree/main/docs/adr) records the design
-decisions and [`ROADMAP.md`](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md) gives the
-build order.
+and [`ROADMAP.md`](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md) gives the roadmap.
 
 ## Contributing
 
