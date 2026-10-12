@@ -77,10 +77,14 @@ harder to understand or change; it accrues one small edit at a time.
 ## Code
 
 - Absolute imports: `from tabdgp.x import y`.
+- Import a library's names when they are unmistakable (`BaseModel`), rename one that shadows a
+  standard-library name (`dataclass as pydantic_dataclass`), and alias a module only by its
+  community's convention (`np`, `pd`).
 - Modern typing: `X | Y`, built-in generics, `from __future__ import annotations`.
   `Literal[...]` for an argument with a fixed set of options, a type alias once it repeats.
   Config models are Pydantic: a check a type can state is its constraint (`PositiveFloat`,
   `Field(ge=3)`), and `__post_init__` holds only the checks across fields.
+- A default the hyperprior guesses is a round number; only a fitted one carries more digits.
 - f-strings, one statement per line, a long expression named on the line before.
 - A method lists its steps in the order you would describe them; a step with its own `if`
   ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
@@ -140,9 +144,12 @@ the overrides and the hyperprior
   none on a method its name and body already explain, never a chain of `;` clauses. Detail
   goes into inline comments that say why and cite sources, and into trailing comments on
   config fields.
+- A config class's docstring introduces the concepts its fields name, a short bullet each. A
+  field whose name does not say what it is ends in a short trailing comment.
 - A comment explains the code, not its history: the case behind a rule goes to the test that
   pins it, a definition to `CONTEXT.md`, how it was decided to an ADR or a lab note.
-- Code in `src/` states its rules without citing an ADR; the ADR keeps the reason.
+- Code in `src/` states its rules without citing an ADR or naming a consumer (metabeta,
+  metasurv); the ADR keeps the reason.
 
 ## Tests
 
