@@ -94,8 +94,8 @@ def test_a_constant_mechanism_output_z_scores_to_zeros() -> None:
 
     With zero hidden weights an MLP outputs its readout of activation(bias), a nonzero constant;
     its linear child then sees a zero column and outputs zeros. Without noise both stay constant.
-    At this width and row count the readout's BLAS sums leave rows a last bit apart, the residue
-    a guard of std > 0 would scale up.
+    At this width and row count the readout's BLAS sums would leave rows a last bit apart, so
+    the constant must be caught before the readout.
     """
     graph = graphOf([[], [0], [1]], [None, 'mlp', 'linear'], init_scale=0.0, noise_scale=0.0)
     for seed in range(10):
@@ -103,13 +103,13 @@ def test_a_constant_mechanism_output_z_scores_to_zeros() -> None:
         assert (values[:, 1:] == 0).all()
 
 
-def test_a_deep_mlp_at_the_default_init_scale_floor_never_goes_constant() -> None:
+def test_a_deep_mlp_at_a_small_init_scale_never_goes_constant() -> None:
     """Each layer shrinks the signal by its init scale while the N(0, 1) biases keep an offset
-    near 1, so a deep MLP at a small init scale can leave less spread than the z-score's guard.
-    At 0.1, three tanh layers of width 8 went constant in 101 of 500 seeds; at 0.3 in none.
+    near 1, so a deep MLP at 0.1 carries a small spread over a large offset. It is real signal:
+    a guard by tolerance, 1000 eps of the largest value, zeroed three tanh layers of width 8
+    in 101 of 500 seeds.
     """
-    floor = Hyperprior().init_scale.low
-    graph = graphOf([[], [0]], [None, 'mlp'], noise_scale=0.0, init_scale=floor)
+    graph = graphOf([[], [0]], [None, 'mlp'], noise_scale=0.0, init_scale=0.1)
     for seed in range(20):
         values = _run(graph, 2000, seed, layers=3, hidden=8)
         assert values[:, 1].std() > 0

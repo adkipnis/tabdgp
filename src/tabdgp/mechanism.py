@@ -39,6 +39,11 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin}
 # =====================================================================================
 
 
+def _isConstant(x: np.ndarray) -> bool:
+    # the same on every row; the first column settles most layers without reading the rest
+    return bool((x[:, 0] == x[0, 0]).all() and (x == x[0]).all())
+
+
 def _mapParents(
     nodes: dict[str, np.ndarray],
     j: int,
@@ -50,6 +55,7 @@ def _mapParents(
     parents = [nodes[graph.names[i]] for i in np.flatnonzero(graph.parents[j])]
     # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width (LeCun et al. 1998)
     hidden = np.stack(parents, axis=1)  # (n, p)
+    constant = _isConstant(hidden)
     for _ in range(layers):
         fan_in = hidden.shape[1]
         scale = graph.init_scale[j] / fan_in**0.5
@@ -57,17 +63,19 @@ def _mapParents(
         # a bias per unit moves the activation off the parents' mean, after scamd's RandomScale
         bias = rng.standard_normal(resolved.hidden, dtype=np.float32)  # (hidden,)
         hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (n, hidden)
+        constant = constant or _isConstant(hidden)
     # the readout's scale vanishes in the z-score that follows; only the relative weights count
     readout = rng.standard_normal(hidden.shape[1], dtype=np.float32)  # (hidden,) or (p,)
+    if constant:  # a matrix product may since have spread it over the last bits
+        return np.zeros(len(hidden), dtype=np.float32)
     return hidden @ readout
 
 
 def _zscore(x: np.ndarray) -> np.ndarray:
-    # a constant (a dead relu, or the layer after one) z-scores to zeros
+    # a constant node (a dead relu, or the layer after one) arrives as zeros and stays zeros
     centred = x - x.mean()
     std = centred.std()
-    residue = 1000 * np.finfo(x.dtype).eps * np.abs(x).max()
-    if std <= residue:
+    if std == 0:
         return np.zeros_like(x)
     return centred / std
 
