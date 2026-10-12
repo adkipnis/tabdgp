@@ -82,8 +82,9 @@ draws many loops over indices.
 _Avoid_: sample (a row or a value), generate, batch
 
 **Key**:
-A seed and an index, the identity of one dataset: the same key, hyperprior and TabDGP version
-give the same dataset bitwise, whatever the batch, worker or shard it is drawn in.
+A seed and an index, the identity of one dataset: the same key, hyperprior and versions of
+TabDGP and numpy give the same dataset bitwise, whatever the batch, worker or shard it is
+drawn in.
 _Avoid_: rng, random state, seed alone
 
 **Dataset**:

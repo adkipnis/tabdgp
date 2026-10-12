@@ -29,6 +29,7 @@ from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
 
 VERSION = version('tabdgp')
+NUMPY_VERSION = version('numpy')
 
 # =====================================================================================
 # the dataset
@@ -49,6 +50,7 @@ class Dataset:
     seed: int  # the corpus
     index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version
+    numpy_version: str  # its generator's streams may change between numpy releases
 
 
 # =====================================================================================
@@ -74,4 +76,5 @@ def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset
         seed=seed,
         index=index,
         version=VERSION,
+        numpy_version=NUMPY_VERSION,
     )

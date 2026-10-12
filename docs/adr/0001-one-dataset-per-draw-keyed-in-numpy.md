@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16)
+amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's
 ---
 
 # 0001 — One dataset per draw, keyed by seed and index, in numpy
@@ -12,9 +12,10 @@ masking, collate and the `.npz` corpus on `metabeta.core`, and its Simulator add
 before anything is written. Grilled on
 2026-10-11 (storage, batch layout, tensor library, item 1 of `ROADMAP.md`), the decision is:
 **the seed is the corpus.** Dataset `i` is a pure function of its key `(seed, index)`, the
-hyperprior with its overrides and the installed TabDGP version. The public call draws one
-dataset, `draw(seed, index, hyperprior) -> Dataset`, in numpy, at the dataset's own shapes.
-TabDGP never pads, never batches across datasets and never writes a file.
+hyperprior with its overrides and the installed versions of TabDGP and numpy, whose generator
+promises no stable streams across its releases; the dataset records both. The public call
+draws one dataset, `draw(seed, index, hyperprior) -> Dataset`, in numpy, at the dataset's own
+shapes. TabDGP never pads, never batches across datasets and never writes a file.
 
 ## Considered options
 
