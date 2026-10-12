@@ -5,7 +5,7 @@ Decided in metabeta-v3's Phase 1 grill (2026-10-11; its root ADR 0005 and
 was created. Order reflects dependencies. Specs and tickets are GitHub Issues on this
 repository.
 
-- [ ] **1 The flat SCM.** The repository on mixedbench's template; the flat structural causal
+- [x] **1 The flat SCM.** The repository on mixedbench's template; the flat structural causal
   model with a marginal catalogue and typed post-hoc columns, written from scratch with scamd
   and TabICL's prior read for ideas; the hyperprior config with overrides; tests; the tensor
   library decided in this spec
