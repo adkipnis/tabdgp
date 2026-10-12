@@ -37,7 +37,7 @@ docs/           the conventions, and from roadmap item 3 the proofs' method
 ```
 
 [`CONTEXT.md`](CONTEXT.md) defines the words (node, mechanism, hyperprior, override, quirk
-axis, outcome node) and the covariate terms it shares with metabeta's GLMM glossary.
+axis, outcome node) and the covariate terms it shares with metabeta's glossary.
 
 ## Pull requests
 
