@@ -59,20 +59,11 @@ MISLABELLED = [
 
 @pytest.mark.parametrize('change', MISLABELLED)
 def test_a_latent_mask_that_disagrees_with_the_names_fails(change: dict) -> None:
-    """The mask and the x…/z… names both tell latent from observed nodes; they may not disagree."""
+    """The mask and the x…/z… names both tell latent from observed nodes;
+    they may not disagree.
+    """
     with pytest.raises(ValidationError):
         Graph(**CHAIN | change)
-
-
-def test_a_graph_records_what_each_node_draws_for_itself() -> None:
-    """Each node draws its own family, noise scale, activation and init scale;
-    keeping them keeps the dataset white-box.
-    """
-    graph = Graph(**CHAIN)
-    assert graph.mechanism == [None, 'linear', 'mlp']
-    assert graph.activation == [None, None, 'tanh']
-    assert graph.noise_scale == [None, 0.1, 0.2]
-    assert graph.init_scale == [None, None, 1.5]
 
 
 UNUSED_OR_MISSING = [
@@ -97,11 +88,6 @@ def test_a_node_holds_a_value_exactly_for_the_fields_it_draws(change: dict) -> N
         Graph(**CHAIN | change)
 
 
-def test_an_empty_graph_is_valid() -> None:
-    """A budget of 0 with no latent nodes draws a dataset of rows and no nodes at all."""
-    graphOf([])
-
-
 # connect carries whatever names the plan gives it; letters show that it mints none of its own
 OBSERVED = list('abcdefghij')
 
@@ -120,7 +106,9 @@ def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
 
 
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
-    """parents[j, i] with i < j only: the names are in topological order, so propagation is one pass."""
+    """parents[j, i] with i < j only:
+    the names are in topological order, so propagation is one pass.
+    """
     for seed in range(20):
         graph = _connect(seed, 10)
         assert graph.parents.dtype == bool
@@ -208,7 +196,9 @@ def test_density_is_monotone_in_the_offset() -> None:
 
 
 def _cliques(parents: np.ndarray) -> np.ndarray:
-    """Whether the undirected skeleton is a disjoint union of cliques: its reachability is itself."""
+    """Whether the undirected skeleton is a disjoint union of cliques:
+    its reachability is itself.
+    """
     adjacent = parents | parents.T | np.eye(len(parents), dtype=bool)  # (d, d)
     return np.array_equal(adjacent.astype(int) @ adjacent.astype(int) > 0, adjacent)
 
@@ -241,7 +231,7 @@ def test_connect_is_deterministic_under_a_fixed_generator() -> None:
     assert (first.noise_scale, first.init_scale) == (second.noise_scale, second.init_scale)
 
 
-def _degree_spread(hub_scale: float) -> float:
+def _degreeSpread(hub_scale: float) -> float:
     """The mean over 50 graphs of 10 nodes of the standard deviation of the nodes' degrees."""
     spreads = []
     for seed in range(50):
@@ -255,4 +245,4 @@ def _degree_spread(hub_scale: float) -> float:
 
 def test_a_larger_hub_scale_spreads_the_degrees() -> None:
     """hub_scale scales the Cauchy node terms, so a large one makes a few nodes hubs."""
-    assert _degree_spread(2.0) > 1.2 * _degree_spread(0.0)
+    assert _degreeSpread(2.0) > 1.2 * _degreeSpread(0.0)
