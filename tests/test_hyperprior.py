@@ -11,7 +11,7 @@ from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import ColumnType
-from tabdgp.graph import Mechanism
+from tabdgp.graph import Activation, Mechanism
 from tabdgp.hyperprior import (
     MARGINAL_FIELDS,
     Beta,
@@ -202,6 +202,7 @@ def test_the_fields_drawn_per_column_are_the_families_and_the_level_concentratio
 CATALOGUES = [
     pytest.param(set(get_args(Family)), 'marginal_shares', id='marginal families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
+    pytest.param(set(get_args(Activation)), 'activation_shares', id='activation names'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
     pytest.param(set(get_args(ColumnType)), 'type_shares', id='column types'),
 ]

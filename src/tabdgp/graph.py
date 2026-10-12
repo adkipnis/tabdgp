@@ -82,10 +82,6 @@ class Graph:
 # connecting the nodes
 # =====================================================================================
 
-# a field drawn per node that no node reads would stay a distribution without a word
-if set(Hyperprior.PER_NODE) != {'noise_scale', 'init_scale'}:
-    raise ValueError(f'the fields nodes read differ from {Hyperprior.PER_NODE}')
-
 
 def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator) -> Graph:
     """The graph over the latent and observed nodes, with each node's own choices; weights are not kept."""

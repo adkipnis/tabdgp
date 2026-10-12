@@ -13,11 +13,9 @@ the generating graph in topological order
 
 from __future__ import annotations
 
-from typing import get_args
-
 import numpy as np
 
-from tabdgp.graph import Activation, Graph, Mechanism
+from tabdgp.graph import Activation, Graph
 from tabdgp.hyperprior import Hyperprior
 
 # =====================================================================================
@@ -35,14 +33,6 @@ def _identity(x: np.ndarray) -> np.ndarray:
 
 
 ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin, 'identity': _identity}
-
-# a category added to the hyperprior's shares or to a catalogue alone fails here, not when drawn
-if set(ACTIVATIONS) != set(Hyperprior.categories('activation_shares')):
-    raise ValueError(f'activations {list(ACTIVATIONS)} differ from activation_shares')
-if set(get_args(Activation)) != set(ACTIVATIONS):
-    raise ValueError(f'activations {get_args(Activation)} differ from the catalogue')
-if set(get_args(Mechanism)) != set(Hyperprior.categories('mechanism_shares')):
-    raise ValueError(f'mechanisms {get_args(Mechanism)} differ from mechanism_shares')
 
 
 # =====================================================================================
