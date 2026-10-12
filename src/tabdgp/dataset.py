@@ -1,4 +1,4 @@
-"""dataset.py defines the output contract: what each draw returns and the key that identifies it."""
+"""dataset.py defines the output contract."""
 
 from __future__ import annotations
 
@@ -21,13 +21,13 @@ ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
 
 @pydantic_dataclass(frozen=True)
 class Column:
-    """The metadata of one observed column."""
+    """Metadata of one observed column."""
 
     type: ColumnType
     levels: int | None = None  # K
-    role: Literal['covariate'] = 'covariate'  # the only role until grouping factors arrive
-    marginal: Family | None = None  # the family its values are mapped onto
-    parameters: dict[str, float] = Field(default_factory=dict)  # its per-column fields' values
+    role: Literal['covariate'] = 'covariate'  # extended to grouping factors or outcome later
+    marginal: Family | None = None  # for continuous columns
+    parameters: dict[str, float] = Field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # binary is exactly K = 2 and categorical or ordered K ≥ 3, so no two types overlap
@@ -35,13 +35,13 @@ class Column:
             agree = self.levels is None
         elif self.type == 'binary':
             agree = self.levels == 2
-        else:
+        else:  # categorical | ordered
             agree = self.levels is not None and self.levels >= 3
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
         if (self.type == 'continuous') != (self.marginal is not None):
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
-        # exactly the values the column was drawn with: its family's, or its level concentration
+        # check that parameters hold exactly the fields this column drew
         if self.type == 'continuous':
             own = MARGINAL_FIELDS[self.marginal]
         else:
@@ -61,13 +61,17 @@ class Column:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Graph:
-    """Every node of a dataset in topological order, observed ones `x…`, latent ones `z…`."""
+    """Every node of a dataset in topological order (observed `x`, latent `z`).
+
+    - A root (a node without parents) is just its noise and draws nothing.
+    - A linear node draws a noise scale.
+    - An MLP node draws a noise scale, an activation and an init scale.
+    - None at position i for any field <=> node i does not draw that field.
+    """
 
     names: list[str]
-    parents: np.ndarray  # (n, n) bool, parents[j, i] if i is a parent of j
+    parents: np.ndarray  # (n, n) bool, parents[i, j] is True if j is a parent of i
     latent: np.ndarray  # (n,) bool
-    # each node's own choices, None where it uses none: a root is its noise, a linear
-    # node has no activation and no init scale
     mechanism: list[Mechanism | None]
     activation: list[Activation | None]
     noise_scale: list[float | None]
@@ -89,7 +93,8 @@ class Graph:
         if not np.array_equal(self.latent, named_latent):
             raise ValueError(f'the latent mask {self.latent.tolist()} disagrees with {self.names}')
         if np.triu(self.parents).any():
-            raise ValueError('a parent on or above the diagonal breaks the topological order')
+            raise ValueError('a parent on or above the diagonal breaks topological order')
+        # check that each node holds a value for the fields it draws
         root = ~self.parents.any(axis=1)  # (n,)
         not_mlp = np.array([family != 'mlp' for family in self.mechanism])  # (n,)
         unused = {
@@ -111,9 +116,11 @@ class Graph:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Dataset:
-    """What one draw returns; the arrays are held as given, never copied."""
+    """A dataset draw in its white-box format.
+    Each array is stored as drawn (not copied), so a consumer can share its memory.
+    """
 
-    columns: dict[str, np.ndarray]  # (N,) each, float32 if continuous, int64 codes 0..K−1 if not
+    columns: dict[str, np.ndarray]  # (N,) each, float32 if continuous, int64 codes 0..K−1 otherwise
     metadata: dict[str, Column]
     graph: Graph
     latent: dict[str, np.ndarray]  # (N,) float32 each, z-scored
