@@ -25,7 +25,10 @@ repository.
   its flat case matched to a comparable sample of flat tables, not to grouped tables alone
   ([mixedbench#72](https://github.com/adkipnis/mixedbench/issues/72)); the marginal catalogue
   extended by the families the pass finds missing (candidates: gamma, exponential, Pareto,
-  counts, censoring at a floor or ceiling, the node's own shape without rank matching)
+  counts, censoring at a floor or ceiling, the node's own shape without rank matching); the fit
+  also decides whether MLP width and depth are drawn per node, like the activation, rather than
+  per dataset ([#15](https://github.com/adkipnis/tabdgp/issues/15) kept them per dataset for
+  want of a reason either way)
 - [ ] **5 Outcome node.** The optional outcome node for white-box misspecified datasets
 - [ ] **6 Extensions for other amortization targets.** Data that amortized inference and
   prior-data fitted networks (PFNs) train on beyond GLMMs, each a new node type or an entry of
