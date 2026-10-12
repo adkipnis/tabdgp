@@ -33,9 +33,9 @@ def test_the_defaults_validate() -> None:
 def test_a_point_override_resolves_to_itself() -> None:
     """metabeta passes its sizes as points; resolveDataset must hand them back untouched."""
     shares = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
-    hyperprior = Hyperprior(n_obs=500, type_shares=shares, edge_offset=-1.5)
+    hyperprior = Hyperprior(rows=500, type_shares=shares, edge_offset=-1.5)
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
-    assert (resolved.n_obs, resolved.type_shares, resolved.edge_offset) == (500, shares, -1.5)
+    assert (resolved.rows, resolved.type_shares, resolved.edge_offset) == (500, shares, -1.5)
 
 
 def test_resolving_twice_changes_nothing() -> None:
@@ -85,9 +85,9 @@ def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
 
 ALL_CONTINUOUS = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
 OUT_OF_RANGE = [
-    pytest.param({'n_obs': 0}, id='a point below the bound'),
-    pytest.param({'n_obs': UniformInt(0, 100)}, id='a support below the bound'),
-    pytest.param({'n_obs': LogUniform(20, 5000)}, id='a continuous distribution for a count'),
+    pytest.param({'rows': 0}, id='a point below the bound'),
+    pytest.param({'rows': UniformInt(0, 100)}, id='a support below the bound'),
+    pytest.param({'rows': LogUniform(20, 5000)}, id='a continuous distribution for a count'),
     pytest.param({'levels_p': 1.5}, id='a probability above 1'),
     pytest.param({'zero_share': 1.0}, id='a point on an open bound'),
     pytest.param({'student_df': Uniform(-1, 5)}, id='a support across zero for a positive field'),
@@ -117,8 +117,8 @@ def test_a_misspelt_override_fails_at_construction() -> None:
 
 
 SUPPORTED = [
-    ('n_obs', UniformInt),
-    ('n_obs', LogUniformInt),
+    ('rows', UniformInt),
+    ('rows', LogUniformInt),
     ('hub_scale', Uniform),
     ('hub_scale', LogUniform),
 ]

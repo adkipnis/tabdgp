@@ -145,7 +145,7 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
 
 
 def test_apply_gives_valid_codes_when_n_is_below_k() -> None:
-    """A small n_obs override can leave fewer rows than levels; each row still gets a code below K."""
+    """A small rows override can leave fewer rows than levels; each row still gets a code below K."""
     column = Column(type='categorical', levels=6, parameters=ALPHA)
     for seed in range(10):
         codes = _apply(3, column, seed)

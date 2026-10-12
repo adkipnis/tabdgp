@@ -65,13 +65,13 @@ def test_columns_metadata_graph_and_latent_agree_on_names() -> None:
 
 @settings(max_examples=25, deadline=None)
 @given(
-    n_obs=st.integers(1, 300),
+    rows=st.integers(1, 300),
     design_columns=st.integers(0, 19),
     latent_nodes=st.integers(0, 9),
     max_levels=st.integers(3, 6),
 )
 def test_every_override_is_honoured(
-    n_obs: int, design_columns: int, latent_nodes: int, max_levels: int
+    rows: int, design_columns: int, latent_nodes: int, max_levels: int
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
@@ -79,7 +79,7 @@ def test_every_override_is_honoured(
     every point override as given, and a field drawn per node through the graph.
     """
     hyperprior = Hyperprior(
-        n_obs=n_obs,
+        rows=rows,
         design_columns=design_columns,
         latent_nodes=latent_nodes,
         max_levels=max_levels,
@@ -92,10 +92,10 @@ def test_every_override_is_honoured(
         assert column.levels is None or column.levels <= max_levels
     assert len(dataset.latent) == latent_nodes
     for array in [*dataset.columns.values(), *dataset.latent.values()]:
-        assert array.shape == (n_obs,)
+        assert array.shape == (rows,)
     resolved = dataset.hyperparameters
-    assert (resolved.n_obs, resolved.design_columns, resolved.latent_nodes) == (
-        n_obs,
+    assert (resolved.rows, resolved.design_columns, resolved.latent_nodes) == (
+        rows,
         design_columns,
         latent_nodes,
     )
@@ -117,7 +117,7 @@ def test_the_hyperparameters_keep_the_fields_drawn_per_column_or_node_as_given()
 def test_a_distribution_override_is_honoured() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
-        dataset = draw(0, index, Hyperprior(n_obs=UniformInt(30, 40), design_columns=1))
+        dataset = draw(0, index, Hyperprior(rows=UniformInt(30, 40), design_columns=1))
         [values] = dataset.columns.values()
         assert 30 <= len(values) <= 40
 
@@ -125,7 +125,7 @@ def test_a_distribution_override_is_honoured() -> None:
 def test_a_budget_of_0_gives_no_columns() -> None:
     """metabeta's d − 1 may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
-        dataset = draw(0, index, Hyperprior(design_columns=0, latent_nodes=2, n_obs=50))
+        dataset = draw(0, index, Hyperprior(design_columns=0, latent_nodes=2, rows=50))
         assert dataset.columns == {}
         assert dataset.metadata == {}
         assert dataset.graph.latent.all()
@@ -168,7 +168,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
     isolated = {'edge_offset': -30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
     for type in ['binary', 'categorical', 'ordered']:
         hyperprior = Hyperprior(
-            n_obs=1000,
+            rows=1000,
             design_columns=4,
             type_shares=point('type_shares', type),
             latent_nodes=1,

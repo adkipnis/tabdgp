@@ -55,10 +55,10 @@ def propagate(
 ) -> dict[str, np.ndarray]:
     """Every node's values by name in the graph's order, each z-scored and its own array."""
     n = len(graph.names)
-    n_obs = resolved.n_obs
-    values = np.empty((n_obs, n), dtype=np.float32)  # (N, n)
+    rows = resolved.rows
+    values = np.empty((rows, n), dtype=np.float32)  # (N, n)
     for j in range(n):
-        noise = rng.standard_normal(n_obs, dtype=np.float32)  # (N,)
+        noise = rng.standard_normal(rows, dtype=np.float32)  # (N,)
         if not graph.parents[j].any():  # a root is its noise
             values[:, j] = _zscore(noise)
             continue

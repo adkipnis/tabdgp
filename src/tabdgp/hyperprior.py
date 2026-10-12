@@ -204,7 +204,7 @@ class Hyperprior(BaseModel):
     )  # columns are manifested (i.e. non-latent) nodes
 
     # sizes and columns
-    n_obs: PositiveCount = LogUniformInt(20, 15000)  # rows
+    rows: PositiveCount = LogUniformInt(20, 15000)  # N, the table's length
     design_columns: Count = UniformInt(1, 19)  # design-matrix width
     type_shares: Simplex = Dirichlet(
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
