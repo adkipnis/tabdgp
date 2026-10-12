@@ -7,16 +7,15 @@ reasons behind the larger rules are in the [ADRs](adr).
 
 - Python through `uv` only; `uv run` for everything, every command from the repository root,
   without `cd`.
-- Python 3.12 and newer supported, developed on 3.14, CI on both.
-  The floor rises only when a dependency or a language feature needs it,
-  and never past the oldest version [SPEC 0](https://scientific-python.org/specs/spec-0000/) supports.
-- `ruff format` and `pytest`, run by CI.
+- Python 3.12 and newer, developed on 3.14, CI on both. The floor rises only when a
+  dependency or a language feature needs it, never past the oldest version
+  [SPEC 0](https://scientific-python.org/specs/spec-0000/) supports.
+- `ruff format` and `pytest`, run by CI. Wrap `argparse` blocks in `# fmt: off` / `# fmt: on`.
 - Open an issue before adding a heavyweight dependency.
 
 ## Modules
 
-Each module owns one design decision that no other module depends on. The table fills as the
-modules arrive:
+Each module owns one design decision, hidden from the others:
 
 | module | owns | imported by |
 |---|---|---|
@@ -33,17 +32,16 @@ harder to understand or change; it accrues one small edit at a time.
 
 - **Deep modules.** A small interface over much functionality; an interface as complex as its
   implementation folds into its caller or callee.
-- **Information hiding.** Each module owns one design decision (a node mechanism, a tensor
-  layout, the hyperprior's parameterisation). Split code by what it knows, not by the order
-  it runs in.
+- **Information hiding.** Split code by what it knows (a node mechanism, a tensor layout, the
+  hyperprior's parameterisation), not by the order it runs in.
 - **No pass-throughs.** A method that forwards its arguments unchanged adds nothing; call the
   target directly.
 - **Pull complexity down.** The module absorbs the awkward case so its callers stay simple. A
   fixed sensible behaviour beats a new config parameter.
 - **Define errors out of existence.** Shape the interface so the invalid case cannot arise
   (accept the empty set, validate once at construction). The rest fails loudly: no fallbacks,
-  no defensive `try`/`except`, no speculative generality. Branch only for cases observed on
-  real inputs; add the next branch when use hits it.
+  no defensive `try`/`except`. Branch only for a case observed on real inputs, never
+  speculatively.
 - **Design it twice.** For a non-trivial interface, name two designs and why one wins before
   writing code.
 - **Obvious over clever.** The simplest form a reader guesses right on first read, in code
@@ -53,9 +51,8 @@ harder to understand or change; it accrues one small edit at a time.
 
 - The smallest change that solves the problem and meets the design bar, no unrequested
   extras. Leave adjacent code, comments and formatting untouched.
-- Written from scratch: scamd and TabICL's prior are read for ideas, never copied. A mechanism
-  one of them inspired names it in a comment. Where a formula comes from a paper, the comment
-  cites it (authors and year, an equation number).
+- [`CONTRIBUTING.md`](../CONTRIBUTING.md#pull-requests)'s three rules hold: the defaults are
+  what the proofs certify, code is written from scratch, nothing comes from downstream.
 - A task that repeats, or is error-prone by hand, gets a `.py` or `.sh` script.
 
 ## Names
@@ -68,17 +65,16 @@ harder to understand or change; it accrues one small edit at a time.
 - A function in `src/` is named for what it does, a verb and its object (`_resolveColumn`),
   not for what it returns (`_column`). A test helper is read inside an assert, so it may name
   what it returns (`_density`).
-- Methods that do one thing at different scopes share its verb, and each names its scope:
-  `resolveDataset` for every field drawn once per dataset, `resolveField` for one field.
-- A quantity counted at different scopes keeps one name: the budget's `design_columns` and a
-  column's `design_columns`.
+- One thing at different scopes keeps one name. Methods share its verb and each names its
+  scope (`resolveDataset` for every field drawn once per dataset, `resolveField` for one); a
+  counted quantity keeps its noun (the budget's `design_columns` and a column's).
 - A directory is `dir`, not `folder`. A DataFrame is a `table`, several are `tables`, never
   `df` or `frame`.
 - A leading `_` marks a pipeline step and anything no other module imports.
-- Tests live in `tests/`, mirroring `src/`, one `test_<module>.py` per module, each test named
-  as a sentence (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
 
 ## Code
+
+### Imports and types
 
 - Absolute imports: `from tabdgp.x import y`.
 - Import a library's names when they are unmistakable (`BaseModel`), rename one that shadows a
@@ -89,6 +85,9 @@ harder to understand or change; it accrues one small edit at a time.
   Config models are Pydantic: a check a type can state is its constraint (`PositiveFloat`,
   `Field(ge=3)`), and `__post_init__` holds only the checks across fields.
 - A default the hyperprior guesses is a round number; only a fitted one carries more digits.
+
+### Control flow
+
 - f-strings, one statement per line, a long expression named on the line before.
 - A method lists its steps in the order you would describe them; a step with its own `if`
   ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
@@ -97,9 +96,9 @@ harder to understand or change; it accrues one small edit at a time.
 - `a if c else b` only on a short line. Lookup tables are literal dicts or `if` chains, not
   built with comprehensions, `dict.fromkeys` or `|`. Cases that read different arguments are a
   `match` over their `Literal`, not a dict of wrappers that share one signature.
-- Names listed in two modules (a `Literal`, a catalogue, a shares field's categories, the
-  per-column or per-node fields) are checked against each other by a test; `src/` checks
-  nothing at import. Names listed twice in one module are checked by a test, if at all.
+
+### Classes
+
 - A class per concept a reader should hold apart (a distribution, a column's metadata), static
   methods where it holds no state. A helper or constant used by one class lives on it; module
   functions are for what spans classes.
@@ -107,7 +106,6 @@ harder to understand or change; it accrues one small edit at a time.
   module function beside it (`plan`, `connect`, `draw`), not a method of the class.
 - A base class holds a skeleton its subclasses inherit: fields, methods or checks. Classes
   that only an `isinstance` check groups are a union alias, not an empty base.
-- Wrap `argparse` blocks in `# fmt: off` / `# fmt: on`.
 
 ### Arrays and tensors
 
@@ -157,32 +155,37 @@ the overrides and the hyperprior
   at sentence or clause boundaries, not at the column limit.
 - A docstring only where the behaviour or design is not obvious: one or two plain sentences,
   none on a method its name and body already explain, never a chain of `;` clauses. Detail
-  goes into inline comments that say why and cite sources, and into trailing comments on
-  config fields.
+  goes into inline comments that say why.
+- A comment names its source: scamd or TabICL's prior for a mechanism it inspired, the authors,
+  year and equation number for a formula from a paper.
 - A config or data class's docstring introduces the concepts its fields name, a short bullet
   each. A field whose name does not say what it is ends in a short trailing comment.
 - A block of checks opens with one plain sentence on what it checks.
 - A comment explains the code, not its history: the case behind a rule goes to the test that
-  pins it, a definition to `CONTEXT.md`, how it was decided to an ADR or a lab note.
-- Code in `src/` states its rules without citing an ADR or naming a consumer (metabeta,
-  metasurv); the ADR keeps the reason.
+  pins it, a definition to `CONTEXT.md`, how it was decided to an ADR or a lab note. Code in
+  `src/` cites no ADR and names no consumer (metabeta, metasurv).
 
 ## Tests
 
 - Test first: the failing test, then the minimal code. `hypothesis` for property tests.
+- `tests/` mirrors `src/`: one `test_<module>.py` per module, each test named as a sentence
+  (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
 - Unit tests for every mechanism: marginal ranges, the coded shapes, determinism under a
   fixed generator, every override honoured, the flat case as zero factors.
 - The proofs against mixedbench's registry (the two-sample test and the containment test)
   carry the `slow` mark and fixed seeds.
 - Each test says in a sentence or two why it exists, unless obvious. Bind the object under
   test, then call it; small named helpers, not lambdas or repeated comprehensions.
+- Names listed in two modules (a `Literal`, a catalogue, a shares field's categories, the
+  per-column or per-node fields) are checked against each other by a test; `src/` checks
+  nothing at import. Names listed twice in one module are checked by a test, if at all.
 - No coverage gate.
 
 ## Docs
 
 Markdown meets the same bar as code: simple, and read top to bottom.
 
-- Short bullets, the essentials first, detail in an appendix or a linked file.
+- The essentials first, detail in an appendix or a linked file.
 - One home per fact, links everywhere else; a living rule sits with the method it governs.
   Counts live in generated files, never in prose.
 - `README.md` is for users and fits one screen: badges, a short what and why, install, one
