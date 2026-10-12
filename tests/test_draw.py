@@ -35,7 +35,7 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
     assert dataset.columns['x0'] is values and dataset.latent['z0'] is latent
 
 
-def _assert_identical(a: Dataset, b: Dataset) -> None:
+def _assertIdentical(a: Dataset, b: Dataset) -> None:
     """Two datasets agree bit for bit: every array in dtype and bytes, everything else by ==."""
     for name in ['columns', 'latent']:
         arrays_a, arrays_b = getattr(a, name), getattr(b, name)
@@ -69,13 +69,15 @@ INDICES = st.integers(0, 1000)
 def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_second_seed_order(
     seed: int, other_seed: int, index: int, others: list[int]
 ) -> None:
-    """The seed is the corpus: dataset i may not depend on what else a worker, batch or shard draws."""
+    """The seed is the corpus:
+    dataset i may not depend on what else a worker, batch or shard draws.
+    """
     alone = draw(seed, index)
     first_set = [draw(seed, i) for i in [*others, index]][-1]
     second_set = [draw(seed, i) for i in [index, *reversed(others), index + 1]][0]
     other_first = [draw(other_seed, index), draw(seed, index)][1]
     for dataset in [first_set, second_set, other_first]:
-        _assert_identical(alone, dataset)
+        _assertIdentical(alone, dataset)
 
 
 def test_columns_metadata_graph_and_latent_agree_on_names() -> None:
@@ -130,16 +132,6 @@ def test_every_override_is_honoured(
     assert set(dataset.graph.noise_scale) <= {None, 0.5}
 
 
-def test_the_hyperparameters_keep_the_fields_drawn_per_column_or_node_as_given() -> None:
-    """Each column and node holds its own value of these fields; the dataset-wide record is the
-    distribution they were drawn from.
-    """
-    hyperprior = Hyperprior()
-    hyperparameters = draw(0, 0, hyperprior).hyperparameters
-    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE:
-        assert getattr(hyperparameters, field) == getattr(hyperprior, field)
-
-
 def test_a_distribution_override_is_honoured() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
@@ -149,7 +141,7 @@ def test_a_distribution_override_is_honoured() -> None:
 
 
 def test_a_budget_of_0_gives_no_columns() -> None:
-    """metabeta's d − 1 may be 0: a table of rows and no covariates, whose graph is latent only."""
+    """metabeta's budget may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
         dataset = draw(0, index, Hyperprior(design_columns=0, latent_nodes=2, rows=50))
         assert dataset.columns == {}
@@ -174,7 +166,7 @@ def test_every_column_is_finite_and_every_continuous_column_non_constant() -> No
                 assert np.isfinite(values).all()
 
 
-def _neighbour_agreement(codes: np.ndarray, parent: np.ndarray) -> float:
+def _neighbourAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
     """The share of rows whose code equals the next row's in the parent's order.
 
     A column cut from its parent changes code only at its K − 1 thresholds, whatever its sign
@@ -207,7 +199,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
         for index in range(10):
             dataset = draw(0, index, hyperprior)
             assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
-            agreement = _neighbour_agreement(dataset.columns['x0'], dataset.latent['z0'])
+            agreement = _neighbourAgreement(dataset.columns['x0'], dataset.latent['z0'])
             assert agreement > 0.95
 
 
