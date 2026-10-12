@@ -4,8 +4,8 @@ pipeline:
 ---------
 the resolved shares and budget
 -> one named column after another until the budget is met     plan
--> per column, its own parameters                              _column
--> per column, a sorted marginal sample or codes in order      apply, _sample, _codes
+-> per column, its type, K and own parameters                  _column
+-> per column, a sorted marginal sample or codes               _sample, _codes
 -> placed by the node's ranks                                  apply
 """
 
@@ -28,7 +28,7 @@ if set(get_args(ColumnType)) != set(Hyperprior.categories('type_shares')):
 
 
 def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
-    """Columns x0, x1, … drawn one after another until their design columns fill the budget exactly."""
+    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly."""
     columns = {}
     remainder = resolved.design_columns
     while remainder > 0:
@@ -60,15 +60,15 @@ def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> C
 # =====================================================================================
 
 
-def apply(values: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in the node's order: its marginal's sample if continuous, its codes if not."""
+def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
+    """The column's values in its node's order: a marginal sample if continuous, codes if not."""
     if column.type == 'continuous':
-        by_rank = np.sort(_sample(len(values), column, rng)).astype(np.float32)  # (N,)
+        by_rank = np.sort(_sample(len(node), column, rng)).astype(np.float32)  # (N,)
     else:
-        by_rank = _codes(len(values), column, rng)  # (N,)
+        by_rank = _codes(len(node), column, rng)  # (N,)
     # Iman and Conover (1982), https://doi.org/10.1080/03610918208812265: the sorted values
     # placed by the node's ranks are a permutation of them, never a quantile lookup that resamples
-    ranks = np.argsort(np.argsort(values))  # (N,)
+    ranks = np.argsort(np.argsort(node))  # (N,)
     return by_rank[ranks]
 
 
@@ -94,10 +94,10 @@ def _sample(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
 
 
 def _codes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
-    # codes 0..K−1 in rank order, cut at drawn level shares, every level present if N ≥ K
+    """Codes 0..K−1 in rank order, cut at drawn level shares, each level present if N ≥ K."""
     k = column.levels
     shares = rng.dirichlet(np.full(k, column.parameters['level_alpha']))  # (K,)
-    # one row per level first, the rest split at the shares' quantiles
+    # one row per level first, the rest split in proportion to the shares
     floor = 1 if n >= k else 0
     edges = np.round(np.cumsum(shares) * (n - floor * k)).astype(np.int64)  # (K,)
     counts = np.diff(edges, prepend=0) + floor  # (K,)
