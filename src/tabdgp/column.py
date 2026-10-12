@@ -5,7 +5,7 @@ pipeline:
 the resolved shares and budget
 -> one named column after another until the budget is met     plan
 -> per column, its own parameters                              _column
--> per column, a sorted marginal sample or codes in order      apply, _codes
+-> per column, a sorted marginal sample or codes in order      apply, _sample, _codes
 -> placed by the node's ranks                                  apply
 """
 
@@ -16,8 +16,7 @@ from typing import get_args
 import numpy as np
 
 from tabdgp.dataset import Column, ColumnType
-from tabdgp.hyperprior import Hyperprior
-from tabdgp.marginal import FAMILIES, PARAMETERS
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior
 
 # =====================================================================================
 # the column plan
@@ -26,10 +25,6 @@ from tabdgp.marginal import FAMILIES, PARAMETERS
 # a type added to type_shares or to Column alone fails here, not when drawn
 if set(get_args(ColumnType)) != set(Hyperprior.categories('type_shares')):
     raise ValueError(f'column types {get_args(ColumnType)} differ from type_shares')
-
-# a field drawn per column that no column reads would stay a distribution without a word
-if {'level_alpha'}.union(*PARAMETERS.values()) != set(Hyperprior.PER_COLUMN):
-    raise ValueError(f'the fields columns read differ from {Hyperprior.PER_COLUMN}')
 
 
 def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
@@ -47,7 +42,7 @@ def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> C
     type = resolved.type_shares.choose(rng)
     if type == 'continuous':
         family = resolved.marginal_shares.choose(rng)
-        parameters = {field: resolved.resolveField(field, rng) for field in PARAMETERS[family]}
+        parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
         return Column(type=type, marginal=family, parameters=parameters)
     levels = 2 if type == 'binary' else 2 + int(rng.geometric(resolved.levels_p))
     if resolved.max_levels is not None:
@@ -68,14 +63,34 @@ def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> C
 def apply(values: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """The column's values in the node's order: its marginal's sample if continuous, its codes if not."""
     if column.type == 'continuous':
-        sample = FAMILIES[column.marginal](len(values), column.parameters, rng)  # (N,)
-        by_rank = np.sort(sample).astype(np.float32)  # (N,)
+        by_rank = np.sort(_sample(len(values), column, rng)).astype(np.float32)  # (N,)
     else:
         by_rank = _codes(len(values), column, rng)  # (N,)
     # Iman and Conover (1982), https://doi.org/10.1080/03610918208812265: the sorted values
     # placed by the node's ranks are a permutation of them, never a quantile lookup that resamples
     ranks = np.argsort(np.argsort(values))  # (N,)
     return by_rank[ranks]
+
+
+def _sample(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
+    parameters = column.parameters
+    match column.marginal:
+        case 'normal':
+            return rng.standard_normal(n)
+        case 'lognormal':
+            return rng.lognormal(0, parameters['lognormal_sigma'], n)
+        case 'student_t':
+            return rng.standard_t(parameters['student_df'], n)
+        case 'beta':
+            return rng.beta(parameters['beta_a'], parameters['beta_b'], n)
+        case 'uniform':
+            return rng.random(n)
+        case 'zero_inflated_lognormal':
+            zero = rng.random(n) < parameters['zero_share']  # (N,)
+            return np.where(zero, 0, rng.lognormal(0, parameters['lognormal_sigma'], n))
+        case 'normal_mixture':
+            minor = rng.random(n) < parameters['mixture_weight']  # (N,)
+            return rng.standard_normal(n) + parameters['mixture_gap'] * minor
 
 
 def _codes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
