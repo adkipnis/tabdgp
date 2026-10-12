@@ -17,7 +17,7 @@ the (optional) overrides
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any, ClassVar
+from typing import Annotated, Any, ClassVar, Literal
 
 import numpy as np
 from pydantic import (
@@ -165,6 +165,17 @@ Positive = Annotated[Real, _within(gt=0)]
 # the hyperprior
 # =====================================================================================
 
+MARGINAL_FIELDS = {
+    'normal': [],
+    'lognormal': ['lognormal_sigma'],
+    'student_t': ['student_df'],
+    'beta': ['beta_a', 'beta_b'],
+    'uniform': [],
+    'zero_inflated_lognormal': ['lognormal_sigma', 'zero_share'],
+    'normal_mixture': ['mixture_gap', 'mixture_weight'],
+} # ported from scamd
+Family = Literal[tuple(MARGINAL_FIELDS)] # for pydantic
+
 
 class Hyperprior(BaseModel):
     """The hyperparameters of a dataset (grouped by when they're used).
@@ -202,6 +213,12 @@ class Hyperprior(BaseModel):
         'mixture_gap',
         'mixture_weight',
     )  # columns are manifested (i.e. non-latent) nodes
+    SHARES: ClassVar[tuple[str, ...]] = (
+        'type_shares',
+        'mechanism_shares',
+        'activation_shares',
+        'marginal_shares',
+    )
 
     # sizes and columns
     rows: PositiveCount = LogUniformInt(20, 15000)  # N, the table's length
@@ -246,9 +263,9 @@ class Hyperprior(BaseModel):
     beta_a: Positive = LogUniform(0.5, 5)
     beta_b: Positive = LogUniform(0.5, 5)
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
-    mixture_weight: Annotated[Real, _within(ge=0, le=1)] = Uniform(0.1, 0.5)  # 2nd normal's share
+    mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
 
-    @field_validator('type_shares', 'mechanism_shares', 'activation_shares', 'marginal_shares')
+    @field_validator(*SHARES)
     @classmethod
     def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
         """Puts the categories in the default order."""
