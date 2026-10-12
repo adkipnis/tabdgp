@@ -27,9 +27,9 @@ from statistics import NormalDist
 from typing import Literal
 
 import numpy as np
+from tabdgp.dataset import Column, Graph, Key
 
 from tabdgp.column import apply, plan
-from tabdgp.dataset import Column, Graph, Key
 from tabdgp.graph import connect
 from tabdgp.hyperprior import Distribution, Hyperprior, LogUniform, Uniform
 from tabdgp.mechanism import ACTIVATIONS
