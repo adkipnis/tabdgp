@@ -3,8 +3,8 @@
 pipeline:
 ---------
 resolved shares and budget
--> one named column after another until the budget is met     plan
 -> per column, its type, K and own parameters                 _resolveColumn
+-> one named column after another until the budget is met     plan
 -> per column, a sorted sample                                _sampleMarginal, _sampleCodes
 -> sorted by the node's ranks                                 apply
 """
@@ -66,17 +66,6 @@ class Column:
 # =====================================================================================
 
 
-def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
-    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly."""
-    columns = {}
-    remainder = resolved.design_columns
-    while remainder > 0:
-        column = _resolveColumn(resolved, remainder, rng)
-        columns[f'x{len(columns)}'] = column
-        remainder -= column.design_columns
-    return columns
-
-
 def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> Column:
     """One column's type, its K or marginal family (and its own parameters)."""
     type = resolved.type_shares.choose(rng)
@@ -95,20 +84,20 @@ def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generato
     return Column(type=type, levels=levels, parameters=parameters)
 
 
+def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
+    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly."""
+    columns = {}
+    remainder = resolved.design_columns
+    while remainder > 0:
+        column = _resolveColumn(resolved, remainder, rng)
+        columns[f'x{len(columns)}'] = column
+        remainder -= column.design_columns
+    return columns
+
+
 # =====================================================================================
 # the values
 # =====================================================================================
-
-
-def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in its node's order: a marginal sample if continuous, level codes otherwise."""
-    if column.type == 'continuous':
-        by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (N,)
-    else:
-        by_rank = _sampleCodes(len(node), column, rng)  # (N,)
-    # the sorted values placed by the node's ranks are just a permutation of them (Iman and Conover, 1982)
-    ranks = np.argsort(np.argsort(node))  # (N,)
-    return by_rank[ranks]
 
 
 def _sampleMarginal(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
@@ -145,3 +134,14 @@ def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray
         # nominal levels have no order along the node; permuting the labels is TabICL v1's idea
         codes_by_rank = rng.permutation(k)[codes_by_rank]
     return codes_by_rank
+
+
+def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
+    """The column's values in its node's order: a marginal sample if continuous, level codes otherwise."""
+    if column.type == 'continuous':
+        by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (N,)
+    else:
+        by_rank = _sampleCodes(len(node), column, rng)  # (N,)
+    # the sorted values placed by the node's ranks are just a permutation of them (Iman and Conover, 1982)
+    ranks = np.argsort(np.argsort(node))  # (N,)
+    return by_rank[ranks]
