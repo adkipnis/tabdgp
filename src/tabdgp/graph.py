@@ -7,14 +7,14 @@ the resolved hyperprior and the observed names
 -> the edge logits: Cauchy node terms and a block bonus  _logits
 -> the adjacency                                         connect
 -> one child for a latent node that drew none            _child
--> the mechanism family per node                         connect
+-> each node's own choices: family, noise, activation    _choices
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from tabdgp.dataset import Graph
+from tabdgp.dataset import Activation, Graph, Mechanism
 from tabdgp.hyperprior import Hyperprior
 
 # =====================================================================================
@@ -23,7 +23,7 @@ from tabdgp.hyperprior import Hyperprior
 
 
 def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator) -> Graph:
-    """The graph over the latent and observed nodes; weights are not kept."""
+    """The graph over the latent and observed nodes, with each node's own choices; weights are not kept."""
     names = _names(resolved.latent_nodes, observed, rng)
     n = len(names)
     logits = _logits(resolved, n, rng)  # (n, n)
@@ -34,10 +34,16 @@ def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator)
     edges[child, parent] = rng.uniform(size=len(child)) < probability[child, parent]
     latent = np.arange(n) < resolved.latent_nodes  # (n,)
     parents = _child(edges, latent, rng)  # (n, n)
-    # a root draws a family it never uses; dropping that draw shifts every later one, so it waits
-    # for a version change
-    mechanism = resolved.mechanism_shares.chooseMany(rng, n).tolist()
-    return Graph(names=names, parents=parents, latent=latent, mechanism=mechanism)
+    mechanism, activation, noise_scale, init_scale = _choices(parents, resolved, rng)
+    return Graph(
+        names=names,
+        parents=parents,
+        latent=latent,
+        mechanism=mechanism,
+        activation=activation,
+        noise_scale=noise_scale,
+        init_scale=init_scale,
+    )
 
 
 def _names(n_latent: int, observed: list[str], rng: np.random.Generator) -> list[str]:
@@ -70,3 +76,22 @@ def _child(edges: np.ndarray, latent: np.ndarray, rng: np.random.Generator) -> n
     forced = edges.copy()
     forced[children, childless] = True
     return forced
+
+
+def _choices(
+    parents: np.ndarray, resolved: Hyperprior, rng: np.random.Generator
+) -> tuple[list[Mechanism | None], list[Activation | None], np.ndarray, np.ndarray]:
+    # a root is its noise and draws nothing; a node with parents draws its family and noise scale,
+    # an MLP node also its activation and init scale
+    n = len(parents)
+    mechanism = [None] * n
+    activation = [None] * n
+    noise_scale = np.full(n, np.nan)  # (n,)
+    init_scale = np.full(n, np.nan)  # (n,)
+    for j in np.flatnonzero(parents.any(axis=1)):
+        mechanism[j] = resolved.mechanism_shares.choose(rng)
+        noise_scale[j] = resolved.point('noise_scale', rng)
+        if mechanism[j] == 'mlp':
+            activation[j] = resolved.activation_shares.choose(rng)
+            init_scale[j] = resolved.point('init_scale', rng)
+    return mechanism, activation, noise_scale, init_scale
