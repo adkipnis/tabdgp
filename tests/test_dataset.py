@@ -173,6 +173,19 @@ def test_graph_fields_of_different_lengths_fail(change: dict) -> None:
         Graph(**CHAIN | change)
 
 
+MISLABELLED = [
+    pytest.param({'latent': np.array([True, False, False])}, id='an x node marked latent'),
+    pytest.param({'names': ['z0', 'x1', 'x2']}, id='a z node not marked latent'),
+]
+
+
+@pytest.mark.parametrize('change', MISLABELLED)
+def test_a_latent_mask_that_disagrees_with_the_names_fails(change: dict) -> None:
+    """The mask and the x…/z… names both tell latent from observed nodes; they may not disagree."""
+    with pytest.raises(ValidationError):
+        Graph(**CHAIN | change)
+
+
 def test_a_graph_records_each_nodes_own_choices() -> None:
     """Each node draws its own family, noise scale, activation and init scale;
     keeping them keeps the dataset white-box.

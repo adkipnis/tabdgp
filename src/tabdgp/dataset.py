@@ -98,6 +98,9 @@ class Graph:
         )
         if shapes != ((n, n), (n,), n, n, (n,), (n,)):
             raise ValueError(f'{n} names, but the per-node fields have shapes {shapes}')
+        named_latent = [name.startswith('z') for name in self.names]  # (n,)
+        if not np.array_equal(self.latent, named_latent):
+            raise ValueError(f'the latent mask {self.latent.tolist()} disagrees with {self.names}')
         if np.triu(self.parents).any():
             raise ValueError('a parent on or above the diagonal breaks the topological order')
         root = ~self.parents.any(axis=1)  # (n,)
