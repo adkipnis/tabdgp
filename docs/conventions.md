@@ -65,8 +65,9 @@ harder to understand or change; it accrues one small edit at a time.
 - `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
   `snake_case` for variables, `UPPER_SNAKE_CASE` for constants.
 - A config field that counts is a plural noun (`rows`, `latent_nodes`), without an `n_` prefix.
-- A function is named for what it does, a verb and its object (`_resolveColumn`), not for
-  what it returns (`_column`).
+- A function in `src/` is named for what it does, a verb and its object (`_resolveColumn`),
+  not for what it returns (`_column`). A test helper is read inside an assert, so it may name
+  what it returns (`_density`).
 - Methods that do one thing at different scopes share its verb, and each names its scope:
   `resolveDataset` for every field drawn once per dataset, `resolveField` for one field.
 - A quantity counted at different scopes keeps one name: the budget's `design_columns` and a
