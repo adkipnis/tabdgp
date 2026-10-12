@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: If you use TabDGP, please cite it as below.
+title: 'TabDGP: a data-generating process for grouped and flat tables'
+authors:
+  - family-names: Kipnis
+    given-names: Alex
+repository-code: https://github.com/adkipnis/tabdgp
+license: MIT
+version: 0.1.0
