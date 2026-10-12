@@ -41,7 +41,7 @@ class Dataset:
     Each array is stored as drawn (not copied), so a consumer can share its memory.
     """
 
-    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, int64 codes 0..K−1 otherwise
+    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, else int64 codes 0..K−1
     metadata: dict[str, Column]
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored
