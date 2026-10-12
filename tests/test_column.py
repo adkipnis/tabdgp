@@ -43,7 +43,7 @@ def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_co
     for budget in range(20):
         for seed in range(10):
             columns = _plan(seed, design_columns=budget, type_shares=point('type_shares', type))
-            assert sum(column.width for column in columns.values()) == budget
+            assert sum(column.design_columns for column in columns.values()) == budget
 
 
 def _shapes(columns: dict[str, Column]) -> list[tuple[str, int | None]]:

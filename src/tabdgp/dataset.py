@@ -63,8 +63,7 @@ class Column:
             raise ValueError(f'a {self.type} column draws {own}, not {list(self.parameters)}')
 
     @property
-    def width(self) -> int:
-        """Its design columns: 1 if continuous, K − 1 if not."""
+    def design_columns(self) -> int:
         return 1 if self.levels is None else self.levels - 1
 
 

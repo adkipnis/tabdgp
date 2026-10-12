@@ -105,7 +105,7 @@ def test_an_unknown_marginal_family_fails_at_construction() -> None:
 
 
 ALPHA = {'level_alpha': 1.0}
-WIDTHS = [
+DESIGN_COLUMNS = [
     pytest.param(Column(type='continuous', marginal='normal'), 1, id='continuous'),
     pytest.param(Column(type='binary', levels=2, parameters=ALPHA), 1, id='binary'),
     pytest.param(Column(type='categorical', levels=5, parameters=ALPHA), 4, id='categorical'),
@@ -113,12 +113,12 @@ WIDTHS = [
 ]
 
 
-@pytest.mark.parametrize(('column', 'width'), WIDTHS)
+@pytest.mark.parametrize(('column', 'design_columns'), DESIGN_COLUMNS)
 def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
-    column: Column, width: int
+    column: Column, design_columns: int
 ) -> None:
     """The design-column budget counts metabeta's dummy coding: K levels take K − 1 columns."""
-    assert column.width == width
+    assert column.design_columns == design_columns
 
 
 @pytest.mark.parametrize(('seed', 'index'), [(-1, 0), (0, -1)])

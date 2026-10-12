@@ -87,7 +87,7 @@ def test_every_override_is_honoured(
     )
     dataset = draw(0, 0, hyperprior)
     metadata = dataset.metadata.values()
-    assert sum(column.width for column in metadata) == design_columns
+    assert sum(column.design_columns for column in metadata) == design_columns
     for column in metadata:
         assert column.levels is None or column.levels <= max_levels
     assert len(dataset.latent) == latent_nodes

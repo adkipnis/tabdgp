@@ -34,7 +34,7 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
     while remainder > 0:
         column = _column(resolved, remainder, rng)
         columns[f'x{len(columns)}'] = column
-        remainder -= column.width
+        remainder -= column.design_columns
     return columns
 
 
