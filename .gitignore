@@ -8,5 +8,6 @@ dist/
 .ruff_cache/
 .ipynb_checkpoints/
 .DS_Store
+.claude/
 # local agent instructions (docs/conventions.md is the public part)
 CLAUDE.md
