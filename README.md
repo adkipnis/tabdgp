@@ -18,8 +18,8 @@ generated it.
 ## Highlights
 
 - **White-box.** Each dataset carries its graph, latent nodes, column metadata and hyperparameters.
-- **Reproducible.** A dataset is a pure function of its key, a seed and an index, whatever batch
-  or worker draws it.
+- **Reproducible.** A dataset is a pure function of its key (a seed and an index) and the
+  hyperprior, whatever batch or worker draws it.
 - **Overridable.** Replace any default distribution by a point value or another distribution.
 
 ## Install
@@ -34,7 +34,7 @@ pip install tabdgp
 from tabdgp import Hyperprior, draw
 
 hyperprior = Hyperprior(rows=100, design_columns=5)  # two overrides, the rest keep their defaults
-dataset = draw(seed=0, index=0, hyperprior=hyperprior)  # a pure function of its key
+dataset = draw(seed=0, index=0, hyperprior=hyperprior)  # the key: a seed and an index
 for name, column in dataset.metadata.items():
     print(name, column.type, dataset.columns[name][:3].round(2))
 print(len(dataset.latent), 'latent nodes,', dataset.graph.parents.sum(), 'edges')
