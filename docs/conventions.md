@@ -22,7 +22,7 @@ modules arrive:
 |---|---|---|
 | `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, and which fields each column or node draws, by marginal family for a continuous column | every module |
 | `column` | the design-column budget and the post-hoc types: each column's name, type, K and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks | draw |
-| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent hubs first, the block bonus, each node's family, activation and scales, and what the graph guarantees | mechanism, draw |
+| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent nodes first, the block bonus, each node's family, activation and scales, and what the graph guarantees | mechanism, draw |
 | `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |
 | `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, nodes joined to columns by name, and what one draw returns | the package's `__init__` |
 
