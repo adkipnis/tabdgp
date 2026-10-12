@@ -181,7 +181,7 @@ def _neighbour_agreement(codes: np.ndarray, parent: np.ndarray) -> float:
     or label permutation; an independent one agrees only by chance, about the sum of squared
     level shares.
     """
-    ordered = codes[np.argsort(parent)]  # (N,)
+    ordered = codes[np.argsort(parent)]  # (n,)
     return float((ordered[1:] == ordered[:-1]).mean())
 
 

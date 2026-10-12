@@ -41,10 +41,10 @@ class Dataset:
     Each array is stored as drawn (not copied), so a consumer can share its memory.
     """
 
-    columns: dict[str, np.ndarray]  # (N,) each, float32 if continuous, int64 codes 0..K−1 otherwise
+    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, int64 codes 0..K−1 otherwise
     metadata: dict[str, Column]
     graph: Graph
-    latent: dict[str, np.ndarray]  # (N,) float32 each, z-scored
+    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored
     hyperparameters: Hyperprior  # resolved, except the fields each column or node draws
     seed: int  # the corpus
     index: int  # the dataset within its corpus

@@ -15,15 +15,15 @@ OBSERVED = list('abcdefghijkl')
 
 
 def _matrix(nodes: dict[str, np.ndarray]) -> np.ndarray:
-    """(N, n): the nodes side by side in the graph's order."""
+    """(n, d): the nodes side by side in the graph's order."""
     return np.stack(list(nodes.values()), axis=1)
 
 
-def _propagate(seed: int, n_observed: int, rows: int, **overrides: object) -> np.ndarray:
+def _propagate(seed: int, observed_nodes: int, n: int, **overrides: object) -> np.ndarray:
     """Node values over a graph drawn by connect, as one matrix."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(rows=rows, **overrides).resolveDataset(rng)
-    graph = connect(resolved, OBSERVED[:n_observed], rng)
+    resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
+    graph = connect(resolved, OBSERVED[:observed_nodes], rng)
     return _matrix(propagate(graph, resolved, rng))
 
 
@@ -52,10 +52,10 @@ def test_every_node_is_z_scored() -> None:
         np.testing.assert_allclose(values.std(axis=0), 1, atol=1e-5)
 
 
-def _run(graph: Graph, rows: int, seed: int = 0, **overrides: object) -> np.ndarray:
+def _run(graph: Graph, n: int, seed: int = 0, **overrides: object) -> np.ndarray:
     """Node values over a hand-built graph, as one matrix."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(rows=rows, **overrides).resolveDataset(rng)
+    resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
     return _matrix(propagate(graph, resolved, rng))
 
 

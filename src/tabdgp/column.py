@@ -114,22 +114,22 @@ def _sampleMarginal(n: int, column: Column, rng: np.random.Generator) -> np.ndar
         case 'uniform':
             return rng.random(n)
         case 'zero_inflated_lognormal':
-            zero = rng.random(n) < parameters['zero_share']  # (N,)
+            zero = rng.random(n) < parameters['zero_share']  # (n,)
             return np.where(zero, 0, rng.lognormal(0, parameters['lognormal_sigma'], n))
         case 'normal_mixture':
-            minor = rng.random(n) < parameters['mixture_weight']  # (N,)
+            minor = rng.random(n) < parameters['mixture_weight']  # (n,)
             return rng.standard_normal(n) + parameters['mixture_gap'] * minor
 
 
 def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """N level codes in rank order, in K blocks sized by drawn shares."""
+    """The n level codes in rank order, in K blocks sized by drawn shares."""
     k = column.levels
     shares = rng.dirichlet(np.full(k, column.parameters['level_alpha']))  # (K,)
     # one row per level first, the rest split in proportion to the shares
     floor = 1 if n >= k else 0
     edges = np.round(np.cumsum(shares) * (n - floor * k)).astype(np.int64)  # (K,)
     counts = np.diff(edges, prepend=0) + floor  # (K,)
-    codes_by_rank = np.repeat(np.arange(k), counts)  # (N,)
+    codes_by_rank = np.repeat(np.arange(k), counts)  # (n,)
     if column.type == 'categorical':
         # nominal levels have no order along the node; permuting the labels is TabICL v1's idea
         codes_by_rank = rng.permutation(k)[codes_by_rank]
@@ -139,9 +139,9 @@ def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """The column's values in its node's order: a marginal sample if continuous, level codes otherwise."""
     if column.type == 'continuous':
-        by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (N,)
+        by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (n,)
     else:
-        by_rank = _sampleCodes(len(node), column, rng)  # (N,)
+        by_rank = _sampleCodes(len(node), column, rng)  # (n,)
     # the sorted values placed by the node's ranks are just a permutation of them (Iman and Conover, 1982)
-    ranks = np.argsort(np.argsort(node))  # (N,)
+    ranks = np.argsort(np.argsort(node))  # (n,)
     return by_rank[ranks]

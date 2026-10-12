@@ -230,7 +230,7 @@ DISCRETE = [
 def _apply(n: int, column: Column, seed: int) -> np.ndarray:
     """The codes of one column cut from n standard normal values."""
     rng = np.random.default_rng(seed)
-    values = rng.standard_normal(n)  # (N,)
+    values = rng.standard_normal(n)  # (n,)
     return apply(values, column, rng)
 
 
@@ -258,8 +258,8 @@ def test_apply_gives_valid_codes_when_n_is_below_k() -> None:
 def _monotone(n: int, column: Column, seed: int) -> bool:
     """Whether the codes never decrease as the values increase."""
     rng = np.random.default_rng(seed)
-    values = rng.standard_normal(n)  # (N,)
-    codes = apply(values, column, rng)  # (N,)
+    values = rng.standard_normal(n)  # (n,)
+    codes = apply(values, column, rng)  # (n,)
     return bool(np.all(np.diff(codes[np.argsort(values)]) >= 0))
 
 
@@ -286,7 +286,7 @@ CONTINUOUS = [_continuous(family) for family in get_args(Family)]
 
 def _node(seed: int) -> np.ndarray:
     """500 z-scored node values, as propagate leaves them."""
-    values = np.random.default_rng(seed).standard_normal(500, dtype=np.float32)  # (N,)
+    values = np.random.default_rng(seed).standard_normal(500, dtype=np.float32)  # (n,)
     return (values - values.mean()) / values.std()
 
 
@@ -317,7 +317,7 @@ def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
     """
     node = _node(1)
     values = _apply_to(node, column, seed=0)
-    in_node_order = values[np.argsort(node)]  # (N,)
+    in_node_order = values[np.argsort(node)]  # (n,)
     assert (np.diff(in_node_order) >= 0).all()
     assert np.ptp(values) > 0
 

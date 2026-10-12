@@ -106,10 +106,10 @@ def test_an_empty_graph_is_valid() -> None:
 OBSERVED = list('abcdefghij')
 
 
-def _connect(seed: int, n_observed: int, **overrides: object) -> Graph:
+def _connect(seed: int, observed_nodes: int, **overrides: object) -> Graph:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
-    return connect(resolved, OBSERVED[:n_observed], rng)
+    return connect(resolved, OBSERVED[:observed_nodes], rng)
 
 
 def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
@@ -136,7 +136,7 @@ def test_latent_nodes_precede_observed_ones() -> None:
 
 
 def _roots(graph: Graph) -> np.ndarray:
-    """(n,) bool: the nodes without parents."""
+    """(d,) bool: the nodes without parents."""
     return ~graph.parents.any(axis=1)
 
 
@@ -193,8 +193,8 @@ def _density(offset: float, **overrides: object) -> float:
     densities = []
     for seed in range(50):
         graph = _connect(seed, 10, edge_offset=offset, latent_nodes=0, **overrides)
-        n = len(graph.names)
-        densities.append(graph.parents.sum() / (n * (n - 1) / 2))
+        d = len(graph.names)
+        densities.append(graph.parents.sum() / (d * (d - 1) / 2))
     return float(np.mean(densities))
 
 
@@ -209,7 +209,7 @@ def test_density_is_monotone_in_the_offset() -> None:
 
 def _cliques(parents: np.ndarray) -> np.ndarray:
     """Whether the undirected skeleton is a disjoint union of cliques: its reachability is itself."""
-    adjacent = parents | parents.T | np.eye(len(parents), dtype=bool)  # (n, n)
+    adjacent = parents | parents.T | np.eye(len(parents), dtype=bool)  # (d, d)
     return np.array_equal(adjacent.astype(int) @ adjacent.astype(int) > 0, adjacent)
 
 
@@ -248,7 +248,7 @@ def _degree_spread(hub_scale: float) -> float:
         graph = _connect(
             seed, 10, latent_nodes=0, edge_offset=0.0, hub_scale=hub_scale, block_bonus=0.0
         )
-        degree = graph.parents.sum(axis=0) + graph.parents.sum(axis=1)  # (n,)
+        degree = graph.parents.sum(axis=0) + graph.parents.sum(axis=1)  # (d,)
         spreads.append(degree.std())
     return float(np.mean(spreads))
 

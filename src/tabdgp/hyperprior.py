@@ -221,7 +221,7 @@ class Hyperprior(BaseModel):
     )
 
     # sizes and columns
-    rows: PositiveCount = LogUniformInt(20, 15000)  # N, the table's length
+    rows: PositiveCount = LogUniformInt(20, 15000)  # n, the table's length
     design_columns: Count = UniformInt(1, 19)  # design-matrix width
     type_shares: Simplex = Dirichlet(
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
