@@ -28,7 +28,8 @@ repository.
   counts, censoring at a floor or ceiling, the node's own shape without rank matching); the fit
   also decides whether MLP width and depth are drawn per node, like the activation, rather than
   per dataset ([#15](https://github.com/adkipnis/tabdgp/issues/15) kept them per dataset for
-  want of a reason either way)
+  want of a reason either way), and how many latent nodes a dataset draws (#15 raised the
+  default to 0–9 and left room to raise it further)
 - [ ] **5 Outcome node.** The optional outcome node for white-box misspecified datasets
 - [ ] **6 Extensions for other amortization targets.** Data that amortized inference and
   prior-data fitted networks (PFNs) train on beyond GLMMs, each a new node type or an entry of
