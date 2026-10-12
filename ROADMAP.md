@@ -51,7 +51,7 @@ finding of its own.
   ([#18](https://github.com/adkipnis/tabdgp/issues/18)); the README states the proofs as
   consistency checks on the summary vector, never as realism
 - [ ] **8 Quirk census ownership.** Before the mixedbench paper is drafted: decide whether the
-  quirk statistics of the measurement pass (mb#71) go into mixedbench's registry census or
+  quirk statistics of the measurement pass (item 3) go into mixedbench's registry census or
   stay for TabDGP's paper
 - [ ] **9 Downstream ablations.** Once metabeta.mixed's slice A1 trains: the posterior trained
   on TabDGP against an i.i.d. prior and a TabICL-style prior, scored on mixedbench; then each

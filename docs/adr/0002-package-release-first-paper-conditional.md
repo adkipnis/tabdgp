@@ -34,7 +34,7 @@ a finding the other papers do not carry.**
    once the training loop exists, and the result most likely to be cited outside this stack.
 3. **A second consumer.** Item 6's survival extension for metasurv turns metabeta's covariate
    generator into a prior for tabular amortized inference in general.
-4. **The quirk census** from mixedbench's measurement pass (mb#71): how common group
+4. **The quirk census** from mixedbench's measurement pass (roadmap item 3): how common group
    confounding, rare levels, heaping and near dependence are across real grouped tables. The
    mixedbench paper plans a registry census; which paper owns the quirk statistics is decided
    before the mixedbench paper is drafted, or the TabDGP paper is left with the ablation alone.
