@@ -1,12 +1,12 @@
-"""dataset.py defines the output contract: what one draw returns, and the key that identifies it."""
+"""dataset.py defines the output contract: what each draw returns and the key that identifies it."""
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
 import numpy as np
-from pydantic import ConfigDict, Field
-from pydantic.dataclasses import dataclass
+from pydantic import ConfigDict, Field, NonNegativeInt
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 
@@ -19,12 +19,12 @@ ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
 # =====================================================================================
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Key:
     """The identity of one dataset: its generator is default_rng([seed, index])."""
 
-    seed: Annotated[int, Field(ge=0)]
-    index: Annotated[int, Field(ge=0)]
+    seed: NonNegativeInt
+    index: NonNegativeInt
 
     def generator(self) -> np.random.Generator:
         return np.random.default_rng([self.seed, self.index])
@@ -35,15 +35,15 @@ class Key:
 # =====================================================================================
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Column:
     """The metadata of one observed column."""
 
     type: ColumnType
     levels: int | None = None  # K
     role: Literal['covariate'] = 'covariate'  # the only role until grouping factors arrive
-    marginal: Family | None = None  # the family a continuous column was matched to
-    parameters: dict[str, float] = Field(default_factory=dict)  # its own values of the fields
+    marginal: Family | None = None  # the family its values are mapped onto
+    parameters: dict[str, float] = Field(default_factory=dict)  # its per-column fields' values
 
     def __post_init__(self) -> None:
         # binary is exactly K = 2 and categorical or ordered K ≥ 3, so no two types overlap
@@ -58,7 +58,10 @@ class Column:
         if (self.type == 'continuous') != (self.marginal is not None):
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # exactly the values the column was drawn with: its family's, or its level concentration
-        own = MARGINAL_FIELDS[self.marginal] if self.type == 'continuous' else ['level_alpha']
+        if self.type == 'continuous':
+            own = MARGINAL_FIELDS[self.marginal]
+        else:
+            own = ['level_alpha']
         if self.parameters.keys() != set(own):
             raise ValueError(f'a {self.type} column draws {own}, not {list(self.parameters)}')
 
@@ -72,7 +75,7 @@ class Column:
 # =====================================================================================
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Graph:
     """Every node of a dataset in topological order, observed ones `x…`, latent ones `z…`."""
 
@@ -121,7 +124,7 @@ class Graph:
 # =====================================================================================
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Dataset:
     """What one draw returns; the arrays are held as given, never copied."""
 
@@ -129,6 +132,6 @@ class Dataset:
     metadata: dict[str, Column]
     graph: Graph
     latent: dict[str, np.ndarray]  # (N,) float32 each, z-scored
-    hyperparameters: Hyperprior  # resolved, but for the fields each column or node draws
+    hyperparameters: Hyperprior  # resolved, except the fields each column or node draws
     key: Key
     version: str  # of TabDGP; a key reproduces a dataset only within one version
