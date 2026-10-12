@@ -101,6 +101,8 @@ harder to understand or change; it accrues one small edit at a time.
 - A class per concept a reader should hold apart (a distribution, a column's metadata), static
   methods where it holds no state. A helper or constant used by one class lives on it; module
   functions are for what spans classes.
+- A data class holds its fields and the checks across them; the function that draws it is a
+  module function beside it (`plan`, `connect`, `draw`), not a method of the class.
 - A base class holds a skeleton its subclasses inherit: fields, methods or checks. Classes
   that only an `isinstance` check groups are a union alias, not an empty base.
 - Wrap `argparse` blocks in `# fmt: off` / `# fmt: on`.
