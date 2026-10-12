@@ -20,7 +20,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp.hyperprior import Hyperprior
 
 Mechanism = Literal['linear', 'mlp']
-Activation = Literal['tanh', 'relu', 'sin', 'identity']
+Activation = Literal['tanh', 'relu', 'sin']
 
 # =====================================================================================
 # the generating graph

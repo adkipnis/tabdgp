@@ -8,7 +8,7 @@ import numpy as np
 
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
-from tabdgp.mechanism import propagate
+from tabdgp.mechanism import ACTIVATIONS, propagate
 from tests.fixtures.build import graphOf, point
 
 OBSERVED = list('abcdefghijkl')
@@ -71,16 +71,12 @@ def test_a_root_is_noise() -> None:
 
 
 def test_a_node_with_parents_correlates_with_them_at_low_noise() -> None:
-    """The mechanism carries the parent's signal: with little noise, a linear map stays a linear map.
-
-    An MLP with the identity activation is linear too, so both families must keep it.
-    """
-    for family in ['linear', 'mlp']:
-        graph = graphOf([[], [0]], [None, family], activation='identity', noise_scale=0.01)
-        for seed in range(10):
-            values = _run(graph, 2000, seed)
-            correlation = np.corrcoef(values.T)[0, 1]
-            assert abs(correlation) > 0.99
+    """The mechanism carries the parent's signal: with little noise, a linear map stays a linear map."""
+    graph = graphOf([[], [0]], noise_scale=0.01)
+    for seed in range(10):
+        values = _run(graph, 2000, seed)
+        correlation = np.corrcoef(values.T)[0, 1]
+        assert abs(correlation) > 0.99
 
 
 def test_each_node_takes_its_own_noise_scale() -> None:
@@ -105,9 +101,6 @@ def test_a_constant_mechanism_output_z_scores_to_zeros() -> None:
     for seed in range(10):
         values = _run(graph, 1001, seed, hidden=64)
         assert (values[:, 1:] == 0).all()
-
-
-ACTIVATIONS = ['tanh', 'relu', 'sin', 'identity']
 
 
 def test_values_are_finite_for_every_family() -> None:
@@ -142,7 +135,18 @@ def test_an_empty_graph_gives_rows_without_columns() -> None:
     assert propagate(graph, resolved, rng) == {}
 
 
-def test_an_mlp_node_with_a_non_identity_activation_is_non_linear_in_its_parent() -> None:
+def test_every_activation_is_non_linear() -> None:
+    """An MLP of identities is a linear node under another name: its z-scored output is a
+    uniformly random direction over its parents, like a linear readout's, so item 4's fit could
+    not tell the two shares apart.
+    """
+    x = np.linspace(-3, 3, 13)
+    for name, activate in ACTIVATIONS.items():
+        slope, intercept = np.polyfit(x, activate(x), 1)
+        assert not np.allclose(activate(x), slope * x + intercept), name
+
+
+def test_an_mlp_node_is_non_linear_in_its_parent() -> None:
     """At low noise, a linear map keeps the parent's correlation near 1; a sin MLP must lose it."""
     graph = graphOf([[], [0]], [None, 'mlp'], activation='sin', noise_scale=0.01, init_scale=3.0)
     for seed in range(10):

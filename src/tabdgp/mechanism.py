@@ -22,18 +22,15 @@ from tabdgp.hyperprior import Hyperprior
 # =====================================================================================
 # activations
 # =====================================================================================
-# the four an MLP node draws from: finite, and growing at most linearly.
+# the three an MLP node draws from: finite, growing at most linearly, and non-linear,
+# since an MLP of identities is a linear node.
 
 
 def _relu(x: np.ndarray) -> np.ndarray:
     return np.maximum(x, 0)
 
 
-def _identity(x: np.ndarray) -> np.ndarray:
-    return x
-
-
-ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin, 'identity': _identity}
+ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin}
 
 
 # =====================================================================================
