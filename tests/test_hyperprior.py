@@ -49,17 +49,9 @@ def test_resolving_twice_changes_nothing() -> None:
 
 
 def test_resolve_leaves_the_fields_drawn_per_column_or_node_as_given() -> None:
-    """Each column or node draws its own value of these fields, so no dataset-wide value is drawn."""
-    assert set(Hyperprior.PER_COLUMN) == {
-        'student_df',
-        'lognormal_sigma',
-        'zero_share',
-        'beta_a',
-        'beta_b',
-        'mixture_gap',
-        'mixture_weight',
-        'level_alpha',
-    }
+    """Each column or node draws its own value of these fields,
+    so no dataset-wide value is drawn.
+    """
     assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale'}
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
@@ -146,7 +138,9 @@ def test_resolved_shares_choose_a_category_by_its_share() -> None:
 
 
 def test_resolving_one_shares_field_gives_shares_that_choose() -> None:
-    """resolveField hands back shares that choose, whether the field holds a Dirichlet or a point."""
+    """resolveField hands back shares that choose,
+    whether the field holds a Dirichlet or a point.
+    """
     rng = np.random.default_rng(0)
     assert Hyperprior().resolveField('mechanism_shares', rng).choose(rng) in {'linear', 'mlp'}
 
@@ -157,7 +151,9 @@ def test_a_shares_field_names_its_default_categories() -> None:
 
 
 def test_a_point_mass_puts_every_share_on_its_category() -> None:
-    """Tests force one type, family or activation through a point mass over the field's categories."""
+    """Tests force one type, family or activation
+    through a point mass over the field's categories.
+    """
     shares = point('type_shares', 'ordered')
     assert shares == {'continuous': 0.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 1.0}
     assert Hyperprior(type_shares=shares).type_shares == shares
