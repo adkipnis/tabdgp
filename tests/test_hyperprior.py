@@ -12,15 +12,16 @@ from pydantic import ValidationError
 
 from tabdgp.dataset import ColumnType, Mechanism
 from tabdgp.hyperprior import (
+    MARGINAL_FIELDS,
     Beta,
     Dirichlet,
+    Family,
     Hyperprior,
     LogUniform,
     LogUniformInt,
     Uniform,
     UniformInt,
 )
-from tabdgp.marginal import FAMILIES
 from tabdgp.mechanism import ACTIVATIONS
 from tests.fixtures.build import point
 
@@ -189,8 +190,16 @@ def test_the_order_an_override_lists_its_categories_in_changes_no_draw(
     assert list(reversed_listed.type_shares.items()) == list(listed.type_shares.items())
 
 
+def test_the_fields_drawn_per_column_are_the_families_and_the_level_concentration() -> None:
+    """A field drawn per column that no column reads would silently stay a distribution."""
+    read = {'level_alpha'}
+    for fields in MARGINAL_FIELDS.values():
+        read.update(fields)
+    assert read == set(Hyperprior.PER_COLUMN)
+
+
 CATALOGUES = [
-    pytest.param(set(FAMILIES), 'marginal_shares', id='marginal families'),
+    pytest.param(set(get_args(Family)), 'marginal_shares', id='marginal families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
     pytest.param(set(get_args(ColumnType)), 'type_shares', id='column types'),
