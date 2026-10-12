@@ -23,7 +23,9 @@ repository.
   tests, the two-sample test and the containment test
 - [ ] **4 Quirk axes.** The quirk axes the pass justifies and the matched, widened hyperprior;
   its flat case matched to a comparable sample of flat tables, not to grouped tables alone
-  ([mixedbench#72](https://github.com/adkipnis/mixedbench/issues/72))
+  ([mixedbench#72](https://github.com/adkipnis/mixedbench/issues/72)); the marginal catalogue
+  extended by the families the pass finds missing (candidates: gamma, exponential, Pareto,
+  counts, censoring at a floor or ceiling)
 - [ ] **5 Outcome node.** The optional outcome node for white-box misspecified datasets
 - [ ] **6 Extensions for other amortization targets.** Data that amortized inference and
   prior-data fitted networks (PFNs) train on beyond GLMMs, each a new node type or an entry of
