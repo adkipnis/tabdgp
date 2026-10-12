@@ -41,7 +41,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset
     metadata = plan(resolved, rng)
     graph = connect(resolved, list(metadata), rng)
     nodes = propagate(graph, resolved, rng)
-    columns = {name: apply(nodes[name], column, resolved, rng) for name, column in metadata.items()}
+    columns = {name: apply(nodes[name], column, rng) for name, column in metadata.items()}
     latent = {name: nodes[name] for name, is_latent in zip(graph.names, graph.latent) if is_latent}
     return Dataset(
         columns=columns,
