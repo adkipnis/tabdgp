@@ -65,7 +65,7 @@ def test_columns_metadata_graph_and_latent_agree_on_names() -> None:
 @given(
     n_obs=st.integers(1, 300),
     design_columns=st.integers(0, 19),
-    latent_nodes=st.integers(0, 4),
+    latent_nodes=st.integers(0, 9),
     max_levels=st.integers(3, 6),
 )
 def test_every_override_is_honoured(
