@@ -112,6 +112,7 @@ harder to understand or change; it accrues one small edit at a time.
 - Every draw takes an explicit generator or key; nothing reads global random state.
 - A scalar the config draws or a mechanism reads is a Python `int` or `float`, its arithmetic
   `math`'s: a numpy float64 scalar would promote float32 arrays to float64.
+- One marker for a missing value: `None`, in a list of Python scalars, never NaN in an array.
 
 ## File layout
 
@@ -150,8 +151,9 @@ the overrides and the hyperprior
   none on a method its name and body already explain, never a chain of `;` clauses. Detail
   goes into inline comments that say why and cite sources, and into trailing comments on
   config fields.
-- A config class's docstring introduces the concepts its fields name, a short bullet each. A
-  field whose name does not say what it is ends in a short trailing comment.
+- A config or data class's docstring introduces the concepts its fields name, a short bullet
+  each. A field whose name does not say what it is ends in a short trailing comment.
+- A block of checks opens with one plain sentence on what it checks.
 - A comment explains the code, not its history: the case behind a rule goes to the test that
   pins it, a definition to `CONTEXT.md`, how it was decided to an ADR or a lab note.
 - Code in `src/` states its rules without citing an ADR or naming a consumer (metabeta,
