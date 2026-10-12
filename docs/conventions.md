@@ -215,9 +215,7 @@ How the docs and the paper explain TabDGP to a reader with only a vague idea of 
 - Stream or lazily load data that would not fit in memory.
 - Figures are PDFs, never rasterised.
 
-## Lab notes and experiments
+## Experiments
 
-- `lab/YYYY-MM-DD-slug/`: one small design choice, its notebook committed with outputs and
-  indexed in `lab/README.md` with the decision. Never imported.
 - `experiments/`: rerunnable scripted studies that feed a paper. Rerun with flags; never
   one-off.
