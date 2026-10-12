@@ -8,8 +8,7 @@ import numpy as np
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
-from tabdgp.hyperprior import Hyperprior
-from tabdgp.marginal import PARAMETERS, Family
+from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 
 Mechanism = Literal['linear', 'mlp']
 Activation = Literal['tanh', 'relu', 'sin', 'identity']
@@ -59,7 +58,7 @@ class Column:
         if (self.type == 'continuous') != (self.marginal is not None):
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # exactly the values the column was drawn with: its family's, or its level concentration
-        own = PARAMETERS[self.marginal] if self.type == 'continuous' else ['level_alpha']
+        own = MARGINAL_FIELDS[self.marginal] if self.type == 'continuous' else ['level_alpha']
         if self.parameters.keys() != set(own):
             raise ValueError(f'a {self.type} column draws {own}, not {list(self.parameters)}')
 
