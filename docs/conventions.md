@@ -188,9 +188,10 @@ Markdown meets the same bar as code: simple, and read top to bottom.
 - The essentials first, detail in an appendix or a linked file.
 - One home per fact, links everywhere else; a living rule sits with the method it governs.
   Counts live in generated files, never in prose.
-- `README.md` is for users and fits one screen: badges, a short what and why, install, one
-  quickstart box, contents, contributing, citing, licence. Its links are absolute to `main`,
-  so PyPI renders them.
+- `README.md` is for users and fits one screen: badges, a tagline, a short what and why,
+  highlights of what the release does, install, one quickstart box and its output, planned,
+  learn more, contributing, citing, licence. Its links are absolute to `main`, so PyPI renders
+  them.
 
 ### Explaining the design
 
