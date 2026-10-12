@@ -224,7 +224,7 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
         metadata={'x0': Column(type='continuous', marginal='normal')},
         graph=graphOf([[], []]),
         latent={'z0': latent},
-        hyperparameters=Hyperprior().resolve(np.random.default_rng(0)),
+        hyperparameters=Hyperprior().resolveDataset(np.random.default_rng(0)),
         key=Key(seed=0, index=0),
         version='0.0.1',
     )

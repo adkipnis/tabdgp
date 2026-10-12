@@ -90,8 +90,8 @@ def _choices(
     init_scale = np.full(n, np.nan)  # (n,)
     for j in np.flatnonzero(parents.any(axis=1)):
         mechanism[j] = resolved.mechanism_shares.choose(rng)
-        noise_scale[j] = resolved.point('noise_scale', rng)
+        noise_scale[j] = resolved.resolveField('noise_scale', rng)
         if mechanism[j] == 'mlp':
             activation[j] = resolved.activation_shares.choose(rng)
-            init_scale[j] = resolved.point('init_scale', rng)
+            init_scale[j] = resolved.resolveField('init_scale', rng)
     return mechanism, activation, noise_scale, init_scale

@@ -15,7 +15,7 @@ def _sample(family: str, n: int, seed: int) -> np.ndarray:
     """A sample of the family under parameters drawn from the defaults, as a column draws them."""
     rng = np.random.default_rng(seed)
     hyperprior = Hyperprior()
-    parameters = {field: hyperprior.point(field, rng) for field in PARAMETERS[family]}
+    parameters = {field: hyperprior.resolveField(field, rng) for field in PARAMETERS[family]}
     return FAMILIES[family](n, parameters, rng)
 
 

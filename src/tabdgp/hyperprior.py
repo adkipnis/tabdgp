@@ -10,8 +10,8 @@ pipeline:
 ---------
 the (optional) overrides
 -> validation at construction                            Hyperprior
--> a point for each field drawn once per dataset         resolve
--> a point per column or node                            point
+-> a point for each field drawn once per dataset         resolveDataset
+-> a point per column or node                            resolveField
 """
 
 from __future__ import annotations
@@ -251,7 +251,7 @@ class Hyperprior(BaseModel):
         """The categories a shares field names, in its default's order."""
         return list(cls.model_fields[field].default.alpha)
 
-    def resolve(self, rng: np.random.Generator) -> Hyperprior:
+    def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
         """The same fields with every distribution replaced by one draw from it,
         except the fields each column or node draws.
         """
@@ -260,10 +260,10 @@ class Hyperprior(BaseModel):
             if name in self.PER_COLUMN + self.PER_NODE:
                 points[name] = getattr(self, name)
             else:
-                points[name] = self.point(name, rng)
+                points[name] = self.resolveField(name, rng)
         return Hyperprior(**points)
 
-    def point(self, field: str, rng: np.random.Generator) -> Any:
+    def resolveField(self, field: str, rng: np.random.Generator) -> Any:
         """The field if it is a point, else one draw from its distribution."""
         value = getattr(self, field)
         return value.draw(rng) if isinstance(value, Distribution) else value

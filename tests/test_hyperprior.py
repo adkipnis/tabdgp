@@ -1,4 +1,4 @@
-"""The hyperprior's seams: construction with overrides, and resolve to points."""
+"""The hyperprior's seams: construction with overrides, and their resolution to points."""
 
 from __future__ import annotations
 
@@ -31,10 +31,10 @@ def test_the_defaults_validate() -> None:
 
 
 def test_a_point_override_resolves_to_itself() -> None:
-    """metabeta passes its sizes as points; resolve must hand them back untouched."""
+    """metabeta passes its sizes as points; resolveDataset must hand them back untouched."""
     shares = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
     hyperprior = Hyperprior(n_obs=500, type_shares=shares, edge_offset=-1.5)
-    resolved = hyperprior.resolve(np.random.default_rng(0))
+    resolved = hyperprior.resolveDataset(np.random.default_rng(0))
     assert (resolved.n_obs, resolved.type_shares, resolved.edge_offset) == (500, shares, -1.5)
 
 
@@ -42,8 +42,8 @@ def test_resolving_twice_changes_nothing() -> None:
     """Dataset.hyperparameters holds the resolved hyperprior, which a caller reads as final.
     A per-dataset distribution left over would be drawn again, so resolving twice would change it.
     """
-    resolved = Hyperprior().resolve(np.random.default_rng(0))
-    assert resolved.resolve(np.random.default_rng(1)) == resolved
+    resolved = Hyperprior().resolveDataset(np.random.default_rng(0))
+    assert resolved.resolveDataset(np.random.default_rng(1)) == resolved
 
 
 def test_resolve_leaves_the_fields_drawn_per_column_or_node_as_given() -> None:
@@ -60,26 +60,26 @@ def test_resolve_leaves_the_fields_drawn_per_column_or_node_as_given() -> None:
     }
     assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale'}
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
-    resolved = hyperprior.resolve(np.random.default_rng(0))
+    resolved = hyperprior.resolveDataset(np.random.default_rng(0))
     assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
     for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE:
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
 
 @given(seed=st.integers(0, 2**32 - 1))
-def test_a_point_of_a_field_is_its_point_or_one_draw_inside_its_support(seed: int) -> None:
-    """A column or node takes its own value of a field through point, whatever the field holds."""
+def test_resolving_one_field_gives_its_point_or_one_draw_inside_its_support(seed: int) -> None:
+    """A column or node takes its own value of a field through resolveField, whatever it holds."""
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
     rng = np.random.default_rng(seed)
-    assert hyperprior.point('noise_scale', rng) == 0.5
-    assert 2 <= hyperprior.point('lognormal_sigma', rng) <= 3
+    assert hyperprior.resolveField('noise_scale', rng) == 0.5
+    assert 2 <= hyperprior.resolveField('lognormal_sigma', rng) <= 3
 
 
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
     """A dataset is a pure function of its key, so the same generator gives the same points."""
     hyperprior = Hyperprior()
-    first = hyperprior.resolve(np.random.default_rng(7))
-    second = hyperprior.resolve(np.random.default_rng(7))
+    first = hyperprior.resolveDataset(np.random.default_rng(7))
+    second = hyperprior.resolveDataset(np.random.default_rng(7))
     assert first == second
 
 
@@ -131,7 +131,7 @@ def test_a_distribution_override_resolves_inside_its_support(
 ) -> None:
     """Narrow integer ranges probe the log-uniform's floor at its upper end."""
     hyperprior = Hyperprior(**{field: distribution(low, low + width)})
-    resolved = hyperprior.resolve(np.random.default_rng(seed))
+    resolved = hyperprior.resolveDataset(np.random.default_rng(seed))
     assert low <= getattr(resolved, field) <= low + width
 
 
@@ -139,14 +139,14 @@ def test_resolved_shares_choose_a_category_by_its_share() -> None:
     """column and graph choose a type, family or activation from resolved shares."""
     rng = np.random.default_rng(0)
     types = {'continuous': 0.0, 'binary': 1.0, 'categorical': 0.0, 'ordered': 0.0}
-    resolved = Hyperprior(type_shares=types).resolve(rng)
+    resolved = Hyperprior(type_shares=types).resolveDataset(rng)
     assert resolved.type_shares.choose(rng) == 'binary'
 
 
-def test_a_point_of_a_dirichlet_shares_field_chooses_as_its_resolution_does() -> None:
-    """point hands back shares that choose, whether the field holds a Dirichlet or a point."""
+def test_resolving_one_shares_field_gives_shares_that_choose() -> None:
+    """resolveField hands back shares that choose, whether the field holds a Dirichlet or a point."""
     rng = np.random.default_rng(0)
-    assert Hyperprior().point('mechanism_shares', rng).choose(rng) in {'linear', 'mlp'}
+    assert Hyperprior().resolveField('mechanism_shares', rng).choose(rng) in {'linear', 'mlp'}
 
 
 def test_a_shares_field_names_its_default_categories() -> None:
@@ -182,8 +182,10 @@ def test_the_order_an_override_lists_its_categories_in_changes_no_draw(
     alpha = shares.alpha if isinstance(shares, Dirichlet) else shares
     reversed_alpha = dict(reversed(alpha.items()))
     reversed_shares = Dirichlet(reversed_alpha) if isinstance(shares, Dirichlet) else reversed_alpha
-    listed = Hyperprior(type_shares=shares).resolve(np.random.default_rng(0))
-    reversed_listed = Hyperprior(type_shares=reversed_shares).resolve(np.random.default_rng(0))
+    listed = Hyperprior(type_shares=shares).resolveDataset(np.random.default_rng(0))
+    reversed_listed = Hyperprior(type_shares=reversed_shares).resolveDataset(
+        np.random.default_rng(0)
+    )
     assert list(reversed_listed.type_shares.items()) == list(listed.type_shares.items())
 
 

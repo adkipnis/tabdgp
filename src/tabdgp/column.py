@@ -47,7 +47,7 @@ def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> C
     type = resolved.type_shares.choose(rng)
     if type == 'continuous':
         family = resolved.marginal_shares.choose(rng)
-        parameters = {field: resolved.point(field, rng) for field in PARAMETERS[family]}
+        parameters = {field: resolved.resolveField(field, rng) for field in PARAMETERS[family]}
         return Column(type=type, marginal=family, parameters=parameters)
     levels = 2 if type == 'binary' else 2 + int(rng.geometric(resolved.levels_p))
     if resolved.max_levels is not None:
@@ -56,7 +56,7 @@ def _column(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> C
     levels = min(levels, remainder + 1)
     if levels == 2:
         type = 'binary'
-    parameters = {'level_alpha': resolved.point('level_alpha', rng)}
+    parameters = {'level_alpha': resolved.resolveField('level_alpha', rng)}
     return Column(type=type, levels=levels, parameters=parameters)
 
 

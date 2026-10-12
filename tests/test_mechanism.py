@@ -23,7 +23,7 @@ def _matrix(nodes: dict[str, np.ndarray]) -> np.ndarray:
 def _propagate(seed: int, n_observed: int, n_obs: int, **overrides: object) -> np.ndarray:
     """Node values over a graph drawn by connect, as one matrix."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(n_obs=n_obs, **overrides).resolve(rng)
+    resolved = Hyperprior(n_obs=n_obs, **overrides).resolveDataset(rng)
     graph = connect(resolved, OBSERVED[:n_observed], rng)
     return _matrix(propagate(graph, resolved, rng))
 
@@ -34,7 +34,7 @@ def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
     A view into every node's values would keep them all alive and read strided.
     """
     rng = np.random.default_rng(0)
-    resolved = Hyperprior(n_obs=100, latent_nodes=2).resolve(rng)
+    resolved = Hyperprior(n_obs=100, latent_nodes=2).resolveDataset(rng)
     graph = connect(resolved, OBSERVED[:4], rng)
     nodes = propagate(graph, resolved, rng)
     assert list(nodes) == graph.names
@@ -56,7 +56,7 @@ def test_every_node_is_z_scored() -> None:
 def _run(graph: Graph, n_obs: int, seed: int = 0, **overrides: object) -> np.ndarray:
     """Node values over a hand-built graph, as one matrix."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(n_obs=n_obs, **overrides).resolve(rng)
+    resolved = Hyperprior(n_obs=n_obs, **overrides).resolveDataset(rng)
     return _matrix(propagate(graph, resolved, rng))
 
 
@@ -138,7 +138,7 @@ def test_propagate_is_deterministic_under_a_fixed_generator() -> None:
 def test_an_empty_graph_gives_rows_without_columns() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
-    resolved = Hyperprior(n_obs=50, latent_nodes=0).resolve(rng)
+    resolved = Hyperprior(n_obs=50, latent_nodes=0).resolveDataset(rng)
     graph = connect(resolved, [], rng)
     assert propagate(graph, resolved, rng) == {}
 

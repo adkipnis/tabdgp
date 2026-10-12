@@ -29,7 +29,7 @@ EXAMPLE = {
 
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolve(rng)
+    resolved = Hyperprior(**overrides).resolveDataset(rng)
     return plan(resolved, rng)
 
 

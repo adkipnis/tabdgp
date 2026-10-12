@@ -7,7 +7,7 @@ pipeline:
 ---------
 the key
 -> one generator from the key                        Key.generator
--> the resolved hyperprior                           Hyperprior.resolve
+-> the resolved hyperprior                           Hyperprior.resolveDataset
 -> the column plan                                   plan
 -> the graph                                         connect
 -> the node values                                   propagate
@@ -37,7 +37,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     key = Key(seed=seed, index=index)
     rng = key.generator()
-    resolved = (hyperprior or Hyperprior()).resolve(rng)
+    resolved = (hyperprior or Hyperprior()).resolveDataset(rng)
     metadata = plan(resolved, rng)
     graph = connect(resolved, list(metadata), rng)
     nodes = propagate(graph, resolved, rng)

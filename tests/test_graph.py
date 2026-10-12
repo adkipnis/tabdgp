@@ -16,7 +16,7 @@ OBSERVED = list('abcdefghij')
 
 def _connect(seed: int, n_observed: int, **overrides: object) -> Graph:
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolve(rng)
+    resolved = Hyperprior(**overrides).resolveDataset(rng)
     return connect(resolved, OBSERVED[:n_observed], rng)
 
 
