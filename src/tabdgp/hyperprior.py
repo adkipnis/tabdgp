@@ -9,12 +9,13 @@ pipeline:
 the overrides
 -> validation at construction                            Hyperprior
 -> one draw per field still a distribution, in order     resolve
+-> per column or node, one draw of each field left       point
 """
 
 from __future__ import annotations
 
 import math
-from typing import Annotated
+from typing import Annotated, Any, ClassVar
 
 import numpy as np
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationInfo, field_validator
@@ -113,9 +114,9 @@ class Dirichlet(Distribution):
         if min(self.alpha.values()) <= 0:
             raise ValueError(f'a dirichlet needs concentrations > 0, got {self.alpha}')
 
-    def draw(self, rng: np.random.Generator) -> dict[str, float]:
+    def draw(self, rng: np.random.Generator) -> Shares:
         shares = rng.dirichlet(list(self.alpha.values()))
-        return dict(zip(self.alpha, shares.tolist()))
+        return Shares(zip(self.alpha, shares.tolist()))
 
 
 class Shares(dict[str, float]):
@@ -123,9 +124,6 @@ class Shares(dict[str, float]):
 
     def choose(self, rng: np.random.Generator) -> str:
         return str(rng.choice(list(self), p=list(self.values())))
-
-    def chooseMany(self, rng: np.random.Generator, size: int) -> np.ndarray:
-        return rng.choice(list(self), size=size, p=list(self.values()))  # (size,)
 
 
 Integer = int | UniformInt | LogUniformInt
@@ -170,6 +168,19 @@ class Hyperprior(BaseModel):
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid', validate_default=True)
+
+    # the fields each column or node draws its own value of, which resolve leaves as given
+    PER_COLUMN: ClassVar[tuple[str, ...]] = (
+        'level_alpha',
+        'student_df',
+        'lognormal_sigma',
+        'zero_share',
+        'beta_a',
+        'beta_b',
+        'mixture_gap',
+        'mixture_weight',
+    )
+    PER_NODE: ClassVar[tuple[str, ...]] = ('init_scale', 'noise_scale')
 
     # sizes and columns
     n_obs: PositiveCount = LogUniformInt(20, 15000)  # rows
@@ -237,9 +248,18 @@ class Hyperprior(BaseModel):
         return list(cls.model_fields[field].default.alpha)
 
     def resolve(self, rng: np.random.Generator) -> Hyperprior:
-        """The same fields with every distribution replaced by one draw from it."""
+        """The same fields with every distribution replaced by one draw from it,
+        except the fields each column or node draws.
+        """
         points = {}
         for name in type(self).model_fields:
-            value = getattr(self, name)
-            points[name] = value.draw(rng) if isinstance(value, Distribution) else value
+            if name in self.PER_COLUMN + self.PER_NODE:
+                points[name] = getattr(self, name)
+            else:
+                points[name] = self.point(name, rng)
         return Hyperprior(**points)
+
+    def point(self, field: str, rng: np.random.Generator) -> Any:
+        """The field if it is a point, else one draw from its distribution."""
+        value = getattr(self, field)
+        return value.draw(rng) if isinstance(value, Distribution) else value
