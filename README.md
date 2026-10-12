@@ -5,36 +5,26 @@
 
 # TabDGP
 
-A data-generating process (DGP) for grouped and flat tables: grouping structure and typed
-covariates with the quirks of real data.
+A data-generating process (DGP) for grouped and flat tables.
 
-**Alpha.** Release 0.1 draws flat tables. Grouping factors, the quirk axes, the checks against
-real tables and the outcome node follow the
-[roadmap](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md). Before 1.0, a release may
-change the dataset a key draws.
+TabDGP simulates tables of typed covariates from a random structural causal model (SCM). Each
+table comes with the graph and the settings that generated it: the ground truth for a simulation
+study, or for a model trained on simulated tables. Generators such as
+[SDV](https://github.com/sdv-dev/SDV) learn to imitate real data, and priors such as
+[TabPFN](https://github.com/PriorLabs/TabPFN)'s draw independent rows; TabDGP aims to draw
+grouped tables with the quirks of real ones.
 
-## What and why
+> **Alpha.** Release 0.1 draws flat tables from defaults that are round guesses; the rest follows
+> the [roadmap](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md). Before 1.0, a release
+> may change the dataset a key draws.
 
-- **White-box.** Every dataset comes with its generating graph, its latent nodes, its column
-  metadata (type, levels, role) and the hyperparameters it was drawn with.
-- **Reproducible.** A dataset is a pure function of its key, a seed and an index: the same
-  bits whatever batch or worker draws it.
-- **Overridable.** Every quantity has a default distribution; pass a point value or another
-  distribution for any of them.
-- **Composable.** One structural causal model (SCM) whose nodes are typed columns and latent
-  nodes. Grouping factors, group-level and within-group covariates, time and treatment are to
-  join it as nodes (planned); a flat table is the case without grouping factors.
-- **Measured against real tables** (planned). The default hyperprior is to be matched to
-  [mixedbench](https://github.com/adkipnis/mixedbench)'s registry of real grouped tables, then
-  widened. Two consistency checks on summary statistics will hold it there: generated tables
-  cannot be told from real ones, and every real table lies inside the generated support. The
-  0.1 defaults are round guesses.
-- **The quirks i.i.d. simulators lack** (planned). Independent and identically distributed
-  (i.i.d.) simulators miss group confounding, empty cells, rare levels, ties, bounds,
-  irregular time, near dependence and leverage points. Each quirk gets an axis once it is
-  measured on real tables.
-- **Covariates only.** The outcome belongs to whoever fits a model; an optional outcome node
-  (planned) builds white-box misspecified datasets.
+## Highlights
+
+- **White-box.** Each dataset carries its graph, latent nodes, column metadata and hyperparameters.
+- **Reproducible.** A dataset is a pure function of its key, a seed and an index, whatever batch
+  or worker draws it.
+- **Overridable.** Replace any default distribution by a point value or another distribution.
+- **Covariates only.** Continuous, binary, categorical and ordered columns; the outcome is yours.
 
 ## Install
 
@@ -42,39 +32,51 @@ change the dataset a key draws.
 pip install tabdgp
 ```
 
-From source:
-
-```
-git clone https://github.com/adkipnis/tabdgp
-cd tabdgp
-uv sync
-```
-
 ## Quickstart
 
 ```python
-from tabdgp import draw
+from tabdgp import Hyperprior, draw
 
-dataset = draw(seed=0, index=0)  # a pure function of its key
+hyperprior = Hyperprior(rows=100, design_columns=5)  # two overrides, the rest keep their defaults
+dataset = draw(seed=0, index=0, hyperprior=hyperprior)  # a pure function of its key
 for name, column in dataset.metadata.items():
-    print(name, column.type, column.levels, column.marginal, dataset.columns[name][:3])
+    print(name, column.type, dataset.columns[name][:3].round(2))
+print(len(dataset.latent), 'latent nodes,', dataset.graph.parents.sum(), 'edges')
 ```
 
-## Contents
+```text
+x0 binary [1 1 1]
+x1 binary [0 1 0]
+x2 categorical [0 0 0]
+x3 continuous [0.25 0.42 0.1 ]
+7 latent nodes, 8 edges
+```
 
-- The package `tabdgp` under `src/`.
-- [`CONTEXT.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTEXT.md): the vocabulary;
-  [`docs/adr/`](https://github.com/adkipnis/tabdgp/tree/main/docs/adr): the design decisions;
-  [`ROADMAP.md`](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md): the build order.
+## Planned
+
+- **Grouping factors**, with group-level and within-group covariates, time and treatment.
+- **Quirk axes:** group confounding, rare levels, ties, bounds, near dependence and more.
+- **Matched defaults**, fitted to [mixedbench](https://github.com/adkipnis/mixedbench)'s real
+  grouped tables, then widened.
+- **An outcome node**, optional, for white-box misspecified datasets.
+
+## Learn more
+
+[`CONTEXT.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTEXT.md) defines the vocabulary,
+[`docs/adr/`](https://github.com/adkipnis/tabdgp/tree/main/docs/adr) records the design
+decisions and [`ROADMAP.md`](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md) gives the
+build order.
 
 ## Contributing
 
-Interested in becoming part of TabDGP? Check out [`CONTRIBUTING.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTRIBUTING.md).
+Issues and pull requests are welcome; see
+[`CONTRIBUTING.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTRIBUTING.md).
 
 ## Citing
 
-Please cite the release you used: [`CITATION.cff`](https://github.com/adkipnis/tabdgp/blob/main/CITATION.cff),
-or click "Cite this repository" on GitHub.
+Please cite the release you used, from
+[`CITATION.cff`](https://github.com/adkipnis/tabdgp/blob/main/CITATION.cff) or GitHub's "Cite
+this repository".
 
 ## Licence
 
