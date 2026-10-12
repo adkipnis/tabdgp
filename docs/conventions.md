@@ -91,7 +91,8 @@ harder to understand or change; it accrues one small edit at a time.
 - f-strings, one statement per line, a long expression named on the line before.
 - A method lists its steps in the order you would describe them; a step with its own `if`
   ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
-  not `for`/`else`, `while True` or `next()` on a generator.
+  not `for`/`else`, `while True` or `next()` on a generator. A loop fills its result as it
+  goes; a second loop that only repackages the first one's output folds into it.
 - `a if c else b` only on a short line. Lookup tables are literal dicts or `if` chains, not
   built with comprehensions, `dict.fromkeys` or `|`. Cases that read different arguments are a
   `match` over their `Literal`, not a dict of wrappers that share one signature.
