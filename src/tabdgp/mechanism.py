@@ -7,8 +7,9 @@ node's own, read from the graph.
 pipeline:
 ---------
 the generating graph in topological order
--> per node, its parents' values through its family      propagate, _mlp
+-> per node, its parents' values through its family      _mlp
 -> relative noise, z-scored                              _zscore
+-> every node's values by name                           propagate
 """
 
 from __future__ import annotations
@@ -38,28 +39,6 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin, 'identity': _ident
 # =====================================================================================
 # propagation
 # =====================================================================================
-
-
-def propagate(
-    graph: Graph, resolved: Hyperprior, rng: np.random.Generator
-) -> dict[str, np.ndarray]:
-    """Every node's values by name in the graph's order, each z-scored and its own array."""
-    n = len(graph.names)
-    rows = resolved.rows
-    values = np.empty((rows, n), dtype=np.float32)  # (N, n)
-    for j in range(n):
-        noise = rng.standard_normal(rows, dtype=np.float32)  # (N,)
-        if not graph.parents[j].any():  # a root is its noise
-            values[:, j] = _zscore(noise)
-            continue
-        layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
-        inputs = values[:, graph.parents[j]]  # (N, p)
-        activation, init_scale = graph.activation[j], graph.init_scale[j]
-        output = _mlp(inputs, layers, activation, init_scale, resolved, rng)  # (N,)
-        # relative noise: its scale is relative to the z-scored output, so scales never run
-        # away through depth
-        values[:, j] = _zscore(_zscore(output) + graph.noise_scale[j] * noise)
-    return {name: values[:, j].copy() for j, name in enumerate(graph.names)}  # (N,) each
 
 
 def _mlp(
@@ -93,3 +72,25 @@ def _zscore(x: np.ndarray) -> np.ndarray:
     if std <= 1000 * np.finfo(x.dtype).eps * np.abs(x).max():
         return np.zeros_like(x)
     return centred / std
+
+
+def propagate(
+    graph: Graph, resolved: Hyperprior, rng: np.random.Generator
+) -> dict[str, np.ndarray]:
+    """Every node's values by name in the graph's order, each z-scored and its own array."""
+    n = len(graph.names)
+    rows = resolved.rows
+    values = np.empty((rows, n), dtype=np.float32)  # (N, n)
+    for j in range(n):
+        noise = rng.standard_normal(rows, dtype=np.float32)  # (N,)
+        if not graph.parents[j].any():  # a root is its noise
+            values[:, j] = _zscore(noise)
+            continue
+        layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
+        inputs = values[:, graph.parents[j]]  # (N, p)
+        activation, init_scale = graph.activation[j], graph.init_scale[j]
+        output = _mlp(inputs, layers, activation, init_scale, resolved, rng)  # (N,)
+        # relative noise: its scale is relative to the z-scored output, so scales never run
+        # away through depth
+        values[:, j] = _zscore(_zscore(output) + graph.noise_scale[j] * noise)
+    return {name: values[:, j].copy() for j, name in enumerate(graph.names)}  # (N,) each
