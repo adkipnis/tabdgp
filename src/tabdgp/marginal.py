@@ -2,7 +2,7 @@
 
 pipeline:
 ---------
-a family and its resolved parameters
+a family and the column's own parameters
 -> a sample of size N                                    FAMILIES
 """
 
@@ -31,37 +31,39 @@ Family = Literal[
 ]
 
 
-# every family takes (n, resolved, rng), so FAMILIES calls them alike; normal and uniform have
-# no parameter to read from resolved
-def _normal(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
+# every family takes (n, parameters, rng), so FAMILIES calls them alike; normal and uniform have
+# no parameter to read
+def _normal(n: int, parameters: dict[str, float], rng: np.random.Generator) -> np.ndarray:
     return rng.standard_normal(n)
 
 
-def _lognormal(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
-    return rng.lognormal(0, resolved.lognormal_sigma, n)
+def _lognormal(n: int, parameters: dict[str, float], rng: np.random.Generator) -> np.ndarray:
+    return rng.lognormal(0, parameters['lognormal_sigma'], n)
 
 
-def _student_t(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
-    return rng.standard_t(resolved.student_df, n)
+def _student_t(n: int, parameters: dict[str, float], rng: np.random.Generator) -> np.ndarray:
+    return rng.standard_t(parameters['student_df'], n)
 
 
-def _beta(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
-    return rng.beta(resolved.beta_a, resolved.beta_b, n)
+def _beta(n: int, parameters: dict[str, float], rng: np.random.Generator) -> np.ndarray:
+    return rng.beta(parameters['beta_a'], parameters['beta_b'], n)
 
 
-def _uniform(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
+def _uniform(n: int, parameters: dict[str, float], rng: np.random.Generator) -> np.ndarray:
     return rng.random(n)
 
 
-def _zero_inflated_lognormal(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
-    zero = rng.random(n) < resolved.zero_share  # (N,)
-    return np.where(zero, 0, _lognormal(n, resolved, rng))
+def _zero_inflated_lognormal(
+    n: int, parameters: dict[str, float], rng: np.random.Generator
+) -> np.ndarray:
+    zero = rng.random(n) < parameters['zero_share']  # (N,)
+    return np.where(zero, 0, _lognormal(n, parameters, rng))
 
 
-def _normal_mixture(n: int, resolved: Hyperprior, rng: np.random.Generator) -> np.ndarray:
+def _normal_mixture(n: int, parameters: dict[str, float], rng: np.random.Generator) -> np.ndarray:
     # the minor component, of weight mixture_weight, sits mixture_gap sds above the major one
-    minor = rng.random(n) < resolved.mixture_weight  # (N,)
-    return rng.standard_normal(n) + resolved.mixture_gap * minor
+    minor = rng.random(n) < parameters['mixture_weight']  # (N,)
+    return rng.standard_normal(n) + parameters['mixture_gap'] * minor
 
 
 FAMILIES = {
@@ -74,6 +76,17 @@ FAMILIES = {
     'normal_mixture': _normal_mixture,
 }
 
-# a family added to marginal_shares or to the catalogue alone fails here, not when drawn
-if set(FAMILIES) != set(Hyperprior.categories('marginal_shares')):
-    raise ValueError(f'families {list(FAMILIES)} differ from marginal_shares')
+# the hyperprior's fields each family reads, one value of each drawn per column
+PARAMETERS = {
+    'normal': [],
+    'lognormal': ['lognormal_sigma'],
+    'student_t': ['student_df'],
+    'beta': ['beta_a', 'beta_b'],
+    'uniform': [],
+    'zero_inflated_lognormal': ['lognormal_sigma', 'zero_share'],
+    'normal_mixture': ['mixture_gap', 'mixture_weight'],
+}
+
+# a family added to marginal_shares, the catalogue or PARAMETERS alone fails here, not when drawn
+if not set(FAMILIES) == set(PARAMETERS) == set(Hyperprior.categories('marginal_shares')):
+    raise ValueError(f'families {list(FAMILIES)} differ from PARAMETERS or marginal_shares')
