@@ -1,15 +1,17 @@
-"""hyperprior.py defines the hyperprior: every quantity of a dataset as a point or a distribution.
+"""hyperprior.py defines how every hyperparameter of the dataset is sampled.
 
-Each field defaults to a distribution; an override replaces it by a point value or another
-distribution of the field's kind, e.g. `Hyperprior(n_obs=500)` or
-`Hyperprior(n_obs=LogUniformInt(20, 5000))`.
+We save hyperparameters as fields of the Hyperprior class.
+- Each field (a size, the column types' shares, a noise scale) defaults to a distribution.
+- An override replaces it by a point or by another distribution, checked against the field's bounds.
+- A draw resolves every field to a point;
+  the fields that shape a single column or node are resolved in a second step.
 
 pipeline:
 ---------
-the overrides
+the (optional) overrides
 -> validation at construction                            Hyperprior
--> one draw per field still a distribution, in order     resolve
--> per column or node, one draw of each field left       point
+-> a point for each field drawn once per dataset         resolve
+-> a point per column or node                            point
 """
 
 from __future__ import annotations
@@ -18,20 +20,26 @@ import math
 from typing import Annotated, Any, ClassVar
 
 import numpy as np
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    ValidationInfo,
+    field_validator,
+)
 from pydantic.dataclasses import dataclass
 
 # =====================================================================================
 # distributions
 # =====================================================================================
-# the distributions a field can take; dataclasses so that `Uniform(-4, 2)` reads positionally.
+# numpy has no distribution objects: these classes are the config's values.
+# They check their parameters when a hyperprior is built, not at a draw deep inside a run.
 
 
-class Distribution:
-    """The base of every distribution a field of the hyperprior can take."""
-
-
-class _Interval(Distribution):
+class _Interval:
     """A distribution on [low, high], validated when it is built."""
 
     def __post_init__(self) -> None:
@@ -51,18 +59,9 @@ class Uniform(_Interval):
         return float(rng.uniform(self.low, self.high))
 
 
-class _LogInterval(_Interval):
-    """An interval whose logarithm is drawn, so it must lie above 0."""
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.low <= 0:
-            raise ValueError(f'a log-uniform needs low > 0, got {self.low}')
-
-
 @dataclass(frozen=True)
-class LogUniform(_LogInterval):
-    low: float
+class LogUniform(_Interval):
+    low: PositiveFloat  # its logarithm is drawn
     high: float
 
     def draw(self, rng: np.random.Generator) -> float:
@@ -79,8 +78,8 @@ class UniformInt(_Interval):
 
 
 @dataclass(frozen=True)
-class LogUniformInt(_LogInterval):
-    low: int
+class LogUniformInt(_Interval):
+    low: PositiveInt  # its logarithm is drawn
     high: int
 
     def draw(self, rng: np.random.Generator) -> int:
@@ -91,13 +90,9 @@ class LogUniformInt(_LogInterval):
 
 
 @dataclass(frozen=True)
-class Beta(Distribution):
-    a: float
-    b: float
-
-    def __post_init__(self) -> None:
-        if min(self.a, self.b) <= 0:
-            raise ValueError(f'a beta needs shapes > 0, got {self.a} and {self.b}')
+class Beta:
+    a: PositiveFloat
+    b: PositiveFloat
 
     def draw(self, rng: np.random.Generator) -> float:
         return float(rng.beta(self.a, self.b))
@@ -107,32 +102,41 @@ class Beta(Distribution):
 
 
 @dataclass(frozen=True)
-class Dirichlet(Distribution):
-    alpha: dict[str, float]  # concentration per category
+class Dirichlet:
+    alpha: dict[str, PositiveFloat]  # concentration per category
 
-    def __post_init__(self) -> None:
-        if min(self.alpha.values()) <= 0:
-            raise ValueError(f'a dirichlet needs concentrations > 0, got {self.alpha}')
+    @property
+    def values(self) -> list[float]:
+        return list(self.alpha.values())
 
     def draw(self, rng: np.random.Generator) -> Shares:
-        shares = rng.dirichlet(list(self.alpha.values()))
-        return Shares(zip(self.alpha, shares.tolist()))
+        shares = rng.dirichlet(self.values).tolist()
+        return Shares(zip(self.alpha, shares))
 
 
 class Shares(dict[str, float]):
     """A point on the simplex: each category's share, from which a category is chosen."""
 
     def choose(self, rng: np.random.Generator) -> str:
-        return str(rng.choice(list(self), p=list(self.values())))
+        p = list(self.values())
+        choice = rng.choice(list(self), p=p)
+        return str(choice)
 
 
+# every distribution a field can take
+Distribution = Uniform | LogUniform | UniformInt | LogUniformInt | Beta | Dirichlet
+
+# the kinds of field: a point, or a distribution of points of that kind
 Integer = int | UniformInt | LogUniformInt
 Real = float | Uniform | LogUniform | Beta
 Simplex = dict[str, float] | Dirichlet
 
 
 def _within(
-    ge: float = -math.inf, gt: float = -math.inf, le: float = math.inf, lt: float = math.inf
+    ge: float = -math.inf,  # >=
+    gt: float = -math.inf,  # >
+    le: float = math.inf,  # <=
+    lt: float = math.inf,  # <
 ) -> AfterValidator:
     """A field's bounds, checked on a point or on the closure of a distribution's support."""
 
