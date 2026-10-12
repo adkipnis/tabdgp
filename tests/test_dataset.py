@@ -40,17 +40,76 @@ def test_a_marginal_on_a_discrete_column_fails() -> None:
         Column(type='binary', levels=2, marginal='lognormal')
 
 
+def test_a_continuous_column_without_a_marginal_fails() -> None:
+    """Its parameters are its family's, so a continuous column names the family it was drawn from."""
+    with pytest.raises(ValidationError):
+        Column(type='continuous')
+
+
+OWN_PARAMETERS = [
+    pytest.param(Column(type='continuous', marginal='normal'), {}, id='a normal column has none'),
+    pytest.param(
+        Column(
+            type='continuous',
+            marginal='zero_inflated_lognormal',
+            parameters={'lognormal_sigma': 0.5, 'zero_share': 0.2},
+        ),
+        {'lognormal_sigma': 0.5, 'zero_share': 0.2},
+        id='a zero-inflated lognormal column has two',
+    ),
+    pytest.param(
+        Column(type='ordered', levels=4, parameters={'level_alpha': 2.0}),
+        {'level_alpha': 2.0},
+        id='a coded column has its concentration',
+    ),
+]
+
+
+@pytest.mark.parametrize(('column', 'parameters'), OWN_PARAMETERS)
+def test_a_column_records_the_values_it_was_drawn_with(column: Column, parameters: dict) -> None:
+    """Each column draws its own marginal parameters or level concentration;
+    keeping them keeps the dataset white-box.
+    """
+    assert column.parameters == parameters
+
+
+FOREIGN_PARAMETERS = [
+    pytest.param(
+        {'type': 'continuous', 'marginal': 'lognormal'}, {}, id='a lognormal without its sigma'
+    ),
+    pytest.param(
+        {'type': 'continuous', 'marginal': 'normal'},
+        {'lognormal_sigma': 1.0},
+        id='a normal with a lognormal sigma',
+    ),
+    pytest.param({'type': 'binary', 'levels': 2}, {}, id='a binary without its concentration'),
+    pytest.param(
+        {'type': 'categorical', 'levels': 3},
+        {'level_alpha': 1.0, 'beta_a': 2.0},
+        id='a categorical with a beta shape',
+    ),
+]
+
+
+@pytest.mark.parametrize(('fields', 'parameters'), FOREIGN_PARAMETERS)
+def test_parameters_other_than_the_columns_own_fail(fields: dict, parameters: dict) -> None:
+    """A missing value hides a draw; an extra one claims a draw that played no part."""
+    with pytest.raises(ValidationError):
+        Column(**fields, parameters=parameters)
+
+
 def test_an_unknown_marginal_family_fails_at_construction() -> None:
     """A family outside the catalogue would otherwise fail only when the column is matched."""
     with pytest.raises(ValidationError):
         Column(type='continuous', marginal='gamma')
 
 
+ALPHA = {'level_alpha': 1.0}
 WIDTHS = [
-    pytest.param(Column(type='continuous', marginal='beta'), 1, id='continuous'),
-    pytest.param(Column(type='binary', levels=2), 1, id='binary'),
-    pytest.param(Column(type='categorical', levels=5), 4, id='categorical'),
-    pytest.param(Column(type='ordered', levels=3), 2, id='ordered'),
+    pytest.param(Column(type='continuous', marginal='normal'), 1, id='continuous'),
+    pytest.param(Column(type='binary', levels=2, parameters=ALPHA), 1, id='binary'),
+    pytest.param(Column(type='categorical', levels=5, parameters=ALPHA), 4, id='categorical'),
+    pytest.param(Column(type='ordered', levels=3, parameters=ALPHA), 2, id='ordered'),
 ]
 
 
@@ -85,25 +144,70 @@ def test_a_parent_on_or_above_the_diagonal_fails(child: int, parent: int) -> Non
         graphOf(parents)
 
 
+# x0 -> x1 -> x2: a root, a linear node and an MLP node, each with exactly the choices it uses
+CHAIN = {
+    'names': ['x0', 'x1', 'x2'],
+    'parents': np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=bool),
+    'latent': np.zeros(3, dtype=bool),
+    'mechanism': [None, 'linear', 'mlp'],
+    'activation': [None, None, 'tanh'],
+    'noise_scale': np.array([np.nan, 0.1, 0.2]),
+    'init_scale': np.array([np.nan, np.nan, 1.5]),
+}
+
 MISMATCHED = [
     pytest.param({'names': ['x0', 'x1']}, id='names one short'),
     pytest.param({'latent': np.zeros(2, dtype=bool)}, id='latent one short'),
-    pytest.param({'mechanism': ['linear', 'linear']}, id='mechanism one short'),
+    pytest.param({'mechanism': [None, 'linear']}, id='mechanism one short'),
     pytest.param({'parents': np.zeros((3, 2), dtype=bool)}, id='parents not square'),
+    pytest.param({'activation': [None, None]}, id='activation one short'),
+    pytest.param({'noise_scale': np.array([np.nan, 0.1])}, id='noise scale one short'),
+    pytest.param({'init_scale': np.array([np.nan, np.nan])}, id='init scale one short'),
 ]
 
 
 @pytest.mark.parametrize('change', MISMATCHED)
 def test_graph_fields_of_different_lengths_fail(change: dict) -> None:
     """Every field indexes the same nodes; a mismatch would misalign names and mechanisms."""
-    fields = {
-        'names': ['x0', 'x1', 'x2'],
-        'parents': np.zeros((3, 3), dtype=bool),
-        'latent': np.zeros(3, dtype=bool),
-        'mechanism': ['linear', 'linear', 'linear'],
-    }
     with pytest.raises(ValidationError):
-        Graph(**fields | change)
+        Graph(**CHAIN | change)
+
+
+def test_a_graph_records_each_nodes_own_choices() -> None:
+    """Each node draws its own family, noise scale, activation and init scale;
+    keeping them keeps the dataset white-box.
+    """
+    graph = Graph(**CHAIN)
+    assert graph.mechanism == [None, 'linear', 'mlp']
+    assert graph.activation == [None, None, 'tanh']
+    np.testing.assert_array_equal(graph.noise_scale, [np.nan, 0.1, 0.2])
+    np.testing.assert_array_equal(graph.init_scale, [np.nan, np.nan, 1.5])
+
+
+UNUSED_OR_MISSING = [
+    pytest.param({'mechanism': ['linear', 'linear', 'mlp']}, id='a root with a family'),
+    pytest.param({'mechanism': [None, None, 'mlp']}, id='a node with parents without a family'),
+    pytest.param({'noise_scale': np.array([0.1, 0.1, 0.2])}, id='a root with a noise scale'),
+    pytest.param(
+        {'noise_scale': np.array([np.nan, np.nan, 0.2])},
+        id='a node with parents without a noise scale',
+    ),
+    pytest.param({'activation': [None, 'tanh', 'tanh']}, id='a linear node with an activation'),
+    pytest.param(
+        {'init_scale': np.array([np.nan, 1.0, 1.5])}, id='a linear node with an init scale'
+    ),
+    pytest.param({'activation': [None, None, None]}, id='an mlp node without an activation'),
+    pytest.param(
+        {'init_scale': np.array([np.nan, np.nan, np.nan])}, id='an mlp node without an init scale'
+    ),
+]
+
+
+@pytest.mark.parametrize('change', UNUSED_OR_MISSING)
+def test_a_choice_a_node_does_not_use_or_lacks_fails(change: dict) -> None:
+    """A recorded choice that played no part would claim it did; a missing one hides a draw."""
+    with pytest.raises(ValidationError):
+        Graph(**CHAIN | change)
 
 
 def test_an_empty_graph_is_valid() -> None:

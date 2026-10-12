@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
-import pytest
 
 from tabdgp.dataset import Graph
 from tabdgp.graph import connect
@@ -59,10 +60,9 @@ def _run(graph: Graph, n_obs: int, seed: int = 0, **overrides: object) -> np.nda
     return _matrix(propagate(graph, resolved, rng))
 
 
-@pytest.mark.parametrize('family', ['linear', 'mlp'])
-def test_a_root_is_noise(family: str) -> None:
-    """A root's values are its own standard-normal noise, whatever family it drew."""
-    graph = graphOf([[], [], [], []], [family] * 4)
+def test_a_root_is_noise() -> None:
+    """A root's values are its own standard-normal noise."""
+    graph = graphOf([[], [], [], []])
     values = _run(graph, 20000)
     correlations = np.corrcoef(values.T)  # (4, 4)
     off_diagonal = correlations[~np.eye(4, dtype=bool)]
@@ -71,20 +71,27 @@ def test_a_root_is_noise(family: str) -> None:
     np.testing.assert_allclose(kurtosis, 3, atol=0.2)
 
 
-IDENTITY = {'tanh': 0.0, 'relu': 0.0, 'sin': 0.0, 'identity': 1.0}
-
-
 def test_a_node_with_parents_correlates_with_them_at_low_noise() -> None:
     """The mechanism carries the parent's signal: with little noise, a linear map stays a linear map.
 
     An MLP with the identity activation is linear too, so both families must keep it.
     """
     for family in ['linear', 'mlp']:
-        graph = graphOf([[], [0]], ['linear', family])
+        graph = graphOf([[], [0]], [None, family], activation='identity', noise_scale=0.01)
         for seed in range(10):
-            values = _run(graph, 2000, seed, noise_scale=0.01, activation_shares=IDENTITY)
+            values = _run(graph, 2000, seed)
             correlation = np.corrcoef(values.T)[0, 1]
             assert abs(correlation) > 0.99
+
+
+def test_each_node_takes_its_own_noise_scale() -> None:
+    """Two children of one root differ only in their noise: the quiet one follows the root,
+    the loud one barely (R² = 1 / (1 + 10²), a correlation of 0.1).
+    """
+    graph = replace(graphOf([[], [0], [0]]), noise_scale=np.array([np.nan, 0.01, 10.0]))
+    correlations = np.corrcoef(_run(graph, 2000).T)[0]  # (3,)
+    assert abs(correlations[1]) > 0.99
+    assert abs(correlations[2]) < 0.2
 
 
 def test_a_constant_mechanism_output_z_scores_to_zeros() -> None:
@@ -95,9 +102,9 @@ def test_a_constant_mechanism_output_z_scores_to_zeros() -> None:
     At this width and row count the readout's BLAS sums leave rows a last bit apart, the residue
     a guard of std > 0 would scale up.
     """
-    graph = graphOf([[], [0], [1]], ['linear', 'mlp', 'linear'])
+    graph = graphOf([[], [0], [1]], [None, 'mlp', 'linear'], init_scale=0.0, noise_scale=0.0)
     for seed in range(10):
-        values = _run(graph, 1001, seed, init_scale=0.0, noise_scale=0.0, hidden=64)
+        values = _run(graph, 1001, seed, hidden=64)
         assert (values[:, 1:] == 0).all()
 
 
@@ -138,8 +145,7 @@ def test_an_empty_graph_gives_rows_without_columns() -> None:
 
 def test_an_mlp_node_with_a_non_identity_activation_is_non_linear_in_its_parent() -> None:
     """At low noise, a linear map keeps the parent's correlation near 1; a sin MLP must lose it."""
-    graph = graphOf([[], [0]], ['linear', 'mlp'])
-    sin = point('activation_shares', 'sin')
+    graph = graphOf([[], [0]], [None, 'mlp'], activation='sin', noise_scale=0.01, init_scale=3.0)
     for seed in range(10):
-        values = _run(graph, 2000, seed, noise_scale=0.01, init_scale=3.0, activation_shares=sin)
+        values = _run(graph, 2000, seed)
         assert abs(np.corrcoef(values.T)[0, 1]) < 0.9

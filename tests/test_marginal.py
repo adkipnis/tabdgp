@@ -1,4 +1,4 @@
-"""The marginal module's seam: the catalogue, a sample of each family under the resolved hyperprior."""
+"""The marginal module's seam: the catalogue, a sample of each family under a column's parameters."""
 
 from __future__ import annotations
 
@@ -8,14 +8,15 @@ import numpy as np
 import pytest
 
 from tabdgp.hyperprior import Hyperprior
-from tabdgp.marginal import FAMILIES, Family
+from tabdgp.marginal import FAMILIES, PARAMETERS, Family
 
 
-def _sample(family: str, n: int, seed: int, **overrides: object) -> np.ndarray:
-    """A sample of the family under a hyperprior resolved and sampled with one generator."""
+def _sample(family: str, n: int, seed: int) -> np.ndarray:
+    """A sample of the family under parameters drawn from the defaults, as a column draws them."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolve(rng)
-    return FAMILIES[family](n, resolved, rng)
+    hyperprior = Hyperprior()
+    parameters = {field: hyperprior.point(field, rng) for field in PARAMETERS[family]}
+    return FAMILIES[family](n, parameters, rng)
 
 
 SUPPORTS = {
@@ -31,7 +32,7 @@ SUPPORTS = {
 
 @pytest.mark.parametrize('family', get_args(Family))
 def test_each_familys_sample_lies_in_its_support(family: str) -> None:
-    """A bounded column stays bounded and every column is finite, over many resolved hyperpriors.
+    """A bounded column stays bounded and every column is finite, over many drawn parameters.
 
     Closed bounds: a zero-inflated or uniform draw can be 0.
     """
@@ -42,20 +43,20 @@ def test_each_familys_sample_lies_in_its_support(family: str) -> None:
         assert (low <= sample).all() and (sample <= high).all()
 
 
-def _large(family: str, **overrides: object) -> np.ndarray:
+def _large(family: str, **parameters: float) -> np.ndarray:
     """A sample of 100,000, so that its statistics sit within 0.01 of their law's."""
-    return _sample(family, 100_000, 0, **overrides)
+    return FAMILIES[family](100_000, parameters, np.random.default_rng(0))
 
 
 def test_each_familys_parameters_are_honoured() -> None:
-    """Each family reads its own fields; expected values are closed forms, not the sampler's.
+    """Each family reads its own parameters; expected values are closed forms, not the sampler's.
 
     The mixture's gap is set wide, so the share above half of it is the minor weight.
     The t's two-tailed P(|T| > 3) at df = 3 is 0.0577, from its closed-form CDF.
     """
     lognormal = _large('lognormal', lognormal_sigma=0.5)
     assert abs(np.log(lognormal).std() - 0.5) < 0.01
-    inflated = _large('zero_inflated_lognormal', zero_share=0.3)
+    inflated = _large('zero_inflated_lognormal', lognormal_sigma=1.0, zero_share=0.3)
     assert abs((inflated == 0).mean() - 0.3) < 0.01
     beta = _large('beta', beta_a=2.0, beta_b=5.0)
     assert abs(beta.mean() - 2 / 7) < 0.01

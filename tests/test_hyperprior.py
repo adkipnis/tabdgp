@@ -38,12 +38,41 @@ def test_a_point_override_resolves_to_itself() -> None:
     assert (resolved.n_obs, resolved.type_shares, resolved.edge_offset) == (500, shares, -1.5)
 
 
-def test_the_resolved_hyperprior_has_no_distribution_left() -> None:
-    """Dataset.hyperparameters holds the resolved hyperprior, which a caller reads as points.
-    A distribution left over would be drawn again, so resolving twice would change it.
+def test_resolving_twice_changes_nothing() -> None:
+    """Dataset.hyperparameters holds the resolved hyperprior, which a caller reads as final.
+    A per-dataset distribution left over would be drawn again, so resolving twice would change it.
     """
     resolved = Hyperprior().resolve(np.random.default_rng(0))
     assert resolved.resolve(np.random.default_rng(1)) == resolved
+
+
+def test_resolve_leaves_the_fields_drawn_per_column_or_node_as_given() -> None:
+    """Each column or node draws its own value of these fields, so no dataset-wide value is drawn."""
+    assert set(Hyperprior.PER_COLUMN) == {
+        'student_df',
+        'lognormal_sigma',
+        'zero_share',
+        'beta_a',
+        'beta_b',
+        'mixture_gap',
+        'mixture_weight',
+        'level_alpha',
+    }
+    assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale'}
+    hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
+    resolved = hyperprior.resolve(np.random.default_rng(0))
+    assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
+    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE:
+        assert getattr(resolved, field) == getattr(hyperprior, field)
+
+
+@given(seed=st.integers(0, 2**32 - 1))
+def test_a_point_of_a_field_is_its_point_or_one_draw_inside_its_support(seed: int) -> None:
+    """A column or node takes its own value of a field through point, whatever the field holds."""
+    hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
+    rng = np.random.default_rng(seed)
+    assert hyperprior.point('noise_scale', rng) == 0.5
+    assert 2 <= hyperprior.point('lognormal_sigma', rng) <= 3
 
 
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
@@ -90,8 +119,8 @@ def test_a_misspelt_override_fails_at_construction() -> None:
 SUPPORTED = [
     ('n_obs', UniformInt),
     ('n_obs', LogUniformInt),
-    ('student_df', Uniform),
-    ('student_df', LogUniform),
+    ('hub_scale', Uniform),
+    ('hub_scale', LogUniform),
 ]
 
 
@@ -107,16 +136,17 @@ def test_a_distribution_override_resolves_inside_its_support(
 
 
 def test_resolved_shares_choose_a_category_by_its_share() -> None:
-    """column, graph and mechanism draw categories from resolved shares, one or an array at a time."""
+    """column and graph choose a type, family or activation from resolved shares."""
     rng = np.random.default_rng(0)
     types = {'continuous': 0.0, 'binary': 1.0, 'categorical': 0.0, 'ordered': 0.0}
-    resolved = Hyperprior(type_shares=types, mechanism_shares={'linear': 0.5, 'mlp': 0.5}).resolve(
-        rng
-    )
+    resolved = Hyperprior(type_shares=types).resolve(rng)
     assert resolved.type_shares.choose(rng) == 'binary'
-    chosen = resolved.mechanism_shares.chooseMany(rng, 200)  # (200,)
-    assert chosen.shape == (200,)
-    assert set(chosen) == {'linear', 'mlp'}
+
+
+def test_a_point_of_a_dirichlet_shares_field_chooses_as_its_resolution_does() -> None:
+    """point hands back shares that choose, whether the field holds a Dirichlet or a point."""
+    rng = np.random.default_rng(0)
+    assert Hyperprior().point('mechanism_shares', rng).choose(rng) in {'linear', 'mlp'}
 
 
 def test_a_shares_field_names_its_default_categories() -> None:

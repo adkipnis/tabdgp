@@ -25,9 +25,11 @@ def _assert_identical(a: Dataset, b: Dataset) -> None:
             assert arrays_a[key].tobytes() == arrays_b[key].tobytes()
     assert a.metadata == b.metadata
     assert a.graph.names == b.graph.names
-    assert a.graph.mechanism == b.graph.mechanism
+    assert (a.graph.mechanism, a.graph.activation) == (b.graph.mechanism, b.graph.activation)
     assert np.array_equal(a.graph.parents, b.graph.parents)
     assert np.array_equal(a.graph.latent, b.graph.latent)
+    assert np.array_equal(a.graph.noise_scale, b.graph.noise_scale, equal_nan=True)
+    assert np.array_equal(a.graph.init_scale, b.graph.init_scale, equal_nan=True)
     assert (a.hyperparameters, a.key, a.version) == (b.hyperparameters, b.key, b.version)
 
 
@@ -74,7 +76,7 @@ def test_every_override_is_honoured(
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
     The fields without a visible size are honoured through hyperparameters, which must hold
-    every point override as given.
+    every point override as given, and a field drawn per node through the graph.
     """
     hyperprior = Hyperprior(
         n_obs=n_obs,
@@ -98,6 +100,18 @@ def test_every_override_is_honoured(
         latent_nodes,
     )
     assert (resolved.max_levels, resolved.noise_scale) == (max_levels, 0.5)
+    noise_scale = dataset.graph.noise_scale  # (n,)
+    assert (noise_scale[~np.isnan(noise_scale)] == 0.5).all()
+
+
+def test_the_hyperparameters_keep_the_fields_drawn_per_column_or_node_as_given() -> None:
+    """Each column and node holds its own value of these fields; the dataset-wide record is the
+    distribution they were drawn from.
+    """
+    hyperprior = Hyperprior()
+    hyperparameters = draw(0, 0, hyperprior).hyperparameters
+    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE:
+        assert getattr(hyperparameters, field) == getattr(hyperprior, field)
 
 
 def test_a_distribution_override_is_honoured() -> None:

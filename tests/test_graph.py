@@ -43,12 +43,57 @@ def test_latent_nodes_precede_observed_ones() -> None:
     assert sorted(graph.names[3:]) == ['a', 'b', 'c', 'd', 'e']
 
 
+def _roots(graph: Graph) -> np.ndarray:
+    """(n,) bool: the nodes without parents."""
+    return ~graph.parents.any(axis=1)
+
+
 @pytest.mark.parametrize('family', ['linear', 'mlp'])
-def test_every_node_draws_its_family_from_the_mechanism_shares(family: str) -> None:
-    """The mechanism shares are honoured for every node, roots included."""
+def test_every_node_with_parents_draws_its_family_from_the_mechanism_shares(family: str) -> None:
+    """The mechanism shares are honoured; a root is its noise, so it draws no family."""
     for seed in range(20):
         graph = _connect(seed, 8, mechanism_shares=point('mechanism_shares', family))
-        assert graph.mechanism == [family] * len(graph.names)
+        expected = [None if root else family for root in _roots(graph)]
+        assert graph.mechanism == expected
+
+
+# every pair of nodes an edge, so every node after the first has parents
+DENSE = {'edge_offset': 30.0, 'hub_scale': 0.0, 'latent_nodes': 0}
+
+
+def test_each_node_with_parents_draws_its_own_noise_scale() -> None:
+    """Real tables mix strong and weak dependence, so the nodes of one dataset differ in noise."""
+    graph = _connect(0, 6, **DENSE)
+    assert np.isnan(graph.noise_scale[0])
+    assert len(set(graph.noise_scale[1:].tolist())) == 5
+
+
+def test_each_mlp_node_draws_its_own_activation_and_init_scale_and_a_linear_node_neither() -> None:
+    """The activation shares are honoured per MLP node; a linear node is its readout alone."""
+    sin = point('activation_shares', 'sin')
+    mlp = _connect(
+        0, 6, mechanism_shares=point('mechanism_shares', 'mlp'), activation_shares=sin, **DENSE
+    )
+    assert mlp.activation == [None] + ['sin'] * 5
+    assert np.isnan(mlp.init_scale[0])
+    assert len(set(mlp.init_scale[1:].tolist())) == 5
+    linear = _connect(0, 6, mechanism_shares=point('mechanism_shares', 'linear'), **DENSE)
+    assert linear.activation == [None] * 6
+    assert np.isnan(linear.init_scale).all()
+
+
+def test_a_point_override_gives_every_node_its_value() -> None:
+    """A caller who wants one noise scale for the whole dataset passes it as a point."""
+    graph = _connect(
+        0,
+        6,
+        noise_scale=0.3,
+        init_scale=2.0,
+        **DENSE,
+        mechanism_shares=point('mechanism_shares', 'mlp'),
+    )
+    np.testing.assert_array_equal(graph.noise_scale[1:], 0.3)
+    np.testing.assert_array_equal(graph.init_scale[1:], 2.0)
 
 
 def _density(offset: float, **overrides: object) -> float:
@@ -100,7 +145,9 @@ def test_connect_is_deterministic_under_a_fixed_generator() -> None:
     first, second = _connect(7, 9), _connect(7, 9)
     assert first.names == second.names
     assert np.array_equal(first.parents, second.parents)
-    assert first.mechanism == second.mechanism
+    assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
+    np.testing.assert_array_equal(first.noise_scale, second.noise_scale)
+    np.testing.assert_array_equal(first.init_scale, second.init_scale)
 
 
 def test_every_latent_node_has_a_child_when_a_later_node_exists() -> None:
