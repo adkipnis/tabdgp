@@ -11,12 +11,55 @@ the resolved shares and budget
 
 from __future__ import annotations
 
-from typing import get_args
+from typing import Literal, get_args
 
 import numpy as np
+from pydantic import Field
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.dataset import Column, ColumnType
-from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior
+from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
+
+ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
+
+# =====================================================================================
+# the column metadata
+# =====================================================================================
+
+
+@pydantic_dataclass(frozen=True)
+class Column:
+    """Metadata of one observed column."""
+
+    type: ColumnType
+    levels: int | None = None  # K
+    role: Literal['covariate'] = 'covariate'  # extended to grouping factors or outcome later
+    marginal: Family | None = None  # for continuous columns
+    parameters: dict[str, float] = Field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # binary is exactly K = 2 and categorical or ordered K ≥ 3, so no two types overlap
+        if self.type == 'continuous':
+            agree = self.levels is None
+        elif self.type == 'binary':
+            agree = self.levels == 2
+        else:  # categorical | ordered
+            agree = self.levels is not None and self.levels >= 3
+        if not agree:
+            raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
+        if (self.type == 'continuous') != (self.marginal is not None):
+            raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
+        # check that parameters hold exactly the fields this column drew
+        if self.type == 'continuous':
+            own = MARGINAL_FIELDS[self.marginal]
+        else:
+            own = ['level_alpha']
+        if self.parameters.keys() != set(own):
+            raise ValueError(f'a {self.type} column draws {own}, not {list(self.parameters)}')
+
+    @property
+    def design_columns(self) -> int:
+        return 1 if self.levels is None else self.levels - 1
+
 
 # =====================================================================================
 # the column plan

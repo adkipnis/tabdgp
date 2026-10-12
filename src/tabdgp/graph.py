@@ -12,13 +12,74 @@ the resolved hyperprior and the observed names
 
 from __future__ import annotations
 
-import numpy as np
+from typing import Literal
 
-from tabdgp.dataset import Activation, Graph, Mechanism
+import numpy as np
+from pydantic import ConfigDict
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+
 from tabdgp.hyperprior import Hyperprior
+
+Mechanism = Literal['linear', 'mlp']
+Activation = Literal['tanh', 'relu', 'sin', 'identity']
 
 # =====================================================================================
 # the generating graph
+# =====================================================================================
+
+
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class Graph:
+    """Every node of a dataset in topological order (observed `x`, latent `z`).
+
+    - A root (a node without parents) is just its noise and draws nothing.
+    - A linear node draws a noise scale.
+    - An MLP node draws a noise scale, an activation and an init scale.
+    - None at position i for any field <=> node i does not draw that field.
+    """
+
+    names: list[str]
+    parents: np.ndarray  # (n, n) bool, parents[i, j] is True if j is a parent of i
+    latent: np.ndarray  # (n,) bool
+    mechanism: list[Mechanism | None]
+    activation: list[Activation | None]
+    noise_scale: list[float | None]
+    init_scale: list[float | None]
+
+    def __post_init__(self) -> None:
+        n = len(self.names)
+        shapes = (
+            self.parents.shape,
+            self.latent.shape,
+            len(self.mechanism),
+            len(self.activation),
+            len(self.noise_scale),
+            len(self.init_scale),
+        )
+        if shapes != ((n, n), (n,), n, n, n, n):
+            raise ValueError(f'{n} names, but the per-node fields have shapes {shapes}')
+        named_latent = [name.startswith('z') for name in self.names]  # (n,)
+        if not np.array_equal(self.latent, named_latent):
+            raise ValueError(f'the latent mask {self.latent.tolist()} disagrees with {self.names}')
+        if np.triu(self.parents).any():
+            raise ValueError('a parent on or above the diagonal breaks topological order')
+        # check that each node holds a value for the fields it draws
+        root = ~self.parents.any(axis=1)  # (n,)
+        not_mlp = np.array([family != 'mlp' for family in self.mechanism])  # (n,)
+        unused = {
+            'mechanism': (self.mechanism, root),
+            'noise_scale': (self.noise_scale, root),
+            'activation': (self.activation, not_mlp),
+            'init_scale': (self.init_scale, not_mlp),
+        }
+        for field, (values, unused_by) in unused.items():
+            missing = [value is None for value in values]  # (n,)
+            if not np.array_equal(missing, unused_by):
+                raise ValueError(f'{field} is missing for nodes {missing}, unused by {unused_by}')
+
+
+# =====================================================================================
+# connecting the nodes
 # =====================================================================================
 
 # a field drawn per node that no node reads would stay a distribution without a word

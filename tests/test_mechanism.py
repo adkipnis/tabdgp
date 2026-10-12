@@ -6,8 +6,7 @@ from dataclasses import replace
 
 import numpy as np
 
-from tabdgp.dataset import Graph
-from tabdgp.graph import connect
+from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
 from tests.fixtures.build import graphOf, point

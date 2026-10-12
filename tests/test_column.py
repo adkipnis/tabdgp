@@ -1,4 +1,6 @@
-"""The column module's seams: the column plan under the budget, and a column's values from its node's."""
+"""The column module's seams: what a Column guarantees on its own,
+the column plan under the budget, and a column's values from its node's.
+"""
 
 from __future__ import annotations
 
@@ -6,9 +8,9 @@ from typing import get_args
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
-from tabdgp.column import apply, plan
-from tabdgp.dataset import Column
+from tabdgp.column import Column, apply, plan
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 from tests.fixtures.build import point
 
@@ -24,6 +26,115 @@ EXAMPLE = {
     'mixture_gap': 2.0,
     'mixture_weight': 0.3,
 }
+
+
+def test_a_column_type_outside_the_four_fails() -> None:
+    """metabeta's encoder branches on the type, so a fifth would pass through unencoded."""
+    with pytest.raises(ValidationError):
+        Column(type='count')
+
+
+CONTRADICTING_LEVELS = [
+    pytest.param('continuous', 3, id='a continuous column with levels'),
+    pytest.param('binary', 3, id='a binary column of three levels'),
+    pytest.param('binary', None, id='a binary column without levels'),
+    pytest.param('categorical', 2, id='a categorical column of two levels'),
+    pytest.param('ordered', 2, id='an ordered column of two levels'),
+    pytest.param('categorical', None, id='a categorical column without levels'),
+]
+
+
+@pytest.mark.parametrize(('type', 'levels'), CONTRADICTING_LEVELS)
+def test_levels_that_contradict_the_type_fail(type: str, levels: int | None) -> None:
+    """Binary is exactly K = 2 and the other discrete types K ≥ 3, so the types never overlap."""
+    with pytest.raises(ValidationError):
+        Column(type=type, levels=levels)
+
+
+def test_a_marginal_on_a_discrete_column_fails() -> None:
+    """Only continuous columns are rank matched; a discrete column's values are its codes."""
+    with pytest.raises(ValidationError):
+        Column(type='binary', levels=2, marginal='lognormal')
+
+
+def test_a_continuous_column_without_a_marginal_fails() -> None:
+    """Its parameters are its family's, so a continuous column names the family it was drawn from."""
+    with pytest.raises(ValidationError):
+        Column(type='continuous')
+
+
+OWN_PARAMETERS = [
+    pytest.param(Column(type='continuous', marginal='normal'), {}, id='a normal column has none'),
+    pytest.param(
+        Column(
+            type='continuous',
+            marginal='zero_inflated_lognormal',
+            parameters={'lognormal_sigma': 0.5, 'zero_share': 0.2},
+        ),
+        {'lognormal_sigma': 0.5, 'zero_share': 0.2},
+        id='a zero-inflated lognormal column has two',
+    ),
+    pytest.param(
+        Column(type='ordered', levels=4, parameters={'level_alpha': 2.0}),
+        {'level_alpha': 2.0},
+        id='a coded column has its concentration',
+    ),
+]
+
+
+@pytest.mark.parametrize(('column', 'parameters'), OWN_PARAMETERS)
+def test_a_column_records_the_values_it_was_drawn_with(column: Column, parameters: dict) -> None:
+    """Each column draws its own marginal parameters or level concentration;
+    keeping them keeps the dataset white-box.
+    """
+    assert column.parameters == parameters
+
+
+FOREIGN_PARAMETERS = [
+    pytest.param(
+        {'type': 'continuous', 'marginal': 'lognormal'}, {}, id='a lognormal without its sigma'
+    ),
+    pytest.param(
+        {'type': 'continuous', 'marginal': 'normal'},
+        {'lognormal_sigma': 1.0},
+        id='a normal with a lognormal sigma',
+    ),
+    pytest.param({'type': 'binary', 'levels': 2}, {}, id='a binary without its concentration'),
+    pytest.param(
+        {'type': 'categorical', 'levels': 3},
+        {'level_alpha': 1.0, 'beta_a': 2.0},
+        id='a categorical with a beta shape',
+    ),
+]
+
+
+@pytest.mark.parametrize(('fields', 'parameters'), FOREIGN_PARAMETERS)
+def test_parameters_other_than_the_columns_own_fail(fields: dict, parameters: dict) -> None:
+    """A missing value hides a draw; an extra one claims a draw that played no part."""
+    with pytest.raises(ValidationError):
+        Column(**fields, parameters=parameters)
+
+
+def test_an_unknown_marginal_family_fails_at_construction() -> None:
+    """A family outside the catalogue would otherwise fail only when the column is matched."""
+    with pytest.raises(ValidationError):
+        Column(type='continuous', marginal='gamma')
+
+
+DESIGN_COLUMNS = [
+    pytest.param(Column(type='continuous', marginal='normal'), 1, id='continuous'),
+    pytest.param(Column(type='binary', levels=2, parameters=ALPHA), 1, id='binary'),
+    pytest.param(Column(type='categorical', levels=5, parameters=ALPHA), 4, id='categorical'),
+    pytest.param(Column(type='ordered', levels=3, parameters=ALPHA), 2, id='ordered'),
+]
+
+
+@pytest.mark.parametrize(('column', 'design_columns'), DESIGN_COLUMNS)
+def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
+    column: Column, design_columns: int
+) -> None:
+    """The design-column budget counts metabeta's dummy coding: K levels take K − 1 columns."""
+    assert column.design_columns == design_columns
 
 
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:

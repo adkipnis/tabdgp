@@ -17,7 +17,7 @@ from typing import get_args
 
 import numpy as np
 
-from tabdgp.dataset import Activation, Graph, Mechanism
+from tabdgp.graph import Activation, Graph, Mechanism
 from tabdgp.hyperprior import Hyperprior
 
 # =====================================================================================

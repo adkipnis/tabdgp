@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from tabdgp.dataset import Graph
+from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
 
 

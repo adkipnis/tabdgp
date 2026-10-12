@@ -10,7 +10,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from tabdgp.dataset import ColumnType, Mechanism
+from tabdgp.column import ColumnType
+from tabdgp.graph import Mechanism
 from tabdgp.hyperprior import (
     MARGINAL_FIELDS,
     Beta,
