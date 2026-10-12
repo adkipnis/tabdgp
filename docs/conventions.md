@@ -113,6 +113,7 @@ harder to understand or change; it accrues one small edit at a time.
 - Annotate shapes inline (`# (B, N, p)` for B datasets of N rows and p columns), reshape with
   `einops` where the library has it, never mutate a reused array in place. Vectorise with
   broadcasting and advanced indexing, not loops; batch over datasets.
+- One letter per quantity, whatever its case: `N` counts rows, so `d` counts nodes, never `n`.
 - Every draw takes an explicit generator or key; nothing reads global random state.
 - A scalar the config draws or a mechanism reads is a Python `int` or `float`, its arithmetic
   `math`'s: a numpy float64 scalar would promote float32 arrays to float64.
