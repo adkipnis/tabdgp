@@ -19,7 +19,7 @@ def point(field: str, category: str) -> dict[str, float]:
 def graphOf(
     parents: list[list[int]],
     mechanism: list[str | None] | None = None,
-    activation: str = 'identity',
+    activation: str = 'tanh',
     noise_scale: float = 0.1,
     init_scale: float = 1.0,
 ) -> Graph:
