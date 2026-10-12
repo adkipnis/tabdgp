@@ -1,4 +1,4 @@
-"""draw.py defines the pipeline: one dataset as a pure function of its seed and index.
+"""draw.py defines the pipeline and its output: one dataset as a pure function of its key.
 
 One generator is threaded through the steps in a fixed order; a change of that order changes
 every dataset, so it is a version change.
@@ -20,14 +20,35 @@ from __future__ import annotations
 from importlib.metadata import version
 
 import numpy as np
+from pydantic import ConfigDict
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.column import apply, plan
-from tabdgp.dataset import Dataset
-from tabdgp.graph import connect
+from tabdgp.column import Column, apply, plan
+from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
 
 VERSION = version('tabdgp')
+
+# =====================================================================================
+# the dataset
+# =====================================================================================
+
+
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class Dataset:
+    """A dataset draw in its white-box format.
+    Each array is stored as drawn (not copied), so a consumer can share its memory.
+    """
+
+    columns: dict[str, np.ndarray]  # (N,) each, float32 if continuous, int64 codes 0..K−1 otherwise
+    metadata: dict[str, Column]
+    graph: Graph
+    latent: dict[str, np.ndarray]  # (N,) float32 each, z-scored
+    hyperparameters: Hyperprior  # resolved, except the fields each column or node draws
+    seed: int  # the corpus
+    index: int  # the dataset within its corpus
+    version: str  # of TabDGP; a key reproduces a dataset only within one version
 
 
 # =====================================================================================

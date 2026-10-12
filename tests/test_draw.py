@@ -1,4 +1,6 @@
-"""The draw module's seam: draw(seed, index, hyperprior), one dataset per key."""
+"""The draw module's seams: what a Dataset guarantees on its own,
+and draw(seed, index, hyperprior), one dataset per key.
+"""
 
 from __future__ import annotations
 
@@ -10,10 +12,27 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tabdgp.dataset import Dataset
-from tabdgp.draw import draw
+from tabdgp.column import Column
+from tabdgp.draw import Dataset, draw
 from tabdgp.hyperprior import Hyperprior, UniformInt
-from tests.fixtures.build import point
+from tests.fixtures.build import graphOf, point
+
+
+def test_a_dataset_holds_its_arrays_without_copying() -> None:
+    """metabeta hands the columns to torch.from_numpy; a copy per draw would cost throughput."""
+    values = np.zeros(5, dtype=np.float32)
+    latent = np.ones(5, dtype=np.float32)
+    dataset = Dataset(
+        columns={'x0': values},
+        metadata={'x0': Column(type='continuous', marginal='normal')},
+        graph=graphOf([[], []]),
+        latent={'z0': latent},
+        hyperparameters=Hyperprior().resolveDataset(np.random.default_rng(0)),
+        seed=0,
+        index=0,
+        version='0.0.1',
+    )
+    assert dataset.columns['x0'] is values and dataset.latent['z0'] is latent
 
 
 def _assert_identical(a: Dataset, b: Dataset) -> None:

@@ -1,7 +1,6 @@
 """TabDGP, a data-generating process for grouped and flat tables."""
 
-from tabdgp.dataset import Dataset
-from tabdgp.draw import draw
+from tabdgp.draw import Dataset, draw
 from tabdgp.hyperprior import (
     Beta,
     Dirichlet,
