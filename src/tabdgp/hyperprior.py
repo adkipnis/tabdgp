@@ -25,12 +25,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
     ValidationInfo,
     field_validator,
 )
-from pydantic.dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 # =====================================================================================
 # distributions
@@ -50,7 +51,7 @@ class _Interval:
         return self.low, self.high
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Uniform(_Interval):
     low: float
     high: float
@@ -59,7 +60,7 @@ class Uniform(_Interval):
         return float(rng.uniform(self.low, self.high))
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class LogUniform(_Interval):
     low: PositiveFloat  # its logarithm is drawn
     high: float
@@ -68,7 +69,7 @@ class LogUniform(_Interval):
         return math.exp(rng.uniform(math.log(self.low), math.log(self.high)))
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class UniformInt(_Interval):
     low: int
     high: int
@@ -77,7 +78,7 @@ class UniformInt(_Interval):
         return int(rng.integers(self.low, self.high, endpoint=True))
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class LogUniformInt(_Interval):
     low: PositiveInt  # its logarithm is drawn
     high: int
@@ -89,7 +90,7 @@ class LogUniformInt(_Interval):
         return min(math.floor(value), self.high)
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Beta:
     a: PositiveFloat
     b: PositiveFloat
@@ -101,7 +102,7 @@ class Beta:
         return 0.0, 1.0
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Dirichlet:
     alpha: dict[str, PositiveFloat]  # concentration per category
 
@@ -129,7 +130,7 @@ Distribution = Uniform | LogUniform | UniformInt | LogUniformInt | Beta | Dirich
 # the kinds of field: a point, or a distribution of points of that kind
 Integer = int | UniformInt | LogUniformInt
 Real = float | Uniform | LogUniform | Beta
-Simplex = dict[str, float] | Dirichlet
+Simplex = dict[str, NonNegativeFloat] | Dirichlet
 
 
 def _within(
@@ -166,14 +167,31 @@ Positive = Annotated[Real, _within(gt=0)]
 
 
 class Hyperprior(BaseModel):
-    """Every quantity of a dataset, each a point or a distribution, in the order they are resolved.
+    """The hyperparameters of a dataset (grouped by when they're used).
 
-    The defaults are provisional until the hyperprior is fitted to mixedbench's registry.
+    - Columns: a table has rows and typed columns.
+      A column is continuous or has levels (binary, categorical or ordered).
+      A column with levels takes one of K levels in each row.
+      Due to dummy-encoding, it takes K − 1 columns in the design matrix.
+    - Graph: each column is an observed node of a directed acyclic graph (DAG).
+      Latent nodes may affect observed nodes but have no columns assigned to them.
+      Each possible edge has its own probability. It rises with the graph's overall density,
+      when its parent or child is a hub or when both nodes are in the same block.
+    - Mechanisms: for each node, its value is a function of its parents' values + noise.
+      The function is linear or an MLP.
+    - Marginals: the graph and its mechanisms decide only the dependence between columns
+      through the ranks of their values. Each column's marginal shape is drawn separately,
+      allowing easy finetuning using real columns (skew, zeros, heavy tails).
+    - Shares: a Dirichlet distribution draws the dataset's shares of the column types,
+      marginal families, mechanisms and activations.
+      Each column or node chooses its own by those shares.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid', validate_default=True)
-
-    # the fields each column or node draws its own value of, which resolve leaves as given
+    PER_NODE: ClassVar[tuple[str, ...]] = (
+        'init_scale',
+        'noise_scale',
+    )
     PER_COLUMN: ClassVar[tuple[str, ...]] = (
         'level_alpha',
         'student_df',
@@ -183,24 +201,23 @@ class Hyperprior(BaseModel):
         'beta_b',
         'mixture_gap',
         'mixture_weight',
-    )
-    PER_NODE: ClassVar[tuple[str, ...]] = ('init_scale', 'noise_scale')
+    )  # columns are manifested (i.e. non-latent) nodes
 
     # sizes and columns
     n_obs: PositiveCount = LogUniformInt(20, 15000)  # rows
-    design_columns: Count = UniformInt(1, 19)  # metabeta's d − 1; 0 would leave a flat table empty
+    design_columns: Count = UniformInt(1, 19)  # design-matrix width
     type_shares: Simplex = Dirichlet(
         {'continuous': 0.88, 'binary': 0.66, 'categorical': 0.38, 'ordered': 0.08}
-    )  # twice the envelope witnesses' shares, so that corners get mass
+    )  # column types
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # K is 2 + Geometric(levels_p)
-    max_levels: Annotated[int, Field(ge=3)] | None = None  # caps K; none keeps the registry's tail
-    level_alpha: Positive = LogUniform(0.5, 5)  # Dirichlet concentration of a column's level shares
+    max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for K
+    level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
 
     # graph
     latent_nodes: Count = UniformInt(0, 9)
     edge_offset: Real = Uniform(-4, 2)  # the logit offset shared by every edge
     hub_scale: NonNegative = LogUniform(0.1, 2)  # Cauchy scale of the per-node out- and in-terms
-    blocks: PositiveCount = UniformInt(1, 4)
+    blocks: PositiveCount = UniformInt(1, 4)  # groups of nodes that connect more often
     block_bonus: NonNegative = Uniform(0, 3)  # added to the edge logit within a block
 
     # mechanisms
@@ -222,48 +239,48 @@ class Hyperprior(BaseModel):
             'zero_inflated_lognormal': 1,
             'normal_mixture': 1,
         }
-    )
+    )  # a continuous column's family
     student_df: Positive = LogUniform(2, 30)
-    lognormal_sigma: Positive = LogUniform(0.25, 1.5)  # lognormal and zero-inflated lognormal
+    lognormal_sigma: Positive = LogUniform(0.25, 1.5)
     zero_share: Annotated[Real, _within(ge=0, lt=1)] = Uniform(0.05, 0.6)  # zero-inflated lognormal
     beta_a: Positive = LogUniform(0.5, 5)
     beta_b: Positive = LogUniform(0.5, 5)
-    mixture_gap: NonNegative = Uniform(1, 4)  # distance between the two normal means, in sds
-    mixture_weight: Annotated[Real, _within(ge=0, le=1)] = Uniform(0.1, 0.5)
+    mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
+    mixture_weight: Annotated[Real, _within(ge=0, le=1)] = Uniform(0.1, 0.5)  # 2nd normal's share
 
     @field_validator('type_shares', 'mechanism_shares', 'activation_shares', 'marginal_shares')
     @classmethod
-    def _shares_name_the_default_categories(cls, value: Simplex, info: ValidationInfo) -> Simplex:
+    def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
+        """Puts the categories in the default order."""
         categories = cls.categories(info.field_name)
-        shares = value.alpha if isinstance(value, Dirichlet) else value
+        if isinstance(value, Dirichlet):
+            return Dirichlet(cls._inOrder(value.alpha, categories))
+        if not math.isclose(sum(value.values()), 1):
+            raise ValueError(f'shares {value} do not sum to 1')
+        return Shares(cls._inOrder(value, categories))
+
+    @staticmethod
+    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
         if shares.keys() != set(categories):
             raise ValueError(f'shares name {list(shares)}, not {categories}')
-        if not isinstance(value, Dirichlet) and (
-            min(shares.values()) < 0 or not math.isclose(sum(shares.values()), 1)
-        ):
-            raise ValueError(f'shares {shares} do not lie on the simplex')
-        # a draw takes the categories by place, so they follow the default's order, not the override's
-        ordered = {name: shares[name] for name in categories}
-        return Dirichlet(ordered) if isinstance(value, Dirichlet) else Shares(ordered)
+        return {name: shares[name] for name in categories}
 
     @classmethod
     def categories(cls, field: str) -> list[str]:
-        """The categories a shares field names, in its default's order."""
         return list(cls.model_fields[field].default.alpha)
 
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
-        """The same fields with every distribution replaced by one draw from it,
-        except the fields each column or node draws.
-        """
+        """Resolves each non-node field."""
         points = {}
         for name in type(self).model_fields:
             if name in self.PER_COLUMN + self.PER_NODE:
-                points[name] = getattr(self, name)
+                points[name] = getattr(self, name)  # defer resolution to a later step
             else:
                 points[name] = self.resolveField(name, rng)
         return Hyperprior(**points)
 
     def resolveField(self, field: str, rng: np.random.Generator) -> Any:
-        """The field if it is a point, else one draw from its distribution."""
         value = getattr(self, field)
-        return value.draw(rng) if isinstance(value, Distribution) else value
+        if isinstance(value, Distribution):
+            value = value.draw(rng)
+        return value
