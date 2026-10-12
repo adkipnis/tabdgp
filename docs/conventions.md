@@ -68,6 +68,8 @@ harder to understand or change; it accrues one small edit at a time.
 - A config field that counts is a plural noun (`rows`, `latent_nodes`), without an `n_` prefix.
 - Methods that do one thing at different scopes share its verb, and each names its scope:
   `resolveDataset` for every field drawn once per dataset, `resolveField` for one field.
+- A quantity counted at different scopes keeps one name: the budget's `design_columns` and a
+  column's `design_columns`.
 - A directory is `dir`, not `folder`. A DataFrame is a `table`, several are `tables`, never
   `df` or `frame`.
 - A leading `_` marks a pipeline step and anything no other module imports.
