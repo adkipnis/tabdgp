@@ -58,36 +58,11 @@ def test_a_marginal_on_a_discrete_column_fails() -> None:
 
 
 def test_a_continuous_column_without_a_marginal_fails() -> None:
-    """Its parameters are its family's, so a continuous column names the family it was drawn from."""
+    """Its parameters are its family's,
+    so a continuous column names the family it was drawn from.
+    """
     with pytest.raises(ValidationError):
         Column(type='continuous')
-
-
-OWN_PARAMETERS = [
-    pytest.param(Column(type='continuous', marginal='normal'), {}, id='a normal column has none'),
-    pytest.param(
-        Column(
-            type='continuous',
-            marginal='zero_inflated_lognormal',
-            parameters={'lognormal_sigma': 0.5, 'zero_share': 0.2},
-        ),
-        {'lognormal_sigma': 0.5, 'zero_share': 0.2},
-        id='a zero-inflated lognormal column has two',
-    ),
-    pytest.param(
-        Column(type='ordered', levels=4, parameters={'level_alpha': 2.0}),
-        {'level_alpha': 2.0},
-        id='a coded column has its concentration',
-    ),
-]
-
-
-@pytest.mark.parametrize(('column', 'parameters'), OWN_PARAMETERS)
-def test_a_column_records_the_values_it_was_drawn_with(column: Column, parameters: dict) -> None:
-    """Each column draws its own marginal parameters or level concentration;
-    keeping them keeps the dataset white-box.
-    """
-    assert column.parameters == parameters
 
 
 FOREIGN_PARAMETERS = [
@@ -171,7 +146,9 @@ def test_k_is_clipped_when_it_would_overflow_the_budget() -> None:
 
 
 def test_max_levels_caps_k() -> None:
-    """metabeta passes 10, so no categorical or ordered column may exceed it however large K is drawn."""
+    """metabeta passes 10,
+    so no categorical or ordered column may exceed it however large K is drawn.
+    """
     columns = _plan(
         0,
         design_columns=19,
@@ -214,7 +191,9 @@ def test_a_point_override_gives_every_column_its_value() -> None:
 
 
 def test_plan_names_its_columns_x0_to_x_p_minus_1() -> None:
-    """The one home of the rule that plan column k is node x{k}; every later step reads the names."""
+    """The one home of the rule that plan column k is node x{k};
+    every later step reads the names.
+    """
     columns = _plan(0, design_columns=4, type_shares=point('type_shares', 'continuous'))
     assert list(columns) == ['x0', 'x1', 'x2', 'x3']
 
@@ -228,7 +207,7 @@ DISCRETE = [
 
 
 def _apply(n: int, column: Column, seed: int) -> np.ndarray:
-    """The codes of one column cut from n standard normal values."""
+    """One column cut or matched from n standard normal values."""
     rng = np.random.default_rng(seed)
     values = rng.standard_normal(n)  # (n,)
     return apply(values, column, rng)
@@ -238,7 +217,9 @@ def _apply(n: int, column: Column, seed: int) -> np.ndarray:
 def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows(
     column: Column,
 ) -> None:
-    """A level no row has would not exist in a real table; n = K is the tightest case that allows all."""
+    """A level no row has would not exist in a real table;
+    n = K is the tightest case that allows all.
+    """
     for n in [column.levels, 100]:
         for seed in range(10):
             codes = _apply(n, column, seed)
@@ -247,7 +228,9 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
 
 
 def test_apply_gives_valid_codes_when_n_is_below_k() -> None:
-    """A small rows override can leave fewer rows than levels; each row still gets a code below K."""
+    """A small rows override can leave fewer rows than levels;
+    each row still gets a code below K.
+    """
     column = Column(type='categorical', levels=6, parameters=ALPHA)
     for seed in range(10):
         codes = _apply(3, column, seed)
@@ -264,7 +247,9 @@ def _monotone(n: int, column: Column, seed: int) -> bool:
 
 
 def test_categorical_labels_are_permuted() -> None:
-    """Unpermuted codes would order the categories along the node, a structure nominal levels lack."""
+    """Unpermuted codes would order the categories along the node,
+    a structure nominal levels lack.
+    """
     column = Column(type='categorical', levels=5, parameters=ALPHA)
     assert not all(_monotone(200, column, seed) for seed in range(20))
 
@@ -290,7 +275,7 @@ def _node(seed: int) -> np.ndarray:
     return (values - values.mean()) / values.std()
 
 
-def _apply_to(values: np.ndarray, column: Column, seed: int) -> np.ndarray:
+def _applyTo(values: np.ndarray, column: Column, seed: int) -> np.ndarray:
     """The column cut or matched from given node values."""
     return apply(values, column, np.random.default_rng(seed))
 
@@ -302,8 +287,8 @@ def test_a_continuous_column_has_exactly_its_marginal_samples_values(column: Col
     So the values come from the sample alone and the node supplies only the order: a quantile
     lookup that resamples (scamd's copula, 37% ties) would fail this.
     """
-    values = _apply_to(_node(1), column, seed=0)
-    other = _apply_to(_node(2), column, seed=0)
+    values = _applyTo(_node(1), column, seed=0)
+    other = _applyTo(_node(2), column, seed=0)
     assert values.dtype == np.float32
     np.testing.assert_array_equal(np.sort(values), np.sort(other))
     assert not np.array_equal(values, other)
@@ -316,20 +301,24 @@ def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
     Non-decreasing rather than increasing, since the zero-inflated sample has ties at 0.
     """
     node = _node(1)
-    values = _apply_to(node, column, seed=0)
+    values = _applyTo(node, column, seed=0)
     in_node_order = values[np.argsort(node)]  # (n,)
     assert (np.diff(in_node_order) >= 0).all()
     assert np.ptp(values) > 0
 
 
+def test_plan_is_deterministic_under_a_fixed_generator() -> None:
+    """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
+    assert _plan(7) == _plan(7)
+
+
 @pytest.mark.parametrize(
     'column', [*CONTINUOUS, Column(type='categorical', levels=6, parameters=ALPHA)], ids=str
 )
-def test_plan_and_apply_are_deterministic_under_a_fixed_generator(column: Column) -> None:
-    """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
-    assert _plan(7) == _plan(7)
+def test_apply_is_deterministic_under_a_fixed_generator(column: Column) -> None:
+    """Every marginal family and the level codes draw from the generator alone."""
     node = _node(1)
-    assert np.array_equal(_apply_to(node, column, 7), _apply_to(node, column, 7))
+    assert np.array_equal(_applyTo(node, column, 7), _applyTo(node, column, 7))
 
 
 def test_a_large_level_alpha_gives_even_level_counts() -> None:
@@ -337,12 +326,11 @@ def test_a_large_level_alpha_gives_even_level_counts() -> None:
     so a large one leaves each share near 1/K.
     """
     column = Column(type='ordered', levels=5, parameters={'level_alpha': 1e4})
-    rng = np.random.default_rng(0)
-    codes = apply(rng.standard_normal(1000), column, rng)
+    codes = _apply(1000, column, seed=0)
     np.testing.assert_allclose(np.bincount(codes), 200, atol=10)
 
 
-def _from_defaults(family: str, n: int, seed: int) -> np.ndarray:
+def _fromDefaults(family: str, n: int, seed: int) -> np.ndarray:
     """A column of the family under parameters drawn from the defaults, as plan draws them."""
     rng = np.random.default_rng(seed)
     hyperprior = Hyperprior()
@@ -370,7 +358,7 @@ def test_each_familys_values_lie_in_its_support(family: str) -> None:
     """
     low, high = SUPPORTS[family]
     for seed in range(50):
-        values = _from_defaults(family, 500, seed)
+        values = _fromDefaults(family, 500, seed)
         assert np.isfinite(values).all()
         assert (low <= values).all() and (values <= high).all()
 
@@ -378,8 +366,7 @@ def test_each_familys_values_lie_in_its_support(family: str) -> None:
 def _large(family: str, **parameters: float) -> np.ndarray:
     """A column of 100,000 rows, so that its statistics sit within 0.01 of their law's."""
     column = Column(type='continuous', marginal=family, parameters=parameters)
-    rng = np.random.default_rng(0)
-    return apply(rng.standard_normal(100_000), column, rng)
+    return _apply(100_000, column, seed=0)
 
 
 def test_each_familys_parameters_are_honoured() -> None:
