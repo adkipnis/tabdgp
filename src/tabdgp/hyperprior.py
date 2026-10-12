@@ -173,7 +173,7 @@ class Hyperprior(BaseModel):
 
     # sizes and columns
     n_obs: PositiveCount = LogUniformInt(20, 15000)  # rows
-    design_columns: Count = UniformInt(0, 19)  # metabeta's d − 1
+    design_columns: Count = UniformInt(1, 19)  # metabeta's d − 1; 0 would leave a flat table empty
     type_shares: Simplex = Dirichlet(
         {'continuous': 0.88, 'binary': 0.66, 'categorical': 0.38, 'ordered': 0.08}
     )  # twice the envelope witnesses' shares, so that corners get mass
@@ -182,7 +182,7 @@ class Hyperprior(BaseModel):
     level_alpha: Positive = LogUniform(0.5, 5)  # Dirichlet concentration of a column's level shares
 
     # graph
-    latent_nodes: Count = UniformInt(0, 3)
+    latent_nodes: Count = UniformInt(0, 9)
     edge_offset: Real = Uniform(-4, 2)  # the logit offset shared by every edge
     hub_scale: NonNegative = LogUniform(0.1, 2)  # Cauchy scale of the per-node out- and in-terms
     blocks: PositiveCount = UniformInt(1, 4)
