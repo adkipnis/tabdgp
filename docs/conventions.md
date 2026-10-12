@@ -162,7 +162,7 @@ the overrides and the hyperprior
   each. A field whose name does not say what it is ends in a short trailing comment.
 - A block of checks opens with one plain sentence on what it checks.
 - A comment explains the code, not its history: the case behind a rule goes to the test that
-  pins it, a definition to `CONTEXT.md`, how it was decided to an ADR or a lab note. Code in
+  pins it, a definition to `CONTEXT.md`, how it was decided to an ADR. Code in
   `src/` cites no ADR and names no consumer (metabeta, metasurv).
 
 ## Tests
