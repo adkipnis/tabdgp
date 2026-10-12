@@ -1,14 +1,14 @@
 [project]
 name = "tabdgp"
-version = "0.0.1"
-description = "A data-generating process for grouped and flat tables, matched to a registry of real tables"
+version = "0.1.0"
+description = "A data-generating process for grouped and flat tables, to be matched to a registry of real tables"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Alex Kipnis", email = "adkipnis@users.noreply.github.com" }]
 requires-python = ">=3.12"
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
     "Programming Language :: Python :: 3.12",
@@ -43,7 +43,6 @@ packages = ["src/tabdgp"]
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["lab"]  # dated records, never imported; they drift from src by design
 
 [tool.ruff.format]
 quote-style = "single"

@@ -1,9 +1,9 @@
 # TabDGP — Roadmap
 
 Decided in metabeta-v3's Phase 1 grill (2026-10-11; its root ADR 0005 and
-`packages/mixed` ADR 0005), moved here from metabeta-v3's `ROADMAP.md` when the repository
-was created. Order reflects dependencies. Specs and tickets are GitHub Issues on this
-repository.
+`packages/mixed` ADR 0005), moved here from the `ROADMAP.md` of metabeta-v3, a private
+repository, when this one was created. Order reflects dependencies. Specs and tickets are
+GitHub Issues on this repository.
 
 - [x] **1 The flat SCM.** The repository on mixedbench's template; the flat structural causal
   model with a marginal catalogue and typed post-hoc columns, written from scratch with scamd
@@ -11,10 +11,10 @@ repository.
   library decided in this spec
 - [ ] **2 Grouping nodes.** Group-level and within-group covariates, the imbalance draw of
   metabeta's envelope rule 7, within-group time, binary treatment; metabeta.mixed's slice A1
-  starts after this. Before its spec, the prior-art search (`docs/prior-art.md`) extended to
-  the newest reports of TabPFN, Mitra and LimiX (technical reports, papers and posts on how the
-  cutting edge simulates tabular training data, not its source code), amending the ADRs or the
-  remaining roadmap items where they warrant it; then whether TabPFN v2's DAG can be built from
+  starts after this. Before its spec, the prior-art search extended to the newest reports of
+  TabPFN, Mitra and LimiX (technical reports, papers and posts on how the cutting edge
+  simulates tabular training data, not its source code), amending the ADRs or the remaining
+  roadmap items where they warrant it; then whether TabPFN v2's DAG can be built from
   what is published and, if so, whether it replaces the Cauchy DAG or joins it as a second
   graph family
 - [ ] **3 Measurement pass and proofs.** The measurement pass over mixedbench's cached tables
@@ -46,11 +46,12 @@ Decided on 2026-10-11 (ADR 0002): a package release and a JOSS paper first; the 
 hyperprior's validation as a section of the metabeta paper; a standalone paper only with a
 finding of its own.
 
-- [ ] **7 Release.** After item 4 or 5: PyPI, the Zenodo DOI, the demo notebook, and the
-  JOSS paper as a citable handle; the README states the proofs as consistency checks on the
-  summary vector, never as realism
+- [ ] **7 Release 1.0.** After item 4 or 5: the demo notebook and the JOSS paper as a
+  citable handle, PyPI and the Zenodo DOI being there from 0.1.0
+  ([#18](https://github.com/adkipnis/tabdgp/issues/18)); the README states the proofs as
+  consistency checks on the summary vector, never as realism
 - [ ] **8 Quirk census ownership.** Before the mixedbench paper is drafted: decide whether the
-  quirk statistics of the measurement pass (mb#71) go into mixedbench's registry census or
+  quirk statistics of the measurement pass (item 3) go into mixedbench's registry census or
   stay for TabDGP's paper
 - [ ] **9 Downstream ablations.** Once metabeta.mixed's slice A1 trains: the posterior trained
   on TabDGP against an i.i.d. prior and a TabICL-style prior, scored on mixedbench; then each

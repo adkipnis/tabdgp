@@ -162,7 +162,7 @@ the overrides and the hyperprior
   each. A field whose name does not say what it is ends in a short trailing comment.
 - A block of checks opens with one plain sentence on what it checks.
 - A comment explains the code, not its history: the case behind a rule goes to the test that
-  pins it, a definition to `CONTEXT.md`, how it was decided to an ADR or a lab note. Code in
+  pins it, a definition to `CONTEXT.md`, how it was decided to an ADR. Code in
   `src/` cites no ADR and names no consumer (metabeta, metasurv).
 
 ## Tests
@@ -188,9 +188,10 @@ Markdown meets the same bar as code: simple, and read top to bottom.
 - The essentials first, detail in an appendix or a linked file.
 - One home per fact, links everywhere else; a living rule sits with the method it governs.
   Counts live in generated files, never in prose.
-- `README.md` is for users and fits one screen: badges, a short what and why, install, one
-  quickstart box, contents, contributing, citing, licence. Its links are absolute to `main`,
-  so PyPI renders them.
+- `README.md` is for users and fits one screen: badges, a tagline, a short what and why,
+  highlights of what the release does, install, one quickstart box and its output, planned,
+  learn more, contributing, citing, licence. Its links are absolute to `main`, so PyPI renders
+  them.
 
 ### Explaining the design
 
@@ -215,9 +216,7 @@ How the docs and the paper explain TabDGP to a reader with only a vague idea of 
 - Stream or lazily load data that would not fit in memory.
 - Figures are PDFs, never rasterised.
 
-## Lab notes and experiments
+## Experiments
 
-- `lab/YYYY-MM-DD-slug/`: one small design choice, its notebook committed with outputs and
-  indexed in `lab/README.md` with the decision. Never imported.
 - `experiments/`: rerunnable scripted studies that feed a paper. Rerun with flags; never
   one-off.
