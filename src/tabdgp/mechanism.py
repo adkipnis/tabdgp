@@ -53,7 +53,8 @@ def _mapParents(
 ) -> np.ndarray:
     layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
     parents = [nodes[graph.names[i]] for i in np.flatnonzero(graph.parents[j])]
-    # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width (LeCun et al. 1998)
+    # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
+    # (LeCun et al. 1998)
     hidden = np.stack(parents, axis=1)  # (n, p)
     constant = _isConstant(hidden)
     for _ in range(layers):
