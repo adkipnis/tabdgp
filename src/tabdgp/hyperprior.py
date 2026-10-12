@@ -207,7 +207,7 @@ class Hyperprior(BaseModel):
     n_obs: PositiveCount = LogUniformInt(20, 15000)  # rows
     design_columns: Count = UniformInt(1, 19)  # design-matrix width
     type_shares: Simplex = Dirichlet(
-        {'continuous': 0.88, 'binary': 0.66, 'categorical': 0.38, 'ordered': 0.08}
+        {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
     )  # column types
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # K is 2 + Geometric(levels_p)
     max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for K
