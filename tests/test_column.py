@@ -543,6 +543,19 @@ def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
     assert np.ptp(values) > 0
 
 
+@pytest.mark.parametrize('column', [*CONTINUOUS, *DISCRETE], ids=str)
+def test_tied_node_values_share_one_column_value(column: Column) -> None:
+    """A node constant within groups, at a factor's unit or at group share 1, ties over each
+    group's rows; the column keeps the ties, so it is constant within the groups too, and a
+    tie-free node gets one value per row as before.
+    """
+    node = np.repeat(_node(1)[:50], 10)  # (500,) 50 distinct values, each on 10 rows
+    values = _applyTo(node, column, seed=0)
+    assert len(np.unique(values)) <= 50
+    for value in np.unique(node):
+        assert len(np.unique(values[node == value])) == 1
+
+
 def test_plan_is_deterministic_under_a_fixed_generator() -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
     assert _plan(7) == _plan(7)
