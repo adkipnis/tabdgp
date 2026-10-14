@@ -158,13 +158,14 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     codes = {}
     # bottom up, so that a coarser factor splits the groups of the finer one nested in it
     for k in reversed(range(len(depths))):
+        name = f'g{k}'
         floor = resolved.floorGroups(depths[k])
         groups = resolved.resolveField('groups', rng, low=floor, high=high)
         sizes, parameters = _sampleSizes(elements, groups, resolved, rng)
         sorted_groups = np.repeat(np.arange(groups), sizes)  # (elements,)
         group_of = rng.permutation(sorted_groups)  # (elements,)
-        codes[f'g{k}'] = group_of[within]  # (n,)
-        metadata[f'g{k}'] = Column(
+        codes[name] = group_of[within]  # (n,)
+        metadata[name] = Column(
             type='categorical',
             levels=groups,
             role='grouping factor',
@@ -173,7 +174,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
         )
         if depths[k]:
             # the previous factor splits this one's groups into fewer
-            elements, within, high = groups, codes[f'g{k}'], groups - 1
+            elements, within, high = groups, codes[name], groups - 1
         else:
             elements, within, high = unnested
     # in index order: coarser before finer along a chain
