@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import numpy as np
 
+from tabdgp.column import Grouping
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import ACTIVATIONS, propagate
@@ -25,7 +26,7 @@ def _propagate(seed: int, observed_nodes: int, n: int, **overrides: object) -> n
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
     graph = connect(resolved, FLAT, OBSERVED[:observed_nodes], rng)
-    return _matrix(propagate(graph, resolved, rng))
+    return _matrix(propagate(graph, resolved, FLAT, rng))
 
 
 def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
@@ -36,7 +37,7 @@ def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=100, latent_nodes=2).resolveDataset(rng)
     graph = connect(resolved, FLAT, OBSERVED[:4], rng)
-    nodes = propagate(graph, resolved, rng)
+    nodes = propagate(graph, resolved, FLAT, rng)
     assert list(nodes) == graph.names
     for values in nodes.values():
         assert values.shape == (100,)
@@ -53,11 +54,13 @@ def test_every_node_is_z_scored() -> None:
         np.testing.assert_allclose(values.std(axis=0), 1, atol=1e-5)
 
 
-def _run(graph: Graph, n: int, seed: int = 0, **overrides: object) -> np.ndarray:
+def _run(
+    graph: Graph, n: int, seed: int = 0, grouping: Grouping = FLAT, **overrides: object
+) -> np.ndarray:
     """Node values over a hand-built graph, as one matrix."""
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
-    return _matrix(propagate(graph, resolved, rng))
+    return _matrix(propagate(graph, resolved, grouping, rng))
 
 
 def test_a_root_is_noise() -> None:
@@ -142,12 +145,21 @@ def test_propagate_is_deterministic_under_a_fixed_generator() -> None:
     assert np.array_equal(first, second)
 
 
+def test_propagate_skips_the_grouping_factors() -> None:
+    """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
+    grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
+    graph = graphOf([[], [], [], [2]], unit=['g0', 'g1', 'g0', 'row'])
+    rng = np.random.default_rng(0)
+    resolved = Hyperprior(rows=4).resolveDataset(rng)
+    assert list(propagate(graph, resolved, grouping, rng)) == ['x2', 'x3']
+
+
 def test_an_empty_graph_propagates_to_no_nodes() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=50, latent_nodes=0).resolveDataset(rng)
     graph = connect(resolved, FLAT, [], rng)
-    assert propagate(graph, resolved, rng) == {}
+    assert propagate(graph, resolved, FLAT, rng) == {}
 
 
 def test_every_activation_is_non_linear() -> None:

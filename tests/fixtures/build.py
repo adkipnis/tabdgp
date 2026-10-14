@@ -45,11 +45,17 @@ def graphOf(
     activation: str = 'tanh',
     noise_scale: float = 0.1,
     init_scale: float = 1.0,
+    unit: list[str] | None = None,
+    group_share: float = 0.5,
+    group_factor: str | None = None,
 ) -> Graph:
-    """A graph of observed nodes x0, x1, …, parents[j] listing node j's parents.
+    """A graph of nodes x0, x1, …, parents[j] listing node j's parents.
 
     Without a mechanism, a root has none and every other node is linear.
     A node with parents takes the noise scale; an MLP node also the activation and the init scale.
+    Without units, every node is at the row and the graph is flat. With them, a node at its own
+    name's unit is a grouping factor g{j}, and every row-unit node takes the group share and the
+    group factor, the first factor unless given.
     """
     d = len(parents)
     adjacency = np.zeros((d, d), dtype=bool)  # (d, d)
@@ -57,9 +63,15 @@ def graphOf(
         adjacency[j, parents_of_j] = True
     if mechanism is None:
         mechanism = [None if not parents_of_j else 'linear' for parents_of_j in parents]
+    if unit is None:
+        unit = ['row'] * d
     mlp = np.array([family == 'mlp' for family in mechanism], dtype=bool)  # (d,)
     root = ~adjacency.any(axis=1)  # (d,)
-    names = [f'x{j}' for j in range(d)]
+    names = [f'g{j}' if unit[j] == f'g{j}' else f'x{j}' for j in range(d)]
+    factors = [name for name in names if name.startswith('g')]
+    mixed = [unit_j == 'row' and bool(factors) for unit_j in unit]  # (d,)
+    if group_factor is None and factors:
+        group_factor = factors[0]
     return Graph(
         names=names,
         parents=adjacency,
@@ -68,7 +80,7 @@ def graphOf(
         activation=[activation if is_mlp else None for is_mlp in mlp],
         noise_scale=[None if is_root else noise_scale for is_root in root],
         init_scale=[init_scale if is_mlp else None for is_mlp in mlp],
-        unit=['row'] * d,
-        group_share=[None] * d,
-        group_factor=[None] * d,
+        unit=unit,
+        group_share=[group_share if is_mixed else None for is_mixed in mixed],
+        group_factor=[group_factor if is_mixed else None for is_mixed in mixed],
     )
