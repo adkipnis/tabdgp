@@ -45,6 +45,16 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 # They check their parameters when a hyperprior is built, not at a draw deep inside a run.
 
 
+def _truncate(
+    support: tuple[float, float], low: int | None, high: int | None
+) -> tuple[float, float]:
+    """The ends of a support truncated to [low, high]."""
+    smallest, largest = support
+    bottom = smallest if low is None else max(low, smallest)
+    top = largest if high is None else min(high, largest)
+    return bottom, top
+
+
 class _Interval:
     """A distribution on [low, high], validated when it is built."""
 
@@ -54,12 +64,6 @@ class _Interval:
 
     def support(self) -> tuple[float, float]:
         return self.low, self.high
-
-    def _truncate(self, low: int | None, high: int | None) -> tuple[int, int]:
-        """The ends of a draw truncated to [low, high]."""
-        bottom = self.low if low is None else max(low, self.low)
-        top = self.high if high is None else min(high, self.high)
-        return bottom, top
 
 
 @pydantic_dataclass(frozen=True)
@@ -88,7 +92,7 @@ class UniformInt(_Interval):
     def draw(
         self, rng: np.random.Generator, low: int | None = None, high: int | None = None
     ) -> int:
-        bottom, top = self._truncate(low, high)
+        bottom, top = _truncate(self.support(), low, high)
         return int(rng.integers(bottom, top, endpoint=True))
 
 
@@ -102,7 +106,7 @@ class LogUniformInt(_Interval):
     ) -> int:
         # the floor of a log-uniform on [bottom, top + 1) gives each integer k the mass log(1 + 1/k);
         # min catches exp rounding up onto top + 1
-        bottom, top = self._truncate(low, high)
+        bottom, top = _truncate(self.support(), low, high)
         value = math.exp(rng.uniform(math.log(bottom), math.log(top + 1)))
         return min(math.floor(value), top)
 
@@ -367,12 +371,9 @@ class Hyperprior(BaseModel):
 
     @staticmethod
     def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
-        smallest, largest = Hyperprior._support(value)
-        if high is not None and smallest > high:
-            raise ValueError(f'{field} = {value} lies above its bound {high}')
-        top = largest if high is None else min(largest, high)
-        if low is not None and low > top:
-            raise ValueError(f'{field} = {value} has no value from its floor {low} to {top}')
+        bottom, top = _truncate(Hyperprior._support(value), low, high)
+        if bottom > top:
+            raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
 
     @staticmethod
     def _support(value: float | Distribution) -> tuple[float, float]:
