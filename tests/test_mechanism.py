@@ -318,6 +318,21 @@ def test_a_crossed_factors_parent_goes_into_the_row_part() -> None:
         assert abs(np.corrcoef(parent, group_only)[0, 1]) < 0.2
 
 
+def test_a_parentless_group_part_is_group_level_noise() -> None:
+    """A row-unit root's group part is one standard-normal noise per group of its group factor,
+    independent across roots, like item 1's root at the row.
+    """
+    grouping = _balanced(40000, [20000])
+    # x1 and x2 are roots at the row
+    graph = graphOf([[], [], []], unit=['g0', 'row', 'row'], group_share=1.0)
+    nodes = _nodes(graph, 40000, grouping)
+    first_rows = np.unique(grouping.codes['g0'], return_index=True)[1]  # (20000,)
+    groups = np.stack([nodes['x1'][first_rows], nodes['x2'][first_rows]], axis=1)  # (20000, 2)
+    assert abs(np.corrcoef(groups.T)[0, 1]) < 0.05
+    kurtosis = (groups**4).mean(axis=0)  # (2,), 3 for a normal
+    np.testing.assert_allclose(kurtosis, 3, atol=0.2)
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
