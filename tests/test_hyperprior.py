@@ -58,6 +58,15 @@ def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
     assert Hyperprior.flat() == Hyperprior(factors=0)
 
 
+def test_an_override_on_a_preset_replaces_its_default() -> None:
+    """A study narrows one field of a preset and keeps the rest;
+    the field a preset sets is a default like any other.
+    """
+    assert Hyperprior.grouped(rows=500) == Hyperprior(rows=500)
+    assert Hyperprior.flat(rows=500) == Hyperprior(rows=500, factors=0)
+    assert Hyperprior.flat(factors=1).factors == 1
+
+
 def test_a_point_override_resolves_to_itself() -> None:
     """metabeta passes its sizes as points; resolveDataset must hand them back untouched."""
     shares = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
