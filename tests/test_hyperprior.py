@@ -173,6 +173,17 @@ def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_boun
         hyperprior.resolveField('groups', np.random.default_rng(0), high=7)
 
 
+def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
+    """A point override is honoured exactly or not at all:
+    50 groups cannot be assigned to 30 rows, and 19 design columns under 10 rows break n ≥ 2d.
+    """
+    rng = np.random.default_rng(0)
+    with pytest.raises(ValueError, match=r'groups.*\b30\b'):
+        Hyperprior(groups=50).resolveField('groups', rng, high=30)
+    with pytest.raises(ValueError, match=r'design_columns.*\b5\b'):
+        Hyperprior(rows=10, design_columns=19).resolveDataset(rng)
+
+
 @given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
 def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int) -> None:
     """A table has at least two rows per design column (metabeta's rule 8, n ≥ 2d)."""
