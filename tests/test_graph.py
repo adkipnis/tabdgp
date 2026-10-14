@@ -45,6 +45,9 @@ MISMATCHED = [
     pytest.param({'activation': [None, None]}, id='activation one short'),
     pytest.param({'noise_scale': [None, 0.1]}, id='noise scale one short'),
     pytest.param({'init_scale': [None, None]}, id='init scale one short'),
+    pytest.param({'unit': ['row'] * 2}, id='unit one short'),
+    pytest.param({'group_share': [None] * 2}, id='group share one short'),
+    pytest.param({'group_factor': [None] * 2}, id='group factor one short'),
 ]
 
 
