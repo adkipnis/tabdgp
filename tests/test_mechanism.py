@@ -322,8 +322,9 @@ def test_a_crossed_factors_parent_goes_into_the_row_part() -> None:
         )
 
     for seed in range(10):
-        parent = grouping.broadcast(_nodes(_graph(0.0), 600, grouping, seed)['x2'], 'g1', 'row')
-        row_only = _nodes(_graph(0.0), 600, grouping, seed)['x3']
+        at_share_0 = _nodes(_graph(0.0), 600, grouping, seed)
+        parent = grouping.broadcast(at_share_0['x2'], 'g1', 'row')  # (600,)
+        row_only = at_share_0['x3']
         assert abs(np.corrcoef(parent, row_only)[0, 1]) > 0.99
         group_only = _nodes(_graph(1.0), 600, grouping, seed)['x3']
         assert betweenShare(group_only, grouping.codes['g0']) == pytest.approx(1.0)
