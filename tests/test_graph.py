@@ -131,8 +131,49 @@ def test_a_node_at_an_unknown_unit_fails(change: dict) -> None:
         Graph(**GROUPED | change)
 
 
-# connect carries whatever names the plan gives it; letters show that it mints none of its own
-OBSERVED = list('abcdefghij')
+def _parentsOf(*edges: tuple[int, int]) -> np.ndarray:
+    """(3, 3) bool: the adjacency of three nodes with the given (child, parent) edges."""
+    parents = np.zeros((3, 3), dtype=bool)
+    for child, parent in edges:
+        parents[child, parent] = True
+    return parents
+
+
+FACTOR_EDGES = [
+    pytest.param(
+        {
+            'parents': _parentsOf((1, 0), (2, 1)),
+            'mechanism': [None, 'linear', 'linear'],
+            'noise_scale': [None, 0.1, 0.1],
+        },
+        id='a parent of a group-level node',
+    ),
+    pytest.param({'parents': _parentsOf((2, 0), (2, 1))}, id='a parent of a row-unit node'),
+    pytest.param(
+        {
+            'names': ['g0', 'g1', 'x2'],
+            'unit': ['g0', 'g1', 'row'],
+            'parents': _parentsOf((1, 0)),
+            'mechanism': [None, 'linear', None],
+            'noise_scale': [None, 0.1, None],
+        },
+        id='a child of another factor',
+    ),
+]
+
+
+@pytest.mark.parametrize('change', FACTOR_EDGES)
+def test_a_g_node_with_an_edge_fails(change: dict) -> None:
+    """A grouping factor's values are its codes, drawn by the size draw:
+    it reads no parent, and a node reads it only through its unit.
+    """
+    with pytest.raises(ValidationError):
+        Graph(**GROUPED | change)
+
+
+# connect carries whatever names the plan gives it; letters show that it mints none of its own,
+# skipping g and z, the prefixes of grouping factors and latent nodes
+OBSERVED = list('abcdefhijk')
 FLAT = groupingOf([])
 
 

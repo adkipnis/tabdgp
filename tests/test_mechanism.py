@@ -11,7 +11,7 @@ from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import ACTIVATIONS, propagate
 from tests.fixtures.build import graphOf, groupingOf, point
 
-OBSERVED = list('abcdefghijkl')
+OBSERVED = list('abcdefhijklm')  # no g, a grouping factor's prefix
 FLAT = groupingOf([])
 
 
