@@ -217,11 +217,11 @@ class Hyperprior(BaseModel):
       or is crossed with all before it (patients and doctors).
       Factors nested in one another form a chain (schools -> classes).
       A factor's depth is the number of factors above it in its chain,
-      and each factor in a chain has more groups than the one above it.
+      and each factor in a chain draws more groups than the one above it.
       A factor's groups are equally large or have Dirichlet-distributed sizes.
       A node is constant within the groups of one factor (group-level) or varies within them.
-      A within-group node mixes a part shared by all rows of a group and a part of its own row,
-      and its group share is how much of its variance comes from the shared part.
+      A within-group node adds a group part (one value per group) to a row part (one per row).
+      Its group share is how much of its variance comes from the group part.
     - Graph: each column is an observed node of a directed acyclic graph (DAG).
       Latent nodes may affect observed nodes but have no columns assigned to them.
       Each possible edge has its own probability. It rises with the graph's overall density,
