@@ -322,3 +322,16 @@ def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_bet
         ]
         for name in within_group:
             assert _betweenShare(dataset.columns[name], codes) < 0.03
+
+
+def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:
+    """A flat study changes nothing: item 1's table, with the grouping fields idle."""
+    for index in range(20):
+        dataset = draw(0, index, Hyperprior.flat())
+        graph = dataset.graph
+        assert all(column.role == 'covariate' for column in dataset.metadata.values())
+        assert not any(name.startswith('g') for name in graph.names)
+        assert set(graph.unit) <= {'row'}
+        assert set(graph.group_share) <= {None}
+        assert set(graph.group_factor) <= {None}
+        assert dataset.hyperparameters.factors == 0
