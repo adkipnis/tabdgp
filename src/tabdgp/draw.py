@@ -69,7 +69,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     # the grouping before the graph, which draws each node's unit among its factors
     grouping = assign(resolved, rng)
     metadata = plan(resolved, rng)
-    graph = connect(resolved, grouping, list(metadata), rng)
+    graph = connect(resolved, grouping, metadata, rng)
     nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
     unit = dict(zip(graph.names, graph.unit))
     columns = {}

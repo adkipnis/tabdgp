@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
+amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row
 ---
 
 # 0003 — Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
@@ -41,8 +42,10 @@ child column its parent explains.
   unit last, latent before observed within a unit.
 - **Which nodes are group-level**: a per-dataset `group_level_share`; each node, latent or
   observed, draws a grouping factor's unit with that share (the factor uniform among the
-  dataset's), else the row. A within-group column with a latent group-level parent is
-  confounded by nothing in the table.
+  dataset's), else the row. A column with more levels than its factor has groups stays at
+  the row: it would take one value per group and leave a level no row has, and no real
+  table shows a group-level column with K > G. A within-group column with a latent
+  group-level parent is confounded by nothing in the table.
 - **Group confounding is a two-part mechanism.** A row-unit node is
   `z(sqrt(s) · z(g) + sqrt(1 − s) · z(r))`: g its mechanism over the parents at one grouping
   factor's unit (and the coarser ones in that factor's chain), computed at that unit and

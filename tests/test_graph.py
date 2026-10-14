@@ -8,10 +8,10 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from tabdgp.column import Grouping, assign
+from tabdgp.column import Column, Grouping, assign
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
-from tests.fixtures.build import graphOf, groupingOf, point
+from tests.fixtures.build import columnsOf, graphOf, groupingOf, point
 
 
 @pytest.mark.parametrize(('child', 'parent'), [(0, 1), (1, 1)], ids=['above', 'on'])
@@ -297,7 +297,7 @@ def _connect(
 ) -> Graph:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
-    return connect(resolved, grouping, OBSERVED[:observed_nodes], rng)
+    return connect(resolved, grouping, columnsOf(OBSERVED[:observed_nodes]), rng)
 
 
 def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
@@ -570,6 +570,25 @@ def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) ->
     assert first.group_factor == second.group_factor
 
 
+def test_a_column_with_more_levels_than_its_factors_groups_stays_at_the_row() -> None:
+    """A group-level column takes one value per group, so it shows at most G of its levels;
+    one with more would leave a level no row has, an all-zero dummy column.
+    """
+    grouping = groupingOf([[0, 0, 1, 1, 2, 2]])  # one factor of 3 groups
+    alpha = {'level_alpha': 1.0}
+    columns = {
+        'a': Column(type='binary', levels=2, parameters=alpha),
+        'b': Column(type='categorical', levels=3, parameters=alpha),
+        'c': Column(type='ordered', levels=4, parameters=alpha),
+    }
+    for seed in range(10):
+        rng = np.random.default_rng(seed)
+        resolved = Hyperprior(group_level_share=1.0).resolveDataset(rng)
+        graph = connect(resolved, grouping, columns, rng)
+        unit = dict(zip(graph.names, graph.unit))
+        assert [unit['a'], unit['b'], unit['c']] == ['g0', 'g0', 'row']
+
+
 def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> None:
     """graph tells a grouping factor by its g prefix and column names the factors:
     the two lists must agree, or a drawn grouping would make an invalid graph.
@@ -578,7 +597,7 @@ def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> No
         rng = np.random.default_rng(seed)
         resolved = Hyperprior.grouped(rows=200).resolveDataset(rng)
         grouping = assign(resolved, rng)
-        graph = connect(resolved, grouping, OBSERVED[:5], rng)
+        graph = connect(resolved, grouping, columnsOf(OBSERVED[:5]), rng)
         factors = [name for name in graph.names if name.startswith('g')]
         assert [*factors, 'row'] == grouping.chain('row')
         assert set(graph.unit) <= set(grouping.chain('row'))

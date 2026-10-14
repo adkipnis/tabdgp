@@ -101,6 +101,17 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
         assert list(dataset.latent) == latent
 
 
+def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
+    """Whether a column has more levels than some factor has groups,
+    the one case in which a column at group_level_share = 1 stays at the row.
+    """
+    column = dataset.metadata.get(name)
+    groups = [
+        factor.levels for factor in dataset.metadata.values() if factor.role == 'grouping factor'
+    ]
+    return column is not None and column.levels is not None and column.levels > min(groups)
+
+
 @settings(max_examples=25, deadline=None)
 @given(
     rows=st.integers(1, 300),
@@ -170,8 +181,10 @@ def test_every_override_is_honoured(
     # the per-node fields through the graph
     graph = dataset.graph
     for name, unit in zip(graph.names, graph.unit):
-        if name not in factor_names:
-            assert (unit != 'row') == (group_level and factors > 0)
+        if name not in factor_names and group_level and factors > 0:
+            assert unit != 'row' or _exceedsAFactorsGroups(dataset, name)
+        elif name not in factor_names:
+            assert unit == 'row'
     assert set(graph.noise_scale) <= {None, 0.5}
     assert set(graph.group_share) <= {None, group_share}
     # the per-dataset fields through hyperparameters, the per-factor and per-node ones as given
@@ -308,6 +321,18 @@ def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() 
             assert np.array_equal(np.unique(codes), np.arange(dataset.metadata[name].levels))
 
 
+def test_every_level_of_a_covariate_appears() -> None:
+    """A level no row has would be an all-zero dummy column in metabeta's design matrix;
+    a group-level column shows at most G levels, so one with more stays at the row.
+    """
+    for index in range(100):
+        dataset = draw(0, index, Hyperprior.grouped())
+        for name, column in dataset.metadata.items():
+            if column.role == 'covariate' and column.levels is not None:
+                codes = dataset.columns[name]
+                assert np.array_equal(np.unique(codes), np.arange(column.levels))
+
+
 def _unitOf(dataset: Dataset) -> dict[str, str]:
     return dict(zip(dataset.graph.names, dataset.graph.unit))
 
@@ -326,8 +351,9 @@ def test_a_group_level_column_is_constant_within_its_groups() -> None:
         dataset = draw(0, index, hyperprior)
         unit = _unitOf(dataset)
         for name, column in dataset.metadata.items():
-            if column.role == 'covariate':
-                assert unit[name] != 'row'
+            if column.role == 'covariate' and unit[name] == 'row':
+                assert _exceedsAFactorsGroups(dataset, name)
+            elif column.role == 'covariate':
                 assert _isConstantWithinGroups(dataset.columns[name], dataset.columns[unit[name]])
 
 

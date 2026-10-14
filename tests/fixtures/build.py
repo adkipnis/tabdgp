@@ -1,5 +1,5 @@
-"""Hand-built inputs the module tests share: point-mass shares, a grouping from code lists
-and a graph from parent lists.
+"""Hand-built inputs the module tests share: point-mass shares, continuous columns by name,
+a grouping from code lists and a graph from parent lists.
 """
 
 from __future__ import annotations
@@ -17,6 +17,14 @@ def point(field: str, category: str) -> dict[str, float]:
     for name in Hyperprior.categories(field):
         shares[name] = 1.0 if name == category else 0.0
     return shares
+
+
+def columnsOf(names: list[str]) -> dict[str, Column]:
+    """Continuous columns of these names, a plan whose columns any unit can hold."""
+    columns = {}
+    for name in names:
+        columns[name] = Column(type='continuous', marginal='normal')
+    return columns
 
 
 def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None) -> Grouping:

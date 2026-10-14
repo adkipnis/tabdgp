@@ -11,7 +11,7 @@ from tabdgp.column import Grouping
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import ACTIVATIONS, propagate
-from tests.fixtures.build import graphOf, groupingOf, point
+from tests.fixtures.build import columnsOf, graphOf, groupingOf, point
 
 OBSERVED = list('abcdefhijklm')  # no g, a grouping factor's prefix
 FLAT = groupingOf([])
@@ -59,7 +59,7 @@ def _propagateOver(
     """Node values over a graph drawn by connect on the grouping, each at its unit."""
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
-    graph = connect(resolved, grouping, OBSERVED[:observed_nodes], rng)
+    graph = connect(resolved, grouping, columnsOf(OBSERVED[:observed_nodes]), rng)
     return propagate(graph, resolved, grouping, rng)
 
 
@@ -75,7 +75,7 @@ def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
     """
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=100, latent_nodes=2).resolveDataset(rng)
-    graph = connect(resolved, FLAT, OBSERVED[:4], rng)
+    graph = connect(resolved, FLAT, columnsOf(OBSERVED[:4]), rng)
     nodes = propagate(graph, resolved, FLAT, rng)
     assert list(nodes) == graph.names
     for values in nodes.values():
@@ -200,7 +200,7 @@ def test_every_node_is_z_scored_at_its_unit_and_has_its_units_length() -> None:
     for seed in range(10):
         rng = np.random.default_rng(seed)
         resolved = Hyperprior(rows=600, latent_nodes=2, group_level_share=0.5).resolveDataset(rng)
-        graph = connect(resolved, grouping, OBSERVED[:8], rng)
+        graph = connect(resolved, grouping, columnsOf(OBSERVED[:8]), rng)
         nodes = propagate(graph, resolved, grouping, rng)
         assert list(nodes) == graph.names[3:]
         for name, values in nodes.items():
@@ -420,7 +420,7 @@ def test_an_empty_graph_propagates_to_no_nodes() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=50, latent_nodes=0).resolveDataset(rng)
-    graph = connect(resolved, FLAT, [], rng)
+    graph = connect(resolved, FLAT, {}, rng)
     assert propagate(graph, resolved, FLAT, rng) == {}
 
 

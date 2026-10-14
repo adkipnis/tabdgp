@@ -2,8 +2,9 @@
 
 pipeline:
 ---------
-the resolved hyperprior, the grouping and the observed names
+the resolved hyperprior, the grouping and the observed columns
 -> each node's unit: a factor's with group_level_share, else the row  _sampleUnits
+-> the row for a column with more levels than its factor has groups   _keepEveryLevel
 -> names and units in topological order, the factors first            _orderNodes
 -> edges: Cauchy node terms and a block bonus                         _sampleEdges
 -> the edges a child may read                                         _maskEdges
@@ -14,13 +15,14 @@ the resolved hyperprior, the grouping and the observed names
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 import numpy as np
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.column import Grouping
+from tabdgp.column import Column, Grouping
 from tabdgp.hyperprior import Hyperprior
 
 Mechanism = Literal['linear', 'mlp']
@@ -132,8 +134,21 @@ def _sampleUnits(
     return np.where(group_level, factor, factors)
 
 
+def _keepEveryLevel(unit: np.ndarray, columns: list[Column], grouping: Grouping) -> np.ndarray:
+    """(p,) each column's unit, the row for one with more levels than its factor has groups:
+    a column at a factor's unit takes one value per group, so it shows at most G levels.
+    """
+    groups = [factor.levels for factor in grouping.metadata.values()]
+    most_levels = np.array([*groups, math.inf])  # (f + 1,), the row is the fallback
+    levels = np.array([column.levels or 0 for column in columns])  # (p,), 0 if continuous
+    return np.where(levels > most_levels[unit], len(groups), unit)
+
+
 def _orderNodes(
-    resolved: Hyperprior, grouping: Grouping, observed: list[str], rng: np.random.Generator
+    resolved: Hyperprior,
+    grouping: Grouping,
+    columns: dict[str, Column],
+    rng: np.random.Generator,
 ) -> tuple[list[str], list[str]]:
     """The names and units in topological order: the factors, then the other nodes
     by unit in the factors' order and the row last, latent before observed within a unit.
@@ -142,10 +157,11 @@ def _orderNodes(
     latent_nodes = resolved.latent_nodes
     # the observed nodes take the plan's names in a random order:
     # a column's position is independent of its place in the graph
-    observed = rng.permutation(observed).tolist()
+    observed = rng.permutation(list(columns)).tolist()
     # sorted, so that z0, z1, … follow the order
     latent_unit = np.sort(_sampleUnits(resolved, len(factors), latent_nodes, rng))  # (L,)
     observed_unit = _sampleUnits(resolved, len(factors), len(observed), rng)  # (p,)
+    observed_unit = _keepEveryLevel(observed_unit, [columns[name] for name in observed], grouping)
     nodes = [f'z{k}' for k in range(latent_nodes)] + observed
     unit_index = np.concatenate([latent_unit, observed_unit])  # (L + p,)
     order = np.argsort(unit_index, kind='stable')  # (L + p,), latent before observed within a unit
@@ -221,10 +237,13 @@ def _resolveParts(
 
 
 def connect(
-    resolved: Hyperprior, grouping: Grouping, observed: list[str], rng: np.random.Generator
+    resolved: Hyperprior,
+    grouping: Grouping,
+    columns: dict[str, Column],
+    rng: np.random.Generator,
 ) -> Graph:
     """The graph over the latent and observed nodes, and what each node draws for itself."""
-    names, unit = _orderNodes(resolved, grouping, observed, rng)
+    names, unit = _orderNodes(resolved, grouping, columns, rng)
     latent = np.array([name.startswith('z') for name in names], dtype=bool)  # (d,)
     edges = _sampleEdges(resolved, len(names), rng)  # (d, d)
     parents = _maskEdges(edges, unit, grouping)  # (d, d)
