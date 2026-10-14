@@ -9,6 +9,8 @@ from typing import get_args
 
 import numpy as np
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, apply, assign, plan
@@ -222,6 +224,36 @@ def test_factors_0_gives_an_empty_grouping_whose_broadcast_is_the_identity() -> 
     assert grouping.codes == {}
     assert grouping.chain('row') == ['row']
     np.testing.assert_array_equal(grouping.broadcast(values, 'row', 'row'), values)
+
+
+@given(
+    seed=st.integers(0, 2**32 - 1),
+    rows=st.integers(5, 60),
+    factors=st.integers(0, 4),
+    nested_share=st.sampled_from([0.0, 0.5, 1.0]),
+    balanced_share=st.sampled_from([0.0, 0.5, 1.0]),
+)
+def test_assign_gives_g_non_empty_groups_with_g_at_most_n_for_every_factor(
+    seed: int, rows: int, factors: int, nested_share: float, balanced_share: float
+) -> None:
+    """metabeta indexes one random effect per group, so an empty group or more groups than rows
+    would need a retry or a repair; the truncation and rule 7 rule both out on every draw.
+    Five rows fit a chain of four factors.
+    """
+    grouping = _assign(
+        seed,
+        rows=rows,
+        factors=factors,
+        nested_share=nested_share,
+        balanced_share=balanced_share,
+    )
+    assert len(grouping.codes) == factors
+    for name, codes in grouping.codes.items():
+        levels = grouping.metadata[name].levels
+        assert codes.dtype == np.int64
+        assert len(codes) == rows
+        assert levels <= rows
+        np.testing.assert_array_equal(np.unique(codes), np.arange(levels))
 
 
 def test_a_balanced_factors_sizes_differ_by_at_most_one_and_record_no_size_alpha() -> None:
