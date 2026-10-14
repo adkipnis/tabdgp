@@ -152,7 +152,7 @@ Real = float | Uniform | LogUniform | Beta
 Simplex = dict[str, NonNegativeFloat] | Dirichlet
 
 
-def support(value: float | Distribution) -> tuple[float, float]:
+def _support(value: Integer | Real) -> tuple[float, float]:
     """The smallest and largest value a field can take, a point's own."""
     return value.support() if isinstance(value, Distribution) else (value, value)
 
@@ -343,14 +343,14 @@ class Hyperprior(BaseModel):
         """The fewest groups a factor may draw: the lowest value of groups,
         plus one per coarser factor it nests in, so that each of them keeps a count below it.
         """
-        return support(self.groups)[0] + depth
+        return _support(self.groups)[0] + depth
 
     @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
         """The finest factor of the longest chain needs a value of groups at its floor or above."""
-        can_nest = support(self.nested_share)[1] > 0
-        longest = support(self.factors)[1] if can_nest else 1
-        if self.floorGroups(longest - 1) > support(self.groups)[1]:
+        can_nest = _support(self.nested_share)[1] > 0
+        longest = _support(self.factors)[1] if can_nest else 1
+        if self.floorGroups(longest - 1) > _support(self.groups)[1]:
             raise ValueError(
                 f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
                 'fewer factors, or give groups a wider range'
@@ -382,6 +382,6 @@ class Hyperprior(BaseModel):
 
     @staticmethod
     def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
-        bottom, top = _truncate(support(value), low, high)
+        bottom, top = _truncate(_support(value), low, high)
         if bottom > top:
             raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
