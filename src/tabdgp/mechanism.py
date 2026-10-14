@@ -14,10 +14,10 @@
 pipeline:
 ---------
 the generating graph in topological order, the grouping
--> per node, its parents' values at a unit through its family   _mapParents
--> relative noise, z-scored at the node's unit                   _runMechanism
--> a row-unit node's group part and row part, mixed by its share _mix
--> every node's values by name, at its unit                      propagate
+-> per node, its parents' values at a unit through its family     _mapParents
+-> relative noise, z-scored at the node's unit                    _runMechanism
+-> a row-unit node's group part and row part, mixed by its share  _mixParts
+-> every node's values by name, at its unit                       propagate
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def _runMechanism(
     return _zscore(_zscore(output) + graph.noise_scale[j] * noise)
 
 
-def _mix(
+def _mixParts(
     parents: list[int],
     j: int,
     nodes: dict[str, np.ndarray],
@@ -159,5 +159,5 @@ def propagate(
                 parents, j, graph.unit[j], nodes, graph, grouping, resolved, rng
             )
         else:
-            nodes[name] = _mix(parents, j, nodes, graph, grouping, resolved, rng)
+            nodes[name] = _mixParts(parents, j, nodes, graph, grouping, resolved, rng)
     return nodes
