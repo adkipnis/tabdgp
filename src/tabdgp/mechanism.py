@@ -103,15 +103,12 @@ def _runMechanism(
     resolved: Hyperprior,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """Node j's mechanism over these parents, run at the unit `at` and z-scored at j's own unit.
-
-    The parents are read at `at` and the matrix products run at its size, with one noise per
-    element; output and noise are broadcast to j's unit before each z-score, so that the
-    noise scale and the group share are shares of variance over j's unit.
-    """
+    """Node j's mechanism over these parents, run at the unit `at` and z-scored at j's own unit."""
     to = graph.unit[j]
     m = _countElements(at, grouping, resolved)
     noise = rng.standard_normal(m, dtype=np.float32)  # (m,)
+    # output and noise are broadcast to j's unit before each z-score,
+    # so that the noise scale and the group share are shares of variance over j's unit
     noise = grouping.broadcast(noise, at, to)
     if not parents:  # a root is its noise
         return _zscore(noise)
@@ -132,14 +129,12 @@ def _mix(
     resolved: Hyperprior,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """The two-part mechanism of row-unit node j: z(sqrt(s) · group + sqrt(1 − s) · row).
-
-    The group part draws before the row part; this order is fixed.
-    """
+    """The two-part mechanism of row-unit node j: z(sqrt(s) · group + sqrt(1 − s) · row)."""
     factor = graph.group_factor[j]
     chain = grouping.traceChain(factor)
     group_parents = [i for i in parents if graph.unit[i] in chain]
     row_parents = [i for i in parents if graph.unit[i] not in chain]
+    # the group part draws first, the row part second: swapping them changes what a key draws
     group = _runMechanism(group_parents, j, factor, nodes, graph, grouping, resolved, rng)  # (n,)
     row = _runMechanism(row_parents, j, 'row', nodes, graph, grouping, resolved, rng)  # (n,)
     share = graph.group_share[j]
