@@ -61,9 +61,10 @@ def graphOf(
 
     Without a mechanism, a root has none and every other node is linear.
     A node with parents takes the noise scale; an MLP node also the activation and the init scale.
-    Without units, every node is at the row and the graph is flat. With them, a node at its own
-    name's unit is a grouping factor g{j}, and every row-unit node takes the group share and the
-    group factor, the first factor unless given.
+    Without units, every node is at the row and the graph is flat.
+    With them, a node j whose unit is g{j} is that grouping factor,
+    and every row-unit node takes the group share and the group factor,
+    the first factor unless given.
     """
     d = len(parents)
     adjacency = np.zeros((d, d), dtype=bool)  # (d, d)
