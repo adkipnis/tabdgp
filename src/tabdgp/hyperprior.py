@@ -154,6 +154,11 @@ Real = float | Uniform | LogUniform | Beta
 Simplex = dict[str, NonNegativeFloat] | Dirichlet
 
 
+def support(value: float | Distribution) -> tuple[float, float]:
+    """The smallest and largest value a field can take, a point's own."""
+    return value.support() if isinstance(value, Distribution) else (value, value)
+
+
 def _within(
     ge: float = -math.inf,  # >=
     gt: float = -math.inf,  # >
@@ -338,7 +343,7 @@ class Hyperprior(BaseModel):
     @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
         """A point gives every factor one count, and a coarser factor needs fewer than the finer."""
-        can_nest = self._support(self.factors)[1] >= 2 and self._support(self.nested_share)[1] > 0
+        can_nest = support(self.factors)[1] >= 2 and support(self.nested_share)[1] > 0
         if isinstance(self.groups, int) and can_nest:
             raise ValueError(
                 f'groups = {self.groups} cannot nest: set nested_share = 0, '
@@ -371,11 +376,6 @@ class Hyperprior(BaseModel):
 
     @staticmethod
     def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
-        bottom, top = _truncate(Hyperprior._support(value), low, high)
+        bottom, top = _truncate(support(value), low, high)
         if bottom > top:
             raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
-
-    @staticmethod
-    def _support(value: float | Distribution) -> tuple[float, float]:
-        """The smallest and largest value a field can take, a point's own."""
-        return value.support() if isinstance(value, Distribution) else (value, value)

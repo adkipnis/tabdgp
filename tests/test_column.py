@@ -14,7 +14,7 @@ from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, apply, assign, plan
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
+from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, UniformInt
 from tests.fixtures.build import groupingOf, point
 
 TYPES = ['continuous', 'binary', 'categorical', 'ordered']
@@ -334,6 +334,16 @@ def test_a_coarser_factor_has_fewer_groups_than_the_finer_one(rows: int) -> None
         grouping = _assign(seed, rows=rows, factors=3, nested_share=1)
         levels = [column.levels for column in grouping.metadata.values()]
         assert levels[0] < levels[1] < levels[2]
+
+
+def test_a_chain_fits_under_a_groups_range_that_starts_above_2() -> None:
+    """Every coarser factor needs the range's lowest count, not 2, so each finer one keeps room
+    for the ones above it: a floor of 2 plus the depth left the coarsest no count on some keys.
+    """
+    for seed in range(200):
+        grouping = _assign(seed, rows=2000, factors=3, nested_share=1, groups=UniformInt(10, 400))
+        levels = [column.levels for column in grouping.metadata.values()]
+        assert 10 <= levels[0] < levels[1] < levels[2]
 
 
 def test_assign_is_deterministic_under_a_fixed_generator() -> None:

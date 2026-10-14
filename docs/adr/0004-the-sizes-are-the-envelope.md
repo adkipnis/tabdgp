@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
-amended: 2026-10-14, #24: a coarser factor has fewer groups than the finer one, and a point `groups` cannot nest
+amended: 2026-10-14, #24: a coarser factor has fewer groups than the finer one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`
 ---
 
 # 0004 — The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
@@ -28,9 +28,10 @@ and has no default.** What the proofs certify is `grouped()`.
   n = 20, 57 % of draws would become all-singleton tables.
 - **A coarser factor has fewer groups than the finer one.** Its `groups` is truncated at one
   below the finer factor's, so a nested pair is never one partition relabelled. Each factor's
-  floor is 2 plus the number of coarser factors nested above it, so that every coarser one
-  still gets its 2 groups; a chain of L factors needs at least L + 1 rows, and a `rows`
-  override below that fails at resolve. A point `groups` gives every factor the same count
+  floor is the lowest value of `groups` (2 by default) plus the number of coarser factors
+  nested above it, so that every coarser one still gets that lowest value; a chain of L
+  factors needs at least L + 1 rows by default, and a `rows` override below that fails at
+  resolve. A point `groups` gives every factor the same count
   and cannot nest: it fails at construction unless `factors` stays at most 1 or
   `nested_share` at 0.
 - **Presets.** `factors` allows 0, and `Hyperprior.flat()` sets it to 0; `grouped()` is the

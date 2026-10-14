@@ -19,7 +19,7 @@ import numpy as np
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
+from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, support
 
 ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
 
@@ -149,6 +149,7 @@ def _sampleSizes(
 def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     """The grouping factors g0, g1, …, each row assigned to one group per factor."""
     depths = _nestFactors(resolved, rng)
+    lowest = support(resolved.groups)[0]  # the fewest groups a factor may have
     # what the next factor's groups split, and its bound:
     # the rows, each row its own group, unless a finer factor nests in it
     unnested = resolved.rows, np.arange(resolved.rows), resolved.rows
@@ -157,8 +158,8 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     codes = {}
     # bottom up, so that a coarser factor splits the groups of the finer one nested in it
     for k in reversed(range(len(depths))):
-        # 2 groups and one more per coarser factor above, so that each of them keeps 2
-        groups = resolved.resolveField('groups', rng, low=2 + depths[k], high=high)
+        # the lowest count and one more per coarser factor above, so that each of them keeps it
+        groups = resolved.resolveField('groups', rng, low=lowest + depths[k], high=high)
         sizes, parameters = _sampleSizes(elements, groups, resolved, rng)
         group_of = rng.permutation(np.repeat(np.arange(groups), sizes))  # (elements,)
         codes[f'g{k}'] = group_of[within]  # (n,)
