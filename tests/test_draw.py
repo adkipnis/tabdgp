@@ -397,3 +397,19 @@ def test_draw_without_a_hyperprior_fails() -> None:
     """No preset is the default: a caller names the kind of table it draws."""
     with pytest.raises(TypeError):
         draw(0, 0)
+
+
+def test_group_share_1_gives_every_within_group_covariate_constant_within_its_groups() -> None:
+    """At share 1 the row part has weight 0, so a row-unit node is one value per group of its
+    group factor; the column keeps its ties, so it is too, whatever its type.
+    """
+    hyperprior = Hyperprior.grouped(rows=600, factors=2, group_share=1.0, group_level_share=0.0)
+    for index in range(20):
+        dataset = draw(0, index, hyperprior)
+        group_factor = dict(zip(dataset.graph.names, dataset.graph.group_factor))
+        for name, column in dataset.metadata.items():
+            if column.role == 'covariate':
+                codes = dataset.columns[group_factor[name]]
+                assert _isConstantWithinGroups(dataset.columns[name], codes)
+        for name, values in dataset.latent.items():
+            assert _isConstantWithinGroups(values, dataset.columns[group_factor[name]])
