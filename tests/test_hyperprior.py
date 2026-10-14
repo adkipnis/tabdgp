@@ -6,7 +6,7 @@ from typing import get_args
 
 import numpy as np
 import pytest
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
@@ -127,6 +127,25 @@ def test_a_bounded_distribution_resolves_at_or_below_its_bound(
     bound = low + margin
     groups = hyperprior.resolveField('groups', np.random.default_rng(seed), high=bound)
     assert low <= groups <= min(bound, low + width)
+
+
+@pytest.mark.parametrize('distribution', [UniformInt, LogUniformInt])
+@given(
+    low=st.integers(2, 100),
+    width=st.integers(1, 1000),
+    floor=st.integers(0, 1100),
+    seed=st.integers(0, 2**32 - 1),
+)
+def test_a_distribution_resolves_at_or_above_its_floor(
+    distribution: type, low: int, width: int, floor: int, seed: int
+) -> None:
+    """A factor keeps one group more for each coarser factor nested above it.
+    A floor below the distribution's low leaves the low in force.
+    """
+    assume(floor <= low + width)
+    hyperprior = Hyperprior(groups=distribution(low, low + width))
+    groups = hyperprior.resolveField('groups', np.random.default_rng(seed), low=floor)
+    assert max(low, floor) <= groups <= low + width
 
 
 TRUNCATED = [
