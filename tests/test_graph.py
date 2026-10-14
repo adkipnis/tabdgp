@@ -599,8 +599,8 @@ def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> No
         grouping = assign(resolved, rng)
         graph = connect(resolved, grouping, columnsOf(OBSERVED[:5]), rng)
         factors = [name for name in graph.names if name.startswith('g')]
-        assert [*factors, 'row'] == grouping.chain('row')
-        assert set(graph.unit) <= set(grouping.chain('row'))
+        assert [*factors, 'row'] == grouping.traceChain('row')
+        assert set(graph.unit) <= set(grouping.traceChain('row'))
 
 
 def _degreeSpread(hub_scale: float) -> float:

@@ -136,7 +136,7 @@ def _mix(
     The group part draws before the row part; this order is fixed.
     """
     factor = graph.group_factor[j]
-    chain = grouping.chain(factor)
+    chain = grouping.traceChain(factor)
     group_parents = [i for i in parents if graph.unit[i] in chain]
     row_parents = [i for i in parents if graph.unit[i] not in chain]
     group = _runMechanism(group_parents, j, factor, nodes, graph, grouping, resolved, rng)  # (n,)

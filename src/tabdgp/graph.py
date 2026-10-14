@@ -165,7 +165,7 @@ def _orderNodes(
     nodes = [f'z{k}' for k in range(latent_nodes)] + observed
     unit_index = np.concatenate([latent_unit, observed_unit])  # (L + p,)
     order = np.argsort(unit_index, kind='stable')  # (L + p,), latent before observed within a unit
-    units = grouping.chain('row')
+    units = grouping.traceChain('row')
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
     return names, unit
@@ -191,10 +191,10 @@ def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.n
 
 def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.ndarray:
     f = len(grouping.metadata)
-    units = grouping.chain('row')
+    units = grouping.traceChain('row')
     # a child reads a parent at its own unit or a coarser one of its chain
     reads = np.array(
-        [[parent in grouping.chain(child) for parent in units] for child in units]
+        [[parent in grouping.traceChain(child) for parent in units] for child in units]
     )  # (f + 1, f + 1), [child's unit, parent's unit]
     index = [units.index(unit_j) for unit_j in unit]  # (d,)
     kept = reads[np.ix_(index, index)]  # (d, d), [j, i]

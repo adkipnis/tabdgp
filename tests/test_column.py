@@ -166,10 +166,10 @@ def test_chain_follows_the_nesting_on_a_hand_built_grouping() -> None:
         [[0, 0, 1, 1], [0, 1, 2, 2], [0, 1, 2, 3], [0, 1, 0, 1]],
         nests_in=[None, 'g0', 'g1', None],
     )
-    assert grouping.chain('g0') == ['g0']
-    assert grouping.chain('g2') == ['g0', 'g1', 'g2']
-    assert grouping.chain('g3') == ['g3']
-    assert grouping.chain('row') == ['g0', 'g1', 'g2', 'g3', 'row']
+    assert grouping.traceChain('g0') == ['g0']
+    assert grouping.traceChain('g2') == ['g0', 'g1', 'g2']
+    assert grouping.traceChain('g3') == ['g3']
+    assert grouping.traceChain('row') == ['g0', 'g1', 'g2', 'g3', 'row']
 
 
 # g1 nests in g0, which holds g1's groups 1 and 2 in group 0 and its groups 0 and 3 in group 1;
@@ -222,7 +222,7 @@ def test_factors_0_gives_an_empty_grouping_whose_broadcast_is_the_identity() -> 
     values = np.arange(5.0)
     assert grouping.metadata == {}
     assert grouping.codes == {}
-    assert grouping.chain('row') == ['row']
+    assert grouping.traceChain('row') == ['row']
     np.testing.assert_array_equal(grouping.broadcast(values, 'row', 'row'), values)
 
 

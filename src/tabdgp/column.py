@@ -94,7 +94,7 @@ class Grouping:
     metadata: dict[str, Column]
     codes: dict[str, np.ndarray]  # (n,) int64 each, every row's group
 
-    def chain(self, unit: str) -> list[str]:
+    def traceChain(self, unit: str) -> list[str]:
         if unit == 'row':
             return [*self.metadata, 'row']
         chain = [unit]
@@ -108,7 +108,7 @@ class Grouping:
         """Values at one unit read at a unit of whose chain it is part,
         each group's value repeated over its rows or the finer groups within it.
         """
-        if from_unit not in self.chain(to_unit):
+        if from_unit not in self.traceChain(to_unit):
             raise ValueError(f'{from_unit} is not in the chain of {to_unit}')
         if from_unit == to_unit:
             return values
