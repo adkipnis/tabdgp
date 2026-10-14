@@ -292,3 +292,33 @@ def test_a_group_level_column_takes_its_marginals_values_at_g_distinct_ranks() -
             if column.role == 'covariate':
                 levels = dataset.metadata[unit[name]].levels
                 assert len(np.unique(dataset.columns[name])) == levels
+
+
+def _betweenShare(values: np.ndarray, codes: np.ndarray) -> float:
+    """The share of a column's variance over rows that lies between the groups of a factor."""
+    values = values.astype(np.float64)
+    means = np.bincount(codes, weights=values) / np.bincount(codes)  # (G,)
+    between = ((means[codes] - values.mean()) ** 2).sum()
+    return float(between / ((values - values.mean()) ** 2).sum())
+
+
+def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_between_group_share_at_chance_level() -> (
+    None
+):
+    """Item 9's ablation switches group confounding off by this one override.
+    Under one factor every parent lies in the group factor's chain, so a share of 0 drops the
+    group part and every row-unit node, a root or a child of a group-level parent, is i.i.d.
+    over rows; the chance level is about (G − 1) / (n − 1), here 0.01.
+    """
+    hyperprior = Hyperprior.grouped(rows=2000, factors=1, groups=20, group_share=0.0)
+    for index in range(20):
+        dataset = draw(0, index, hyperprior)
+        unit = _unitOf(dataset)
+        codes = dataset.columns['g0']
+        within_group = [
+            name
+            for name, column in dataset.metadata.items()
+            if column.role == 'covariate' and unit[name] == 'row'
+        ]
+        for name in within_group:
+            assert _betweenShare(dataset.columns[name], codes) < 0.03
