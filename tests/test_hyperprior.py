@@ -123,6 +123,27 @@ def test_a_bounded_distribution_resolves_at_or_below_its_bound(
     assert low <= groups <= min(bound, low + width)
 
 
+TRUNCATED = [
+    # the ten values 2 to 11 keep a tenth each; a clip would put 91 % on 11
+    pytest.param(UniformInt(2, 101), 11, 0.1, id='uniform'),
+    # 20 keeps log(21/20) / log(21/2) of the mass; a clip would put 57 % on it
+    pytest.param(LogUniformInt(2, 400), 20, 0.021, id='log-uniform'),
+]
+
+
+@pytest.mark.parametrize(('distribution', 'bound', 'share'), TRUNCATED)
+def test_a_truncated_draw_piles_no_mass_on_its_bound(
+    distribution: UniformInt | LogUniformInt, bound: int, share: float
+) -> None:
+    """A draw clipped at rows would give most small tables one row per group (ADR 0004);
+    truncation keeps the distribution's shape below its bound.
+    """
+    hyperprior = Hyperprior(groups=distribution)
+    rng = np.random.default_rng(0)
+    draws = [hyperprior.resolveField('groups', rng, high=bound) for _ in range(10_000)]
+    assert draws.count(bound) / len(draws) == pytest.approx(share, abs=0.01)
+
+
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
     """A dataset is a pure function of its key, so the same generator gives the same points."""
     hyperprior = Hyperprior()
