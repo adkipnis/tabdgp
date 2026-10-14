@@ -361,6 +361,47 @@ def test_latent_nodes_precede_observed_ones_within_a_unit() -> None:
         assert latent_names == ['z0', 'z1', 'z2', 'z3']
 
 
+# (child's unit, parent's unit) for GROUPING: a child reads its unit and the coarser ones of its
+# chain; g2 is crossed, so neither reads the other's, and the row reads every unit
+READS = {
+    ('g0', 'g0'),
+    ('g1', 'g0'),
+    ('g1', 'g1'),
+    ('g2', 'g2'),
+    ('row', 'g0'),
+    ('row', 'g1'),
+    ('row', 'g2'),
+    ('row', 'row'),
+}
+
+
+def _unitPairs(graph: Graph) -> set[tuple[str, str]]:
+    """The (child's unit, parent's unit) of every edge."""
+    child, parent = np.nonzero(graph.parents)
+    return {(graph.unit[j], graph.unit[i]) for j, i in zip(child, parent)}
+
+
+def test_no_edge_crosses_out_of_a_chain() -> None:
+    """None between crossed units, none into a group-level node from the row.
+
+    Every edge is drawn, so the mask alone decides which remain, and every pair it allows appears.
+    """
+    pairs_seen = set()
+    for seed in range(20):
+        graph = _connect(
+            seed,
+            8,
+            GROUPING,
+            latent_nodes=4,
+            group_level_share=0.5,
+            edge_offset=30.0,
+            hub_scale=0.0,
+        )
+        assert _unitPairs(graph) <= READS
+        pairs_seen |= _unitPairs(graph)
+    assert pairs_seen == READS
+
+
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
     """parents[j, i] with i < j only:
     the names are in topological order, so propagation is one pass.
