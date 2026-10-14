@@ -215,6 +215,33 @@ def test_a_group_level_nodes_parents_are_read_at_its_unit() -> None:
         assert abs(np.corrcoef(parent, nodes['x3'])[0, 1]) > 0.99
 
 
+def _betweenShare(values: np.ndarray, codes: np.ndarray) -> float:
+    """The share of a node's variance over rows that lies between the groups of a factor."""
+    means = np.bincount(codes, weights=values) / np.bincount(codes)  # (G,)
+    between = ((means[codes] - values.mean()) ** 2).sum()
+    return float(between / ((values - values.mean()) ** 2).sum())
+
+
+def test_a_row_unit_node_at_group_share_1_is_constant_within_its_group_factors_groups() -> None:
+    """At share 1 the row part has weight 0: a root is group-level noise, and a child of a row
+    parent keeps nothing of it. Both are one value per group of the group factor.
+    """
+    grouping = _balanced(600, [20, 15])
+    # x2 and x3 are roots at the row, x4 a linear child of x3; the group factor is g1
+    graph = graphOf(
+        [[], [], [], [], [3]],
+        unit=['g0', 'g1', 'row', 'row', 'row'],
+        group_share=1.0,
+        group_factor='g1',
+    )
+    for seed in range(10):
+        nodes = _nodes(graph, 600, grouping, seed)
+        for name in ['x2', 'x4']:
+            assert nodes[name].shape == (600,)
+            assert _betweenShare(nodes[name], grouping.codes['g1']) == pytest.approx(1.0)
+            assert len(np.unique(nodes[name])) == 15
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
