@@ -1,8 +1,10 @@
-"""column.py defines the column types and levels, and the column values.
+"""column.py defines the grouping factors, the column types and levels, and the column values.
 
 pipeline:
 ---------
-resolved shares and budget
+resolved sizes, shares and budget
+-> per factor, how many coarser factors it nests in           _nestFactors
+-> per factor bottom up, its G, sizes and codes               _sampleSizes, assign
 -> per column, its type, K and own parameters                 _resolveColumn
 -> one named column after another until the budget is met     plan
 -> per column, a sorted sample                                _sampleMarginal, _sampleCodes
@@ -14,7 +16,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
@@ -32,24 +34,34 @@ class Column:
 
     type: ColumnType
     levels: int | None = None  # K
-    role: Literal['covariate'] = 'covariate'  # extended to grouping factors or outcome later
+    role: Literal['covariate', 'grouping factor'] = 'covariate'
+    nests_in: str | None = None  # the coarser grouping factor of a nested one
     marginal: Family | None = None  # for continuous columns
     parameters: dict[str, float] = Field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        # a grouping factor's codes label its groups, unordered at any G
+        if self.role == 'grouping factor' and self.type != 'categorical':
+            raise ValueError(f'a grouping factor cannot be {self.type}')
+        if self.role == 'covariate' and self.nests_in is not None:
+            raise ValueError(f'a covariate cannot nest in {self.nests_in}')
         # binary is exactly K = 2 and categorical or ordered K ≥ 3, so no two types overlap
         if self.type == 'continuous':
             agree = self.levels is None
         elif self.type == 'binary':
             agree = self.levels == 2
-        else:  # categorical | ordered
-            agree = self.levels is not None and self.levels >= 3
+        else:  # categorical | ordered; the split from binary is about coding, so not a factor's
+            fewest = 2 if self.role == 'grouping factor' else 3
+            agree = self.levels is not None and self.levels >= fewest
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
         if (self.type == 'continuous') != (self.marginal is not None):
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # check that parameters hold exactly the fields this column drew
-        if self.type == 'continuous':
+        if self.role == 'grouping factor':
+            # a balanced factor draws nothing, an unbalanced one the concentration of its sizes
+            own = ['size_alpha'] if 'size_alpha' in self.parameters else []
+        elif self.type == 'continuous':
             own = MARGINAL_FIELDS[self.marginal]
         else:
             own = ['level_alpha']
@@ -58,7 +70,109 @@ class Column:
 
     @property
     def design_columns(self) -> int:
+        if self.role == 'grouping factor':
+            return 0  # its codes index random effects
         return 1 if self.levels is None else self.levels - 1
+
+
+# =====================================================================================
+# the grouping
+# =====================================================================================
+
+
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class Grouping:
+    """A dataset's grouping factors g0, g1, … and the arithmetic of their units.
+
+    - A unit is the row or one factor; a node at a factor's unit has one value per group.
+    - A unit's chain is the units a node there may read: the coarser factors it nests in, then itself.
+      The row is finer than every factor, so its chain is every factor, then the row.
+    """
+
+    metadata: dict[str, Column]
+    codes: dict[str, np.ndarray]  # (n,) int64 each, every row's group
+
+    def chain(self, unit: str) -> list[str]:
+        if unit == 'row':
+            return [*self.metadata, 'row']
+        chain = [unit]
+        coarser = self.metadata[unit].nests_in
+        while coarser is not None:
+            chain = [coarser, *chain]
+            coarser = self.metadata[coarser].nests_in
+        return chain
+
+    def broadcast(self, values: np.ndarray, from_unit: str, to_unit: str) -> np.ndarray:
+        """Values at one unit read at a unit of whose chain it is part,
+        each group's value repeated over its rows or the finer groups within it.
+        """
+        if from_unit not in self.chain(to_unit):
+            raise ValueError(f'{from_unit} is not in the chain of {to_unit}')
+        if from_unit == to_unit:
+            return values
+        coarser = self.codes[from_unit]  # (n,)
+        if to_unit == 'row':
+            return values[coarser]
+        # the coarser group of each finer group is the coarser code of its first row
+        first_rows = np.unique(self.codes[to_unit], return_index=True)[1]  # (G,)
+        return values[coarser[first_rows]]
+
+
+def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
+    """Each factor's depth, the number of coarser factors it nests in:
+    after the first, a factor nests in the previous one with probability nested_share.
+    """
+    depths = []
+    for k in range(resolved.factors):
+        nested = k > 0 and rng.random() < resolved.nested_share
+        depths.append(depths[-1] + 1 if nested else 0)
+    return depths
+
+
+def _sampleSizes(
+    elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
+) -> tuple[np.ndarray, dict[str, float]]:
+    """Rule 7's group sizes over the elements, and the parameters they drew."""
+    if rng.random() < resolved.balanced_share:
+        # n // G each, the remainder one more for the first groups
+        sizes = elements // groups + (np.arange(groups) < elements % groups)  # (G,)
+        return sizes, {}
+    # one element per group, the rest multinomial over Dirichlet(size_alpha) shares
+    size_alpha = resolved.resolveField('size_alpha', rng)
+    shares = rng.dirichlet(np.full(groups, size_alpha))  # (G,)
+    sizes = 1 + rng.multinomial(elements - groups, shares)  # (G,)
+    return sizes, {'size_alpha': size_alpha}
+
+
+def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
+    """The grouping factors g0, g1, …, each row assigned to one group per factor."""
+    depths = _nestFactors(resolved, rng)
+    rows = np.arange(resolved.rows)  # each row its own group: the finest unit
+    # what the next factor's groups split, and its bound
+    elements, within, high = resolved.rows, rows, resolved.rows
+    metadata = {}
+    codes = {}
+    # bottom up, so that a coarser factor splits the groups of the finer one nested in it
+    for k in reversed(range(len(depths))):
+        # 2 groups and one more per coarser factor above, so that each of them keeps 2
+        groups = resolved.resolveField('groups', rng, low=2 + depths[k], high=high)
+        sizes, parameters = _sampleSizes(elements, groups, resolved, rng)
+        group_of = rng.permutation(np.repeat(np.arange(groups), sizes))  # (elements,)
+        codes[f'g{k}'] = group_of[within]  # (n,)
+        metadata[f'g{k}'] = Column(
+            type='categorical',
+            levels=groups,
+            role='grouping factor',
+            nests_in=f'g{k - 1}' if depths[k] else None,
+            parameters=parameters,
+        )
+        if depths[k]:
+            # the previous factor splits this one's groups into fewer
+            elements, within, high = groups, codes[f'g{k}'], groups - 1
+        else:
+            elements, within, high = resolved.rows, rows, resolved.rows
+    # in index order: coarser before finer along a chain
+    return Grouping(metadata=dict(reversed(metadata.items())), codes=dict(reversed(codes.items())))
 
 
 # =====================================================================================
