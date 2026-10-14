@@ -7,8 +7,8 @@ resolved sizes, shares and budget
 -> per factor bottom up, its G, sizes and codes               _sampleSizes, assign
 -> per column, its type, K and own parameters                 _resolveColumn
 -> one named column after another until the budget is met     plan
--> per column, a sorted sample                                _sampleMarginal, _sampleCodes
--> sorted by the node's ranks                                 apply
+-> per column, a sorted sample, one per distinct node value   _sampleMarginal, _sampleCodes
+-> placed by the node's ranks, tied values sharing one        apply
 """
 
 from __future__ import annotations
@@ -222,38 +222,38 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
 # =====================================================================================
 
 
-def _sampleMarginal(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
+def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.ndarray:
     parameters = column.parameters
     match column.marginal:
         case 'normal':
-            return rng.standard_normal(n)
+            return rng.standard_normal(size)
         case 'lognormal':
-            return rng.lognormal(0, parameters['lognormal_sigma'], n)
+            return rng.lognormal(0, parameters['lognormal_sigma'], size)
         case 'student_t':
-            return rng.standard_t(parameters['student_df'], n)
+            return rng.standard_t(parameters['student_df'], size)
         case 'beta':
-            return rng.beta(parameters['beta_a'], parameters['beta_b'], n)
+            return rng.beta(parameters['beta_a'], parameters['beta_b'], size)
         case 'uniform':
-            return rng.random(n)
+            return rng.random(size)
         case 'zero_inflated_lognormal':
-            zero = rng.random(n) < parameters['zero_share']  # (n,)
-            positive = rng.lognormal(0, parameters['lognormal_sigma'], n)  # (n,)
+            zero = rng.random(size) < parameters['zero_share']  # (size,)
+            positive = rng.lognormal(0, parameters['lognormal_sigma'], size)  # (size,)
             return np.where(zero, 0, positive)
         case 'normal_mixture':
-            minor = rng.random(n) < parameters['mixture_weight']  # (n,)
-            normal = rng.standard_normal(n)  # (n,)
+            minor = rng.random(size) < parameters['mixture_weight']  # (size,)
+            normal = rng.standard_normal(size)  # (size,)
             return normal + parameters['mixture_gap'] * minor
 
 
-def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The n level codes in rank order, in K blocks sized by drawn shares."""
+def _sampleCodes(size: int, column: Column, rng: np.random.Generator) -> np.ndarray:
+    """The level codes of size values in rank order, in K blocks sized by drawn shares."""
     k = column.levels
     shares = rng.dirichlet(np.full(k, column.parameters['level_alpha']))  # (K,)
-    # one row per level first, the rest split in proportion to the shares
-    floor = 1 if n >= k else 0
-    edges = np.round(np.cumsum(shares) * (n - floor * k)).astype(np.int64)  # (K,)
+    # one value per level first, the rest split in proportion to the shares
+    floor = 1 if size >= k else 0
+    edges = np.round(np.cumsum(shares) * (size - floor * k)).astype(np.int64)  # (K,)
     counts = np.diff(edges, prepend=0) + floor  # (K,)
-    codes_by_rank = np.repeat(np.arange(k), counts)  # (n,)
+    codes_by_rank = np.repeat(np.arange(k), counts)  # (size,)
     if column.type == 'categorical':
         # nominal levels have no order along the node; permuting the labels is TabICL v1's idea
         labels = rng.permutation(k)  # (K,)
@@ -265,7 +265,7 @@ def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndar
     """The column's values in its node's order, one per distinct node value:
     a marginal sample if continuous, level codes otherwise. Tied node values share a column value.
     """
-    distinct, rank = np.unique(node, return_inverse=True)  # (D,), (n,) each row's dense rank
+    distinct, rank = np.unique(node, return_inverse=True)  # (D,), (m,) each element's dense rank
     if column.type == 'continuous':
         sample = _sampleMarginal(len(distinct), column, rng)  # (D,)
         by_rank = np.sort(sample).astype(np.float32)  # (D,)
