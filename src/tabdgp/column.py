@@ -3,12 +3,12 @@
 pipeline:
 ---------
 resolved sizes, shares and budget
--> per factor (top down), how many coarser factors it nests in           _nestFactors
--> per factor (bottom up), its group IDs (G), sizes and codes               _sampleSizes, assign
--> per column, its type, K and own parameters                 _resolveColumn
--> one named column after another until the budget is met     plan
--> per column, a sorted sample, one per distinct node value   _sampleMarginal, _sampleCodes
--> placed by the node's ranks, tied values sharing one        apply
+-> per factor (top down), how many coarser factors it nests in   _nestFactors
+-> per factor (bottom up), its G groups, their sizes and codes   _sampleSizes, assign
+-> per column, its type, K and own parameters                    _resolveColumn
+-> one named column after another until the budget is met        plan
+-> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
+-> placed by the node's ranks, tied values sharing one           apply
 """
 
 from __future__ import annotations
