@@ -19,11 +19,11 @@ Each module owns one design decision, hidden from the others:
 
 | module | owns | imported by |
 |---|---|---|
-| `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, and which fields each column or node draws, by marginal family for a continuous column | every module |
-| `column` | the design-column budget and the post-hoc types: each column's name, type, K and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks | draw |
-| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, latent nodes first, the block bonus, each node's family, activation and scales, and what the graph guarantees | mechanism, draw |
-| `mechanism` | how a node's values follow from its parents and its noise: linear and MLP families, relative noise, the z-score | draw |
-| `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, nodes joined to columns by name, and what one draw returns | the package's `__init__` |
+| `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, a count truncated at another field's value, the presets, and which fields each column, node or grouping factor draws, by marginal family for a continuous column | every module |
+| `column` | the design-column budget and the post-hoc types: each column's name, type, K and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks; the grouping factor as a column, its relation, size draw and codes, and `Grouping`, the unit arithmetic (a unit's chain, the broadcast between units) | graph, mechanism, draw |
+| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, the block bonus, each node's unit and the mask on edges out of its chain, the order (the grouping factors, then the units coarsest first, the row last, latent before observed), each node's family, activation and scales, a row-unit node's group share and group factor, and what the graph guarantees | mechanism, draw |
+| `mechanism` | how a node's values follow from its parents and its noise, at a unit: linear and MLP families, the parents read at the unit, relative noise, the z-score at the node's own unit, and a row-unit node's group part and row part mixed by its group share | draw |
+| `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, the grouping before the graph, nodes joined to columns by name, every column and latent node broadcast to the rows last, and what one draw returns, the grouping factors first | the package's `__init__` |
 
 ## Design
 
