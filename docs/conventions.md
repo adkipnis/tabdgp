@@ -34,6 +34,10 @@ harder to understand or change; it accrues one small edit at a time.
   implementation folds into its caller or callee.
 - **Information hiding.** Split code by what it knows (a node mechanism, a tensor layout, the
   hyperprior's parameterisation), not by the order it runs in.
+- **One home per fact**, in code as in the docs. A rule written out twice (a truncation, the
+  unit order, a loop's initial state) becomes one function, one named value, or a call to the
+  module that owns it. No utils module: a helper two modules need lives in the module that
+  owns its fact.
 - **No pass-throughs.** A method that forwards its arguments unchanged adds nothing; call the
   target directly.
 - **Pull complexity down.** The module absorbs the awkward case so its callers stay simple. A
@@ -60,7 +64,8 @@ harder to understand or change; it accrues one small edit at a time.
 - A module is one lowercase word. A package's `__init__.py` lists its public names in
   `__all__`.
 - `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
-  `snake_case` for variables, `UPPER_SNAKE_CASE` for constants.
+  `snake_case` for variables and a `Literal`'s values (`'grouping_factor'`), `UPPER_SNAKE_CASE`
+  for constants.
 - A config field that counts is a plural noun (`rows`, `latent_nodes`), without an `n_` prefix.
 - A function in `src/` is named for what it does, a verb and its object (`_resolveColumn`),
   not for what it returns (`_column`). A test helper is read inside an assert, so it may name
@@ -89,6 +94,8 @@ harder to understand or change; it accrues one small edit at a time.
 ### Control flow
 
 - f-strings, one statement per line, a long expression named on the line before.
+- One operation per line: a draw is named before it is cast or transformed. The Bernoulli
+  idiom `rng.random() < share` counts as one draw.
 - A method lists its steps in the order you would describe them; a step with its own `if`
   ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
   not `for`/`else`, `while True` or `next()` on a generator. A loop fills its result as it
@@ -109,9 +116,10 @@ harder to understand or change; it accrues one small edit at a time.
 
 ### Arrays and tensors
 
-- Annotate shapes inline (`# (B, n, p)` for B datasets of n rows and p columns), reshape with
-  `einops` where the library has it, never mutate a reused array in place. Vectorise with
-  broadcasting and advanced indexing, not loops; batch over datasets.
+- Annotate a shape inline on the line that returns it (`# (B, n, p)` for B datasets of n rows
+  and p columns), never in a docstring. Reshape with `einops` where the library has it, never
+  mutate a reused array in place. Vectorise with broadcasting and advanced indexing, not
+  loops; batch over datasets.
 - One letter per quantity, whatever its case: `n` counts rows, in code and in shape comments
   alike, and `d` counts nodes.
 - Every draw takes an explicit generator or key; nothing reads global random state.
