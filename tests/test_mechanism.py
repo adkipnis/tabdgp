@@ -355,10 +355,10 @@ def test_propagate_skips_the_grouping_factors() -> None:
     assert list(propagate(graph, resolved, grouping, rng)) == ['x2', 'x3']
 
 
-# item 1's propagation, recorded from the module at commit 6063e89 on two graphs connect draws
-# at rows 300, latent_nodes 1 and the observed nodes a to d: the first row, the last row and
-# the absolute sum, the rows as exact float32 values; seed 1 draws three MLP nodes and seed 7
-# three linear ones
+# item 1's propagation, recorded on macOS from the module at commit 6063e89 on two graphs
+# connect draws at rows 300, latent_nodes 1 and the observed nodes a to d: the first row, the
+# last row and the absolute sum, the rows as exact float32 values; seed 1 draws three MLP nodes
+# and seed 7 three linear ones
 ITEM_1 = {
     1: (
         [
@@ -398,16 +398,19 @@ ITEM_1 = {
 
 
 @pytest.mark.parametrize('seed', ITEM_1)
-def test_the_flat_case_is_item_1s_propagation_bit_for_bit(seed: int) -> None:
+def test_the_flat_case_is_item_1s_propagation(seed: int) -> None:
     """A flat dataset is item 1's: the units are all the row, every broadcast the identity,
     and the generator is read in item 1's order, the noise before the weights.
+    Linux's BLAS and Windows' float32 tanh and sin differ from macOS's in the last digits,
+    and no key promises bits across machines.
+    A change in the generator's order changes every digit, so 1e-4 still catches it.
     """
     first, last, total = ITEM_1[seed]
     values = _propagate(seed, 4, 300, latent_nodes=1)
     assert values.shape == (300, 5)
-    assert np.array_equal(values[0], np.array(first, dtype=np.float32))
-    assert np.array_equal(values[-1], np.array(last, dtype=np.float32))
-    assert np.abs(values).sum(dtype=np.float64) == total
+    np.testing.assert_allclose(values[0], first, rtol=1e-4, atol=1e-6)
+    np.testing.assert_allclose(values[-1], last, rtol=1e-4, atol=1e-6)
+    assert np.abs(values).sum(dtype=np.float64) == pytest.approx(total, rel=1e-4)
 
 
 def test_an_empty_graph_propagates_to_no_nodes() -> None:
