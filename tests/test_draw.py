@@ -107,39 +107,95 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
     design_columns=st.integers(0, 19),
     latent_nodes=st.integers(0, 9),
     max_levels=st.integers(3, 6),
+    factors=st.integers(0, 3),
+    groups=st.integers(3, 8),
+    nested=st.booleans(),
+    balanced=st.booleans(),
+    group_level=st.booleans(),
+    group_share=st.sampled_from([0.0, 0.5, 1.0]),
 )
 def test_every_override_is_honoured(
-    rows: int, design_columns: int, latent_nodes: int, max_levels: int
+    rows: int,
+    design_columns: int,
+    latent_nodes: int,
+    max_levels: int,
+    factors: int,
+    groups: int,
+    nested: bool,
+    balanced: bool,
+    group_level: bool,
+    group_share: float,
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
     The fields without a visible size are honoured through hyperparameters, which must hold
-    every point override as given, and a field drawn per node through the graph.
+    every point override as given, a field drawn per node through the graph and one drawn per
+    factor through the factor's column. A point groups cannot nest, so a chain draws its groups
+    from a range below the point.
     """
-    assume(rows >= 2 * design_columns)  # a point above its bound fails instead
-    hyperprior = Hyperprior.flat(
+    # a point above its bound fails instead: rows ≥ 2d, G ≤ n and a chain of L factors in L + 1 rows
+    assume(rows >= max(2 * design_columns, groups, factors + 1))
+    assume(groups >= factors + 1)  # the finest factor of a chain of L needs L + 1 groups
+    hyperprior = Hyperprior.grouped(
         rows=rows,
         design_columns=design_columns,
         latent_nodes=latent_nodes,
         max_levels=max_levels,
         noise_scale=0.5,
+        factors=factors,
+        groups=UniformInt(2, groups) if nested else groups,
+        nested_share=1.0 if nested else 0.0,
+        balanced_share=1.0 if balanced else 0.0,
+        size_alpha=2.0,
+        group_level_share=1.0 if group_level else 0.0,
+        group_share=group_share,
     )
     dataset = draw(0, 0, hyperprior)
-    metadata = dataset.metadata.values()
-    assert sum(column.design_columns for column in metadata) == design_columns
-    for column in metadata:
-        assert column.levels is None or column.levels <= max_levels
-    assert len(dataset.latent) == latent_nodes
+    metadata = dataset.metadata
+    assert sum(column.design_columns for column in metadata.values()) == design_columns
     for array in [*dataset.columns.values(), *dataset.latent.values()]:
         assert array.shape == (rows,)
+    assert len(dataset.latent) == latent_nodes
+    # the grouping factors, each recording its size draw
+    factor_names = [name for name, column in metadata.items() if column.role == 'grouping factor']
+    assert factor_names == [f'g{k}' for k in range(factors)]
+    for k, name in enumerate(factor_names):
+        column = metadata[name]
+        assert 2 <= column.levels <= groups if nested else column.levels == groups
+        assert column.nests_in == (f'g{k - 1}' if nested and k > 0 else None)
+        assert column.parameters == ({} if balanced else {'size_alpha': 2.0})
+    for name, column in metadata.items():
+        if column.role == 'covariate':
+            assert column.levels is None or column.levels <= max_levels
+    # the per-node fields through the graph
+    graph = dataset.graph
+    for name, unit in zip(graph.names, graph.unit):
+        if name not in factor_names:
+            assert (unit != 'row') == (group_level and factors > 0)
+    assert set(graph.noise_scale) <= {None, 0.5}
+    assert set(graph.group_share) <= {None, group_share}
+    # the per-dataset fields through hyperparameters, the per-factor and per-node ones as given
     resolved = dataset.hyperparameters
     assert (resolved.rows, resolved.design_columns, resolved.latent_nodes) == (
         rows,
         design_columns,
         latent_nodes,
     )
-    assert (resolved.max_levels, resolved.noise_scale) == (max_levels, 0.5)
-    assert set(dataset.graph.noise_scale) <= {None, 0.5}
+    assert (resolved.max_levels, resolved.noise_scale, resolved.factors) == (
+        max_levels,
+        0.5,
+        factors,
+    )
+    assert (resolved.balanced_share, resolved.nested_share, resolved.group_level_share) == (
+        float(balanced),
+        float(nested),
+        float(group_level),
+    )
+    assert (resolved.groups, resolved.size_alpha, resolved.group_share) == (
+        hyperprior.groups,
+        2.0,
+        group_share,
+    )
 
 
 def test_a_distribution_override_is_honoured() -> None:
