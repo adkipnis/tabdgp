@@ -6,9 +6,10 @@
 - The activation, init scale and noise scale are the node's own (read from the graph).
 - A node is computed at a unit: its parents are read there, one noise per element,
   and the result is z-scored at the node's own unit.
-- A row-unit node of a grouped dataset is two parts: a group part over the parents in its
-  group factor's chain, computed at that factor, and a row part over every other parent,
-  mixed by its group share, the group part's share of its variance.
+- A row-unit node of a grouped dataset mixes a group part and a row part by its group share,
+  the group part's share of its variance.
+  The group part is computed at its group factor, over the parents in that factor's chain.
+  The row part is computed at the row, over every other parent.
 
 pipeline:
 ---------
