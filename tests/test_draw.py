@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from tabdgp.column import Column
@@ -109,6 +109,7 @@ def test_every_override_is_honoured(
     The fields without a visible size are honoured through hyperparameters, which must hold
     every point override as given, and a field drawn per node through the graph.
     """
+    assume(rows >= 2 * design_columns)  # a point above its bound fails instead
     hyperprior = Hyperprior(
         rows=rows,
         design_columns=design_columns,
