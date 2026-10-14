@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from tabdgp.column import Grouping
 from tabdgp.graph import Graph, connect
@@ -152,6 +153,61 @@ def test_propagate_skips_the_grouping_factors() -> None:
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=4).resolveDataset(rng)
     assert list(propagate(graph, resolved, grouping, rng)) == ['x2', 'x3']
+
+
+# item 1's propagation, recorded from the module at commit 6063e89 on two graphs connect draws
+# at rows 300, latent_nodes 1 and the observed nodes a to d: the first row, the last row and
+# the absolute sum, the rows as exact float32 values; seed 1 draws three MLP nodes and seed 7
+# three linear ones
+ITEM_1 = {
+    1: (
+        [
+            -1.46487295627594,
+            0.005196389276534319,
+            -1.3860321044921875,
+            0.6441646218299866,
+            -1.9364700317382812,
+        ],
+        [
+            1.3785829544067383,
+            -0.573655903339386,
+            1.2348989248275757,
+            0.10027249902486801,
+            1.0218738317489624,
+        ],
+        1193.7367689563544,
+    ),
+    7: (
+        [
+            1.4009796380996704,
+            0.0024338674265891314,
+            0.23955166339874268,
+            -0.16038000583648682,
+            -0.7962819933891296,
+        ],
+        [
+            -1.7905281782150269,
+            0.6712811589241028,
+            0.3729669153690338,
+            -0.38211488723754883,
+            1.5618715286254883,
+        ],
+        1198.659372946393,
+    ),
+}
+
+
+@pytest.mark.parametrize('seed', ITEM_1)
+def test_the_flat_case_is_item_1s_propagation_bit_for_bit(seed: int) -> None:
+    """A flat dataset is item 1's: the units are all the row, every broadcast the identity,
+    and the generator is read in item 1's order, the noise before the weights.
+    """
+    first, last, total = ITEM_1[seed]
+    values = _propagate(seed, 4, 300, latent_nodes=1)
+    assert values.shape == (300, 5)
+    assert np.array_equal(values[0], np.array(first, dtype=np.float32))
+    assert np.array_equal(values[-1], np.array(last, dtype=np.float32))
+    assert np.abs(values).sum(dtype=np.float64) == total
 
 
 def test_an_empty_graph_propagates_to_no_nodes() -> None:
