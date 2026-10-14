@@ -3,8 +3,7 @@
 We save hyperparameters as fields of the Hyperprior class.
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution.
 - An override replaces it by a point or by another distribution, checked against the field's bounds.
-- A preset is the defaults for one kind of table (grouped, or flat without factors);
-  overrides apply on top.
+- A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
 - A draw resolves every field to a point;
   the fields that shape a single column, node or grouping factor are resolved in a second step.
 - A count bounded by another field is drawn from its distribution truncated to its bounds.
@@ -48,9 +47,11 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 def _truncate(ends: tuple[float, float], low: int | None, high: int | None) -> tuple[float, float]:
     """The ends of a support truncated to [low, high]."""
-    smallest, largest = ends
-    bottom = smallest if low is None else max(low, smallest)
-    top = largest if high is None else min(high, largest)
+    bottom, top = ends
+    if low is not None:
+        bottom = max(low, bottom)
+    if high is not None:
+        top = min(high, top)
     return bottom, top
 
 
@@ -71,7 +72,8 @@ class Uniform(_Interval):
     high: float
 
     def draw(self, rng: np.random.Generator) -> float:
-        return float(rng.uniform(self.low, self.high))
+        out = rng.uniform(self.low, self.high)
+        return float(out)
 
 
 @pydantic_dataclass(frozen=True)
@@ -80,7 +82,9 @@ class LogUniform(_Interval):
     high: float
 
     def draw(self, rng: np.random.Generator) -> float:
-        return math.exp(rng.uniform(math.log(self.low), math.log(self.high)))
+        log_low, log_high = math.log(self.low), math.log(self.high)
+        log_out = rng.uniform(log_low, log_high)
+        return math.exp(log_out)
 
 
 @pydantic_dataclass(frozen=True)
@@ -92,7 +96,8 @@ class UniformInt(_Interval):
         self, rng: np.random.Generator, low: int | None = None, high: int | None = None
     ) -> int:
         bottom, top = _truncate(self.support(), low, high)
-        return int(rng.integers(bottom, top, endpoint=True))
+        out = rng.integers(bottom, top, endpoint=True)
+        return int(out)
 
 
 @pydantic_dataclass(frozen=True)
@@ -104,10 +109,11 @@ class LogUniformInt(_Interval):
         self, rng: np.random.Generator, low: int | None = None, high: int | None = None
     ) -> int:
         # the floor of a log-uniform on [bottom, top + 1) gives each integer k the mass log(1 + 1/k);
-        # min catches exp rounding up onto top + 1
         bottom, top = _truncate(self.support(), low, high)
-        value = math.exp(rng.uniform(math.log(bottom), math.log(top + 1)))
-        return min(math.floor(value), top)
+        log_bottom, log_top_p1 = math.log(bottom), math.log(top + 1)
+        log_out = rng.uniform(log_bottom, log_top_p1)
+        out = math.exp(log_out)
+        return min(math.floor(out), top)  # catch exp rounding
 
 
 @pydantic_dataclass(frozen=True)
@@ -206,11 +212,11 @@ class Hyperprior(BaseModel):
       A column with levels takes one of K levels in each row.
       Due to dummy-encoding, it takes K − 1 columns in the design matrix.
     - Grouping: a grouping factor assigns every row to one of its G groups.
-      A table has none (flat), one or several;
+      A table has none (flat), one or multiple grouping factors;
       each after the first nests in the previous one or is crossed with all earlier ones.
-      A factor's groups are of equal size or have Dirichlet-distributed sizes.
-      A node is group-level (constant within the groups of one factor) or within-group;
-      the group share of a within-group node is the share of its variance between groups.
+      A factor's groups are equally large or have Dirichlet-distributed sizes.
+      A node is constant within groups (varying accross groups) or it varies within groups;
+      the group share of a within-group node is its share of the between groups variance.
     - Graph: each column is an observed node of a directed acyclic graph (DAG).
       Latent nodes may affect observed nodes but have no columns assigned to them.
       Each possible edge has its own probability. It rises with the graph's overall density,
