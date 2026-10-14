@@ -432,6 +432,15 @@ def test_a_point_group_share_gives_every_row_unit_node_its_value() -> None:
     assert _rowShares(graph) == [0.25] * graph.unit.count('row')
 
 
+def test_group_factor_is_drawn_among_the_factors() -> None:
+    """Each row-unit node is confounded with respect to one factor, any of the dataset's."""
+    factors_seen = set()
+    for seed in range(10):
+        graph = _connect(seed, 8, GROUPING, group_level_share=0.0)
+        factors_seen |= set(graph.group_factor[3:])
+    assert factors_seen == {'g0', 'g1', 'g2'}
+
+
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
     """parents[j, i] with i < j only:
     the names are in topological order, so propagation is one pass.
