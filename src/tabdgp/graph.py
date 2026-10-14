@@ -163,7 +163,8 @@ def _orderNodes(
     # sorted, so that z0, z1, … follow the order
     latent_unit = np.sort(latent_unit)
     observed_unit = _sampleUnits(resolved, len(factors), len(observed), rng)  # (p,)
-    observed_unit = _keepEveryLevel(observed_unit, [columns[name] for name in observed], grouping)
+    observed_columns = [columns[name] for name in observed]
+    observed_unit = _keepEveryLevel(observed_unit, observed_columns, grouping)
     nodes = [f'z{k}' for k in range(latent_nodes)] + observed
     unit_index = np.concatenate([latent_unit, observed_unit])  # (L + p,)
     order = np.argsort(unit_index, kind='stable')  # (L + p,), latent before observed within a unit
