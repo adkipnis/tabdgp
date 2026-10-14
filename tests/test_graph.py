@@ -316,6 +316,34 @@ def test_connect_on_a_flat_grouping_is_item_1s_graph() -> None:
     assert not any(name.startswith('g') for name in graph.names)
 
 
+# g1 nests in g0, g2 is crossed with both; connect reads the factors and their chains, not the codes
+GROUPING = groupingOf(
+    [[0, 0, 1, 1], [0, 1, 2, 3], [0, 1, 0, 1]],
+    nests_in=[None, 'g0', None],
+)
+UNITS = ['g0', 'g1', 'g2', 'row']
+
+
+def _ranks(graph: Graph) -> list[int]:
+    """Each node's unit as its position among the factors and the row, the g nodes left out."""
+    return [UNITS.index(unit) for unit in graph.unit[3:]]
+
+
+def test_g_nodes_come_first_then_the_units_in_index_order_and_the_row_last() -> None:
+    """A parent is at its child's unit or a coarser one, so the coarser units come first;
+    crossed units have no order between them and take the factors' fixed one.
+    """
+    units_seen = set()
+    for seed in range(20):
+        graph = _connect(seed, 8, GROUPING, latent_nodes=3)
+        assert graph.names[:3] == ['g0', 'g1', 'g2']
+        assert graph.unit[:3] == ['g0', 'g1', 'g2']
+        assert len(graph.names) == 3 + 3 + 8
+        assert _ranks(graph) == sorted(_ranks(graph))
+        units_seen |= set(graph.unit[3:])
+    assert units_seen == set(UNITS)
+
+
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
     """parents[j, i] with i < j only:
     the names are in topological order, so propagation is one pass.
