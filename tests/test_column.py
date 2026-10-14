@@ -133,6 +133,12 @@ def test_a_grouping_factor_of_another_type_fails(type: str, levels: int) -> None
         Column(type=type, levels=levels, role='grouping factor')
 
 
+def test_a_marginal_on_a_grouping_factor_fails() -> None:
+    """A factor's values are its codes, drawn by the size draw, never matched to a marginal."""
+    with pytest.raises(ValidationError, match='marginal'):
+        Column(type='categorical', levels=3, role='grouping factor', marginal='normal')
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
