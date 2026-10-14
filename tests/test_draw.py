@@ -391,3 +391,9 @@ def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:
         assert set(graph.group_share) <= {None}
         assert set(graph.group_factor) <= {None}
         assert dataset.hyperparameters.factors == 0
+
+
+def test_draw_without_a_hyperprior_fails() -> None:
+    """No preset is the default: a caller names the kind of table it draws."""
+    with pytest.raises(TypeError):
+        draw(0, 0)
