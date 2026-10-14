@@ -104,6 +104,11 @@ OUT_OF_RANGE = [
     pytest.param({'zero_share': 1.0}, id='a point on an open bound'),
     pytest.param({'student_df': Uniform(-1, 5)}, id='a support across zero for a positive field'),
     pytest.param({'max_levels': 2}, id='a cap that leaves no categorical'),
+    pytest.param({'factors': -1}, id='a negative number of factors'),
+    pytest.param({'groups': 1}, id='a factor of one group'),
+    pytest.param({'size_alpha': 0.0}, id='a zero concentration of the group sizes'),
+    pytest.param({'balanced_share': 1.5}, id='a share above 1'),
+    pytest.param({'group_share': Uniform(0, 2)}, id='a support above 1 for a share'),
     pytest.param({'type_shares': ALL_CONTINUOUS | {'binary': 0.5}}, id='shares above 1'),
     pytest.param(
         {'type_shares': ALL_CONTINUOUS | {'continuous': 1.5, 'binary': -0.5}}, id='a negative share'
