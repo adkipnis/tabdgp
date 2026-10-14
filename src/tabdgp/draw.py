@@ -1,5 +1,5 @@
-"""draw.py defines the pipeline and its output: one dataset as a pure function of its key
-and a preset.
+"""draw.py defines the pipeline and its output:
+one dataset as a pure function of its key and its hyperprior.
 
 One generator is threaded through the steps in a fixed order.
 A change of that order changes every dataset, so it is a version change.
