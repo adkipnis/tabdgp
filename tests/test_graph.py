@@ -344,6 +344,23 @@ def test_g_nodes_come_first_then_the_units_in_index_order_and_the_row_last() -> 
     assert units_seen == set(UNITS)
 
 
+def _latentAt(graph: Graph, unit: str) -> list[bool]:
+    """The latent mask of the nodes at one unit, in the graph's order, the g nodes left out."""
+    return [bool(graph.latent[j]) for j in range(3, len(graph.names)) if graph.unit[j] == unit]
+
+
+def test_latent_nodes_precede_observed_ones_within_a_unit() -> None:
+    """Within a unit a latent node can be a common cause of columns but never an effect of one;
+    the latent names follow the order.
+    """
+    for seed in range(20):
+        graph = _connect(seed, 8, GROUPING, latent_nodes=4)
+        for unit in UNITS:
+            assert _latentAt(graph, unit) == sorted(_latentAt(graph, unit), reverse=True)
+        latent_names = [name for name in graph.names if name.startswith('z')]
+        assert latent_names == ['z0', 'z1', 'z2', 'z3']
+
+
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
     """parents[j, i] with i < j only:
     the names are in topological order, so propagation is one pass.
