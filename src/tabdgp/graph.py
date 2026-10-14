@@ -157,9 +157,11 @@ def _orderNodes(
     latent_nodes = resolved.latent_nodes
     # the observed nodes take the plan's names in a random order:
     # a column's position is independent of its place in the graph
-    observed = rng.permutation(list(columns)).tolist()
+    permuted = rng.permutation(list(columns))  # (p,)
+    observed = permuted.tolist()
+    latent_unit = _sampleUnits(resolved, len(factors), latent_nodes, rng)  # (L,)
     # sorted, so that z0, z1, … follow the order
-    latent_unit = np.sort(_sampleUnits(resolved, len(factors), latent_nodes, rng))  # (L,)
+    latent_unit = np.sort(latent_unit)
     observed_unit = _sampleUnits(resolved, len(factors), len(observed), rng)  # (p,)
     observed_unit = _keepEveryLevel(observed_unit, [columns[name] for name in observed], grouping)
     nodes = [f'z{k}' for k in range(latent_nodes)] + observed
@@ -174,8 +176,10 @@ def _orderNodes(
 def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.ndarray:
     # TabICL's Cauchy DAG: an edge i -> j has logit offset + out_i + in_j with heavy-tailed node terms;
     # this way, graph density varies and a few nodes become hubs
-    out_term = resolved.hub_scale * rng.standard_cauchy(d)  # (d,)
-    in_term = resolved.hub_scale * rng.standard_cauchy(d)  # (d,)
+    out_cauchy = rng.standard_cauchy(d)  # (d,)
+    in_cauchy = rng.standard_cauchy(d)  # (d,)
+    out_term = resolved.hub_scale * out_cauchy  # (d,)
+    in_term = resolved.hub_scale * in_cauchy  # (d,)
     logits = resolved.edge_offset + in_term[:, None] + out_term[None, :]  # (d, d), [j, i]
     # scamd's block-wise correlation and shared noise
     block = rng.integers(resolved.blocks, size=d)  # (d,)
@@ -232,7 +236,8 @@ def _resolveParts(
     for j, unit_j in enumerate(unit):
         if unit_j == 'row' and factors:
             group_share[j] = resolved.resolveField('group_share', rng)
-            group_factor[j] = factors[rng.integers(len(factors))]
+            index = rng.integers(len(factors))
+            group_factor[j] = factors[index]
     return group_share, group_factor
 
 
