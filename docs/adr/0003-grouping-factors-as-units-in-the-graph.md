@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
-amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`, and a nested pair is superior and subordinate, not coarser and finer
+amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`, a nested pair is superior and subordinate, not coarser and finer, and an override `group_share = 1` is the known exception to every level appearing
 ---
 
 # 0003 — Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
@@ -45,8 +45,11 @@ child column its parent explains.
   observed, draws a grouping factor's unit with that share (the factor uniform among the
   dataset's), else the row. A column with more levels than its factor has groups stays at
   the row: it would take one value per group and leave a level no row has, and no real
-  table shows a group-level column with K > G. A within-group column with a latent
-  group-level parent is confounded by nothing in the table.
+  table shows a group-level column with K > G. The known exception is an override
+  `group_share = 1`: it makes a row-unit column constant within its group factor's groups, so
+  one with K > G misses a level. The default never draws 1, and the override asks for a
+  column constant within groups, which cannot show more levels than there are groups. A
+  within-group column with a latent group-level parent is confounded by nothing in the table.
 - **Group confounding is a two-part mechanism.** A row-unit node is
   `z(sqrt(s) · z(g) + sqrt(1 − s) · z(r))`: g its mechanism over the parents at one grouping
   factor's unit (and the superior ones in that factor's chain), computed at that unit and

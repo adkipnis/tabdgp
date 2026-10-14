@@ -324,6 +324,7 @@ def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() 
 def test_every_level_of_a_covariate_appears() -> None:
     """A level no row has would be an all-zero dummy column in metabeta's design matrix;
     a group-level column shows at most G levels, so one with more stays at the row.
+    An override group_share = 1 is the known exception (ADR 0003), so the test draws the defaults.
     """
     for index in range(100):
         dataset = draw(0, index, Hyperprior.grouped())
