@@ -148,9 +148,10 @@ def _sampleSizes(
 def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     """The grouping factors g0, g1, …, each row assigned to one group per factor."""
     depths = _nestFactors(resolved, rng)
-    rows = np.arange(resolved.rows)  # each row its own group: the finest unit
-    # what the next factor's groups split, and its bound
-    elements, within, high = resolved.rows, rows, resolved.rows
+    # what the next factor's groups split, and its bound:
+    # the rows, each row its own group, unless a finer factor nests in it
+    unnested = resolved.rows, np.arange(resolved.rows), resolved.rows
+    elements, within, high = unnested
     metadata = {}
     codes = {}
     # bottom up, so that a coarser factor splits the groups of the finer one nested in it
@@ -171,7 +172,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
             # the previous factor splits this one's groups into fewer
             elements, within, high = groups, codes[f'g{k}'], groups - 1
         else:
-            elements, within, high = resolved.rows, rows, resolved.rows
+            elements, within, high = unnested
     # in index order: coarser before finer along a chain
     return Grouping(metadata=dict(reversed(metadata.items())), codes=dict(reversed(codes.items())))
 
