@@ -58,11 +58,11 @@ def _mapParents(
 ) -> np.ndarray:
     """Node j's family over its parents' values, with fresh weights."""
     layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
-    # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
-    # (LeCun et al. 1998)
     constant = _isConstant(hidden)
     for _ in range(layers):
         fan_in = hidden.shape[1]
+        # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
+        # (LeCun et al. 1998)
         scale = graph.init_scale[j] / fan_in**0.5
         normal = rng.standard_normal((fan_in, resolved.hidden), dtype=np.float32)
         weights = scale * normal  # (fan_in, hidden)
