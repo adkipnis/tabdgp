@@ -146,6 +146,52 @@ def test_propagate_is_deterministic_under_a_fixed_generator() -> None:
     assert np.array_equal(first, second)
 
 
+def _balanced(n: int, groups: list[int], nests_in: list[str | None] | None = None) -> Grouping:
+    """A grouping of n rows with balanced groups, each crossed factor's codes a random
+    permutation and a nested factor's groups splitting each coarser group evenly.
+    """
+    if nests_in is None:
+        nests_in = [None] * len(groups)
+    rng = np.random.default_rng(len(groups))
+    codes = []
+    for groups_of_k, nests_in_of_k in zip(groups, nests_in):
+        if nests_in_of_k is None:
+            codes.append(rng.permutation(n) % groups_of_k)
+            continue
+        coarser = codes[int(nests_in_of_k[1:])]  # (n,)
+        ratio = groups_of_k // (coarser.max() + 1)  # finer groups per coarser group
+        finer = np.zeros(n, dtype=np.int64)  # (n,)
+        for group in range(coarser.max() + 1):
+            rows = np.flatnonzero(coarser == group)
+            finer[rows] = group * ratio + np.arange(len(rows)) % ratio
+        codes.append(finer)
+    return groupingOf([codes_of_k.tolist() for codes_of_k in codes], nests_in)
+
+
+def _size(grouping: Grouping, unit: str, n: int) -> int:
+    return n if unit == 'row' else grouping.metadata[unit].levels
+
+
+def test_every_node_is_z_scored_at_its_unit_and_has_its_units_length() -> None:
+    """A node at a factor's unit is one value per group, z-scored there; a row-unit node is n
+    values, z-scored over the rows. draw broadcasts the former to the rows.
+    """
+    # g1 nests in g0 and g2 is crossed with both
+    grouping = _balanced(600, [20, 60, 15], nests_in=[None, 'g0', None])
+    for seed in range(10):
+        rng = np.random.default_rng(seed)
+        resolved = Hyperprior(rows=600, latent_nodes=2, group_level_share=0.5).resolveDataset(rng)
+        graph = connect(resolved, grouping, OBSERVED[:8], rng)
+        nodes = propagate(graph, resolved, grouping, rng)
+        assert list(nodes) == graph.names[3:]
+        for name, values in nodes.items():
+            unit = graph.unit[graph.names.index(name)]
+            assert values.shape == (_size(grouping, unit, 600),)
+            assert values.dtype == np.float32
+            np.testing.assert_allclose(values.mean(), 0, atol=1e-5)
+            np.testing.assert_allclose(values.std(), 1, atol=1e-5)
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
