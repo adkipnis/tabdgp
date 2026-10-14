@@ -148,6 +148,12 @@ def test_a_parameter_other_than_size_alpha_on_a_grouping_factor_fails(parameters
         Column(type='categorical', levels=3, role='grouping factor', parameters=parameters)
 
 
+def test_nests_in_on_a_covariate_fails() -> None:
+    """Nesting relates grouping factors; a covariate is at most constant within groups."""
+    with pytest.raises(ValidationError):
+        Column(type='categorical', levels=3, parameters=ALPHA, nests_in='g0')
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
