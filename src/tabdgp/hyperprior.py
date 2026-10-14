@@ -35,6 +35,7 @@ from pydantic import (
     PositiveInt,
     ValidationInfo,
     field_validator,
+    model_validator,
 )
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -362,7 +363,8 @@ class Hyperprior(BaseModel):
         lowest, _ = self._support(self.groups)
         return lowest + depth
 
-    def model_post_init(self, context: Any) -> None:
+    @model_validator(mode='after')
+    def _checkGroupsCanNest(self) -> Hyperprior:
         """Checks that groups has enough values for the longest chain the fields allow:
         its finest factor must reach its floor.
         """
@@ -375,6 +377,7 @@ class Hyperprior(BaseModel):
                 f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
                 'fewer factors, or give groups a wider range'
             )
+        return self  # pydantic's after-validator returns the model
 
     @staticmethod
     def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
