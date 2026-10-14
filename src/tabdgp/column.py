@@ -150,10 +150,10 @@ def _sampleSizes(
 def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     """The grouping factors g0, g1, …, each row assigned to one group per factor."""
     depths = _nestFactors(resolved, rng)
-    # what the next factor's groups split, and its bound:
-    # the rows, each row its own group, unless a finer factor nests in it
+    # what the next factor's groups split, each row's element among them, and its bound:
+    # the rows, each row its own element, unless a finer factor nests in it
     unnested = resolved.rows, np.arange(resolved.rows), resolved.rows
-    elements, within, high = unnested
+    elements, element_of, high = unnested
     metadata = {}
     codes = {}
     # bottom up, so that a coarser factor splits the groups of the finer one nested in it
@@ -164,7 +164,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
         sizes, parameters = _sampleSizes(elements, groups, resolved, rng)
         sorted_groups = np.repeat(np.arange(groups), sizes)  # (elements,)
         group_of = rng.permutation(sorted_groups)  # (elements,)
-        codes[name] = group_of[within]  # (n,)
+        codes[name] = group_of[element_of]  # (n,)
         metadata[name] = Column(
             type='categorical',
             levels=groups,
@@ -174,9 +174,9 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
         )
         if depths[k]:
             # the previous factor splits this one's groups into fewer
-            elements, within, high = groups, codes[name], groups - 1
+            elements, element_of, high = groups, codes[name], groups - 1
         else:
-            elements, within, high = unnested
+            elements, element_of, high = unnested
     # in index order: coarser before finer along a chain
     return Grouping(metadata=dict(reversed(metadata.items())), codes=dict(reversed(codes.items())))
 
