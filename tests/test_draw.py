@@ -250,3 +250,26 @@ def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() 
             codes = dataset.columns[name]
             assert codes.dtype == np.int64
             assert np.array_equal(np.unique(codes), np.arange(dataset.metadata[name].levels))
+
+
+def _unitOf(dataset: Dataset) -> dict[str, str]:
+    return dict(zip(dataset.graph.names, dataset.graph.unit))
+
+
+def _isConstantWithinGroups(values: np.ndarray, codes: np.ndarray) -> bool:
+    first_rows = np.unique(codes, return_index=True)[1]  # (G,)
+    return bool(np.array_equal(values, values[first_rows][codes]))
+
+
+def test_a_group_level_column_is_constant_within_its_groups() -> None:
+    """A school's size is one value per school: a column at a factor's unit repeats its group's
+    value over the group's rows, whatever its type.
+    """
+    hyperprior = Hyperprior.grouped(rows=200, group_level_share=1.0)
+    for index in range(20):
+        dataset = draw(0, index, hyperprior)
+        unit = _unitOf(dataset)
+        for name, column in dataset.metadata.items():
+            if column.role == 'covariate':
+                assert unit[name] != 'row'
+                assert _isConstantWithinGroups(dataset.columns[name], dataset.columns[unit[name]])
