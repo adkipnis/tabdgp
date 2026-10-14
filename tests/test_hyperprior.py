@@ -222,9 +222,21 @@ def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
     """
     rng = np.random.default_rng(0)
     with pytest.raises(ValueError, match=r'groups.*\b30\b'):
-        Hyperprior(groups=50).resolveField('groups', rng, high=30)
+        Hyperprior(groups=50, nested_share=0).resolveField('groups', rng, high=30)
     with pytest.raises(ValueError, match=r'design_columns.*\b5\b'):
         Hyperprior(rows=10, design_columns=19).resolveDataset(rng)
+
+
+def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
+    """A point gives every factor one count, and a coarser factor needs fewer than the finer;
+    failing at construction beats failing in the datasets that happen to draw a nesting.
+    """
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=5)
+    Hyperprior(groups=5, nested_share=0)
+    Hyperprior(groups=5, factors=1)
+    Hyperprior(groups=5, factors=UniformInt(0, 1))
+    Hyperprior.flat(groups=5)
 
 
 @given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
