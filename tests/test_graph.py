@@ -95,6 +95,42 @@ def test_a_node_holds_a_value_exactly_for_the_fields_it_draws(change: dict) -> N
         Graph(**CHAIN | change)
 
 
+# g0 is a grouping factor; x1 is a root at g0's unit, x2 a linear child of x1 at the row
+GROUPED = {
+    'names': ['g0', 'x1', 'x2'],
+    'parents': np.array([[0, 0, 0], [0, 0, 0], [0, 1, 0]], dtype=bool),
+    'latent': np.zeros(3, dtype=bool),
+    'mechanism': [None, None, 'linear'],
+    'activation': [None] * 3,
+    'noise_scale': [None, None, 0.1],
+    'init_scale': [None] * 3,
+    'unit': ['g0', 'g0', 'row'],
+    'group_share': [None, None, 0.3],
+    'group_factor': [None, None, 'g0'],
+}
+
+
+def test_a_grouped_graph_that_meets_every_check_constructs() -> None:
+    """The control for the checks below: each fails for its change to GROUPED alone."""
+    Graph(**GROUPED)
+
+
+UNKNOWN = [
+    pytest.param({'unit': ['g0', 'g1', 'row']}, id='a factor not among the names'),
+    pytest.param({'unit': ['g0', 'cell', 'row']}, id='neither the row nor a factor'),
+    pytest.param({'group_factor': [None, None, 'g1']}, id='a group factor not among the names'),
+]
+
+
+@pytest.mark.parametrize('change', UNKNOWN)
+def test_a_node_at_an_unknown_unit_fails(change: dict) -> None:
+    """A unit is the row or a grouping factor of the dataset, and so is the factor of a group part;
+    any other name has no groups to be drawn per.
+    """
+    with pytest.raises(ValidationError):
+        Graph(**GROUPED | change)
+
+
 # connect carries whatever names the plan gives it; letters show that it mints none of its own
 OBSERVED = list('abcdefghij')
 FLAT = groupingOf([])
