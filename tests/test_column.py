@@ -191,6 +191,22 @@ def test_broadcast_repeats_a_units_values_over_its_rows_on_a_hand_built_grouping
     np.testing.assert_array_equal(NESTED.broadcast(at_g1, 'g1', 'row'), [3, 1, 4, 2, 3, 1, 4, 2])
 
 
+OFF_CHAIN = [
+    pytest.param('g2', 'g1', id='between crossed factors'),
+    pytest.param('g1', 'g0', id='from a finer factor to a coarser one'),
+    pytest.param('row', 'g0', id='from the row to a factor'),
+]
+
+
+@pytest.mark.parametrize(('from_unit', 'to_unit'), OFF_CHAIN)
+def test_broadcasting_out_of_a_units_chain_fails(from_unit: str, to_unit: str) -> None:
+    """Off the chain, one target group spans several source groups and has no single value;
+    the first row's would be returned without complaint and mean nothing.
+    """
+    with pytest.raises(ValueError, match=f'{from_unit}.*{to_unit}'):
+        NESTED.broadcast(np.zeros(8), from_unit, to_unit)
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
