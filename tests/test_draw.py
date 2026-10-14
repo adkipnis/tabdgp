@@ -86,14 +86,17 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
         _assertIdentical(alone, dataset)
 
 
-def test_columns_metadata_graph_and_latent_agree_on_names() -> None:
-    """A consumer looks a column up by name in columns, metadata and the graph alike."""
+def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_factors_first() -> None:
+    """A consumer looks a column up by name in columns, metadata and the graph alike,
+    and finds the grouping factors before the covariates.
+    """
     for index in range(20):
-        dataset = draw(0, index, Hyperprior(latent_nodes=2))
+        dataset = draw(0, index, Hyperprior.grouped(latent_nodes=2, factors=2))
         graph = dataset.graph
         observed = [name for name, latent in zip(graph.names, graph.latent) if not latent]
         latent = [name for name, latent in zip(graph.names, graph.latent) if latent]
         assert list(dataset.columns) == list(dataset.metadata)
+        assert list(dataset.columns)[:2] == ['g0', 'g1']
         assert sorted(dataset.columns) == sorted(observed)
         assert list(dataset.latent) == latent
 
@@ -114,7 +117,7 @@ def test_every_override_is_honoured(
     every point override as given, and a field drawn per node through the graph.
     """
     assume(rows >= 2 * design_columns)  # a point above its bound fails instead
-    hyperprior = Hyperprior(
+    hyperprior = Hyperprior.flat(
         rows=rows,
         design_columns=design_columns,
         latent_nodes=latent_nodes,
@@ -142,7 +145,7 @@ def test_every_override_is_honoured(
 def test_a_distribution_override_is_honoured() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
-        dataset = draw(0, index, Hyperprior(rows=UniformInt(30, 40), design_columns=1))
+        dataset = draw(0, index, Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1))
         [values] = dataset.columns.values()
         assert 30 <= len(values) <= 40
 
@@ -150,7 +153,7 @@ def test_a_distribution_override_is_honoured() -> None:
 def test_a_budget_of_0_gives_no_columns() -> None:
     """metabeta's budget may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
-        dataset = draw(0, index, Hyperprior(design_columns=0, latent_nodes=2, rows=50))
+        dataset = draw(0, index, Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50))
         assert dataset.columns == {}
         assert dataset.metadata == {}
         assert dataset.graph.latent.all()
@@ -188,11 +191,11 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
     """scamd's categoricals were nearly independent of their parents, and only shapes were tested.
 
     One latent root, one typed column of K ≤ 3 and a sure edge between them, so the column must
-    follow the root's values.
+    follow the root's values; flat, so that the edge is the graph's only one.
     """
     dense = {'edge_offset': 30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
     for type, design_columns in [('binary', 1), ('categorical', 2), ('ordered', 2)]:
-        hyperprior = Hyperprior(
+        hyperprior = Hyperprior.flat(
             rows=1000,
             design_columns=design_columns,
             type_shares=point('type_shares', type),
