@@ -246,7 +246,9 @@ def connect(
     columns: dict[str, Column],
     rng: np.random.Generator,
 ) -> Graph:
-    """The graph over the latent and observed nodes, and what each node draws for itself."""
+    """The graph over the grouping factors, the latent and the observed nodes,
+    and what each node draws for itself.
+    """
     names, unit = _orderNodes(resolved, grouping, columns, rng)
     latent = np.array([name.startswith('z') for name in names], dtype=bool)  # (d,)
     edges = _sampleEdges(resolved, len(names), rng)  # (d, d)
