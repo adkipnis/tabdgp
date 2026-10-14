@@ -402,6 +402,15 @@ def test_no_edge_crosses_out_of_a_chain() -> None:
     assert pairs_seen == READS
 
 
+def test_group_level_share_1_puts_every_node_at_a_factor_and_0_at_the_row() -> None:
+    """The share is the probability that a node is group-level, latent nodes included."""
+    for seed in range(10):
+        group_level = _connect(seed, 8, GROUPING, latent_nodes=3, group_level_share=1.0)
+        assert 'row' not in group_level.unit
+        within_group = _connect(seed, 8, GROUPING, latent_nodes=3, group_level_share=0.0)
+        assert within_group.unit[3:] == ['row'] * 11
+
+
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
     """parents[j, i] with i < j only:
     the names are in topological order, so propagation is one pass.
