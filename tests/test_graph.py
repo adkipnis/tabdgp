@@ -238,6 +238,54 @@ def test_a_missing_two_part_field_on_a_row_unit_node_fails(change: dict) -> None
         Graph(**GROUPED | change)
 
 
+# g0 and g1 are grouping factors; x2 at g1's unit before x3 at g0's, both roots
+LATER_UNIT_FIRST = {
+    'names': ['g0', 'g1', 'x2', 'x3'],
+    'parents': np.zeros((4, 4), dtype=bool),
+    'latent': np.zeros(4, dtype=bool),
+    'mechanism': [None] * 4,
+    'activation': [None] * 4,
+    'noise_scale': [None] * 4,
+    'init_scale': [None] * 4,
+    'unit': ['g0', 'g1', 'g1', 'g0'],
+    'group_share': [None] * 4,
+    'group_factor': [None] * 4,
+}
+
+OUT_OF_ORDER = [
+    pytest.param(
+        {
+            'unit': ['g0', 'row', 'g0'],
+            'parents': _parentsOf(),
+            'mechanism': [None] * 3,
+            'noise_scale': [None] * 3,
+            'group_share': [None, 0.3, None],
+            'group_factor': [None, 'g0', None],
+        },
+        id='the row before a factor',
+    ),
+    pytest.param(LATER_UNIT_FIRST, id='a later factor before an earlier one'),
+    pytest.param(
+        {
+            'names': ['x0', 'g1', 'x2'],
+            'unit': ['g1', 'g1', 'row'],
+            'parents': _parentsOf((2, 0)),
+            'group_factor': [None, None, 'g1'],
+        },
+        id='a factor after another node',
+    ),
+]
+
+
+@pytest.mark.parametrize('change', OUT_OF_ORDER)
+def test_units_out_of_order_fail(change: dict) -> None:
+    """The factors, then their units in the factors' order, the row last:
+    a parent may be at the child's unit or a coarser one, so a coarser unit comes first.
+    """
+    with pytest.raises(ValidationError):
+        Graph(**GROUPED | change)
+
+
 # connect carries whatever names the plan gives it; letters show that it mints none of its own,
 # skipping g and z, the prefixes of grouping factors and latent nodes
 OBSERVED = list('abcdefhijk')
