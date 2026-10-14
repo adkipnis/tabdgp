@@ -119,27 +119,27 @@ def test_a_grouping_factor_is_0_design_columns_wide() -> None:
     """Its codes index random effects and are never dummy coded,
     so the budget counts the covariates alone.
     """
-    column = Column(type='categorical', levels=2, role='grouping factor')
+    column = Column(type='categorical', levels=2, role='grouping_factor')
     assert column.design_columns == 0
 
 
 def test_a_grouping_factor_with_fewer_than_2_levels_fails() -> None:
     """One group is no grouping; two are, so a factor need not be K ≥ 3 like a categorical."""
     with pytest.raises(ValidationError, match='1 levels'):
-        Column(type='categorical', levels=1, role='grouping factor')
+        Column(type='categorical', levels=1, role='grouping_factor')
 
 
 @pytest.mark.parametrize(('type', 'levels'), [('binary', 2), ('ordered', 3)])
 def test_a_grouping_factor_of_another_type_fails(type: str, levels: int) -> None:
     """Its codes are labels of groups, unordered at any G, so a factor is categorical even at 2."""
     with pytest.raises(ValidationError):
-        Column(type=type, levels=levels, role='grouping factor')
+        Column(type=type, levels=levels, role='grouping_factor')
 
 
 def test_a_marginal_on_a_grouping_factor_fails() -> None:
     """A factor's values are its codes, drawn by the size draw, never matched to a marginal."""
     with pytest.raises(ValidationError, match='marginal'):
-        Column(type='categorical', levels=3, role='grouping factor', marginal='normal')
+        Column(type='categorical', levels=3, role='grouping_factor', marginal='normal')
 
 
 @pytest.mark.parametrize('parameters', [ALPHA, {'size_alpha': 1.0, 'beta_a': 2.0}], ids=str)
@@ -148,7 +148,7 @@ def test_a_parameter_other_than_size_alpha_on_a_grouping_factor_fails(parameters
     of a draw that played no part.
     """
     with pytest.raises(ValidationError, match='draws'):
-        Column(type='categorical', levels=3, role='grouping factor', parameters=parameters)
+        Column(type='categorical', levels=3, role='grouping_factor', parameters=parameters)
 
 
 def test_nests_in_on_a_covariate_fails() -> None:

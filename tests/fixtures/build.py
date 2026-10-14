@@ -40,7 +40,7 @@ def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None)
         metadata[f'g{k}'] = Column(
             type='categorical',
             levels=max(codes_of_k) + 1,
-            role='grouping factor',
+            role='grouping_factor',
             nests_in=nests_in_of_k,
         )
         arrays[f'g{k}'] = np.array(codes_of_k, dtype=np.int64)  # (n,)

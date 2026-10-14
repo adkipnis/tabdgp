@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
-amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row
+amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`
 ---
 
 # 0003 — Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
@@ -59,7 +59,7 @@ child column its parent explains.
   independent. Nested sizes are the size draw applied twice, bottom-up: the finer factor's
   groups over the rows, then the finer factor's groups over the coarser factor's groups.
 - **The grouping factor as a column**: int64 codes, type `categorical`, role
-  `grouping factor`, `levels = G`, outside the design-column budget; the role carries its
+  `grouping_factor`, `levels = G`, outside the design-column budget; the role carries its
   checks (G ≥ 2, no marginal, the size draw's fields as its parameters). The binary /
   categorical split is about design-matrix coding and applies to covariates only.
 - **Random effects stay the outcome node's.** A group-level node is covariate structure, which

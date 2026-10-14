@@ -34,14 +34,14 @@ class Column:
 
     type: ColumnType
     levels: int | None = None  # K
-    role: Literal['covariate', 'grouping factor'] = 'covariate'
+    role: Literal['covariate', 'grouping_factor'] = 'covariate'
     nests_in: str | None = None  # the superior grouping factor of a nested one
     marginal: Family | None = None  # for continuous columns
     parameters: dict[str, float] = Field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # a grouping factor's codes label its groups, unordered at any G
-        if self.role == 'grouping factor' and self.type != 'categorical':
+        if self.role == 'grouping_factor' and self.type != 'categorical':
             raise ValueError(f'a grouping factor cannot be {self.type}')
         if self.role == 'covariate' and self.nests_in is not None:
             raise ValueError(f'a covariate cannot nest in {self.nests_in}')
@@ -51,14 +51,14 @@ class Column:
         elif self.type == 'binary':
             agree = self.levels == 2
         else:  # categorical | ordered
-            fewest = 2 if self.role == 'grouping factor' else 3
+            fewest = 2 if self.role == 'grouping_factor' else 3
             agree = self.levels is not None and self.levels >= fewest
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
         if (self.type == 'continuous') != (self.marginal is not None):
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # check that parameters hold exactly the fields this column drew
-        if self.role == 'grouping factor':
+        if self.role == 'grouping_factor':
             # an unbalanced factor draws the concentration of its sizes, a balanced one nothing
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
         elif self.type == 'continuous':
@@ -70,7 +70,7 @@ class Column:
 
     @property
     def design_columns(self) -> int:
-        if self.role == 'grouping factor':
+        if self.role == 'grouping_factor':
             return 0  # its codes index random effects
         return 1 if self.levels is None else self.levels - 1
 
@@ -162,7 +162,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
         metadata[name] = Column(
             type='categorical',
             levels=groups,
-            role='grouping factor',
+            role='grouping_factor',
             nests_in=f'g{k - 1}' if depths[k] else None,
             parameters=parameters,
         )

@@ -107,7 +107,7 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     """
     column = dataset.metadata.get(name)
     groups = [
-        factor.levels for factor in dataset.metadata.values() if factor.role == 'grouping factor'
+        factor.levels for factor in dataset.metadata.values() if factor.role == 'grouping_factor'
     ]
     return column is not None and column.levels is not None and column.levels > min(groups)
 
@@ -168,7 +168,7 @@ def test_every_override_is_honoured(
         assert array.shape == (rows,)
     assert len(dataset.latent) == latent_nodes
     # the grouping factors, each recording its size draw
-    factor_names = [name for name, column in metadata.items() if column.role == 'grouping factor']
+    factor_names = [name for name, column in metadata.items() if column.role == 'grouping_factor']
     assert factor_names == [f'g{k}' for k in range(factors)]
     for k, name in enumerate(factor_names):
         column = metadata[name]
@@ -312,7 +312,7 @@ def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() 
     for index in range(20):
         dataset = draw(0, index, Hyperprior.grouped(factors=3))
         factors = [
-            name for name, column in dataset.metadata.items() if column.role == 'grouping factor'
+            name for name, column in dataset.metadata.items() if column.role == 'grouping_factor'
         ]
         assert factors == ['g0', 'g1', 'g2']
         for name in factors:
