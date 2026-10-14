@@ -236,8 +236,9 @@ def test_factors_0_gives_an_empty_grouping_whose_broadcast_is_the_identity() -> 
 def test_assign_gives_g_non_empty_groups_with_g_at_most_n_for_every_factor(
     seed: int, rows: int, factors: int, nested_share: float, balanced_share: float
 ) -> None:
-    """metabeta indexes one random effect per group, so an empty group or more groups than rows
-    would need a retry or a repair; the truncation and rule 7 rule both out on every draw.
+    """metabeta indexes one random effect per group,
+    so an empty group or more groups than rows would need a retry or a repair.
+    The truncation and metabeta's rule 7 rule both out on every draw.
     Five rows fit a chain of four factors.
     """
     grouping = _assign(
@@ -283,7 +284,7 @@ def test_an_unbalanced_factor_records_its_size_alpha() -> None:
 
 def test_a_tiny_size_alpha_gives_singleton_groups() -> None:
     """A tiny concentration puts nearly all the share on one group,
-    so every other group keeps only the one row that rule 7 guarantees it.
+    so every other group keeps only the one row that metabeta's rule 7 guarantees it.
     """
     for seed in range(10):
         grouping = _assign(seed, rows=1000, factors=1, groups=10, balanced_share=0, size_alpha=1e-6)
@@ -331,7 +332,8 @@ def test_each_group_of_a_nested_factor_lies_in_one_superior_group() -> None:
 def test_a_superior_factor_has_fewer_groups_than_its_subordinate_one(rows: int) -> None:
     """Equal counts would put one subordinate group in each superior one:
     one partition relabelled, two random effects no model tells apart (ADR 0004, amended).
-    Every factor keeps 2 groups, so 4 rows are the fewest a chain of three fits in.
+    The top factor keeps 2 groups and each subordinate one more,
+    so 4 rows are the fewest a chain of three fits in.
     """
     for seed in range(50):
         grouping = _assign(seed, rows=rows, factors=3, nested_share=1)
@@ -559,9 +561,9 @@ def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
 
 @pytest.mark.parametrize('column', [*CONTINUOUS, *DISCRETE], ids=str)
 def test_tied_node_values_share_one_column_value(column: Column) -> None:
-    """A node constant within groups, at a factor's unit or at group share 1, ties over each
-    group's rows; the column keeps the ties, so it is constant within the groups too, and a
-    tie-free node gets one value per row as before.
+    """A row-unit node at group share 1 is constant within its group factor's groups,
+    so it ties over each group's rows.
+    The column keeps the ties, so it is constant within the groups too.
     """
     node = np.repeat(_node(1)[:50], 10)  # (500,) 50 distinct values, each on 10 rows
     values = _applyTo(node, column, seed=0)
