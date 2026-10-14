@@ -97,26 +97,28 @@ def _countElements(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
 def _runMechanism(
     parents: list[int],
     j: int,
-    at: str,
+    run_unit: str,
     nodes: dict[str, np.ndarray],
     graph: Graph,
     grouping: Grouping,
     resolved: Hyperprior,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """Node j's mechanism over these parents, run at the unit `at` and z-scored at j's own unit."""
-    to = graph.unit[j]
-    m = _countElements(at, grouping, resolved)
+    """Node j's mechanism over these parents, run at `run_unit` and z-scored at j's own unit."""
+    unit_j = graph.unit[j]
+    m = _countElements(run_unit, grouping, resolved)
     noise = rng.standard_normal(m, dtype=np.float32)  # (m,)
     # output and noise are broadcast to j's unit before each z-score,
     # so that the noise scale and the group share are shares of variance over j's unit
-    noise = grouping.broadcast(noise, at, to)
+    noise = grouping.broadcast(noise, run_unit, unit_j)
     if not parents:  # a root is its noise
         return _zscore(noise)
-    parent_values = [grouping.broadcast(nodes[graph.names[i]], graph.unit[i], at) for i in parents]
+    parent_values = [
+        grouping.broadcast(nodes[graph.names[i]], graph.unit[i], run_unit) for i in parents
+    ]
     hidden = np.stack(parent_values, axis=1)  # (m, p)
     output = _mapParents(hidden, j, graph, resolved, rng)  # (m,)
-    output = grouping.broadcast(output, at, to)
+    output = grouping.broadcast(output, run_unit, unit_j)
     # noise scale is relative to the z-scored output
     return _zscore(_zscore(output) + graph.noise_scale[j] * noise)
 
