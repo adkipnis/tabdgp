@@ -171,6 +171,28 @@ def test_a_g_node_with_an_edge_fails(change: dict) -> None:
         Graph(**GROUPED | change)
 
 
+FACTOR_UNITS = [
+    pytest.param({'unit': ['row', 'g0', 'row']}, id='at the row'),
+    pytest.param(
+        {
+            'names': ['g0', 'g1', 'x2'],
+            'unit': ['g0', 'g0', 'row'],
+            'parents': _parentsOf(),
+            'mechanism': [None] * 3,
+            'noise_scale': [None] * 3,
+        },
+        id='at another factor',
+    ),
+]
+
+
+@pytest.mark.parametrize('change', FACTOR_UNITS)
+def test_a_g_node_at_another_unit_fails(change: dict) -> None:
+    """A grouping factor takes one value per group of its own, its group's code."""
+    with pytest.raises(ValidationError):
+        Graph(**GROUPED | change)
+
+
 # connect carries whatever names the plan gives it; letters show that it mints none of its own,
 # skipping g and z, the prefixes of grouping factors and latent nodes
 OBSERVED = list('abcdefhijk')
