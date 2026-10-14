@@ -4,8 +4,9 @@
 - An MLP node puts hidden layers before the same readout.
 - MLP width and depth are the dataset's, shared by all its MLP nodes.
 - The activation, init scale and noise scale are the node's own (read from the graph).
-- A node is computed at a unit: its parents are read there, one noise per element,
-  and the result is z-scored at the node's own unit.
+- A node at a grouping factor's unit has one value per group, a node at the row unit one per row.
+  Each value is computed from its parents' values for the same group or row, plus its own noise.
+  The node is then z-scored over its own values, a group-level node over its groups.
 - A row-unit node of a grouped dataset mixes a group part and a row part by its group share.
   The group part is computed at its group factor, over the parents in that factor's chain.
   The row part is computed at the row, over every other parent.
