@@ -14,7 +14,7 @@ pipeline:
 ---------
 the generating graph in topological order, the grouping
 -> per node, its parents' values at a unit through its family   _mapParents
--> relative noise, z-scored at the node's unit                   _mechanism
+-> relative noise, z-scored at the node's unit                   _runMechanism
 -> a row-unit node's group part and row part, mixed by its share _mix
 -> every node's values by name, at its unit                      propagate
 """
@@ -85,14 +85,14 @@ def _zscore(x: np.ndarray) -> np.ndarray:
     return centred / std
 
 
-def _size(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
+def _countElements(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
     """How many elements a unit has: the groups of a factor, the rows of the row."""
     if unit == 'row':
         return resolved.rows
     return grouping.metadata[unit].levels
 
 
-def _mechanism(
+def _runMechanism(
     parents: list[int],
     j: int,
     at: str,
@@ -109,7 +109,7 @@ def _mechanism(
     noise scale and the group share are shares of variance over j's unit.
     """
     to = graph.unit[j]
-    noise = rng.standard_normal(_size(at, grouping, resolved), dtype=np.float32)  # (m,)
+    noise = rng.standard_normal(_countElements(at, grouping, resolved), dtype=np.float32)  # (m,)
     noise = grouping.broadcast(noise, at, to)
     if not parents:  # a root is its noise
         return _zscore(noise)
@@ -139,8 +139,8 @@ def _mix(
     chain = grouping.chain(factor)
     group_parents = [i for i in parents if graph.unit[i] in chain]
     row_parents = [i for i in parents if graph.unit[i] not in chain]
-    group = _mechanism(group_parents, j, factor, nodes, graph, grouping, resolved, rng)  # (n,)
-    row = _mechanism(row_parents, j, 'row', nodes, graph, grouping, resolved, rng)  # (n,)
+    group = _runMechanism(group_parents, j, factor, nodes, graph, grouping, resolved, rng)  # (n,)
+    row = _runMechanism(row_parents, j, 'row', nodes, graph, grouping, resolved, rng)  # (n,)
     share = graph.group_share[j]
     return _zscore(math.sqrt(share) * group + math.sqrt(1 - share) * row)
 
@@ -158,7 +158,7 @@ def propagate(
             continue
         parents = np.flatnonzero(graph.parents[j]).tolist()
         if graph.group_factor[j] is None:  # a group-level node, or any node of a flat dataset
-            nodes[name] = _mechanism(
+            nodes[name] = _runMechanism(
                 parents, j, graph.unit[j], nodes, graph, grouping, resolved, rng
             )
         else:
