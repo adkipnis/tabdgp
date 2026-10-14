@@ -425,6 +425,13 @@ def test_every_row_unit_node_draws_its_own_group_share() -> None:
     assert all(0 <= share <= 1 for share in shares)
 
 
+def test_a_point_group_share_gives_every_row_unit_node_its_value() -> None:
+    """A study that wants one confounding strength for the whole dataset passes it as a point."""
+    graph = _connect(0, 8, GROUPING, latent_nodes=3, group_share=0.25)
+    assert graph.unit.count('row') >= 1
+    assert _rowShares(graph) == [0.25] * graph.unit.count('row')
+
+
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
     """parents[j, i] with i < j only:
     the names are in topological order, so propagation is one pass.
