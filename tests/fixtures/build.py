@@ -1,9 +1,12 @@
-"""Hand-built inputs the module tests share: point-mass shares and a graph from parent lists."""
+"""Hand-built inputs the module tests share: point-mass shares, a grouping from code lists
+and a graph from parent lists.
+"""
 
 from __future__ import annotations
 
 import numpy as np
 
+from tabdgp.column import Column, Grouping
 from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
 
@@ -14,6 +17,26 @@ def point(field: str, category: str) -> dict[str, float]:
     for name in Hyperprior.categories(field):
         shares[name] = 1.0 if name == category else 0.0
     return shares
+
+
+def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None) -> Grouping:
+    """A grouping of factors g0, g1, …, codes[k] listing each row's group of factor k.
+
+    Without nests_in, every factor is crossed.
+    """
+    if nests_in is None:
+        nests_in = [None] * len(codes)
+    metadata = {}
+    arrays = {}
+    for k, (codes_of_k, nests_in_of_k) in enumerate(zip(codes, nests_in)):
+        metadata[f'g{k}'] = Column(
+            type='categorical',
+            levels=max(codes_of_k) + 1,
+            role='grouping factor',
+            nests_in=nests_in_of_k,
+        )
+        arrays[f'g{k}'] = np.array(codes_of_k, dtype=np.int64)  # (n,)
+    return Grouping(metadata=metadata, codes=arrays)
 
 
 def graphOf(

@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from tabdgp.column import Column, apply, plan
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
-from tests.fixtures.build import point
+from tests.fixtures.build import groupingOf, point
 
 TYPES = ['continuous', 'binary', 'categorical', 'ordered']
 ALPHA = {'level_alpha': 1.0}
@@ -152,6 +152,21 @@ def test_nests_in_on_a_covariate_fails() -> None:
     """Nesting relates grouping factors; a covariate is at most constant within groups."""
     with pytest.raises(ValidationError):
         Column(type='categorical', levels=3, parameters=ALPHA, nests_in='g0')
+
+
+def test_chain_follows_the_nesting_on_a_hand_built_grouping() -> None:
+    """A node may read the units of its chain: g2 nests in g1, g1 in g0, g3 is crossed with all.
+
+    The row is finer than every factor, so its chain holds them all.
+    """
+    grouping = groupingOf(
+        [[0, 0, 1, 1], [0, 1, 2, 2], [0, 1, 2, 3], [0, 1, 0, 1]],
+        nests_in=[None, 'g0', 'g1', None],
+    )
+    assert grouping.chain('g0') == ['g0']
+    assert grouping.chain('g2') == ['g0', 'g1', 'g2']
+    assert grouping.chain('g3') == ['g3']
+    assert grouping.chain('row') == ['g0', 'g1', 'g2', 'g3', 'row']
 
 
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
