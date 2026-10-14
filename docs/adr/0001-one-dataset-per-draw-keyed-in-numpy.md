@@ -10,7 +10,7 @@ TabDGP's first consumer, `metabeta.mixed` in the private repository metabeta-v3,
 simulated datasets whose sizes, groups and columns all vary; its roadmap puts padding,
 masking, collate and the `.npz` corpus on `metabeta.core`, and its Simulator adds the outcome
 before anything is written. Grilled on
-2026-10-11 (storage, batch layout, tensor library, item 1 of `ROADMAP.md`), the decision is:
+2026-10-11 (storage, batch layout, tensor library, roadmap item 1), the decision is:
 **the seed is the corpus.** Dataset `i` is a pure function of its key `(seed, index)`, the
 hyperprior with its overrides and the installed versions of TabDGP and numpy, whose generator
 promises no stable streams across its releases; the dataset records both. The public call

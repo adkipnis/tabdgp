@@ -9,8 +9,10 @@ dist/
 .ipynb_checkpoints/
 .DS_Store
 .claude/
-# local agent instructions (docs/conventions.md is the public part)
+# local agent instructions (docs/conventions.md is the public part) and the roadmap
 CLAUDE.md
+ROADMAP.md
+next.md
 # design notes kept local: the lab notes and the prior-art survey
 lab/
 docs/prior-art.md

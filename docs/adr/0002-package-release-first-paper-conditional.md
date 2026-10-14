@@ -59,7 +59,7 @@ a finding the other papers do not carry.**
 
 ## Consequences
 
-- `ROADMAP.md` gains a "Release and paper" section: the release with JOSS, the quirk census
+- The roadmap gains a "Release and paper" section: the release with JOSS, the quirk census
   ownership, the ablations, and the conditional paper.
 - The proofs' summary vector and bar are documented as consistency checks, never claimed as
   realism in the README or a paper.

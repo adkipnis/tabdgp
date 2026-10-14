@@ -24,7 +24,6 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/adkipnis/tabdgp"
 Issues = "https://github.com/adkipnis/tabdgp/issues"
-Roadmap = "https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md"
 
 [dependency-groups]
 dev = [

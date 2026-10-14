@@ -12,9 +12,8 @@ TabDGP simulates tabular datasets from a random structural causal model (SCM) an
 reproduce the quirks of real data. Each table comes with the graph and the settings that
 generated it.
 
-> **Alpha.** Release 0.1 draws flat tables from defaults that are round guesses; the rest follows
-> the [roadmap](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md). Before 1.0, a release
-> may change the dataset a key draws.
+> **Alpha.** Release 0.1 draws flat tables from defaults that are round guesses; the rest is
+> planned below. Before 1.0, a release may change the dataset a key draws.
 
 ## Highlights
 
@@ -59,8 +58,7 @@ x3 continuous [0.25 0.42 0.1 ]
 
 ## Learn more
 
-[`CONTEXT.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTEXT.md) defines the vocabulary,
-and [`ROADMAP.md`](https://github.com/adkipnis/tabdgp/blob/main/ROADMAP.md) gives the roadmap.
+[`CONTEXT.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTEXT.md) defines the vocabulary.
 
 ## Contributing
 
