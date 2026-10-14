@@ -50,6 +50,14 @@ def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
     assert defaults == GROUPING_DEFAULTS
 
 
+def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
+    """Every draw starts from a preset; Hyperprior() stays valid as the grouped one,
+    and the flat preset differs from it in factors alone.
+    """
+    assert Hyperprior.grouped() == Hyperprior()
+    assert Hyperprior.flat() == Hyperprior(factors=0)
+
+
 def test_a_point_override_resolves_to_itself() -> None:
     """metabeta passes its sizes as points; resolveDataset must hand them back untouched."""
     shares = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
