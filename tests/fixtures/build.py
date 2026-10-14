@@ -68,4 +68,7 @@ def graphOf(
         activation=[activation if is_mlp else None for is_mlp in mlp],
         noise_scale=[None if is_root else noise_scale for is_root in root],
         init_scale=[init_scale if is_mlp else None for is_mlp in mlp],
+        unit=['row'] * d,
+        group_share=[None] * d,
+        group_factor=[None] * d,
     )

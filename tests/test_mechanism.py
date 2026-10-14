@@ -9,9 +9,10 @@ import numpy as np
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import ACTIVATIONS, propagate
-from tests.fixtures.build import graphOf, point
+from tests.fixtures.build import graphOf, groupingOf, point
 
 OBSERVED = list('abcdefghijkl')
+FLAT = groupingOf([])
 
 
 def _matrix(nodes: dict[str, np.ndarray]) -> np.ndarray:
@@ -23,7 +24,7 @@ def _propagate(seed: int, observed_nodes: int, n: int, **overrides: object) -> n
     """Node values over a graph drawn by connect, as one matrix."""
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
-    graph = connect(resolved, OBSERVED[:observed_nodes], rng)
+    graph = connect(resolved, FLAT, OBSERVED[:observed_nodes], rng)
     return _matrix(propagate(graph, resolved, rng))
 
 
@@ -34,7 +35,7 @@ def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
     """
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=100, latent_nodes=2).resolveDataset(rng)
-    graph = connect(resolved, OBSERVED[:4], rng)
+    graph = connect(resolved, FLAT, OBSERVED[:4], rng)
     nodes = propagate(graph, resolved, rng)
     assert list(nodes) == graph.names
     for values in nodes.values():
@@ -145,7 +146,7 @@ def test_an_empty_graph_propagates_to_no_nodes() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
     resolved = Hyperprior(rows=50, latent_nodes=0).resolveDataset(rng)
-    graph = connect(resolved, [], rng)
+    graph = connect(resolved, FLAT, [], rng)
     assert propagate(graph, resolved, rng) == {}
 
 

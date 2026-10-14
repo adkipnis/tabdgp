@@ -8,9 +8,10 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+from tabdgp.column import Grouping
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
-from tests.fixtures.build import graphOf, point
+from tests.fixtures.build import graphOf, groupingOf, point
 
 
 @pytest.mark.parametrize(('child', 'parent'), [(0, 1), (1, 1)], ids=['above', 'on'])
@@ -31,6 +32,9 @@ CHAIN = {
     'activation': [None, None, 'tanh'],
     'noise_scale': [None, 0.1, 0.2],
     'init_scale': [None, None, 1.5],
+    'unit': ['row'] * 3,
+    'group_share': [None] * 3,
+    'group_factor': [None] * 3,
 }
 
 MISMATCHED = [
@@ -90,12 +94,15 @@ def test_a_node_holds_a_value_exactly_for_the_fields_it_draws(change: dict) -> N
 
 # connect carries whatever names the plan gives it; letters show that it mints none of its own
 OBSERVED = list('abcdefghij')
+FLAT = groupingOf([])
 
 
-def _connect(seed: int, observed_nodes: int, **overrides: object) -> Graph:
+def _connect(
+    seed: int, observed_nodes: int, grouping: Grouping = FLAT, **overrides: object
+) -> Graph:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
-    return connect(resolved, OBSERVED[:observed_nodes], rng)
+    return connect(resolved, grouping, OBSERVED[:observed_nodes], rng)
 
 
 def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
@@ -103,6 +110,15 @@ def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
     graph = _connect(0, 0, latent_nodes=0)
     assert graph.names == []
     assert graph.parents.shape == (0, 0)
+
+
+def test_connect_on_a_flat_grouping_is_item_1s_graph() -> None:
+    """A flat table keeps item 1's graph: every node at the row, no g node, no two-part field."""
+    graph = _connect(0, 6, latent_nodes=2)
+    assert graph.unit == ['row'] * 8
+    assert graph.group_share == [None] * 8
+    assert graph.group_factor == [None] * 8
+    assert not any(name.startswith('g') for name in graph.names)
 
 
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
