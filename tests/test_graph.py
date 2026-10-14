@@ -193,6 +193,26 @@ def test_a_g_node_at_another_unit_fails(change: dict) -> None:
         Graph(**GROUPED | change)
 
 
+MISPLACED_PARTS = [
+    pytest.param({'group_share': [None, 0.3, 0.3]}, id='a group share on a group-level node'),
+    pytest.param({'group_factor': [None, 'g0', 'g0']}, id='a group factor on a group-level node'),
+    pytest.param({'group_share': [0.3, None, 0.3]}, id='a group share on a grouping factor'),
+    pytest.param(
+        {'names': ['x0', 'x1', 'x2'], 'unit': ['row'] * 3, 'group_factor': [None] * 3},
+        id='a group share in a flat graph',
+    ),
+]
+
+
+@pytest.mark.parametrize('change', MISPLACED_PARTS)
+def test_a_two_part_field_on_a_group_level_node_fails(change: dict) -> None:
+    """Only a row-unit node mixes a group part and a row part;
+    a group-level node is drawn at its unit, and a flat graph has no groups to mix.
+    """
+    with pytest.raises(ValidationError):
+        Graph(**GROUPED | change)
+
+
 # connect carries whatever names the plan gives it; letters show that it mints none of its own,
 # skipping g and z, the prefixes of grouping factors and latent nodes
 OBSERVED = list('abcdefhijk')
