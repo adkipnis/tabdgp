@@ -112,6 +112,14 @@ def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
     assert column.design_columns == design_columns
 
 
+def test_a_grouping_factor_is_0_design_columns_wide() -> None:
+    """Its codes index random effects and are never dummy coded,
+    so the budget counts the covariates alone.
+    """
+    column = Column(type='categorical', levels=2, role='grouping factor')
+    assert column.design_columns == 0
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
