@@ -104,6 +104,25 @@ def test_resolving_one_field_gives_its_point_or_one_draw_inside_its_support(seed
     assert 2 <= hyperprior.resolveField('lognormal_sigma', rng) <= 3
 
 
+@pytest.mark.parametrize('distribution', [UniformInt, LogUniformInt])
+@given(
+    low=st.integers(2, 100),
+    width=st.integers(1, 1000),
+    margin=st.integers(0, 2000),
+    seed=st.integers(0, 2**32 - 1),
+)
+def test_a_bounded_distribution_resolves_at_or_below_its_bound(
+    distribution: type, low: int, width: int, margin: int, seed: int
+) -> None:
+    """A factor has at most as many groups as the table has rows.
+    A bound above the distribution's high leaves the high in force.
+    """
+    hyperprior = Hyperprior(groups=distribution(low, low + width))
+    bound = low + margin
+    groups = hyperprior.resolveField('groups', np.random.default_rng(seed), high=bound)
+    assert low <= groups <= min(bound, low + width)
+
+
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
     """A dataset is a pure function of its key, so the same generator gives the same points."""
     hyperprior = Hyperprior()
