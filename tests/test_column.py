@@ -249,6 +249,18 @@ def test_an_unbalanced_factor_records_its_size_alpha() -> None:
         assert column.parameters == {'size_alpha': 7.0}
 
 
+def test_a_tiny_size_alpha_gives_singleton_groups() -> None:
+    """A tiny concentration puts nearly all the share on one group,
+    so every other group keeps only the one row that rule 7 guarantees it.
+    """
+    for seed in range(10):
+        grouping = _assign(
+            seed, rows=1000, factors=1, groups=10, balanced_share=0, size_alpha=1e-6
+        )
+        sizes = np.sort(np.bincount(grouping.codes['g0']))
+        np.testing.assert_array_equal(sizes, [1] * 9 + [991])
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
