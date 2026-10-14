@@ -3,7 +3,7 @@
 pipeline:
 ---------
 the resolved hyperprior, the grouping and the observed columns
--> each node's unit: a factor's with group_level_share, else the row  _sampleUnits
+-> each node's unit                                                   _sampleUnits
 -> the row for a column with more levels than its factor has groups   _keepEveryLevel
 -> names and units in topological order, the factors first            _orderNodes
 -> edges: Cauchy node terms and a block bonus                         _sampleEdges
@@ -37,10 +37,10 @@ Activation = Literal['tanh', 'relu', 'sin']
 class Graph:
     """Every node of a dataset in topological order (factors `g`, latent `z`, observed `x`).
 
-    - A grouping factor comes first, without edges, at its own unit: its values are its codes.
-    - Every other node is at a unit, a factor's or the row: the units in the factors' order,
+    - A grouping factor comes first at its own unit: its values are its group codes.
+    - Every other node is at a unit: the units in the factors' order,
       the row last, latent before observed within a unit.
-      A node reads parents at its unit or a superior one of its chain,
+      A node reads parents at its own unit or its superior one (if present),
       so a latent row-unit node may have an observed group-level parent.
     - A root (a node without parents) is just its noise and draws no family or scale.
     - A linear node draws a noise scale.
@@ -124,22 +124,22 @@ class Graph:
 
 
 def _sampleUnits(resolved: Hyperprior, f: int, nodes: int, rng: np.random.Generator) -> np.ndarray:
-    """(nodes,) each node's unit as an index into the f factors, f for the row."""
+    """Each node's unit as an index into the f factors, f for the row."""
     if f == 0:
         return np.zeros(nodes, dtype=np.int64)  # a flat table draws nothing
     group_level = rng.random(nodes) < resolved.group_level_share  # (nodes,)
     factor = rng.integers(f, size=nodes)  # (nodes,), uniform among the factors
-    return np.where(group_level, factor, f)
+    return np.where(group_level, factor, f)  # (nodes,)
 
 
 def _keepEveryLevel(unit: np.ndarray, columns: list[Column], grouping: Grouping) -> np.ndarray:
-    """(p,) each column's unit, the row for one with more levels than its factor has groups:
+    """Each column's unit, the row for one with more levels than its factor has groups:
     a column at a factor's unit takes one value per group, so it shows at most G levels.
     """
     groups = [factor.levels for factor in grouping.metadata.values()]
     most_levels = np.array([*groups, math.inf])  # (f + 1,), the row is the fallback
     levels = np.array([column.levels or 0 for column in columns])  # (p,), 0 if continuous
-    return np.where(levels > most_levels[unit], len(groups), unit)
+    return np.where(levels > most_levels[unit], len(groups), unit)  # (p,)
 
 
 def _orderNodes(
@@ -246,9 +246,7 @@ def connect(
     columns: dict[str, Column],
     rng: np.random.Generator,
 ) -> Graph:
-    """The graph over the grouping factors, the latent and the observed nodes,
-    and what each node draws for itself.
-    """
+    """The graph over the grouping factors, the node types, and what each node draws."""
     names, unit = _orderNodes(resolved, grouping, columns, rng)
     latent = np.array([name.startswith('z') for name in names], dtype=bool)  # (d,)
     edges = _sampleEdges(resolved, len(names), rng)  # (d, d)
