@@ -60,7 +60,8 @@ class Column:
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # check that parameters hold exactly the fields this column drew
         if self.role == 'grouping factor':
-            # a balanced factor draws nothing, an unbalanced one the concentration of its sizes
+            # an unbalanced factor draws the concentration of its sizes, a balanced one nothing;
+            # nothing else records which it is, so this check only rules out any other field
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
         elif self.type == 'continuous':
             own = MARGINAL_FIELDS[self.marginal]
