@@ -338,6 +338,15 @@ def test_a_coarser_factor_has_fewer_groups_than_the_finer_one(rows: int) -> None
         assert levels[0] < levels[1] < levels[2]
 
 
+def test_assign_is_deterministic_under_a_fixed_generator() -> None:
+    """A key reproduces its dataset bitwise only if the grouping draws from the generator alone."""
+    first = _assign(7, factors=3)
+    second = _assign(7, factors=3)
+    assert first.metadata == second.metadata
+    for name, codes in first.codes.items():
+        np.testing.assert_array_equal(codes, second.codes[name])
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
