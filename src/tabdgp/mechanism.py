@@ -4,19 +4,28 @@
 - An MLP node puts hidden layers before the same readout.
 - MLP width and depth are the dataset's, shared by all its MLP nodes.
 - The activation, init scale and noise scale are the node's own (read from the graph).
+- A node is computed at a unit: its parents are read there, one noise per element,
+  and the result is z-scored at the node's own unit.
+- A row-unit node of a grouped dataset is two parts: a group part over the parents in its
+  group factor's chain, computed at that factor, and a row part over every other parent,
+  mixed by its group share, the group part's share of its variance.
 
 pipeline:
 ---------
-the generating graph in topological order
--> per node, its parents' values through its family      _mapParents
--> relative noise, z-scored                              _zscore
--> every node's values by name                           propagate
+the generating graph in topological order, the grouping
+-> per node, its parents' values at a unit through its family   _mapParents
+-> relative noise, z-scored at the node's unit                   _mechanism
+-> a row-unit node's group part and row part, mixed by its share _mix
+-> every node's values by name, at its unit                      propagate
 """
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
+from tabdgp.column import Grouping
 from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
 
@@ -45,25 +54,20 @@ def _isConstant(x: np.ndarray) -> bool:
 
 
 def _mapParents(
-    nodes: dict[str, np.ndarray],
-    j: int,
-    graph: Graph,
-    resolved: Hyperprior,
-    rng: np.random.Generator,
+    hidden: np.ndarray, j: int, graph: Graph, resolved: Hyperprior, rng: np.random.Generator
 ) -> np.ndarray:
+    """(m,) node j's family over its parents' values hidden (m, p), with fresh weights."""
     layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
-    parents = [nodes[graph.names[i]] for i in np.flatnonzero(graph.parents[j])]
     # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
     # (LeCun et al. 1998)
-    hidden = np.stack(parents, axis=1)  # (n, p)
     constant = _isConstant(hidden)
     for _ in range(layers):
         fan_in = hidden.shape[1]
         scale = graph.init_scale[j] / fan_in**0.5
         weights = scale * rng.standard_normal((fan_in, resolved.hidden), dtype=np.float32)
-        # a bias per unit moves the activation off the parents' mean, after scamd's RandomScale
+        # a bias per neuron moves the activation off the parents' mean, after scamd's RandomScale
         bias = rng.standard_normal(resolved.hidden, dtype=np.float32)  # (hidden,)
-        hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (n, hidden)
+        hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (m, hidden)
         constant = constant or _isConstant(hidden)
     # the readout's scale vanishes in the z-score that follows; only the relative weights count
     readout = rng.standard_normal(hidden.shape[1], dtype=np.float32)  # (hidden,) or (p,)
@@ -81,17 +85,82 @@ def _zscore(x: np.ndarray) -> np.ndarray:
     return centred / std
 
 
+def _size(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
+    """How many elements a unit has: the groups of a factor, the rows of the row."""
+    if unit == 'row':
+        return resolved.rows
+    return grouping.metadata[unit].levels
+
+
+def _mechanism(
+    parents: list[int],
+    j: int,
+    at: str,
+    nodes: dict[str, np.ndarray],
+    graph: Graph,
+    grouping: Grouping,
+    resolved: Hyperprior,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Node j's mechanism over these parents, run at the unit `at` and z-scored at j's own unit.
+
+    The parents are read at `at` and the matrix products run at its size, with one noise per
+    element; output and noise are broadcast to j's unit before each z-score, so that the
+    noise scale and the group share are shares of variance over j's unit.
+    """
+    to = graph.unit[j]
+    noise = rng.standard_normal(_size(at, grouping, resolved), dtype=np.float32)  # (m,)
+    noise = grouping.broadcast(noise, at, to)
+    if not parents:  # a root is its noise
+        return _zscore(noise)
+    hidden = np.stack(
+        [grouping.broadcast(nodes[graph.names[i]], graph.unit[i], at) for i in parents], axis=1
+    )  # (m, p)
+    output = _mapParents(hidden, j, graph, resolved, rng)  # (m,)
+    output = grouping.broadcast(output, at, to)
+    # noise scale is relative to the z-scored output
+    return _zscore(_zscore(output) + graph.noise_scale[j] * noise)
+
+
+def _mix(
+    parents: list[int],
+    j: int,
+    nodes: dict[str, np.ndarray],
+    graph: Graph,
+    grouping: Grouping,
+    resolved: Hyperprior,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """(n,) the two-part mechanism of row-unit node j: z(sqrt(s) · group + sqrt(1 − s) · row).
+
+    The group part draws before the row part; this order is fixed.
+    """
+    factor = graph.group_factor[j]
+    chain = grouping.chain(factor)
+    group_parents = [i for i in parents if graph.unit[i] in chain]
+    row_parents = [i for i in parents if graph.unit[i] not in chain]
+    group = _mechanism(group_parents, j, factor, nodes, graph, grouping, resolved, rng)  # (n,)
+    row = _mechanism(row_parents, j, 'row', nodes, graph, grouping, resolved, rng)  # (n,)
+    share = graph.group_share[j]
+    return _zscore(math.sqrt(share) * group + math.sqrt(1 - share) * row)
+
+
 def propagate(
-    graph: Graph, resolved: Hyperprior, rng: np.random.Generator
+    graph: Graph, resolved: Hyperprior, grouping: Grouping, rng: np.random.Generator
 ) -> dict[str, np.ndarray]:
-    """Every node's values by name in the graph's order, each z-scored and its own array."""
+    """Every node's values by name in the graph's order, each at its unit, z-scored, its own array.
+
+    The grouping factors are skipped: their values are the codes the grouping holds.
+    """
     nodes: dict[str, np.ndarray] = {}
     for j, name in enumerate(graph.names):
-        noise = rng.standard_normal(resolved.rows, dtype=np.float32)  # (n,)
-        if not graph.parents[j].any():  # a root is its noise
-            nodes[name] = _zscore(noise)
+        if name in grouping.metadata:
             continue
-        output = _mapParents(nodes, j, graph, resolved, rng)  # (n,)
-        # noise scale is relative to the z-scored output
-        nodes[name] = _zscore(_zscore(output) + graph.noise_scale[j] * noise)
+        parents = np.flatnonzero(graph.parents[j]).tolist()
+        if graph.group_factor[j] is None:  # a group-level node, or any node of a flat dataset
+            nodes[name] = _mechanism(
+                parents, j, graph.unit[j], nodes, graph, grouping, resolved, rng
+            )
+        else:
+            nodes[name] = _mix(parents, j, nodes, graph, grouping, resolved, rng)
     return nodes

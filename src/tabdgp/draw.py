@@ -63,8 +63,9 @@ def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset
     rng = np.random.default_rng([seed, index])  # the key's generator
     resolved = (hyperprior or Hyperprior()).resolveDataset(rng)
     metadata = plan(resolved, rng)
-    graph = connect(resolved, Grouping(metadata={}, codes={}), list(metadata), rng)
-    nodes = propagate(graph, resolved, rng)
+    grouping = Grouping(metadata={}, codes={})
+    graph = connect(resolved, grouping, list(metadata), rng)
+    nodes = propagate(graph, resolved, grouping, rng)
     columns = {name: apply(nodes[name], column, rng) for name, column in metadata.items()}
     latent = {name: nodes[name] for name, is_latent in zip(graph.names, graph.latent) if is_latent}
     return Dataset(
