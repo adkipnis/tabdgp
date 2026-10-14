@@ -224,6 +224,19 @@ def test_factors_0_gives_an_empty_grouping_whose_broadcast_is_the_identity() -> 
     np.testing.assert_array_equal(grouping.broadcast(values, 'row', 'row'), values)
 
 
+def test_a_balanced_factors_sizes_differ_by_at_most_one_and_record_no_size_alpha() -> None:
+    """Rule 7's balanced case gives each group n // G rows and the first n mod G one more;
+    a size_alpha that played no part is not recorded.
+    """
+    for seed in range(20):
+        grouping = _assign(seed, factors=3, nested_share=0, balanced_share=1)
+        assert list(grouping.codes) == ['g0', 'g1', 'g2']
+        for name, codes in grouping.codes.items():
+            sizes = np.bincount(codes)
+            assert sizes.max() - sizes.min() <= 1
+            assert grouping.metadata[name].parameters == {}
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
