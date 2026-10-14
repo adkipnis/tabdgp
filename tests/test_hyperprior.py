@@ -83,15 +83,16 @@ def test_resolving_twice_changes_nothing() -> None:
     assert resolved.resolveDataset(np.random.default_rng(1)) == resolved
 
 
-def test_resolve_leaves_the_fields_drawn_per_column_or_node_as_given() -> None:
-    """Each column or node draws its own value of these fields,
+def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() -> None:
+    """Each column, node or grouping factor draws its own value of these fields,
     so no dataset-wide value is drawn.
     """
-    assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale'}
+    assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale', 'group_share'}
+    assert set(Hyperprior.PER_FACTOR) == {'groups', 'size_alpha'}
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
     assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
-    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE:
+    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
 
