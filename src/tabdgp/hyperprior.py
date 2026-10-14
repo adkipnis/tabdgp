@@ -3,15 +3,19 @@
 We save hyperparameters as fields of the Hyperprior class.
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution.
 - An override replaces it by a point or by another distribution, checked against the field's bounds.
+- A preset is the defaults for one kind of table (grouped, or flat without factors);
+  overrides apply on top.
 - A draw resolves every field to a point;
-  the fields that shape a single column or node are resolved in a second step.
+  the fields that shape a single column, node or grouping factor are resolved in a second step.
+- A count bounded by another field is drawn from its distribution truncated at the bound.
 
 pipeline:
 ---------
 the (optional) overrides
+-> a preset with the overrides                           grouped, flat
 -> validation at construction                            Hyperprior
 -> a point for each field drawn once per dataset         resolveDataset
--> a point per column or node                            resolveField
+-> a point per column, node or factor, below its bound   resolveField
 """
 
 from __future__ import annotations
@@ -50,6 +54,10 @@ class _Interval:
     def support(self) -> tuple[float, float]:
         return self.low, self.high
 
+    def _truncate(self, high: int | None) -> int:
+        """The upper end of a draw truncated at high."""
+        return self.high if high is None else min(high, self.high)
+
 
 @pydantic_dataclass(frozen=True)
 class Uniform(_Interval):
@@ -74,8 +82,8 @@ class UniformInt(_Interval):
     low: int
     high: int
 
-    def draw(self, rng: np.random.Generator) -> int:
-        return int(rng.integers(self.low, self.high, endpoint=True))
+    def draw(self, rng: np.random.Generator, high: int | None = None) -> int:
+        return int(rng.integers(self.low, self._truncate(high), endpoint=True))
 
 
 @pydantic_dataclass(frozen=True)
@@ -83,11 +91,12 @@ class LogUniformInt(_Interval):
     low: PositiveInt  # its logarithm is drawn
     high: int
 
-    def draw(self, rng: np.random.Generator) -> int:
-        # the floor of a log-uniform on [low, high + 1) gives each integer k the mass log(1 + 1/k);
-        # min catches exp rounding up onto high + 1
-        value = math.exp(rng.uniform(math.log(self.low), math.log(self.high + 1)))
-        return min(math.floor(value), self.high)
+    def draw(self, rng: np.random.Generator, high: int | None = None) -> int:
+        # the floor of a log-uniform on [low, top + 1) gives each integer k the mass log(1 + 1/k);
+        # min catches exp rounding up onto top + 1
+        top = self._truncate(high)
+        value = math.exp(rng.uniform(math.log(self.low), math.log(top + 1)))
+        return min(math.floor(value), top)
 
 
 @pydantic_dataclass(frozen=True)
@@ -159,6 +168,7 @@ Count = Annotated[Integer, _within(ge=0)]
 PositiveCount = Annotated[Integer, _within(ge=1)]
 NonNegative = Annotated[Real, _within(ge=0)]
 Positive = Annotated[Real, _within(gt=0)]
+Share = Annotated[Real, _within(ge=0, le=1)]
 
 
 # =====================================================================================
@@ -184,6 +194,11 @@ class Hyperprior(BaseModel):
       A column is continuous or has levels (binary, categorical or ordered).
       A column with levels takes one of K levels in each row.
       Due to dummy-encoding, it takes K − 1 columns in the design matrix.
+    - Grouping: a grouping factor assigns every row to one of its G groups.
+      A table has none (flat) or several, each nested in the previous one or crossed with it.
+      A factor's groups are of equal size or have Dirichlet-distributed sizes.
+      A node is group-level (constant within the groups of one factor) or within-group;
+      the group share of a within-group node is the share of its variance between groups.
     - Graph: each column is an observed node of a directed acyclic graph (DAG).
       Latent nodes may affect observed nodes but have no columns assigned to them.
       Each possible edge has its own probability. It rises with the graph's overall density,
@@ -202,6 +217,11 @@ class Hyperprior(BaseModel):
     PER_NODE: ClassVar[tuple[str, ...]] = (
         'init_scale',
         'noise_scale',
+        'group_share',
+    )
+    PER_FACTOR: ClassVar[tuple[str, ...]] = (
+        'groups',
+        'size_alpha',
     )
     PER_COLUMN: ClassVar[tuple[str, ...]] = (
         'level_alpha',
@@ -229,6 +249,15 @@ class Hyperprior(BaseModel):
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # K is 2 + Geometric(levels_p)
     max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for K
     level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
+
+    # grouping
+    factors: Count = UniformInt(1, 3)  # grouping factors; 0 is a flat table
+    groups: Annotated[Integer, _within(ge=2)] = LogUniformInt(2, 400)  # G per factor, at most n
+    balanced_share: Share = 1 / 3  # probability that a factor's groups are of equal size
+    size_alpha: Positive = LogUniform(0.5, 500)  # Dirichlet concentration of unequal sizes
+    nested_share: Share = Uniform(0.2, 0.6)  # probability that a factor nests in the previous one
+    group_level_share: Share = Beta(2, 4)  # probability that a node is group-level
+    group_share: Share = Beta(0.5, 2)  # a within-group node's variance share between groups
 
     # graph
     latent_nodes: Count = UniformInt(0, 9)
@@ -265,6 +294,14 @@ class Hyperprior(BaseModel):
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
     mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
 
+    @classmethod
+    def grouped(cls, **overrides: Any) -> Hyperprior:
+        return cls(**overrides)
+
+    @classmethod
+    def flat(cls, **overrides: Any) -> Hyperprior:
+        return cls(factors=0, **overrides)
+
     @field_validator(*SHARES)
     @classmethod
     def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
@@ -287,17 +324,27 @@ class Hyperprior(BaseModel):
         return list(cls.model_fields[field].default.alpha)
 
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
-        """Resolves each non-node field."""
+        """Resolves each field drawn once per dataset."""
         points = {}
         for name in type(self).model_fields:
-            if name in self.PER_COLUMN + self.PER_NODE:
+            if name in self.PER_COLUMN + self.PER_NODE + self.PER_FACTOR:
                 points[name] = getattr(self, name)  # defer resolution to a later step
+            elif name == 'design_columns':
+                points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n ≥ 2d
             else:
                 points[name] = self.resolveField(name, rng)
         return Hyperprior(**points)
 
-    def resolveField(self, field: str, rng: np.random.Generator) -> Any:
+    def resolveField(self, field: str, rng: np.random.Generator, high: int | None = None) -> Any:
         value = getattr(self, field)
+        if high is not None:
+            self._checkBound(field, value, high)
         if isinstance(value, Distribution):
-            value = value.draw(rng)
+            value = value.draw(rng) if high is None else value.draw(rng, high)
         return value
+
+    @staticmethod
+    def _checkBound(field: str, value: Integer, high: int) -> None:
+        low = value.low if isinstance(value, Distribution) else value
+        if low > high:
+            raise ValueError(f'{field} = {value} lies above its bound {high}')
