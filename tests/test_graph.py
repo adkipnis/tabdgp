@@ -411,6 +411,20 @@ def test_group_level_share_1_puts_every_node_at_a_factor_and_0_at_the_row() -> N
         assert within_group.unit[3:] == ['row'] * 11
 
 
+def _rowShares(graph: Graph) -> list[float]:
+    """The group shares of the row-unit nodes, in the graph's order."""
+    return [share for share, unit in zip(graph.group_share, graph.unit) if unit == 'row']
+
+
+def test_every_row_unit_node_draws_its_own_group_share() -> None:
+    """Real tables mix strongly and weakly confounded columns, so the nodes of one dataset differ."""
+    graph = _connect(0, 8, GROUPING, latent_nodes=3, group_level_share=0.5)
+    shares = _rowShares(graph)
+    assert len(shares) >= 2
+    assert len(set(shares)) == len(shares)
+    assert all(0 <= share <= 1 for share in shares)
+
+
 def test_the_adjacency_is_strictly_lower_triangular() -> None:
     """parents[j, i] with i < j only:
     the names are in topological order, so propagation is one pass.
