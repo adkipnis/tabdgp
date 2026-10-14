@@ -251,13 +251,14 @@ def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray
 
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in its node's order:
-    a marginal sample if continuous, level codes otherwise.
+    """The column's values in its node's order, one per distinct node value:
+    a marginal sample if continuous, level codes otherwise. Tied rows share a value.
     """
+    distinct, rank = np.unique(node, return_inverse=True)  # (D,), (n,) each row's dense rank
     if column.type == 'continuous':
-        by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (n,)
+        by_rank = np.sort(_sampleMarginal(len(distinct), column, rng)).astype(np.float32)  # (D,)
     else:
-        by_rank = _sampleCodes(len(node), column, rng)  # (n,)
-    # the sorted values placed by the node's ranks are just a permutation of them (Iman and Conover, 1982)
-    ranks = np.argsort(np.argsort(node))  # (n,)
-    return by_rank[ranks]
+        by_rank = _sampleCodes(len(distinct), column, rng)  # (D,)
+    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982);
+    # a node constant within groups, at a factor's unit or at share 1, gives one value per group
+    return by_rank[rank]
