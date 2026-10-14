@@ -50,6 +50,8 @@ def _assertIdentical(a: Dataset, b: Dataset) -> None:
     assert np.array_equal(a.graph.parents, b.graph.parents)
     assert np.array_equal(a.graph.latent, b.graph.latent)
     assert (a.graph.noise_scale, a.graph.init_scale) == (b.graph.noise_scale, b.graph.init_scale)
+    assert (a.graph.unit, a.graph.group_share) == (b.graph.unit, b.graph.group_share)
+    assert a.graph.group_factor == b.graph.group_factor
     assert (a.seed, a.index, a.version) == (b.seed, b.index, b.version)
     assert a.numpy_version == b.numpy_version
     assert a.hyperparameters == b.hyperparameters
@@ -59,7 +61,7 @@ def _assertIdentical(a: Dataset, b: Dataset) -> None:
 def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
     """default_rng([seed, index]) rejects negative entries, so a bad key fails before any draw."""
     with pytest.raises(ValueError):
-        draw(seed, index)
+        draw(seed, index, Hyperprior.grouped())
 
 
 SEEDS = st.integers(0, 2**32)
@@ -73,11 +75,13 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
 ) -> None:
     """The seed is the corpus:
     dataset i may not depend on what else a worker, batch or shard draws.
+    On the grouped preset, so the grouping, the units and the two parts are covered.
     """
-    alone = draw(seed, index)
-    first_set = [draw(seed, i) for i in [*others, index]][-1]
-    second_set = [draw(seed, i) for i in [index, *reversed(others), index + 1]][0]
-    other_first = [draw(other_seed, index), draw(seed, index)][1]
+    grouped = Hyperprior.grouped()
+    alone = draw(seed, index, grouped)
+    first_set = [draw(seed, i, grouped) for i in [*others, index]][-1]
+    second_set = [draw(seed, i, grouped) for i in [index, *reversed(others), index + 1]][0]
+    other_first = [draw(other_seed, index, grouped), draw(seed, index, grouped)][1]
     for dataset in [first_set, second_set, other_first]:
         _assertIdentical(alone, dataset)
 
@@ -212,9 +216,9 @@ PYPROJECT = Path(__file__).parents[1] / 'pyproject.toml'
 def test_the_dataset_carries_the_installed_version() -> None:
     """A key reproduces a dataset only within one version, so the dataset names its own."""
     expected = tomllib.loads(PYPROJECT.read_text())['project']['version']
-    assert draw(0, 0).version == expected
+    assert draw(0, 0, Hyperprior.grouped()).version == expected
 
 
 def test_the_dataset_carries_the_installed_numpy_version() -> None:
     """numpy promises no stable streams across its releases, so the dataset names numpy's too."""
-    assert draw(0, 0).numpy_version == np.__version__
+    assert draw(0, 0, Hyperprior.grouped()).numpy_version == np.__version__
