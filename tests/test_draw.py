@@ -225,3 +225,14 @@ def test_the_dataset_carries_the_installed_version() -> None:
 def test_the_dataset_carries_the_installed_numpy_version() -> None:
     """numpy promises no stable streams across its releases, so the dataset names numpy's too."""
     assert draw(0, 0, Hyperprior.grouped()).numpy_version == np.__version__
+
+
+def test_every_array_has_length_n() -> None:
+    """A group-level column or latent node is computed at G values; the dataset returns every
+    array broadcast to the rows, so a consumer stacks them without looking at the units.
+    """
+    hyperprior = Hyperprior.grouped(rows=80, group_level_share=0.8, latent_nodes=3)
+    for index in range(20):
+        dataset = draw(0, index, hyperprior)
+        for array in [*dataset.columns.values(), *dataset.latent.values()]:
+            assert array.shape == (80,)
