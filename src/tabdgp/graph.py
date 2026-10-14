@@ -193,7 +193,6 @@ def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.n
 
 
 def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.ndarray:
-    f = len(grouping.metadata)
     units = grouping.traceChain('row')
     # a child reads a parent at its own unit or a superior one of its chain
     reads = np.array(
@@ -202,6 +201,7 @@ def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.nda
     index = [units.index(unit_j) for unit_j in unit]  # (d,)
     kept = reads[np.ix_(index, index)]  # (d, d), [j, i]
     # a grouping factor's values are its codes: it reads no parent and is read by none
+    f = len(grouping.metadata)
     kept[:f] = False
     kept[:, :f] = False
     return edges & kept
