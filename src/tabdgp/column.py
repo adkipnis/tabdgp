@@ -142,7 +142,8 @@ def _sampleSizes(
     # one element per group, the rest multinomial over Dirichlet(size_alpha) shares
     size_alpha = resolved.resolveField('size_alpha', rng)
     shares = rng.dirichlet(np.full(groups, size_alpha))  # (G,)
-    sizes = 1 + rng.multinomial(elements - groups, shares)  # (G,)
+    rest = rng.multinomial(elements - groups, shares)  # (G,)
+    sizes = 1 + rest  # (G,)
     return sizes, {'size_alpha': size_alpha}
 
 
@@ -160,7 +161,8 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
         floor = resolved.floorGroups(depths[k])
         groups = resolved.resolveField('groups', rng, low=floor, high=high)
         sizes, parameters = _sampleSizes(elements, groups, resolved, rng)
-        group_of = rng.permutation(np.repeat(np.arange(groups), sizes))  # (elements,)
+        sorted_groups = np.repeat(np.arange(groups), sizes)  # (elements,)
+        group_of = rng.permutation(sorted_groups)  # (elements,)
         codes[f'g{k}'] = group_of[within]  # (n,)
         metadata[f'g{k}'] = Column(
             type='categorical',
@@ -190,7 +192,10 @@ def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generato
         family = resolved.marginal_shares.choose(rng)
         parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
         return Column(type=type, marginal=family, parameters=parameters)
-    levels = 2 if type == 'binary' else 2 + int(rng.geometric(resolved.levels_p))
+    levels = 2
+    if type != 'binary':
+        extra = rng.geometric(resolved.levels_p)  # 1, 2, …
+        levels += int(extra)
     if resolved.max_levels is not None:
         levels = min(levels, resolved.max_levels)
     # K − 1 may not overflow the budget; a column clipped to two levels is binary
@@ -232,10 +237,12 @@ def _sampleMarginal(n: int, column: Column, rng: np.random.Generator) -> np.ndar
             return rng.random(n)
         case 'zero_inflated_lognormal':
             zero = rng.random(n) < parameters['zero_share']  # (n,)
-            return np.where(zero, 0, rng.lognormal(0, parameters['lognormal_sigma'], n))
+            positive = rng.lognormal(0, parameters['lognormal_sigma'], n)  # (n,)
+            return np.where(zero, 0, positive)
         case 'normal_mixture':
             minor = rng.random(n) < parameters['mixture_weight']  # (n,)
-            return rng.standard_normal(n) + parameters['mixture_gap'] * minor
+            normal = rng.standard_normal(n)  # (n,)
+            return normal + parameters['mixture_gap'] * minor
 
 
 def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
@@ -249,7 +256,8 @@ def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray
     codes_by_rank = np.repeat(np.arange(k), counts)  # (n,)
     if column.type == 'categorical':
         # nominal levels have no order along the node; permuting the labels is TabICL v1's idea
-        codes_by_rank = rng.permutation(k)[codes_by_rank]
+        labels = rng.permutation(k)  # (K,)
+        codes_by_rank = labels[codes_by_rank]
     return codes_by_rank
 
 
@@ -259,7 +267,8 @@ def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndar
     """
     distinct, rank = np.unique(node, return_inverse=True)  # (D,), (n,) each row's dense rank
     if column.type == 'continuous':
-        by_rank = np.sort(_sampleMarginal(len(distinct), column, rng)).astype(np.float32)  # (D,)
+        sample = _sampleMarginal(len(distinct), column, rng)  # (D,)
+        by_rank = np.sort(sample).astype(np.float32)  # (D,)
     else:
         by_rank = _sampleCodes(len(distinct), column, rng)  # (D,)
     # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
