@@ -10,7 +10,7 @@ from hypothesis import assume, given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from tabdgp.column import ColumnType
+from tabdgp.column import ColumnType, assign
 from tabdgp.graph import Activation, Mechanism
 from tabdgp.hyperprior import (
     MARGINAL_FIELDS,
@@ -383,6 +383,18 @@ def test_the_fields_drawn_per_column_are_the_families_and_the_level_concentratio
     for fields in MARGINAL_FIELDS.values():
         read.update(fields)
     assert read == set(Hyperprior.PER_COLUMN)
+
+
+def test_the_fields_drawn_per_factor_are_exactly_those_a_factor_column_records() -> None:
+    """A field drawn per factor that no factor's column records would silently stay a distribution.
+    groups is recorded as the column's levels, size_alpha among the parameters of an unbalanced one.
+    """
+    rng = np.random.default_rng(0)
+    resolved = Hyperprior.grouped(factors=2, balanced_share=0).resolveDataset(rng)
+    recorded = {'groups'}
+    for column in assign(resolved, rng).metadata.values():
+        recorded.update(column.parameters)
+    assert recorded == set(Hyperprior.PER_FACTOR)
 
 
 CATALOGUES = [
