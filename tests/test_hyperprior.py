@@ -123,7 +123,7 @@ def test_a_bounded_distribution_resolves_at_or_below_its_bound(
     """A factor has at most as many groups as the table has rows.
     A bound above the distribution's high leaves the high in force.
     """
-    hyperprior = Hyperprior(groups=distribution(low, low + width))
+    hyperprior = Hyperprior(groups=distribution(low, low + width), nested_share=0)
     bound = low + margin
     groups = hyperprior.resolveField('groups', np.random.default_rng(seed), high=bound)
     assert low <= groups <= min(bound, low + width)
@@ -143,7 +143,7 @@ def test_a_distribution_resolves_at_or_above_its_floor(
     A floor below the distribution's low leaves the low in force.
     """
     assume(floor <= low + width)
-    hyperprior = Hyperprior(groups=distribution(low, low + width))
+    hyperprior = Hyperprior(groups=distribution(low, low + width), nested_share=0)
     groups = hyperprior.resolveField('groups', np.random.default_rng(seed), low=floor)
     assert max(low, floor) <= groups <= low + width
 
@@ -211,7 +211,7 @@ def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
     """A chain of three factors needs 4 groups in its finest, which 3 rows cannot hold;
     a draw below the floor would leave a coarser factor without its 2 groups.
     """
-    hyperprior = Hyperprior(groups=distribution)
+    hyperprior = Hyperprior(groups=distribution, nested_share=0)
     with pytest.raises(ValueError, match=r'groups.*\b4\b'):
         hyperprior.resolveField('groups', np.random.default_rng(0), low=4, high=bound)
 
@@ -237,6 +237,19 @@ def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
     Hyperprior(groups=5, factors=1)
     Hyperprior(groups=5, factors=UniformInt(0, 1))
     Hyperprior.flat(groups=5)
+
+
+def test_a_groups_range_too_narrow_for_the_longest_chain_fails_at_construction() -> None:
+    """A chain of L factors needs L counts, each coarser one below the finer,
+    so a range of fewer values fails as a point does, not in the datasets that draw a chain.
+    """
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=UniformInt(2, 3))
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=LogUniformInt(10, 11))
+    Hyperprior(groups=UniformInt(2, 4))
+    Hyperprior(groups=UniformInt(2, 3), factors=UniformInt(1, 2))
+    Hyperprior(groups=UniformInt(2, 3), nested_share=0)
 
 
 @given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))

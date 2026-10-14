@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
-amended: 2026-10-14, #24: a coarser factor has fewer groups than the finer one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`
+amended: 2026-10-14, #24: a coarser factor has fewer groups than the finer one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`, and a range too narrow for the longest chain fails like a point
 ---
 
 # 0004 — The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
@@ -31,9 +31,9 @@ and has no default.** What the proofs certify is `grouped()`.
   floor is the lowest value of `groups` (2 by default) plus the number of coarser factors
   nested above it, so that every coarser one still gets that lowest value; a chain of L
   factors needs at least L + 1 rows by default, and a `rows` override below that fails at
-  resolve. A point `groups` gives every factor the same count
-  and cannot nest: it fails at construction unless `factors` stays at most 1 or
-  `nested_share` at 0.
+  resolve. A chain of L factors needs L counts, each below the finer one's, so a `groups`
+  with fewer values than the largest `factors` (a point has one) fails at construction
+  unless `factors` stays that small or `nested_share` at 0.
 - **Presets.** `factors` allows 0, and `Hyperprior.flat()` sets it to 0; `grouped()` is the
   default below. A later kind of table (item response, survival, causal) is a constructor
   that fixes fields, never a branch in `draw` and never a new mechanism. Neither metabeta nor a

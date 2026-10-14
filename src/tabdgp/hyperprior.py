@@ -342,12 +342,13 @@ class Hyperprior(BaseModel):
 
     @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
-        """A point gives every factor one count, and a coarser factor needs fewer than the finer."""
-        can_nest = support(self.factors)[1] >= 2 and support(self.nested_share)[1] > 0
-        if isinstance(self.groups, int) and can_nest:
+        """A chain of L factors needs L counts of groups, each coarser one below the finer."""
+        longest = support(self.factors)[1] if support(self.nested_share)[1] > 0 else 1
+        lowest, highest = support(self.groups)
+        if highest - lowest + 1 < longest:
             raise ValueError(
-                f'groups = {self.groups} cannot nest: set nested_share = 0, '
-                'factors to at most 1, or give groups a range'
+                f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
+                'fewer factors, or give groups a wider range'
             )
         return self
 
