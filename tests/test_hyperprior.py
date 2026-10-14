@@ -144,7 +144,9 @@ def test_a_truncated_draw_piles_no_mass_on_its_bound(
     assert draws.count(bound) / len(draws) == pytest.approx(share, abs=0.01)
 
 
-@pytest.mark.parametrize('distribution', [UniformInt(2, 400), LogUniformInt(2, 400)])
+@pytest.mark.parametrize(
+    'distribution', [UniformInt(2, 400), LogUniformInt(2, 400)], ids=['uniform', 'log-uniform']
+)
 def test_a_truncated_support_of_one_value_draws_it(
     distribution: UniformInt | LogUniformInt,
 ) -> None:
@@ -155,6 +157,20 @@ def test_a_truncated_support_of_one_value_draws_it(
     rng = np.random.default_rng(0)
     draws = {hyperprior.resolveField('groups', rng, high=2) for _ in range(100)}
     assert draws == {2}
+
+
+@pytest.mark.parametrize(
+    'distribution', [UniformInt(10, 400), LogUniformInt(10, 400)], ids=['uniform', 'log-uniform']
+)
+def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_bound(
+    distribution: UniformInt | LogUniformInt,
+) -> None:
+    """No value of the distribution lies at or below the bound,
+    and a draw above it would break G ≤ n without a word.
+    """
+    hyperprior = Hyperprior(groups=distribution)
+    with pytest.raises(ValueError, match=r'groups.*\b7\b'):
+        hyperprior.resolveField('groups', np.random.default_rng(0), high=7)
 
 
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
