@@ -237,6 +237,18 @@ def test_a_balanced_factors_sizes_differ_by_at_most_one_and_record_no_size_alpha
             assert grouping.metadata[name].parameters == {}
 
 
+def test_an_unbalanced_factor_records_its_size_alpha() -> None:
+    """The concentration shapes the sizes, so the proofs read it off the column;
+    each factor draws its own, and a point override gives all one.
+    """
+    drawn = _assign(0, factors=3, nested_share=0, balanced_share=0)
+    alphas = {column.parameters['size_alpha'] for column in drawn.metadata.values()}
+    assert len(alphas) == 3
+    given = _assign(0, factors=3, nested_share=0, balanced_share=0, size_alpha=7.0)
+    for column in given.metadata.values():
+        assert column.parameters == {'size_alpha': 7.0}
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
