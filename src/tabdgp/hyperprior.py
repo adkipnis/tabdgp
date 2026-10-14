@@ -7,7 +7,7 @@ We save hyperparameters as fields of the Hyperprior class.
   overrides apply on top.
 - A draw resolves every field to a point;
   the fields that shape a single column, node or grouping factor are resolved in a second step.
-- A count bounded by another field is drawn from its distribution truncated at the bound.
+- A count bounded by another field is drawn from its distribution truncated to its bounds.
 
 pipeline:
 ---------
@@ -15,7 +15,7 @@ the (optional) overrides
 -> a preset with the overrides                           grouped, flat
 -> validation at construction                            Hyperprior
 -> a point for each field drawn once per dataset         resolveDataset
--> a point per column, node or factor, below its bound   resolveField
+-> a point per column, node or factor, in its bounds     resolveField
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from pydantic import (
     PositiveInt,
     ValidationInfo,
     field_validator,
+    model_validator,
 )
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -54,9 +55,11 @@ class _Interval:
     def support(self) -> tuple[float, float]:
         return self.low, self.high
 
-    def _truncate(self, high: int | None) -> int:
-        """The upper end of a draw truncated at high."""
-        return self.high if high is None else min(high, self.high)
+    def _truncate(self, low: int | None, high: int | None) -> tuple[int, int]:
+        """The ends of a draw truncated to [low, high]."""
+        bottom = self.low if low is None else max(low, self.low)
+        top = self.high if high is None else min(high, self.high)
+        return bottom, top
 
 
 @pydantic_dataclass(frozen=True)
@@ -82,8 +85,11 @@ class UniformInt(_Interval):
     low: int
     high: int
 
-    def draw(self, rng: np.random.Generator, high: int | None = None) -> int:
-        return int(rng.integers(self.low, self._truncate(high), endpoint=True))
+    def draw(
+        self, rng: np.random.Generator, low: int | None = None, high: int | None = None
+    ) -> int:
+        bottom, top = self._truncate(low, high)
+        return int(rng.integers(bottom, top, endpoint=True))
 
 
 @pydantic_dataclass(frozen=True)
@@ -91,11 +97,13 @@ class LogUniformInt(_Interval):
     low: PositiveInt  # its logarithm is drawn
     high: int
 
-    def draw(self, rng: np.random.Generator, high: int | None = None) -> int:
-        # the floor of a log-uniform on [low, top + 1) gives each integer k the mass log(1 + 1/k);
+    def draw(
+        self, rng: np.random.Generator, low: int | None = None, high: int | None = None
+    ) -> int:
+        # the floor of a log-uniform on [bottom, top + 1) gives each integer k the mass log(1 + 1/k);
         # min catches exp rounding up onto top + 1
-        top = self._truncate(high)
-        value = math.exp(rng.uniform(math.log(self.low), math.log(top + 1)))
+        bottom, top = self._truncate(low, high)
+        value = math.exp(rng.uniform(math.log(bottom), math.log(top + 1)))
         return min(math.floor(value), top)
 
 
@@ -323,6 +331,17 @@ class Hyperprior(BaseModel):
     def categories(cls, field: str) -> list[str]:
         return list(cls.model_fields[field].default.alpha)
 
+    @model_validator(mode='after')
+    def _checkGroupsCanNest(self) -> Hyperprior:
+        """A point gives every factor one count, and a coarser factor needs fewer than the finer."""
+        can_nest = self._support(self.factors)[1] >= 2 and self._support(self.nested_share)[1] > 0
+        if isinstance(self.groups, int) and can_nest:
+            raise ValueError(
+                f'groups = {self.groups} cannot nest: set nested_share = 0, '
+                'factors to at most 1, or give groups a range'
+            )
+        return self
+
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
         """Resolves each field drawn once per dataset."""
         points = {}
@@ -335,16 +354,27 @@ class Hyperprior(BaseModel):
                 points[name] = self.resolveField(name, rng)
         return Hyperprior(**points)
 
-    def resolveField(self, field: str, rng: np.random.Generator, high: int | None = None) -> Any:
+    def resolveField(
+        self, field: str, rng: np.random.Generator, low: int | None = None, high: int | None = None
+    ) -> Any:
         value = getattr(self, field)
-        if high is not None:
-            self._checkBound(field, value, high)
+        bounded = low is not None or high is not None
+        if bounded:
+            self._checkBounds(field, value, low, high)
         if isinstance(value, Distribution):
-            value = value.draw(rng) if high is None else value.draw(rng, high)
+            value = value.draw(rng, low, high) if bounded else value.draw(rng)
         return value
 
     @staticmethod
-    def _checkBound(field: str, value: Integer, high: int) -> None:
-        low = value.low if isinstance(value, Distribution) else value
-        if low > high:
+    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
+        smallest, largest = Hyperprior._support(value)
+        if high is not None and smallest > high:
             raise ValueError(f'{field} = {value} lies above its bound {high}')
+        top = largest if high is None else min(largest, high)
+        if low is not None and low > top:
+            raise ValueError(f'{field} = {value} has no value from its floor {low} to {top}')
+
+    @staticmethod
+    def _support(value: float | Distribution) -> tuple[float, float]:
+        """The smallest and largest value a field can take, a point's own."""
+        return value.support() if isinstance(value, Distribution) else (value, value)
