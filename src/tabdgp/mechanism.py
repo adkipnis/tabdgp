@@ -64,7 +64,8 @@ def _mapParents(
     for _ in range(layers):
         fan_in = hidden.shape[1]
         scale = graph.init_scale[j] / fan_in**0.5
-        weights = scale * rng.standard_normal((fan_in, resolved.hidden), dtype=np.float32)
+        normal = rng.standard_normal((fan_in, resolved.hidden), dtype=np.float32)
+        weights = scale * normal  # (fan_in, hidden)
         # a bias per neuron moves the activation off the parents' mean, after scamd's RandomScale
         bias = rng.standard_normal(resolved.hidden, dtype=np.float32)  # (hidden,)
         hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (m, hidden)
@@ -109,13 +110,13 @@ def _runMechanism(
     noise scale and the group share are shares of variance over j's unit.
     """
     to = graph.unit[j]
-    noise = rng.standard_normal(_countElements(at, grouping, resolved), dtype=np.float32)  # (m,)
+    m = _countElements(at, grouping, resolved)
+    noise = rng.standard_normal(m, dtype=np.float32)  # (m,)
     noise = grouping.broadcast(noise, at, to)
     if not parents:  # a root is its noise
         return _zscore(noise)
-    hidden = np.stack(
-        [grouping.broadcast(nodes[graph.names[i]], graph.unit[i], at) for i in parents], axis=1
-    )  # (m, p)
+    parent_values = [grouping.broadcast(nodes[graph.names[i]], graph.unit[i], at) for i in parents]
+    hidden = np.stack(parent_values, axis=1)  # (m, p)
     output = _mapParents(hidden, j, graph, resolved, rng)  # (m,)
     output = grouping.broadcast(output, at, to)
     # noise scale is relative to the z-scored output
