@@ -12,11 +12,14 @@ TabDGP simulates tabular datasets from a random structural causal model (SCM) an
 reproduce the quirks of real data. Each table comes with the graph and the settings that
 generated it.
 
-> **Alpha.** Release 0.1 draws flat tables from defaults that are round guesses; the rest is
-> planned below. Before 1.0, a release may change the dataset a key draws.
+> **Alpha.** Release 0.2 draws grouped and flat tables from defaults that are round guesses;
+> the rest is planned below. Before 1.0, a release may change the dataset a key draws.
 
 ## Highlights
 
+- **Grouped or flat.** One to three grouping factors by default, nested or crossed, with 2 to
+  400 groups each. A covariate varies by row or is constant within the groups of one factor.
+  `Hyperprior.flat()` draws none.
 - **White-box.** Each dataset carries its graph, latent nodes, column metadata and hyperparameters.
 - **Reproducible.** A dataset is a pure function of its key (a seed and an index) and the
   hyperprior, whatever batch or worker draws it.
@@ -55,11 +58,11 @@ x4 binary row [0 1 0]
 
 ## Planned
 
-- **Grouping factors**, with group-level and within-group covariates, time and treatment.
 - **Quirk axes:** group confounding, rare levels, ties, bounds, near dependence and more.
-- **Matched defaults**, fitted to [mixedbench](https://github.com/adkipnis/mixedbench)'s real
-  grouped tables, then widened.
-- **An outcome node**, optional, for white-box misspecified datasets.
+- **Matched defaults**, fitted to and checked against
+  [mixedbench](https://github.com/adkipnis/mixedbench)'s real grouped tables, then widened.
+- **An outcome node**, optional, for white-box misspecified datasets, with within-group time and
+  a binary treatment.
 
 ## Learn more
 
