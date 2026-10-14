@@ -271,6 +271,18 @@ def test_two_crossed_factors_codes_are_independent() -> None:
     np.testing.assert_allclose(cells, expected, rtol=0.05)
 
 
+def _nestsIn(grouping: Grouping) -> list[str | None]:
+    return [column.nests_in for column in grouping.metadata.values()]
+
+
+def test_nested_share_1_gives_a_chain_and_0_crossed_factors_only() -> None:
+    """nested_share is the probability that a factor nests in the previous one,
+    so its ends give one chain and no nesting at all.
+    """
+    assert _nestsIn(_assign(0, factors=3, nested_share=1)) == [None, 'g0', 'g1']
+    assert _nestsIn(_assign(0, factors=3, nested_share=0)) == [None, None, None]
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
