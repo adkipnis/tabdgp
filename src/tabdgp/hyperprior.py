@@ -6,7 +6,8 @@ We save hyperparameters as fields of the Hyperprior class.
 - A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
 - A draw resolves every field to a point;
   the fields that shape a single column, node or grouping factor are resolved in a second step.
-- A count bounded by another field is drawn from its distribution truncated to its bounds.
+- Some counts are limited by another field's value (design_columns and groups by rows):
+  they are drawn only from the values within that limit.
 
 pipeline:
 ---------
@@ -212,11 +213,16 @@ class Hyperprior(BaseModel):
       A column with levels takes one of K levels in each row.
       Due to dummy-encoding, it takes K − 1 columns in the design matrix.
     - Grouping: a grouping factor assigns every row to one of its G groups.
-      A table has none (flat), one or multiple grouping factors;
-      each after the first nests in the previous one or is crossed with all earlier ones.
+      A table has none (flat), one or multiple grouping factors.
+      Each factor after the first either nests in the one before it (classes in schools)
+      or is crossed with all before it (patients and doctors).
+      Factors nested in one another form a chain, coarsest first.
+      A factor's depth is the number of factors above it in its chain,
+      and each factor in a chain has more groups than the one above it.
       A factor's groups are equally large or have Dirichlet-distributed sizes.
-      A node is constant within groups (varying accross groups) or it varies within groups;
-      the group share of a within-group node is its share of the between groups variance.
+      A node is constant within the groups of one factor (group-level) or varies within them;
+      a within-group node mixes a part shared by all rows of a group and a part of its own row,
+      and its group share is how much of its variance comes from the shared part.
     - Graph: each column is an observed node of a directed acyclic graph (DAG).
       Latent nodes may affect observed nodes but have no columns assigned to them.
       Each possible edge has its own probability. It rises with the graph's overall density,
@@ -274,8 +280,8 @@ class Hyperprior(BaseModel):
     balanced_share: Share = 1 / 3  # probability that a factor's groups are of equal size
     size_alpha: Positive = LogUniform(0.5, 500)  # Dirichlet concentration of unequal sizes
     nested_share: Share = Uniform(0.2, 0.6)  # probability that a factor nests in the previous one
-    group_level_share: Share = Beta(2, 4)  # probability that a node is group-level
-    group_share: Share = Beta(0.5, 2)  # a within-group node's variance share between groups
+    group_level_share: Share = Beta(2, 4)  # probability that a node is constant within groups
+    group_share: Share = Beta(0.5, 2)  # share of a within-group node's variance due to its group
 
     # graph
     latent_nodes: Count = UniformInt(0, 9)
