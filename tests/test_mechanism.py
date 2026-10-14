@@ -192,6 +192,29 @@ def test_every_node_is_z_scored_at_its_unit_and_has_its_units_length() -> None:
             np.testing.assert_allclose(values.std(), 1, atol=1e-5)
 
 
+def _nodes(
+    graph: Graph, n: int, grouping: Grouping, seed: int = 0, **overrides: object
+) -> dict[str, np.ndarray]:
+    """Node values over a hand-built grouped graph, each at its unit."""
+    rng = np.random.default_rng(seed)
+    resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
+    return propagate(graph, resolved, grouping, rng)
+
+
+def test_a_group_level_nodes_parents_are_read_at_its_unit() -> None:
+    """A node at the finer factor of a chain reads a parent at the coarser one as the coarser
+    group's value of each finer group, so a linear child at low noise follows it there.
+    """
+    grouping = _balanced(600, [20, 60], nests_in=[None, 'g0'])
+    # x2 is a root at g0's unit, x3 its linear child at g1's
+    graph = graphOf([[], [], [], [2]], unit=['g0', 'g1', 'g0', 'g1'], noise_scale=0.01)
+    for seed in range(10):
+        nodes = _nodes(graph, 600, grouping, seed)
+        parent = grouping.broadcast(nodes['x2'], 'g0', 'g1')  # (60,)
+        assert nodes['x3'].shape == (60,)
+        assert abs(np.corrcoef(parent, nodes['x3'])[0, 1]) > 0.99
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
