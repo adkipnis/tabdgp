@@ -123,15 +123,13 @@ class Graph:
 # =====================================================================================
 
 
-def _sampleUnits(
-    resolved: Hyperprior, factors: int, nodes: int, rng: np.random.Generator
-) -> np.ndarray:
-    """(nodes,) each node's unit, an index into the factors with the row last, at index factors."""
-    if factors == 0:
+def _sampleUnits(resolved: Hyperprior, f: int, nodes: int, rng: np.random.Generator) -> np.ndarray:
+    """(nodes,) each node's unit as an index into the f factors, f for the row."""
+    if f == 0:
         return np.zeros(nodes, dtype=np.int64)  # a flat table draws nothing
     group_level = rng.random(nodes) < resolved.group_level_share  # (nodes,)
-    factor = rng.integers(factors, size=nodes)  # (nodes,), uniform among the factors
-    return np.where(group_level, factor, factors)
+    factor = rng.integers(f, size=nodes)  # (nodes,), uniform among the factors
+    return np.where(group_level, factor, f)
 
 
 def _keepEveryLevel(unit: np.ndarray, columns: list[Column], grouping: Grouping) -> np.ndarray:
