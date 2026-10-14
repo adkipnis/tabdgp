@@ -32,6 +32,24 @@ def test_the_defaults_validate() -> None:
     Hyperprior()
 
 
+GROUPING_DEFAULTS = {
+    'factors': UniformInt(1, 3),
+    'groups': LogUniformInt(2, 400),
+    'balanced_share': 1 / 3,
+    'size_alpha': LogUniform(0.5, 500),
+    'nested_share': Uniform(0.2, 0.6),
+    'group_level_share': Beta(2, 4),
+    'group_share': Beta(0.5, 2),
+}
+
+
+def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
+    """ADR 0004's table: what the proofs certify and metabeta trains on."""
+    hyperprior = Hyperprior()
+    defaults = {field: getattr(hyperprior, field) for field in GROUPING_DEFAULTS}
+    assert defaults == GROUPING_DEFAULTS
+
+
 def test_a_point_override_resolves_to_itself() -> None:
     """metabeta passes its sizes as points; resolveDataset must hand them back untouched."""
     shares = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
