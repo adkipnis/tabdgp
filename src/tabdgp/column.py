@@ -91,6 +91,7 @@ class Grouping:
     codes: dict[str, np.ndarray]  # (n,) int64 each, every row's group
 
     def traceChain(self, unit: str) -> list[str]:
+        """The units a node at this unit may read, coarsest first."""
         if unit == 'row':
             return [*self.metadata, 'row']
         chain = [unit]
