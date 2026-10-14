@@ -52,7 +52,8 @@ _Avoid_: feature, variable unqualified, neuron (of an MLP)
 A root node whose values assign every row to one of its G groups, in metabeta's words "a
 categorical variable whose levels index random effects"; a dataset has none (a flat table),
 one or several. Two grouping factors are **crossed** when their groups combine freely and
-**nested** when each group of the finer one lies within one group of the coarser.
+**nested** when each group of the finer one lies within one group of the coarser, which has
+fewer groups.
 _Avoid_: factor alone (a categorical column), cluster, subject (one kind of grouping factor),
 random-effects term
 
