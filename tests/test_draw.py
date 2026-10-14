@@ -236,3 +236,17 @@ def test_every_array_has_length_n() -> None:
         dataset = draw(0, index, hyperprior)
         for array in [*dataset.columns.values(), *dataset.latent.values()]:
             assert array.shape == (80,)
+
+
+def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() -> None:
+    """metabeta indexes a random effect by the codes; a missing group would give an empty one."""
+    for index in range(20):
+        dataset = draw(0, index, Hyperprior.grouped(factors=3))
+        factors = [
+            name for name, column in dataset.metadata.items() if column.role == 'grouping factor'
+        ]
+        assert factors == ['g0', 'g1', 'g2']
+        for name in factors:
+            codes = dataset.columns[name]
+            assert codes.dtype == np.int64
+            assert np.array_equal(np.unique(codes), np.arange(dataset.metadata[name].levels))
