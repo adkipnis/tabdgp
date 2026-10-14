@@ -191,6 +191,12 @@ def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int)
     assert resolved.design_columns <= rows // 2
 
 
+def test_rows_precedes_design_columns_in_field_order() -> None:
+    """resolveDataset resolves in field order and bounds design_columns by the resolved rows."""
+    fields = list(Hyperprior.model_fields)
+    assert fields.index('rows') < fields.index('design_columns')
+
+
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
     """A dataset is a pure function of its key, so the same generator gives the same points."""
     hyperprior = Hyperprior()
