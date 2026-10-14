@@ -56,7 +56,7 @@ def _isConstant(x: np.ndarray) -> bool:
 def _mapParents(
     hidden: np.ndarray, j: int, graph: Graph, resolved: Hyperprior, rng: np.random.Generator
 ) -> np.ndarray:
-    """(m,) node j's family over its parents' values hidden (m, p), with fresh weights."""
+    """Node j's family over its parents' values, with fresh weights."""
     layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
     # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
     # (LeCun et al. 1998)
@@ -72,8 +72,8 @@ def _mapParents(
     # the readout's scale vanishes in the z-score that follows; only the relative weights count
     readout = rng.standard_normal(hidden.shape[1], dtype=np.float32)  # (hidden,) or (p,)
     if constant:  # a matrix product may since have spread it over the last bits
-        return np.zeros(len(hidden), dtype=np.float32)
-    return hidden @ readout
+        return np.zeros(len(hidden), dtype=np.float32)  # (m,)
+    return hidden @ readout  # (m,)
 
 
 def _zscore(x: np.ndarray) -> np.ndarray:
@@ -131,7 +131,7 @@ def _mix(
     resolved: Hyperprior,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """(n,) the two-part mechanism of row-unit node j: z(sqrt(s) · group + sqrt(1 − s) · row).
+    """The two-part mechanism of row-unit node j: z(sqrt(s) · group + sqrt(1 − s) · row).
 
     The group part draws before the row part; this order is fixed.
     """
@@ -142,7 +142,7 @@ def _mix(
     group = _runMechanism(group_parents, j, factor, nodes, graph, grouping, resolved, rng)  # (n,)
     row = _runMechanism(row_parents, j, 'row', nodes, graph, grouping, resolved, rng)  # (n,)
     share = graph.group_share[j]
-    return _zscore(math.sqrt(share) * group + math.sqrt(1 - share) * row)
+    return _zscore(math.sqrt(share) * group + math.sqrt(1 - share) * row)  # (n,)
 
 
 def propagate(
