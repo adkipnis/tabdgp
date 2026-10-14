@@ -11,7 +11,7 @@ from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import ColumnType, assign
-from tabdgp.graph import Activation, Mechanism
+from tabdgp.graph import Activation, Graph, Mechanism
 from tabdgp.hyperprior import (
     MARGINAL_FIELDS,
     Beta,
@@ -410,6 +410,12 @@ def test_the_fields_drawn_per_factor_are_exactly_those_a_factor_column_records()
     for column in assign(resolved, rng).metadata.values():
         recorded.update(column.parameters)
     assert recorded == set(Hyperprior.PER_FACTOR)
+
+
+def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None:
+    """A field drawn per node that the graph does not record would silently stay a distribution."""
+    recorded = set(Graph.__dataclass_fields__) & set(Hyperprior.model_fields)
+    assert recorded == set(Hyperprior.PER_NODE)
 
 
 CATALOGUES = [
