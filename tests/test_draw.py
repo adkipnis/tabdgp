@@ -297,8 +297,8 @@ def test_the_dataset_carries_the_installed_numpy_version() -> None:
 
 
 def test_every_array_has_length_n() -> None:
-    """A group-level column or latent node is computed at G values; the dataset returns every
-    array broadcast to the rows, so a consumer stacks them without looking at the units.
+    """A group-level column or latent node has one value per group until draw copies it to the rows,
+    so a consumer stacks every array without looking at the units.
     """
     hyperprior = Hyperprior.grouped(rows=80, group_level_share=0.8, latent_nodes=3)
     for index in range(20):
