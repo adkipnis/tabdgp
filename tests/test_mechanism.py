@@ -17,17 +17,55 @@ OBSERVED = list('abcdefhijklm')  # no g, a grouping factor's prefix
 FLAT = groupingOf([])
 
 
+def _balanced(n: int, groups: list[int], nests_in: list[str | None] | None = None) -> Grouping:
+    """A grouping of n rows with balanced groups, each crossed factor's codes a random
+    permutation and a nested factor's groups splitting each coarser group evenly.
+    """
+    if nests_in is None:
+        nests_in = [None] * len(groups)
+    rng = np.random.default_rng(len(groups))
+    codes = []
+    for groups_of_k, nests_in_of_k in zip(groups, nests_in):
+        if nests_in_of_k is None:
+            codes.append(rng.permutation(n) % groups_of_k)
+            continue
+        coarser = codes[int(nests_in_of_k[1:])]  # (n,)
+        ratio = groups_of_k // (coarser.max() + 1)  # finer groups per coarser group
+        finer = np.zeros(n, dtype=np.int64)  # (n,)
+        for group in range(coarser.max() + 1):
+            rows = np.flatnonzero(coarser == group)
+            finer[rows] = group * ratio + np.arange(len(rows)) % ratio
+        codes.append(finer)
+    return groupingOf([codes_of_k.tolist() for codes_of_k in codes], nests_in)
+
+
+def _size(grouping: Grouping, unit: str, n: int) -> int:
+    return n if unit == 'row' else grouping.metadata[unit].levels
+
+
+# g1 nests in g0 and g2 is crossed with both
+GROUPED = _balanced(1000, [20, 60, 15], nests_in=[None, 'g0', None])
+GROUPINGS = [pytest.param(FLAT, id='flat'), pytest.param(GROUPED, id='grouped')]
+
+
 def _matrix(nodes: dict[str, np.ndarray]) -> np.ndarray:
     """(n, d): the nodes side by side in the graph's order."""
     return np.stack(list(nodes.values()), axis=1)
 
 
-def _propagate(seed: int, observed_nodes: int, n: int, **overrides: object) -> np.ndarray:
-    """Node values over a graph drawn by connect, as one matrix."""
+def _propagateOver(
+    grouping: Grouping, seed: int, observed_nodes: int, n: int, **overrides: object
+) -> dict[str, np.ndarray]:
+    """Node values over a graph drawn by connect on the grouping, each at its unit."""
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
-    graph = connect(resolved, FLAT, OBSERVED[:observed_nodes], rng)
-    return _matrix(propagate(graph, resolved, FLAT, rng))
+    graph = connect(resolved, grouping, OBSERVED[:observed_nodes], rng)
+    return propagate(graph, resolved, grouping, rng)
+
+
+def _propagate(seed: int, observed_nodes: int, n: int, **overrides: object) -> np.ndarray:
+    """Node values over a flat graph drawn by connect, as one matrix."""
+    return _matrix(_propagateOver(FLAT, seed, observed_nodes, n, **overrides))
 
 
 def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
@@ -122,8 +160,10 @@ def test_a_deep_mlp_at_a_small_init_scale_never_goes_constant() -> None:
         assert values[:, 1].std() > 0
 
 
-def test_values_are_finite_for_every_family() -> None:
-    """No family may overflow or divide by zero, even at the widest, deepest and steepest MLP.
+@pytest.mark.parametrize('grouping', GROUPINGS)
+def test_values_are_finite_for_every_family(grouping: Grouping) -> None:
+    """No family may overflow or divide by zero, even at the widest, deepest and steepest MLP,
+    at a factor's unit or mixed from two parts.
 
     scamd zeroed its non-finite values and so hid them.
     """
@@ -133,43 +173,22 @@ def test_values_are_finite_for_every_family() -> None:
             shares = {
                 'activation_shares': point('activation_shares', activation),
                 'mechanism_shares': point('mechanism_shares', family),
+                'group_level_share': 0.5,
             }
             for seed in range(5):
-                values = _propagate(seed, 12, 1000, edge_offset=2.0, **steep, **shares)
-                assert np.isfinite(values).all()
+                nodes = _propagateOver(grouping, seed, 12, 1000, edge_offset=2.0, **steep, **shares)
+                for values in nodes.values():
+                    assert np.isfinite(values).all()
 
 
-def test_propagate_is_deterministic_under_a_fixed_generator() -> None:
+@pytest.mark.parametrize('grouping', GROUPINGS)
+def test_propagate_is_deterministic_under_a_fixed_generator(grouping: Grouping) -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
-    first = _propagate(7, 9, 300)
-    second = _propagate(7, 9, 300)
-    assert np.array_equal(first, second)
-
-
-def _balanced(n: int, groups: list[int], nests_in: list[str | None] | None = None) -> Grouping:
-    """A grouping of n rows with balanced groups, each crossed factor's codes a random
-    permutation and a nested factor's groups splitting each coarser group evenly.
-    """
-    if nests_in is None:
-        nests_in = [None] * len(groups)
-    rng = np.random.default_rng(len(groups))
-    codes = []
-    for groups_of_k, nests_in_of_k in zip(groups, nests_in):
-        if nests_in_of_k is None:
-            codes.append(rng.permutation(n) % groups_of_k)
-            continue
-        coarser = codes[int(nests_in_of_k[1:])]  # (n,)
-        ratio = groups_of_k // (coarser.max() + 1)  # finer groups per coarser group
-        finer = np.zeros(n, dtype=np.int64)  # (n,)
-        for group in range(coarser.max() + 1):
-            rows = np.flatnonzero(coarser == group)
-            finer[rows] = group * ratio + np.arange(len(rows)) % ratio
-        codes.append(finer)
-    return groupingOf([codes_of_k.tolist() for codes_of_k in codes], nests_in)
-
-
-def _size(grouping: Grouping, unit: str, n: int) -> int:
-    return n if unit == 'row' else grouping.metadata[unit].levels
+    first = _propagateOver(grouping, 7, 9, 1000, group_level_share=0.5)
+    second = _propagateOver(grouping, 7, 9, 1000, group_level_share=0.5)
+    assert list(first) == list(second)
+    for name in first:
+        assert np.array_equal(first[name], second[name])
 
 
 def test_every_node_is_z_scored_at_its_unit_and_has_its_units_length() -> None:
