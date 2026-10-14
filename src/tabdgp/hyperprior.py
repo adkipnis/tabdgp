@@ -366,7 +366,7 @@ class Hyperprior(BaseModel):
     @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
         """Checks that groups has enough values for the longest chain the fields allow:
-        its finest factor must reach its floor.
+        its bottom factor must reach its floor.
         """
         _, most_factors = self._support(self.factors)
         _, most_nested = self._support(self.nested_share)

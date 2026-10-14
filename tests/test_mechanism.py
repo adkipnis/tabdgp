@@ -19,7 +19,7 @@ FLAT = groupingOf([])
 
 def _balanced(n: int, groups: list[int], nests_in: list[str | None] | None = None) -> Grouping:
     """A grouping of n rows with balanced groups, each crossed factor's codes a random
-    permutation and a nested factor's groups splitting each coarser group evenly.
+    permutation and a nested factor's groups splitting each superior group evenly.
     """
     if nests_in is None:
         nests_in = [None] * len(groups)
@@ -29,13 +29,13 @@ def _balanced(n: int, groups: list[int], nests_in: list[str | None] | None = Non
         if nests_in_of_k is None:
             codes.append(rng.permutation(n) % groups_of_k)
             continue
-        coarser = codes[int(nests_in_of_k[1:])]  # (n,)
-        ratio = groups_of_k // (coarser.max() + 1)  # finer groups per coarser group
-        finer = np.zeros(n, dtype=np.int64)  # (n,)
-        for group in range(coarser.max() + 1):
-            rows = np.flatnonzero(coarser == group)
-            finer[rows] = group * ratio + np.arange(len(rows)) % ratio
-        codes.append(finer)
+        superior = codes[int(nests_in_of_k[1:])]  # (n,)
+        ratio = groups_of_k // (superior.max() + 1)  # subordinate groups per superior group
+        subordinate = np.zeros(n, dtype=np.int64)  # (n,)
+        for group in range(superior.max() + 1):
+            rows = np.flatnonzero(superior == group)
+            subordinate[rows] = group * ratio + np.arange(len(rows)) % ratio
+        codes.append(subordinate)
     return groupingOf([codes_of_k.tolist() for codes_of_k in codes], nests_in)
 
 
@@ -221,8 +221,9 @@ def _nodes(
 
 
 def test_a_group_level_nodes_parents_are_read_at_its_unit() -> None:
-    """A node at the finer factor of a chain reads a parent at the coarser one as the coarser
-    group's value of each finer group, so a linear child at low noise follows it there.
+    """A node at the subordinate factor of a chain reads a parent at the superior one
+    as the superior group's value of each subordinate group,
+    so a linear child at low noise follows it there.
     """
     grouping = _balanced(600, [20, 60], nests_in=[None, 'g0'])
     # x2 is a root at g0's unit, x3 its linear child at g1's

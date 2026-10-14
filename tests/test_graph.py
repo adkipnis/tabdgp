@@ -280,7 +280,7 @@ OUT_OF_ORDER = [
 @pytest.mark.parametrize('change', OUT_OF_ORDER)
 def test_units_out_of_order_fail(change: dict) -> None:
     """The factors, then their units in the factors' order, the row last:
-    a parent may be at the child's unit or a coarser one, so a coarser unit comes first.
+    a parent may be at the child's unit or a superior one, so a superior unit comes first.
     """
     with pytest.raises(ValidationError):
         Graph(**GROUPED | change)
@@ -330,7 +330,7 @@ def _ranks(graph: Graph) -> list[int]:
 
 
 def test_g_nodes_come_first_then_the_units_in_index_order_and_the_row_last() -> None:
-    """A parent is at its child's unit or a coarser one, so the coarser units come first;
+    """A parent is at its child's unit or a superior one, so the superior units come first;
     crossed units have no order between them and take the factors' fixed one.
     """
     units_seen = set()
@@ -361,7 +361,7 @@ def test_latent_nodes_precede_observed_ones_within_a_unit() -> None:
         assert latent_names == ['z0', 'z1', 'z2', 'z3']
 
 
-# (child's unit, parent's unit) for GROUPING: a child reads its unit and the coarser ones of its
+# (child's unit, parent's unit) for GROUPING: a child reads its unit and the superior ones of its
 # chain; g2 is crossed, so neither reads the other's, and the row reads every unit
 READS = {
     ('g0', 'g0'),

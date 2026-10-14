@@ -40,7 +40,7 @@ class Graph:
     - A grouping factor comes first, without edges, at its own unit: its values are its codes.
     - Every other node is at a unit, a factor's or the row: the units in the factors' order,
       the row last, latent before observed within a unit.
-      A node reads parents at its unit or a coarser one of its chain,
+      A node reads parents at its unit or a superior one of its chain,
       so a latent row-unit node may have an observed group-level parent.
     - A root (a node without parents) is just its noise and draws no family or scale.
     - A linear node draws a noise scale.
@@ -192,7 +192,7 @@ def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.n
 def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.ndarray:
     f = len(grouping.metadata)
     units = grouping.traceChain('row')
-    # a child reads a parent at its own unit or a coarser one of its chain
+    # a child reads a parent at its own unit or a superior one of its chain
     reads = np.array(
         [[parent in grouping.traceChain(child) for parent in units] for child in units]
     )  # (f + 1, f + 1), [child's unit, parent's unit]

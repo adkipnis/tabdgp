@@ -146,7 +146,7 @@ def test_every_override_is_honoured(
     """
     # a point above its bound fails instead: rows ≥ 2d, G ≤ n and a chain of L factors in L + 1 rows
     assume(rows >= max(2 * design_columns, groups, factors + 1))
-    assume(groups >= factors + 1)  # the finest factor of a chain of L needs L + 1 groups
+    assume(groups >= factors + 1)  # the bottom factor of a chain of L needs L + 1 groups
     hyperprior = Hyperprior.grouped(
         rows=rows,
         design_columns=design_columns,

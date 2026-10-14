@@ -160,7 +160,7 @@ def test_nests_in_on_a_covariate_fails() -> None:
 def test_chain_follows_the_nesting_on_a_hand_built_grouping() -> None:
     """A node may read the units of its chain: g2 nests in g1, g1 in g0, g3 is crossed with all.
 
-    The row is finer than every factor, so its chain holds them all.
+    The row is subordinate to every factor, so its chain holds them all.
     """
     grouping = groupingOf(
         [[0, 0, 1, 1], [0, 1, 2, 2], [0, 1, 2, 3], [0, 1, 0, 1]],
@@ -181,8 +181,8 @@ NESTED = groupingOf(
 
 
 def test_broadcast_repeats_a_units_values_over_its_rows_on_a_hand_built_grouping() -> None:
-    """A group's value is shared by its rows and by the finer groups within it,
-    so a node is read at the row or at a finer unit of its chain.
+    """A group's value is shared by its rows and by the subordinate groups within it,
+    so a node is read at the row or at a subordinate unit of its chain.
     """
     at_g0 = np.array([10.0, 20.0])
     np.testing.assert_array_equal(NESTED.broadcast(at_g0, 'g0', 'g0'), [10, 20])
@@ -196,7 +196,7 @@ def test_broadcast_repeats_a_units_values_over_its_rows_on_a_hand_built_grouping
 
 OFF_CHAIN = [
     pytest.param('g2', 'g1', id='between crossed factors'),
-    pytest.param('g1', 'g0', id='from a finer factor to a coarser one'),
+    pytest.param('g1', 'g0', id='from a subordinate factor to a superior one'),
     pytest.param('row', 'g0', id='from the row to a factor'),
 ]
 
@@ -313,21 +313,24 @@ def test_nested_share_1_gives_a_chain_and_0_crossed_factors_only() -> None:
     assert _nestsIn(_assign(0, factors=3, nested_share=0)) == [None, None, None]
 
 
-def test_each_group_of_a_nested_factor_lies_in_one_coarser_group() -> None:
+def test_each_group_of_a_nested_factor_lies_in_one_superior_group() -> None:
     """Nesting holds in the codes, not only in the column's claim:
-    a finer group meets exactly one coarser group, so the pairs of codes are as many as its groups.
+    a subordinate group meets exactly one superior group,
+    so the pairs of codes are as many as its groups.
     """
     for seed in range(20):
         grouping = _assign(seed, rows=500, factors=3, nested_share=1)
-        for finer, coarser in [('g1', 'g0'), ('g2', 'g1')]:
-            pairs = set(zip(grouping.codes[finer].tolist(), grouping.codes[coarser].tolist()))
-            assert len(pairs) == grouping.metadata[finer].levels
+        for subordinate, superior in [('g1', 'g0'), ('g2', 'g1')]:
+            pairs = set(
+                zip(grouping.codes[subordinate].tolist(), grouping.codes[superior].tolist())
+            )
+            assert len(pairs) == grouping.metadata[subordinate].levels
 
 
 @pytest.mark.parametrize('rows', [4, 6, 100])
-def test_a_coarser_factor_has_fewer_groups_than_the_finer_one(rows: int) -> None:
-    """Equal counts would put one finer group in each coarser one: one partition relabelled,
-    two random effects no model tells apart (ADR 0004, amended).
+def test_a_superior_factor_has_fewer_groups_than_its_subordinate_one(rows: int) -> None:
+    """Equal counts would put one subordinate group in each superior one:
+    one partition relabelled, two random effects no model tells apart (ADR 0004, amended).
     Every factor keeps 2 groups, so 4 rows are the fewest a chain of three fits in.
     """
     for seed in range(50):
@@ -337,8 +340,9 @@ def test_a_coarser_factor_has_fewer_groups_than_the_finer_one(rows: int) -> None
 
 
 def test_a_chain_fits_under_a_groups_range_that_starts_above_2() -> None:
-    """Every coarser factor needs the range's lowest count, not 2, so each finer one keeps room
-    for the ones above it: a floor of 2 plus the depth left the coarsest no count on some keys.
+    """Every superior factor needs the range's lowest count, not 2,
+    so each subordinate one keeps room for the ones above it:
+    a floor of 2 plus the depth left the top factor no count on some keys.
     """
     for seed in range(200):
         grouping = _assign(seed, rows=2000, factors=3, nested_share=1, groups=UniformInt(10, 400))

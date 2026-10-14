@@ -3,7 +3,7 @@
 pipeline:
 ---------
 resolved sizes, shares and budget
--> per factor (top down), how many coarser factors it nests in   _nestFactors
+-> per factor (top down), how many factors it nests in           _nestFactors
 -> per factor (bottom up), its G groups, their sizes and codes   _sampleSizes, assign
 -> per column, its type, K and own parameters                    _resolveColumn
 -> one named column after another until the budget is met        plan
@@ -91,33 +91,33 @@ class Grouping:
     codes: dict[str, np.ndarray]  # (n,) int64 each, every row's group
 
     def traceChain(self, unit: str) -> list[str]:
-        """The units a node at this unit may read, coarsest first."""
+        """The units a node at this unit may read, superior first."""
         if unit == 'row':
             return [*self.metadata, 'row']
         chain = [unit]
-        coarser = self.metadata[unit].nests_in
-        while coarser is not None:
-            chain = [coarser, *chain]
-            coarser = self.metadata[coarser].nests_in
+        superior = self.metadata[unit].nests_in
+        while superior is not None:
+            chain = [superior, *chain]
+            superior = self.metadata[superior].nests_in
         return chain
 
     def broadcast(self, values: np.ndarray, from_unit: str, to_unit: str) -> np.ndarray:
-        """Copies each group's value at from_unit to every row or finer group within it."""
+        """Copies each group's value at from_unit to every row or subordinate group within it."""
         if from_unit not in self.traceChain(to_unit):
             raise ValueError(f'{from_unit} is not in the chain of {to_unit}')
         if from_unit == to_unit:
             return values
-        coarser = self.codes[from_unit]  # (n,)
+        superior = self.codes[from_unit]  # (n,)
         if to_unit == 'row':
-            return values[coarser]
-        # every row of a finer group carries its superior group's code, so any row's will do
-        coarser_of = np.empty(self.metadata[to_unit].levels, dtype=np.int64)  # (G,)
-        coarser_of[self.codes[to_unit]] = coarser
-        return values[coarser_of]
+            return values[superior]
+        # every row of a subordinate group carries its superior group's code, so any row's will do
+        superior_of = np.empty(self.metadata[to_unit].levels, dtype=np.int64)  # (G,)
+        superior_of[self.codes[to_unit]] = superior
+        return values[superior_of]
 
 
 def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
-    """Each factor's depth (the number of coarser factors it nests in)."""
+    """Each factor's depth (the number of factors superior to it)."""
     depths = []
     for k in range(resolved.factors):
         nested = k > 0 and rng.random() < resolved.nested_share
@@ -145,12 +145,12 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     """The grouping factors (g0, g1, ...), each row assigned to one group per factor."""
     depths = _nestFactors(resolved, rng)
     # what the next factor's groups split, each row's element among them, and its bound:
-    # the rows, each row its own element, unless a finer factor nests in it
+    # the rows, each row its own element, unless a subordinate factor nests in it
     unnested = resolved.rows, np.arange(resolved.rows), resolved.rows
     elements, element_of, high = unnested
     metadata = {}
     codes = {}
-    # bottom up, so that a coarser factor splits the groups of the finer one nested in it
+    # bottom up, so that a superior factor splits the groups of the subordinate one nested in it
     for k in reversed(range(len(depths))):
         name = f'g{k}'
         floor = resolved.floorGroups(depths[k])
@@ -171,7 +171,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
             elements, element_of, high = groups, codes[name], groups - 1
         else:
             elements, element_of, high = unnested
-    # in index order: coarser before finer along a chain
+    # in index order: superior before subordinate along a chain
     return Grouping(metadata=dict(reversed(metadata.items())), codes=dict(reversed(codes.items())))
 
 

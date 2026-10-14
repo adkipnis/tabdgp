@@ -139,7 +139,7 @@ def test_a_bounded_distribution_resolves_at_or_below_its_bound(
 def test_a_distribution_resolves_at_or_above_its_floor(
     distribution: type, low: int, width: int, floor: int, seed: int
 ) -> None:
-    """A factor keeps one group more for each coarser factor nested above it.
+    """A factor keeps one group more for each factor superior to it.
     A floor below the distribution's low leaves the low in force.
     """
     assume(floor <= low + width)
@@ -208,8 +208,9 @@ OUT_OF_REACH = [
 def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
     distribution: UniformInt | LogUniformInt, bound: int
 ) -> None:
-    """A chain of three factors needs 4 groups in its finest, which 3 rows cannot hold;
-    a draw below the floor would leave a coarser factor without its 2 groups.
+    """A chain of three factors needs 4 groups in its bottom factor,
+    which 3 rows cannot hold;
+    a draw below the floor would leave a superior factor without its 2 groups.
     """
     hyperprior = Hyperprior(groups=distribution, nested_share=0)
     with pytest.raises(ValueError, match=r'groups.*\b4\b'):
@@ -228,7 +229,8 @@ def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
 
 
 def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
-    """A point gives every factor one count, and a coarser factor needs fewer than the finer;
+    """A point gives every factor one count,
+    and a superior factor needs fewer than the subordinate one;
     failing at construction beats failing in the datasets that happen to draw a nesting.
     """
     with pytest.raises(ValidationError, match='nested_share'):
@@ -240,7 +242,7 @@ def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
 
 
 def test_a_groups_range_too_narrow_for_the_longest_chain_fails_at_construction() -> None:
-    """A chain of L factors needs L counts, each coarser one below the finer,
+    """A chain of L factors needs L counts, each superior one below the subordinate one,
     so a range of fewer values fails as a point does, not in the datasets that draw a chain.
     """
     with pytest.raises(ValidationError, match='nested_share'):
