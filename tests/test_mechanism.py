@@ -279,6 +279,19 @@ def test_the_between_group_share_over_rows_is_near_the_group_share_under_balance
         assert _betweenShare(nodes['x4'], grouping.codes['g0']) > share + 0.03
 
 
+def test_the_group_part_follows_a_group_level_parent_at_low_noise() -> None:
+    """A parent at the group factor's unit goes into the group part, which carries its signal
+    like item 1's mechanism: at share 1 and little noise, the child follows it over the rows.
+    """
+    grouping = _balanced(600, [20])
+    # x1 is a root at g0, x2 its linear child at the row
+    graph = graphOf([[], [], [1]], unit=['g0', 'g0', 'row'], group_share=1.0, noise_scale=0.01)
+    for seed in range(10):
+        nodes = _nodes(graph, 600, grouping, seed)
+        parent = grouping.broadcast(nodes['x1'], 'g0', 'row')  # (600,)
+        assert abs(np.corrcoef(parent, nodes['x2'])[0, 1]) > 0.99
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
