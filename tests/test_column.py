@@ -139,6 +139,15 @@ def test_a_marginal_on_a_grouping_factor_fails() -> None:
         Column(type='categorical', levels=3, role='grouping factor', marginal='normal')
 
 
+@pytest.mark.parametrize('parameters', [ALPHA, {'size_alpha': 1.0, 'beta_a': 2.0}], ids=str)
+def test_a_parameter_other_than_size_alpha_on_a_grouping_factor_fails(parameters: dict) -> None:
+    """A factor draws only its sizes, so its level concentration or a shape would be a claim
+    of a draw that played no part.
+    """
+    with pytest.raises(ValidationError, match='draws'):
+        Column(type='categorical', levels=3, role='grouping factor', parameters=parameters)
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
