@@ -292,6 +292,32 @@ def test_the_group_part_follows_a_group_level_parent_at_low_noise() -> None:
         assert abs(np.corrcoef(parent, nodes['x2'])[0, 1]) > 0.99
 
 
+def test_a_crossed_factors_parent_goes_into_the_row_part() -> None:
+    """A parent at a unit outside the group factor's chain cannot be read at that factor; it
+    goes into the row part, so the child follows it at share 0 and loses it at share 1,
+    where it is constant within the group factor's groups whatever the parent does.
+    """
+    grouping = _balanced(600, [20, 15])
+
+    # x2 is a root at g1, x3 its linear child at the row with the group factor g0
+    def _graph(share: float) -> Graph:
+        return graphOf(
+            [[], [], [], [2]],
+            unit=['g0', 'g1', 'g1', 'row'],
+            group_share=share,
+            group_factor='g0',
+            noise_scale=0.01,
+        )
+
+    for seed in range(10):
+        parent = grouping.broadcast(_nodes(_graph(0.0), 600, grouping, seed)['x2'], 'g1', 'row')
+        row_only = _nodes(_graph(0.0), 600, grouping, seed)['x3']
+        assert abs(np.corrcoef(parent, row_only)[0, 1]) > 0.99
+        group_only = _nodes(_graph(1.0), 600, grouping, seed)['x3']
+        assert _betweenShare(group_only, grouping.codes['g0']) == pytest.approx(1.0)
+        assert abs(np.corrcoef(parent, group_only)[0, 1]) < 0.2
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
