@@ -208,9 +208,9 @@ OUT_OF_REACH = [
 def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
     distribution: UniformInt | LogUniformInt, bound: int
 ) -> None:
-    """A chain of three factors needs 4 groups in its bottom factor,
-    which 3 rows cannot hold;
-    a draw below the floor would leave a superior factor without its 2 groups.
+    """The bottom factor of a chain of three needs the range's lowest count plus 2, here 4.
+    A bound of 3 or a range that stops at 3 cannot reach it,
+    and a draw below it would leave no count for a superior factor.
     """
     hyperprior = Hyperprior(groups=distribution, nested_share=0)
     with pytest.raises(ValueError, match=r'groups.*\b4\b'):
