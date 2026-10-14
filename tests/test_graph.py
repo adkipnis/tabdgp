@@ -558,13 +558,16 @@ def test_the_observed_names_are_a_random_permutation_of_the_plan() -> None:
     assert len(orders) > 1
 
 
-def test_connect_is_deterministic_under_a_fixed_generator() -> None:
+@pytest.mark.parametrize('grouping', [FLAT, GROUPING], ids=['flat', 'grouped'])
+def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
-    first, second = _connect(7, 9), _connect(7, 9)
+    first, second = _connect(7, 9, grouping), _connect(7, 9, grouping)
     assert first.names == second.names
     assert np.array_equal(first.parents, second.parents)
     assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
     assert (first.noise_scale, first.init_scale) == (second.noise_scale, second.init_scale)
+    assert (first.unit, first.group_share) == (second.unit, second.group_share)
+    assert first.group_factor == second.group_factor
 
 
 def _degreeSpread(hub_scale: float) -> float:
