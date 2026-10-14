@@ -3,7 +3,7 @@ and a preset.
 
 One generator is threaded through the steps in a fixed order; a change of that order changes
 every dataset, so it is a version change. Every value is computed at its node's unit and
-broadcast to the rows last, so no earlier step knows the broadcast.
+broadcast to the rows only in the last step.
 
 pipeline:
 ---------
@@ -49,8 +49,8 @@ class Dataset:
     columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, else int64 codes 0..K−1
     metadata: dict[str, Column]
     graph: Graph
-    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored
-    hyperparameters: Hyperprior  # resolved, except the fields each column or node draws
+    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored at its node's unit
+    hyperparameters: Hyperprior  # resolved, except the fields each column, node or factor draws
     seed: int  # the corpus
     index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version
