@@ -4,7 +4,6 @@ pipeline:
 ---------
 the resolved hyperprior, the grouping and the observed columns
 -> each node's unit                                                   _sampleUnits
--> the row for a column with more levels than its factor has groups   _keepEveryLevel
 -> names and units in topological order, the factors first            _orderNodes
 -> edges: Cauchy node terms and a block bonus                         _sampleEdges
 -> the edges a child may read                                         _maskEdges
