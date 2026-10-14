@@ -283,6 +283,17 @@ def test_nested_share_1_gives_a_chain_and_0_crossed_factors_only() -> None:
     assert _nestsIn(_assign(0, factors=3, nested_share=0)) == [None, None, None]
 
 
+def test_each_group_of_a_nested_factor_lies_in_one_coarser_group() -> None:
+    """Nesting holds in the codes, not only in the column's claim:
+    a finer group meets exactly one coarser group, so the pairs of codes are as many as its groups.
+    """
+    for seed in range(20):
+        grouping = _assign(seed, rows=500, factors=3, nested_share=1)
+        for finer, coarser in [('g1', 'g0'), ('g2', 'g1')]:
+            pairs = set(zip(grouping.codes[finer].tolist(), grouping.codes[coarser].tolist()))
+            assert len(pairs) == grouping.metadata[finer].levels
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
