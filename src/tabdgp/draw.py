@@ -8,15 +8,15 @@ broadcast to the rows only in the last step.
 pipeline:
 ---------
 the key and the hyperprior
--> one generator from the key                        default_rng
--> the resolved hyperprior                           Hyperprior.resolveDataset
--> the grouping factors, their codes and metadata    assign
--> the column plan                                   plan
--> the graph, each node at a unit of the grouping    connect
--> the node values, each at its unit                 propagate
--> the typed columns, joined to their nodes by name  apply
--> every column and latent node at the rows          Grouping.broadcast
--> the Dataset, the grouping factors first           draw
+-> one generator from the key                                    default_rng
+-> the resolved hyperprior                                       Hyperprior.resolveDataset
+-> the grouping factors, their codes and metadata                assign
+-> the column plan                                               plan
+-> the graph, each node at a unit of the grouping                connect
+-> the node values, each at its unit                             propagate
+-> the typed columns at the rows, joined to their nodes by name  _applyColumns
+-> the latent nodes at the rows                                  _broadcastLatent
+-> the Dataset, the grouping factors first                       draw
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import numpy as np
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.column import Column, apply, assign, plan
+from tabdgp.column import Column, Grouping, apply, assign, plan
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
@@ -62,6 +62,31 @@ class Dataset:
 # =====================================================================================
 
 
+def _applyColumns(
+    nodes: dict[str, np.ndarray],
+    metadata: dict[str, Column],
+    graph: Graph,
+    grouping: Grouping,
+    rng: np.random.Generator,
+) -> dict[str, np.ndarray]:
+    unit = dict(zip(graph.names, graph.unit))
+    columns = {}
+    for name, column in metadata.items():
+        values = apply(nodes[name], column, rng)  # placed at the node's unit, then broadcast
+        columns[name] = grouping.broadcast(values, unit[name], 'row')  # (n,)
+    return columns
+
+
+def _broadcastLatent(
+    nodes: dict[str, np.ndarray], graph: Graph, grouping: Grouping
+) -> dict[str, np.ndarray]:
+    latent = {}
+    for name, unit, is_latent in zip(graph.names, graph.unit, graph.latent):
+        if is_latent:
+            latent[name] = grouping.broadcast(nodes[name], unit, 'row')  # (n,)
+    return latent
+
+
 def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     rng = np.random.default_rng([seed, index])  # the key's generator
@@ -71,15 +96,8 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     metadata = plan(resolved, rng)
     graph = connect(resolved, grouping, metadata, rng)
     nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
-    unit = dict(zip(graph.names, graph.unit))
-    columns = {}
-    for name, column in metadata.items():
-        values = apply(nodes[name], column, rng)  # placed at the node's unit, then broadcast
-        columns[name] = grouping.broadcast(values, unit[name], 'row')
-    latent = {}
-    for name, is_latent in zip(graph.names, graph.latent):
-        if is_latent:
-            latent[name] = grouping.broadcast(nodes[name], unit[name], 'row')
+    columns = _applyColumns(nodes, metadata, graph, grouping, rng)
+    latent = _broadcastLatent(nodes, graph, grouping)
     return Dataset(
         columns={**grouping.codes, **columns},
         metadata={**grouping.metadata, **metadata},
