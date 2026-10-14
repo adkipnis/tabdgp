@@ -134,8 +134,8 @@ def _sampleUnits(
 
 def _orderNodes(
     resolved: Hyperprior, grouping: Grouping, observed: list[str], rng: np.random.Generator
-) -> tuple[list[str], list[str], np.ndarray]:
-    """The names, units and latent mask in topological order: the factors, then the other nodes
+) -> tuple[list[str], list[str]]:
+    """The names and units in topological order: the factors, then the other nodes
     by unit in the factors' order and the row last, latent before observed within a unit.
     """
     factors = list(grouping.metadata)
@@ -152,8 +152,7 @@ def _orderNodes(
     units = grouping.chain('row')
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
-    latent = np.concatenate([np.zeros(len(factors), dtype=bool), order < latent_nodes])  # (d,)
-    return names, unit, latent
+    return names, unit
 
 
 def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.ndarray:
@@ -225,7 +224,8 @@ def connect(
     resolved: Hyperprior, grouping: Grouping, observed: list[str], rng: np.random.Generator
 ) -> Graph:
     """The graph over the latent and observed nodes, and what each node draws for itself."""
-    names, unit, latent = _orderNodes(resolved, grouping, observed, rng)
+    names, unit = _orderNodes(resolved, grouping, observed, rng)
+    latent = np.array([name.startswith('z') for name in names], dtype=bool)  # (d,)
     edges = _sampleEdges(resolved, len(names), rng)  # (d, d)
     parents = _maskEdges(edges, unit, grouping)  # (d, d)
     mechanism, activation, noise_scale, init_scale = _resolveNodes(parents, resolved, rng)
