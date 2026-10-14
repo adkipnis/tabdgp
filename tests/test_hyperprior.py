@@ -173,6 +173,13 @@ def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_boun
         hyperprior.resolveField('groups', np.random.default_rng(0), high=7)
 
 
+@given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
+def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int) -> None:
+    """A table has at least two rows per design column (metabeta's rule 8, n ≥ 2d)."""
+    resolved = Hyperprior(rows=rows).resolveDataset(np.random.default_rng(seed))
+    assert resolved.design_columns <= rows // 2
+
+
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
     """A dataset is a pure function of its key, so the same generator gives the same points."""
     hyperprior = Hyperprior()
@@ -232,8 +239,10 @@ SUPPORTED = [
 def test_a_distribution_override_resolves_inside_its_support(
     field: str, distribution: type, low: int, width: int, seed: int
 ) -> None:
-    """Narrow integer ranges probe the log-uniform's floor at its upper end."""
-    hyperprior = Hyperprior(**{field: distribution(low, low + width)})
+    """Narrow integer ranges probe the log-uniform's floor at its upper end.
+    A budget of 0 admits every row count, a single row included.
+    """
+    hyperprior = Hyperprior(**{field: distribution(low, low + width)}, design_columns=0)
     resolved = hyperprior.resolveDataset(np.random.default_rng(seed))
     assert low <= getattr(resolved, field) <= low + width
 
