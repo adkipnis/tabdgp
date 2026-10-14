@@ -3,15 +3,20 @@
 We save hyperparameters as fields of the Hyperprior class.
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution.
 - An override replaces it by a point or by another distribution, checked against the field's bounds.
+- A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
 - A draw resolves every field to a point;
-  the fields that shape a single column or node are resolved in a second step.
+  the fields that shape a single column, node or grouping factor are resolved in a second step.
+- Some counts are limited by another field's value (design_columns and groups by rows):
+  they are drawn only from the values within that limit.
 
 pipeline:
 ---------
 the (optional) overrides
+-> a preset with the overrides                           grouped, flat
 -> validation at construction                            Hyperprior
+-> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
--> a point per column or node                            resolveField
+   (a column, node or factor resolves its own fields later, by resolveField)
 """
 
 from __future__ import annotations
@@ -30,6 +35,7 @@ from pydantic import (
     PositiveInt,
     ValidationInfo,
     field_validator,
+    model_validator,
 )
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -38,6 +44,16 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 # =====================================================================================
 # numpy has no distribution objects: these classes are the config's values.
 # They check their parameters when a hyperprior is built, not at a draw deep inside a run.
+
+
+def _truncate(ends: tuple[float, float], low: int | None, high: int | None) -> tuple[float, float]:
+    """The ends of a support truncated to [low, high]."""
+    bottom, top = ends
+    if low is not None:
+        bottom = max(low, bottom)
+    if high is not None:
+        top = min(high, top)
+    return bottom, top
 
 
 class _Interval:
@@ -57,7 +73,8 @@ class Uniform(_Interval):
     high: float
 
     def draw(self, rng: np.random.Generator) -> float:
-        return float(rng.uniform(self.low, self.high))
+        out = rng.uniform(self.low, self.high)
+        return float(out)
 
 
 @pydantic_dataclass(frozen=True)
@@ -66,7 +83,9 @@ class LogUniform(_Interval):
     high: float
 
     def draw(self, rng: np.random.Generator) -> float:
-        return math.exp(rng.uniform(math.log(self.low), math.log(self.high)))
+        log_low, log_high = math.log(self.low), math.log(self.high)
+        log_out = rng.uniform(log_low, log_high)
+        return math.exp(log_out)
 
 
 @pydantic_dataclass(frozen=True)
@@ -74,8 +93,12 @@ class UniformInt(_Interval):
     low: int
     high: int
 
-    def draw(self, rng: np.random.Generator) -> int:
-        return int(rng.integers(self.low, self.high, endpoint=True))
+    def draw(
+        self, rng: np.random.Generator, low: int | None = None, high: int | None = None
+    ) -> int:
+        bottom, top = _truncate(self.support(), low, high)
+        out = rng.integers(bottom, top, endpoint=True)
+        return int(out)
 
 
 @pydantic_dataclass(frozen=True)
@@ -83,11 +106,15 @@ class LogUniformInt(_Interval):
     low: PositiveInt  # its logarithm is drawn
     high: int
 
-    def draw(self, rng: np.random.Generator) -> int:
-        # the floor of a log-uniform on [low, high + 1) gives each integer k the mass log(1 + 1/k);
-        # min catches exp rounding up onto high + 1
-        value = math.exp(rng.uniform(math.log(self.low), math.log(self.high + 1)))
-        return min(math.floor(value), self.high)
+    def draw(
+        self, rng: np.random.Generator, low: int | None = None, high: int | None = None
+    ) -> int:
+        # the floor of a log-uniform on [bottom, top + 1) gives each integer k the mass log(1 + 1/k);
+        bottom, top = _truncate(self.support(), low, high)
+        log_bottom, log_top_p1 = math.log(bottom), math.log(top + 1)
+        log_out = rng.uniform(log_bottom, log_top_p1)
+        out = math.exp(log_out)
+        return min(math.floor(out), top)  # catch exp rounding
 
 
 @pydantic_dataclass(frozen=True)
@@ -102,6 +129,15 @@ class Beta:
         return 0.0, 1.0
 
 
+class Shares(dict[str, float]):
+    """A point on the simplex: each category's share, from which a category is chosen."""
+
+    def choose(self, rng: np.random.Generator) -> str:
+        p = list(self.values())
+        choice = rng.choice(list(self), p=p)
+        return str(choice)
+
+
 @pydantic_dataclass(frozen=True)
 class Dirichlet:
     alpha: dict[str, PositiveFloat]  # concentration per category
@@ -113,15 +149,6 @@ class Dirichlet:
     def draw(self, rng: np.random.Generator) -> Shares:
         shares = rng.dirichlet(self.values).tolist()
         return Shares(zip(self.alpha, shares))
-
-
-class Shares(dict[str, float]):
-    """A point on the simplex: each category's share, from which a category is chosen."""
-
-    def choose(self, rng: np.random.Generator) -> str:
-        p = list(self.values())
-        choice = rng.choice(list(self), p=p)
-        return str(choice)
 
 
 # every distribution a field can take
@@ -159,6 +186,7 @@ Count = Annotated[Integer, _within(ge=0)]
 PositiveCount = Annotated[Integer, _within(ge=1)]
 NonNegative = Annotated[Real, _within(ge=0)]
 Positive = Annotated[Real, _within(gt=0)]
+Share = Annotated[Real, _within(ge=0, le=1)]
 
 
 # =====================================================================================
@@ -184,6 +212,17 @@ class Hyperprior(BaseModel):
       A column is continuous or has levels (binary, categorical or ordered).
       A column with levels takes one of K levels in each row.
       Due to dummy-encoding, it takes K − 1 columns in the design matrix.
+    - Grouping: a grouping factor assigns every row to one of its G groups.
+      A table has none (flat), one or multiple grouping factors.
+      Each factor after the first either nests in the one before it (classes in schools)
+      or is crossed with all before it (patients and doctors).
+      Factors nested in one another form a chain (schools -> classes).
+      A factor's depth is the number of factors above it in its chain,
+      and each factor in a chain draws more groups than the one above it.
+      A factor's groups are equally large or have Dirichlet-distributed sizes.
+      A node is constant within the groups of one factor (group-level) or varies within them.
+      A within-group node adds a group part (one value per group) to a row part (one per row).
+      Its group share is how much of its variance comes from the group part.
     - Graph: each column is an observed node of a directed acyclic graph (DAG).
       Latent nodes may affect observed nodes but have no columns assigned to them.
       Each possible edge has its own probability. It rises with the graph's overall density,
@@ -202,6 +241,11 @@ class Hyperprior(BaseModel):
     PER_NODE: ClassVar[tuple[str, ...]] = (
         'init_scale',
         'noise_scale',
+        'group_share',
+    )
+    PER_FACTOR: ClassVar[tuple[str, ...]] = (
+        'groups',
+        'size_alpha',
     )
     PER_COLUMN: ClassVar[tuple[str, ...]] = (
         'level_alpha',
@@ -229,6 +273,15 @@ class Hyperprior(BaseModel):
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # K is 2 + Geometric(levels_p)
     max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for K
     level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
+
+    # grouping
+    factors: Count = UniformInt(1, 3)  # grouping factors; 0 is a flat table
+    groups: Annotated[Integer, _within(ge=2)] = LogUniformInt(2, 400)  # G per factor, at most n
+    balanced_share: Share = 1 / 3  # probability that a factor's groups are of equal size
+    size_alpha: Positive = LogUniform(0.5, 500)  # Dirichlet concentration of unequal sizes
+    nested_share: Share = Uniform(0.2, 0.6)  # probability that a factor nests in the previous one
+    group_level_share: Share = Beta(2, 4)  # probability that a node is constant within groups
+    group_share: Share = Beta(0.5, 2)  # share of a within-group node's variance due to its group
 
     # graph
     latent_nodes: Count = UniformInt(0, 9)
@@ -265,6 +318,24 @@ class Hyperprior(BaseModel):
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
     mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
 
+    @classmethod
+    def grouped(cls, **overrides: Any) -> Hyperprior:
+        return cls(**overrides)
+
+    @classmethod
+    def flat(cls, **overrides: Any) -> Hyperprior:
+        return cls(factors=0, **overrides)
+
+    @classmethod
+    def categories(cls, field: str) -> list[str]:
+        return list(cls.model_fields[field].default.alpha)
+
+    @staticmethod
+    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
+        if shares.keys() != set(categories):
+            raise ValueError(f'shares name {list(shares)}, not {categories}')
+        return {name: shares[name] for name in categories}
+
     @field_validator(*SHARES)
     @classmethod
     def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
@@ -277,27 +348,62 @@ class Hyperprior(BaseModel):
         return Shares(cls._inOrder(value, categories))
 
     @staticmethod
-    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
-        if shares.keys() != set(categories):
-            raise ValueError(f'shares name {list(shares)}, not {categories}')
-        return {name: shares[name] for name in categories}
+    def _support(value: Integer | Real) -> tuple[float, float]:
+        """The smallest and largest value a field can take.
+        A field holds a distribution or a point, and a point is its own smallest and largest value.
+        """
+        if isinstance(value, Distribution):
+            return value.support()
+        return value, value
 
-    @classmethod
-    def categories(cls, field: str) -> list[str]:
-        return list(cls.model_fields[field].default.alpha)
+    def floorGroups(self, depth: int) -> int:
+        """The fewest groups a factor at this depth may have.
+        Each factor above it in its chain has fewer groups than the one below.
+        """
+        lowest, _ = self._support(self.groups)
+        return lowest + depth
+
+    @model_validator(mode='after')
+    def _checkGroupsCanNest(self) -> Hyperprior:
+        """Checks that groups has enough values for the longest chain the fields allow:
+        its bottom factor must reach its floor.
+        """
+        _, most_factors = self._support(self.factors)
+        _, most_nested = self._support(self.nested_share)
+        longest = most_factors if most_nested > 0 else 1
+        _, highest = self._support(self.groups)
+        if self.floorGroups(longest - 1) > highest:
+            raise ValueError(
+                f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
+                'fewer factors, or give groups a wider range'
+            )
+        return self  # pydantic's after-validator returns the model
+
+    @staticmethod
+    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
+        bottom, top = _truncate(Hyperprior._support(value), low, high)
+        if bottom > top:
+            raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
+
+    def resolveField(
+        self, field: str, rng: np.random.Generator, low: int | None = None, high: int | None = None
+    ) -> Any:
+        value = getattr(self, field)
+        bounded = low is not None or high is not None
+        if bounded:
+            self._checkBounds(field, value, low, high)
+        if isinstance(value, Distribution):
+            value = value.draw(rng, low, high) if bounded else value.draw(rng)
+        return value
 
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
-        """Resolves each non-node field."""
+        """Resolves each field drawn once per dataset."""
         points = {}
         for name in type(self).model_fields:
-            if name in self.PER_COLUMN + self.PER_NODE:
+            if name in self.PER_COLUMN + self.PER_NODE + self.PER_FACTOR:
                 points[name] = getattr(self, name)  # defer resolution to a later step
+            elif name == 'design_columns':
+                points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n ≥ 2d
             else:
                 points[name] = self.resolveField(name, rng)
         return Hyperprior(**points)
-
-    def resolveField(self, field: str, rng: np.random.Generator) -> Any:
-        value = getattr(self, field)
-        if isinstance(value, Distribution):
-            value = value.draw(rng)
-        return value

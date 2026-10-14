@@ -6,12 +6,12 @@ from typing import get_args
 
 import numpy as np
 import pytest
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from tabdgp.column import ColumnType
-from tabdgp.graph import Activation, Mechanism
+from tabdgp.column import ColumnType, assign
+from tabdgp.graph import Activation, Graph, Mechanism
 from tabdgp.hyperprior import (
     MARGINAL_FIELDS,
     Beta,
@@ -32,6 +32,46 @@ def test_the_defaults_validate() -> None:
     Hyperprior()
 
 
+GROUPING_DEFAULTS = {
+    'factors': UniformInt(1, 3),
+    'groups': LogUniformInt(2, 400),
+    'balanced_share': 1 / 3,
+    'size_alpha': LogUniform(0.5, 500),
+    'nested_share': Uniform(0.2, 0.6),
+    'group_level_share': Beta(2, 4),
+    'group_share': Beta(0.5, 2),
+}
+
+
+def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
+    """ADR 0004's table: what the proofs certify and metabeta trains on."""
+    hyperprior = Hyperprior()
+    defaults = {field: getattr(hyperprior, field) for field in GROUPING_DEFAULTS}
+    assert defaults == GROUPING_DEFAULTS
+
+
+def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
+    """Every draw starts from a preset; Hyperprior() stays valid as the grouped one,
+    and the flat preset differs from it in factors alone.
+    """
+    assert Hyperprior.grouped() == Hyperprior()
+    assert Hyperprior.flat() == Hyperprior(factors=0)
+
+
+def test_an_override_on_a_preset_replaces_its_default() -> None:
+    """A study narrows one field of a preset and keeps the rest."""
+    assert Hyperprior.grouped(rows=500) == Hyperprior(rows=500)
+    assert Hyperprior.flat(rows=500) == Hyperprior(rows=500, factors=0)
+
+
+def test_flat_rejects_an_override_of_factors() -> None:
+    """The flat preset is defined by its factors;
+    flat(factors=2) would be a grouped table under the wrong name.
+    """
+    with pytest.raises(TypeError, match='factors'):
+        Hyperprior.flat(factors=2)
+
+
 def test_a_point_override_resolves_to_itself() -> None:
     """metabeta passes its sizes as points; resolveDataset must hand them back untouched."""
     shares = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
@@ -48,15 +88,16 @@ def test_resolving_twice_changes_nothing() -> None:
     assert resolved.resolveDataset(np.random.default_rng(1)) == resolved
 
 
-def test_resolve_leaves_the_fields_drawn_per_column_or_node_as_given() -> None:
-    """Each column or node draws its own value of these fields,
+def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() -> None:
+    """Each column, node or grouping factor draws its own value of these fields,
     so no dataset-wide value is drawn.
     """
-    assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale'}
+    assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale', 'group_share'}
+    assert set(Hyperprior.PER_FACTOR) == {'groups', 'size_alpha'}
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
     assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
-    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE:
+    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
 
@@ -67,6 +108,163 @@ def test_resolving_one_field_gives_its_point_or_one_draw_inside_its_support(seed
     rng = np.random.default_rng(seed)
     assert hyperprior.resolveField('noise_scale', rng) == 0.5
     assert 2 <= hyperprior.resolveField('lognormal_sigma', rng) <= 3
+
+
+@pytest.mark.parametrize('distribution', [UniformInt, LogUniformInt])
+@given(
+    low=st.integers(2, 100),
+    width=st.integers(1, 1000),
+    margin=st.integers(0, 2000),
+    seed=st.integers(0, 2**32 - 1),
+)
+def test_a_bounded_distribution_resolves_at_or_below_its_bound(
+    distribution: type, low: int, width: int, margin: int, seed: int
+) -> None:
+    """A factor has at most as many groups as the table has rows.
+    A bound above the distribution's high leaves the high in force.
+    """
+    hyperprior = Hyperprior(groups=distribution(low, low + width), nested_share=0)
+    bound = low + margin
+    groups = hyperprior.resolveField('groups', np.random.default_rng(seed), high=bound)
+    assert low <= groups <= min(bound, low + width)
+
+
+@pytest.mark.parametrize('distribution', [UniformInt, LogUniformInt])
+@given(
+    low=st.integers(2, 100),
+    width=st.integers(1, 1000),
+    floor=st.integers(0, 1100),
+    seed=st.integers(0, 2**32 - 1),
+)
+def test_a_distribution_resolves_at_or_above_its_floor(
+    distribution: type, low: int, width: int, floor: int, seed: int
+) -> None:
+    """A factor keeps one group more for each factor superior to it.
+    A floor below the distribution's low leaves the low in force.
+    """
+    assume(floor <= low + width)
+    hyperprior = Hyperprior(groups=distribution(low, low + width), nested_share=0)
+    groups = hyperprior.resolveField('groups', np.random.default_rng(seed), low=floor)
+    assert max(low, floor) <= groups <= low + width
+
+
+TRUNCATED = [
+    # the ten values 2 to 11 keep a tenth each; a clip would put 91 % on 11
+    pytest.param(UniformInt(2, 101), 11, 0.1, id='uniform'),
+    # 20 keeps log(21/20) / log(21/2) of the mass; a clip would put 57 % on it
+    pytest.param(LogUniformInt(2, 400), 20, 0.021, id='log-uniform'),
+]
+
+
+@pytest.mark.parametrize(('distribution', 'bound', 'share'), TRUNCATED)
+def test_a_truncated_draw_piles_no_mass_on_its_bound(
+    distribution: UniformInt | LogUniformInt, bound: int, share: float
+) -> None:
+    """A draw clipped at rows would give most small tables one row per group (ADR 0004);
+    truncation keeps the distribution's shape below its bound.
+    """
+    hyperprior = Hyperprior(groups=distribution)
+    rng = np.random.default_rng(0)
+    draws = [hyperprior.resolveField('groups', rng, high=bound) for _ in range(10_000)]
+    assert draws.count(bound) / len(draws) == pytest.approx(share, abs=0.01)
+
+
+@pytest.mark.parametrize(
+    'distribution', [UniformInt(2, 400), LogUniformInt(2, 400)], ids=['uniform', 'log-uniform']
+)
+def test_a_truncated_support_of_one_value_draws_it(
+    distribution: UniformInt | LogUniformInt,
+) -> None:
+    """A table of two rows admits factors of two groups only.
+    Construction rejects a support of one value; a bound may narrow a support to it.
+    """
+    hyperprior = Hyperprior(groups=distribution)
+    rng = np.random.default_rng(0)
+    draws = {hyperprior.resolveField('groups', rng, high=2) for _ in range(100)}
+    assert draws == {2}
+
+
+@pytest.mark.parametrize(
+    'distribution', [UniformInt(10, 400), LogUniformInt(10, 400)], ids=['uniform', 'log-uniform']
+)
+def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_bound(
+    distribution: UniformInt | LogUniformInt,
+) -> None:
+    """No value of the distribution lies at or below the bound,
+    and a draw above it would break G ≤ n without a word.
+    """
+    hyperprior = Hyperprior(groups=distribution)
+    with pytest.raises(ValueError, match=r'groups.*\b7\b'):
+        hyperprior.resolveField('groups', np.random.default_rng(0), high=7)
+
+
+OUT_OF_REACH = [
+    pytest.param(LogUniformInt(2, 400), 3, id='a floor above the bound'),
+    pytest.param(UniformInt(2, 3), 10, id='a floor above the distribution'),
+]
+
+
+@pytest.mark.parametrize(('distribution', 'bound'), OUT_OF_REACH)
+def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
+    distribution: UniformInt | LogUniformInt, bound: int
+) -> None:
+    """The bottom factor of a chain of three needs the range's lowest count plus 2, here 4.
+    A bound of 3 or a range that stops at 3 cannot reach it,
+    and a draw below it would leave no count for a superior factor.
+    """
+    hyperprior = Hyperprior(groups=distribution, nested_share=0)
+    with pytest.raises(ValueError, match=r'groups.*\b4\b'):
+        hyperprior.resolveField('groups', np.random.default_rng(0), low=4, high=bound)
+
+
+def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
+    """A point override is honoured exactly or not at all:
+    50 groups cannot be assigned to 30 rows, and 19 design columns under 10 rows break n ≥ 2d.
+    """
+    rng = np.random.default_rng(0)
+    with pytest.raises(ValueError, match=r'groups.*\b30\b'):
+        Hyperprior(groups=50, nested_share=0).resolveField('groups', rng, high=30)
+    with pytest.raises(ValueError, match=r'design_columns.*\b5\b'):
+        Hyperprior(rows=10, design_columns=19).resolveDataset(rng)
+
+
+def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
+    """A point gives every factor one count,
+    and a superior factor needs fewer than the subordinate one;
+    failing at construction beats failing in the datasets that happen to draw a nesting.
+    """
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=5)
+    Hyperprior(groups=5, nested_share=0)
+    Hyperprior(groups=5, factors=1)
+    Hyperprior(groups=5, factors=UniformInt(0, 1))
+    Hyperprior.flat(groups=5)
+
+
+def test_a_groups_range_too_narrow_for_the_longest_chain_fails_at_construction() -> None:
+    """A chain of L factors needs L counts, each superior one below the subordinate one,
+    so a range of fewer values fails as a point does, not in the datasets that draw a chain.
+    """
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=UniformInt(2, 3))
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=LogUniformInt(10, 11))
+    Hyperprior(groups=UniformInt(2, 4))
+    Hyperprior(groups=UniformInt(2, 3), factors=UniformInt(1, 2))
+    Hyperprior(groups=UniformInt(2, 3), nested_share=0)
+
+
+@given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
+def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int) -> None:
+    """A table has at least two rows per design column (metabeta's rule 8, n ≥ 2d)."""
+    resolved = Hyperprior(rows=rows).resolveDataset(np.random.default_rng(seed))
+    assert resolved.design_columns <= rows // 2
+
+
+def test_rows_precedes_design_columns_in_field_order() -> None:
+    """resolveDataset resolves in field order and bounds design_columns by the resolved rows."""
+    fields = list(Hyperprior.model_fields)
+    assert fields.index('rows') < fields.index('design_columns')
 
 
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
@@ -86,6 +284,11 @@ OUT_OF_RANGE = [
     pytest.param({'zero_share': 1.0}, id='a point on an open bound'),
     pytest.param({'student_df': Uniform(-1, 5)}, id='a support across zero for a positive field'),
     pytest.param({'max_levels': 2}, id='a cap that leaves no categorical'),
+    pytest.param({'factors': -1}, id='a negative number of factors'),
+    pytest.param({'groups': 1}, id='a factor of one group'),
+    pytest.param({'size_alpha': 0.0}, id='a zero concentration of the group sizes'),
+    pytest.param({'balanced_share': 1.5}, id='a share above 1'),
+    pytest.param({'group_share': Uniform(0, 2)}, id='a support above 1 for a share'),
     pytest.param({'type_shares': ALL_CONTINUOUS | {'binary': 0.5}}, id='shares above 1'),
     pytest.param(
         {'type_shares': ALL_CONTINUOUS | {'continuous': 1.5, 'binary': -0.5}}, id='a negative share'
@@ -123,8 +326,10 @@ SUPPORTED = [
 def test_a_distribution_override_resolves_inside_its_support(
     field: str, distribution: type, low: int, width: int, seed: int
 ) -> None:
-    """Narrow integer ranges probe the log-uniform's floor at its upper end."""
-    hyperprior = Hyperprior(**{field: distribution(low, low + width)})
+    """Narrow integer ranges probe the log-uniform's floor at its upper end.
+    A budget of 0 admits every row count, a single row included.
+    """
+    hyperprior = Hyperprior(**{field: distribution(low, low + width)}, design_columns=0)
     resolved = hyperprior.resolveDataset(np.random.default_rng(seed))
     assert low <= getattr(resolved, field) <= low + width
 
@@ -193,6 +398,24 @@ def test_the_fields_drawn_per_column_are_the_families_and_the_level_concentratio
     for fields in MARGINAL_FIELDS.values():
         read.update(fields)
     assert read == set(Hyperprior.PER_COLUMN)
+
+
+def test_the_fields_drawn_per_factor_are_exactly_those_a_factor_column_records() -> None:
+    """A field drawn per factor that no factor's column records would silently stay a distribution.
+    groups is recorded as the column's levels, size_alpha among the parameters of an unbalanced one.
+    """
+    rng = np.random.default_rng(0)
+    resolved = Hyperprior.grouped(factors=2, balanced_share=0).resolveDataset(rng)
+    recorded = {'groups'}
+    for column in assign(resolved, rng).metadata.values():
+        recorded.update(column.parameters)
+    assert recorded == set(Hyperprior.PER_FACTOR)
+
+
+def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None:
+    """A field drawn per node that the graph does not record would silently stay a distribution."""
+    recorded = set(Graph.__dataclass_fields__) & set(Hyperprior.model_fields)
+    assert recorded == set(Hyperprior.PER_NODE)
 
 
 CATALOGUES = [

@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
+amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`, a nested pair is superior and subordinate, not coarser and finer, and an override `group_share = 1` is the known exception to every level appearing
 ---
 
 # 0003 — Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
@@ -30,22 +31,28 @@ child column its parent explains.
   per group, the mechanism, its z-score and, for a column, its marginal or level codes, all at
   G rows, then broadcast to the n rows last. Latent values are returned broadcast, so every
   array of a dataset has length n.
-- **One unit per node.** Nested and crossed factors are both expressed: a node at the finer
-  factor of a chain is constant within the coarser one too. What is not expressed is a node
-  drawn once per cell of two crossed factors, whose unit would be a set of grouping factors;
-  that is the extension, for item 6's item-response data, and nothing here precludes it.
-- **Edges across units**: a parent is at the child's unit or at a coarser one in its nesting
+- **One unit per node.** Nested and crossed factors are both expressed: a node at the
+  subordinate factor of a chain is constant within the superior one too. What is not
+  expressed is a node drawn once per cell of two crossed factors, whose unit would be a set
+  of grouping factors; that is the extension, for item 6's item-response data, and nothing
+  here precludes it.
+- **Edges across units**: a parent is at the child's unit or at a superior one in its nesting
   chain; no edges between the units of crossed factors; no row-unit parent of a group-level
   node. A mask on the Cauchy logits; the edge draw is otherwise item 1's. Node order: the
-  grouping factors, then the units coarsest first (crossed units in a fixed order), the row
+  grouping factors, then the units superior first (crossed units in a fixed order), the row
   unit last, latent before observed within a unit.
 - **Which nodes are group-level**: a per-dataset `group_level_share`; each node, latent or
   observed, draws a grouping factor's unit with that share (the factor uniform among the
-  dataset's), else the row. A within-group column with a latent group-level parent is
-  confounded by nothing in the table.
+  dataset's), else the row. A column with more levels than its factor has groups stays at
+  the row: it would take one value per group and leave a level no row has, and no real
+  table shows a group-level column with K > G. The known exception is an override
+  `group_share = 1`: it makes a row-unit column constant within its group factor's groups, so
+  one with K > G misses a level. The default never draws 1, and the override asks for a
+  column constant within groups, which cannot show more levels than there are groups. A
+  within-group column with a latent group-level parent is confounded by nothing in the table.
 - **Group confounding is a two-part mechanism.** A row-unit node is
   `z(sqrt(s) · z(g) + sqrt(1 − s) · z(r))`: g its mechanism over the parents at one grouping
-  factor's unit (and the coarser ones in that factor's chain), computed at that unit and
+  factor's unit (and the superior ones in that factor's chain), computed at that unit and
   broadcast, pure group-level noise when it has no such parent; r its mechanism over every
   other parent plus its own noise; s its `group_share`, a per-node field. The factor of the
   group part is drawn uniformly per node. Every z-score runs at the unit of the node being
@@ -53,10 +60,11 @@ child column its parent explains.
   measurement pass records, up to what its row-unit parents carry.
 - **Relations**: each grouping factor after the first nests in the previous one with a
   per-dataset `nested_share`, else is crossed with every earlier one; crossed assignments are
-  independent. Nested sizes are the size draw applied twice, bottom-up: the finer factor's
-  groups over the rows, then the finer factor's groups over the coarser factor's groups.
+  independent. Nested sizes are the size draw applied twice, bottom-up: the subordinate
+  factor's groups over the rows, then the subordinate factor's groups over the superior
+  factor's groups.
 - **The grouping factor as a column**: int64 codes, type `categorical`, role
-  `grouping factor`, `levels = G`, outside the design-column budget; the role carries its
+  `grouping_factor`, `levels = G`, outside the design-column budget; the role carries its
   checks (G ≥ 2, no marginal, the size draw's fields as its parameters). The binary /
   categorical split is about design-matrix coding and applies to covariates only.
 - **Random effects stay the outcome node's.** A group-level node is covariate structure, which

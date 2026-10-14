@@ -33,19 +33,24 @@ pip install tabdgp
 ```python
 from tabdgp import Hyperprior, draw
 
-hyperprior = Hyperprior(rows=100, design_columns=5)  # two overrides, the rest keep their defaults
+hyperprior = Hyperprior.grouped(rows=100, design_columns=5)  # two overrides on the grouped preset
 dataset = draw(seed=0, index=0, hyperprior=hyperprior)  # the key: a seed and an index
+unit = dict(zip(dataset.graph.names, dataset.graph.unit))  # per row, or per group of a factor
 for name, column in dataset.metadata.items():
-    print(name, column.type, dataset.columns[name][:3].round(2))
+    print(name, column.type, unit[name], dataset.columns[name][:3].round(2))
 print(len(dataset.latent), 'latent nodes,', dataset.graph.parents.sum(), 'edges')
 ```
 
 ```text
-x0 binary [1 1 1]
-x1 binary [0 1 0]
-x2 categorical [0 0 0]
-x3 continuous [0.25 0.42 0.1 ]
-7 latent nodes, 8 edges
+g0 categorical g0 [4 5 2]
+g1 categorical g1 [ 6 22 29]
+g2 categorical g2 [7 7 5]
+x0 binary g0 [1 1 1]
+x1 binary row [1 1 1]
+x2 continuous row [0.36 0.69 0.15]
+x3 binary row [0 0 0]
+x4 binary row [0 1 0]
+7 latent nodes, 16 edges
 ```
 
 ## Planned

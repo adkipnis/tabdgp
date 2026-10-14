@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
+amended: 2026-10-14, #24: a superior factor has fewer groups than the subordinate one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`, and a range too narrow for the longest chain fails like a point; #29: superior and subordinate, not coarser and finer
 ---
 
 # 0004 — The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
@@ -21,10 +22,18 @@ and has no default.** What the proofs certify is `grouped()`.
   groups); otherwise one row per group, and the remaining n − G rows multinomial over
   Dirichlet(α) proportions. Two per-factor fields; G non-empty groups always; no retry.
 - **Truncation at resolve.** `rows` resolves first; `groups` draws from its distribution
-  truncated at `rows`, a coarser factor's `groups` at the finer factor's, and
+  truncated at `rows`, a superior factor's `groups` below the subordinate factor's, and
   `design_columns` at `rows / 2` (rule 8's one floor, n ≥ 2d, which item 1 did not enforce).
   A draw clipped afterwards piles mass on the bound: from `LogUniformInt(2, 400)` at
   n = 20, 57 % of draws would become all-singleton tables.
+- **A superior factor has fewer groups than the subordinate one.** Its `groups` is
+  truncated at one below the subordinate factor's, so a nested pair is never one partition
+  relabelled. Each factor's floor is the lowest value of `groups` (2 by default) plus the
+  number of factors superior to it, so that every superior one still gets that lowest value;
+  a chain of L factors needs at least L + 1 rows by default, and a `rows` override below that
+  fails at resolve. A chain of L factors needs L counts, each below the subordinate one's, so
+  a `groups` with fewer values than the largest `factors` (a point has one) fails at construction
+  unless `factors` stays that small or `nested_share` at 0.
 - **Presets.** `factors` allows 0, and `Hyperprior.flat()` sets it to 0; `grouped()` is the
   default below. A later kind of table (item response, survival, causal) is a constructor
   that fixes fields, never a branch in `draw` and never a new mechanism. Neither metabeta nor a
@@ -35,7 +44,7 @@ and has no default.** What the proofs certify is `grouped()`.
   | field | default | source |
   |---|---|---|
   | `factors` | `UniformInt(1, 3)` | rule 3 (counts uniform); registry p90 2, max 5; v1 edge 3 |
-  | `groups`, per factor | `LogUniformInt(2, 400)`, truncated at `rows` | rule 8; registry p50 32, p90 361 |
+  | `groups`, per factor | `LogUniformInt(2, 400)`, truncated at `rows` or below the subordinate factor's | rule 8; registry p50 32, p90 361 |
   | `balanced_share` | `1/3` | rule 7; registry 0.388 |
   | `size_alpha`, per factor | `LogUniform(0.5, 500)` | rule 7; registry p5 0.97, median 50 |
   | `nested_share` | `Uniform(0.2, 0.6)` | a guess; registry 134 nested to 184 crossed among two-factor tables |
@@ -48,6 +57,12 @@ and has no default.** What the proofs certify is `grouped()`.
 ## Considered options
 
 - **Clip after the draw** over truncation: rejected above.
+- **A superior factor with at most as many groups as the subordinate one**, the first
+  draft: equal counts put one subordinate group in each superior group, the same partition
+  relabelled, two random effects no generalized linear mixed model (GLMM) tells apart.
+  Forced when the subordinate factor has 2 groups, it hit 15.9 % of nested pairs under
+  `grouped()`. Turning such a pair crossed was the other fix: it honours `nested_share` only
+  sometimes.
 - **A kwarg on `draw`** for the kind of table, `flat: bool` or a `Literal` of kinds: a bool
   is not future-proof, a `Literal` makes every kind a branch inside `draw` that can contradict
   an override. A preset is the hyperprior itself.

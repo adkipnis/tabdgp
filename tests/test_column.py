@@ -1,5 +1,6 @@
 """The column module's seams: what a Column guarantees on its own,
-the column plan under the budget, and a column's values from its node's.
+the grouping factors and their units, the column plan under the budget,
+and a column's values from its node's.
 """
 
 from __future__ import annotations
@@ -8,11 +9,13 @@ from typing import get_args
 
 import numpy as np
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from tabdgp.column import Column, apply, plan
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
-from tests.fixtures.build import point
+from tabdgp.column import Column, Grouping, apply, assign, plan
+from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, UniformInt
+from tests.fixtures.build import groupingOf, point
 
 TYPES = ['continuous', 'binary', 'categorical', 'ordered']
 ALPHA = {'level_alpha': 1.0}
@@ -112,6 +115,252 @@ def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
     assert column.design_columns == design_columns
 
 
+def test_a_grouping_factor_is_0_design_columns_wide() -> None:
+    """Its codes index random effects and are never dummy coded,
+    so the budget counts the covariates alone.
+    """
+    column = Column(type='categorical', levels=2, role='grouping_factor')
+    assert column.design_columns == 0
+
+
+def test_a_grouping_factor_with_fewer_than_2_levels_fails() -> None:
+    """One group is no grouping; two are, so a factor need not be K ≥ 3 like a categorical."""
+    with pytest.raises(ValidationError, match='1 levels'):
+        Column(type='categorical', levels=1, role='grouping_factor')
+
+
+@pytest.mark.parametrize(('type', 'levels'), [('binary', 2), ('ordered', 3)])
+def test_a_grouping_factor_of_another_type_fails(type: str, levels: int) -> None:
+    """Its codes are labels of groups, unordered at any G, so a factor is categorical even at 2."""
+    with pytest.raises(ValidationError):
+        Column(type=type, levels=levels, role='grouping_factor')
+
+
+def test_a_marginal_on_a_grouping_factor_fails() -> None:
+    """A factor's values are its codes, drawn by the size draw, never matched to a marginal."""
+    with pytest.raises(ValidationError, match='marginal'):
+        Column(type='categorical', levels=3, role='grouping_factor', marginal='normal')
+
+
+@pytest.mark.parametrize('parameters', [ALPHA, {'size_alpha': 1.0, 'beta_a': 2.0}], ids=str)
+def test_a_parameter_other_than_size_alpha_on_a_grouping_factor_fails(parameters: dict) -> None:
+    """A factor draws only its sizes, so its level concentration or a shape would be a claim
+    of a draw that played no part.
+    """
+    with pytest.raises(ValidationError, match='draws'):
+        Column(type='categorical', levels=3, role='grouping_factor', parameters=parameters)
+
+
+def test_nests_in_on_a_covariate_fails() -> None:
+    """Nesting relates grouping factors; a covariate is at most constant within groups."""
+    with pytest.raises(ValidationError):
+        Column(type='categorical', levels=3, parameters=ALPHA, nests_in='g0')
+
+
+def test_chain_follows_the_nesting_on_a_hand_built_grouping() -> None:
+    """A node may read the units of its chain: g2 nests in g1, g1 in g0, g3 is crossed with all.
+
+    The row is subordinate to every factor, so its chain holds them all.
+    """
+    grouping = groupingOf(
+        [[0, 0, 1, 1], [0, 1, 2, 2], [0, 1, 2, 3], [0, 1, 0, 1]],
+        nests_in=[None, 'g0', 'g1', None],
+    )
+    assert grouping.traceChain('g0') == ['g0']
+    assert grouping.traceChain('g2') == ['g0', 'g1', 'g2']
+    assert grouping.traceChain('g3') == ['g3']
+    assert grouping.traceChain('row') == ['g0', 'g1', 'g2', 'g3', 'row']
+
+
+# g1 nests in g0, which holds g1's groups 1 and 2 in group 0 and its groups 0 and 3 in group 1;
+# g2 is crossed with both
+NESTED = groupingOf(
+    [[0, 1, 1, 0, 0, 1, 1, 0], [2, 0, 3, 1, 2, 0, 3, 1], [0, 1, 0, 1, 0, 1, 0, 1]],
+    nests_in=[None, 'g0', None],
+)
+
+
+def test_broadcast_repeats_a_units_values_over_its_rows_on_a_hand_built_grouping() -> None:
+    """A group's value is shared by its rows and by the subordinate groups within it,
+    so a node is read at the row or at a subordinate unit of its chain.
+    """
+    at_g0 = np.array([10.0, 20.0])
+    np.testing.assert_array_equal(NESTED.broadcast(at_g0, 'g0', 'g0'), [10, 20])
+    np.testing.assert_array_equal(NESTED.broadcast(at_g0, 'g0', 'g1'), [20, 10, 10, 20])
+    np.testing.assert_array_equal(
+        NESTED.broadcast(at_g0, 'g0', 'row'), [10, 20, 20, 10, 10, 20, 20, 10]
+    )
+    at_g1 = np.array([1.0, 2.0, 3.0, 4.0])
+    np.testing.assert_array_equal(NESTED.broadcast(at_g1, 'g1', 'row'), [3, 1, 4, 2, 3, 1, 4, 2])
+
+
+OFF_CHAIN = [
+    pytest.param('g2', 'g1', id='between crossed factors'),
+    pytest.param('g1', 'g0', id='from a subordinate factor to a superior one'),
+    pytest.param('row', 'g0', id='from the row to a factor'),
+]
+
+
+@pytest.mark.parametrize(('from_unit', 'to_unit'), OFF_CHAIN)
+def test_broadcasting_out_of_a_units_chain_fails(from_unit: str, to_unit: str) -> None:
+    """Off the chain, one target group spans several source groups and has no single value;
+    the first row's would be returned without complaint and mean nothing.
+    """
+    with pytest.raises(ValueError, match=f'{from_unit}.*{to_unit}'):
+        NESTED.broadcast(np.zeros(8), from_unit, to_unit)
+
+
+def _assign(seed: int, **overrides: object) -> Grouping:
+    rng = np.random.default_rng(seed)
+    resolved = Hyperprior.grouped(**overrides).resolveDataset(rng)
+    return assign(resolved, rng)
+
+
+def test_factors_0_gives_an_empty_grouping_whose_broadcast_is_the_identity() -> None:
+    """A flat table is a grouping of no factors, so every later step runs on it unchanged."""
+    grouping = _assign(0, factors=0)
+    values = np.arange(5.0)
+    assert grouping.metadata == {}
+    assert grouping.codes == {}
+    assert grouping.traceChain('row') == ['row']
+    np.testing.assert_array_equal(grouping.broadcast(values, 'row', 'row'), values)
+
+
+@given(
+    seed=st.integers(0, 2**32 - 1),
+    rows=st.integers(5, 60),
+    factors=st.integers(0, 4),
+    nested_share=st.sampled_from([0.0, 0.5, 1.0]),
+    balanced_share=st.sampled_from([0.0, 0.5, 1.0]),
+)
+def test_assign_gives_g_non_empty_groups_with_g_at_most_n_for_every_factor(
+    seed: int, rows: int, factors: int, nested_share: float, balanced_share: float
+) -> None:
+    """metabeta indexes one random effect per group,
+    so an empty group or more groups than rows would need a retry or a repair.
+    The truncation and metabeta's rule 7 rule both out on every draw.
+    Five rows fit a chain of four factors.
+    """
+    grouping = _assign(
+        seed,
+        rows=rows,
+        factors=factors,
+        nested_share=nested_share,
+        balanced_share=balanced_share,
+    )
+    assert len(grouping.codes) == factors
+    for name, codes in grouping.codes.items():
+        levels = grouping.metadata[name].levels
+        assert codes.dtype == np.int64
+        assert len(codes) == rows
+        assert levels <= rows
+        np.testing.assert_array_equal(np.unique(codes), np.arange(levels))
+
+
+def test_a_balanced_factors_sizes_differ_by_at_most_one_and_record_no_size_alpha() -> None:
+    """Rule 7's balanced case gives each group n // G rows and the first n mod G one more;
+    a size_alpha that played no part is not recorded.
+    """
+    for seed in range(20):
+        grouping = _assign(seed, factors=3, nested_share=0, balanced_share=1)
+        assert list(grouping.codes) == ['g0', 'g1', 'g2']
+        for name, codes in grouping.codes.items():
+            sizes = np.bincount(codes)
+            assert sizes.max() - sizes.min() <= 1
+            assert grouping.metadata[name].parameters == {}
+
+
+def test_an_unbalanced_factor_records_its_size_alpha() -> None:
+    """The concentration shapes the sizes, so the proofs read it off the column;
+    each factor draws its own, and a point override gives all one.
+    """
+    drawn = _assign(0, factors=3, nested_share=0, balanced_share=0)
+    alphas = {column.parameters['size_alpha'] for column in drawn.metadata.values()}
+    assert len(alphas) == 3
+    given = _assign(0, factors=3, nested_share=0, balanced_share=0, size_alpha=7.0)
+    for column in given.metadata.values():
+        assert column.parameters == {'size_alpha': 7.0}
+
+
+def test_a_tiny_size_alpha_gives_singleton_groups() -> None:
+    """A tiny concentration puts nearly all the share on one group,
+    so every other group keeps only the one row that metabeta's rule 7 guarantees it.
+    """
+    for seed in range(10):
+        grouping = _assign(seed, rows=1000, factors=1, groups=10, balanced_share=0, size_alpha=1e-6)
+        sizes = np.sort(np.bincount(grouping.codes['g0']))
+        np.testing.assert_array_equal(sizes, [1] * 9 + [991])
+
+
+def test_two_crossed_factors_codes_are_independent() -> None:
+    """Crossed assignments are drawn independently: a dependence between them would be a quirk
+    the registry has not measured, so each cell's count is near the product of the margins.
+    """
+    grouping = _assign(0, rows=100_000, factors=2, nested_share=0, groups=4, balanced_share=1)
+    cells = np.bincount(4 * grouping.codes['g0'] + grouping.codes['g1']).reshape(4, 4)
+    expected = np.outer(cells.sum(axis=1), cells.sum(axis=0)) / 100_000  # (4, 4)
+    np.testing.assert_allclose(cells, expected, rtol=0.05)
+
+
+def _nestsIn(grouping: Grouping) -> list[str | None]:
+    return [column.nests_in for column in grouping.metadata.values()]
+
+
+def test_nested_share_1_gives_a_chain_and_0_crossed_factors_only() -> None:
+    """nested_share is the probability that a factor nests in the previous one,
+    so its ends give one chain and no nesting at all.
+    """
+    assert _nestsIn(_assign(0, factors=3, nested_share=1)) == [None, 'g0', 'g1']
+    assert _nestsIn(_assign(0, factors=3, nested_share=0)) == [None, None, None]
+
+
+def test_each_group_of_a_nested_factor_lies_in_one_superior_group() -> None:
+    """Nesting holds in the codes, not only in the column's claim:
+    a subordinate group meets exactly one superior group,
+    so the pairs of codes are as many as its groups.
+    """
+    for seed in range(20):
+        grouping = _assign(seed, rows=500, factors=3, nested_share=1)
+        for subordinate, superior in [('g1', 'g0'), ('g2', 'g1')]:
+            pairs = set(
+                zip(grouping.codes[subordinate].tolist(), grouping.codes[superior].tolist())
+            )
+            assert len(pairs) == grouping.metadata[subordinate].levels
+
+
+@pytest.mark.parametrize('rows', [4, 6, 100])
+def test_a_superior_factor_has_fewer_groups_than_its_subordinate_one(rows: int) -> None:
+    """Equal counts would put one subordinate group in each superior one:
+    one partition relabelled, two random effects no model tells apart (ADR 0004, amended).
+    The top factor keeps 2 groups and each subordinate one more,
+    so 4 rows are the fewest a chain of three fits in.
+    """
+    for seed in range(50):
+        grouping = _assign(seed, rows=rows, factors=3, nested_share=1)
+        levels = [column.levels for column in grouping.metadata.values()]
+        assert levels[0] < levels[1] < levels[2]
+
+
+def test_a_chain_fits_under_a_groups_range_that_starts_above_2() -> None:
+    """Every superior factor needs the range's lowest count, not 2,
+    so each subordinate one keeps room for the ones above it:
+    a floor of 2 plus the depth left the top factor no count on some keys.
+    """
+    for seed in range(200):
+        grouping = _assign(seed, rows=2000, factors=3, nested_share=1, groups=UniformInt(10, 400))
+        levels = [column.levels for column in grouping.metadata.values()]
+        assert 10 <= levels[0] < levels[1] < levels[2]
+
+
+def test_assign_is_deterministic_under_a_fixed_generator() -> None:
+    """A key reproduces its dataset bitwise only if the grouping draws from the generator alone."""
+    first = _assign(7, factors=3)
+    second = _assign(7, factors=3)
+    assert first.metadata == second.metadata
+    for name, codes in first.codes.items():
+        np.testing.assert_array_equal(codes, second.codes[name])
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
@@ -125,10 +374,13 @@ def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_co
     """metabeta's design matrix has the width it drew.
 
     A corner such as all-categorical must still fill a remainder of 1.
+    100 rows admit every budget up to 19 (n ≥ 2d).
     """
     for budget in range(20):
         for seed in range(10):
-            columns = _plan(seed, design_columns=budget, type_shares=point('type_shares', type))
+            columns = _plan(
+                seed, rows=100, design_columns=budget, type_shares=point('type_shares', type)
+            )
             assert sum(column.design_columns for column in columns.values()) == budget
 
 
@@ -305,6 +557,19 @@ def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
     in_node_order = values[np.argsort(node)]  # (n,)
     assert (np.diff(in_node_order) >= 0).all()
     assert np.ptp(values) > 0
+
+
+@pytest.mark.parametrize('column', [*CONTINUOUS, *DISCRETE], ids=str)
+def test_tied_node_values_share_one_column_value(column: Column) -> None:
+    """A row-unit node at group share 1 is constant within its group factor's groups,
+    so it ties over each group's rows.
+    The column keeps the ties, so it is constant within the groups too.
+    """
+    node = np.repeat(_node(1)[:50], 10)  # (500,) 50 distinct values, each on 10 rows
+    values = _applyTo(node, column, seed=0)
+    assert len(np.unique(values)) <= 50
+    for value in np.unique(node):
+        assert len(np.unique(values[node == value])) == 1
 
 
 def test_plan_is_deterministic_under_a_fixed_generator() -> None:

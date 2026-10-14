@@ -1,12 +1,14 @@
-"""column.py defines the column types and levels, and the column values.
+"""column.py defines the grouping factors, the column types and levels, and the column values.
 
 pipeline:
 ---------
-resolved shares and budget
--> per column, its type, K and own parameters                 _resolveColumn
--> one named column after another until the budget is met     plan
--> per column, a sorted sample                                _sampleMarginal, _sampleCodes
--> sorted by the node's ranks                                 apply
+resolved sizes, shares and budget
+-> per factor (top down), how many factors it nests in           _nestFactors
+-> per factor (bottom up), its G groups, their sizes and codes   _sampleSizes, assign
+-> per column, its type, K and own parameters                    _resolveColumn
+-> one named column after another until the budget is met        plan
+-> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
+-> placed by the node's ranks, tied values sharing one           apply
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
@@ -32,24 +34,34 @@ class Column:
 
     type: ColumnType
     levels: int | None = None  # K
-    role: Literal['covariate'] = 'covariate'  # extended to grouping factors or outcome later
+    role: Literal['covariate', 'grouping_factor'] = 'covariate'
+    nests_in: str | None = None  # the superior grouping factor of a nested one
     marginal: Family | None = None  # for continuous columns
     parameters: dict[str, float] = Field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        # binary is exactly K = 2 and categorical or ordered K ≥ 3, so no two types overlap
+        # a grouping factor's codes label its groups, unordered at any G
+        if self.role == 'grouping_factor' and self.type != 'categorical':
+            raise ValueError(f'a grouping factor cannot be {self.type}')
+        if self.role == 'covariate' and self.nests_in is not None:
+            raise ValueError(f'a covariate cannot nest in {self.nests_in}')
+        # a covariate is binary at exactly K = 2 and categorical or ordered from K = 3
         if self.type == 'continuous':
             agree = self.levels is None
         elif self.type == 'binary':
             agree = self.levels == 2
         else:  # categorical | ordered
-            agree = self.levels is not None and self.levels >= 3
+            fewest = 2 if self.role == 'grouping_factor' else 3
+            agree = self.levels is not None and self.levels >= fewest
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
         if (self.type == 'continuous') != (self.marginal is not None):
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # check that parameters hold exactly the fields this column drew
-        if self.type == 'continuous':
+        if self.role == 'grouping_factor':
+            # an unbalanced factor draws the concentration of its sizes, a balanced one nothing
+            own = ['size_alpha'] if 'size_alpha' in self.parameters else []
+        elif self.type == 'continuous':
             own = MARGINAL_FIELDS[self.marginal]
         else:
             own = ['level_alpha']
@@ -58,7 +70,109 @@ class Column:
 
     @property
     def design_columns(self) -> int:
+        if self.role == 'grouping_factor':
+            return 0  # its codes index random effects
         return 1 if self.levels is None else self.levels - 1
+
+
+# =====================================================================================
+# the grouping
+# =====================================================================================
+
+
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class Grouping:
+    """A dataset's grouping factors (g0, g1, ...) and the arithmetic of their units.
+    A unit (of observation) is the row or one factor;
+    a node at a factor's unit has one value per group.
+    """
+
+    metadata: dict[str, Column]
+    codes: dict[str, np.ndarray]  # (n,) int64 each, every row's group
+
+    def traceChain(self, unit: str) -> list[str]:
+        """The units a node at this unit may read, superior first."""
+        if unit == 'row':
+            return [*self.metadata, 'row']
+        chain = [unit]
+        superior = self.metadata[unit].nests_in
+        while superior is not None:
+            chain = [superior, *chain]
+            superior = self.metadata[superior].nests_in
+        return chain
+
+    def broadcast(self, values: np.ndarray, from_unit: str, to_unit: str) -> np.ndarray:
+        """Copies each group's value at from_unit to every row or subordinate group within it."""
+        if from_unit not in self.traceChain(to_unit):
+            raise ValueError(f'{from_unit} is not in the chain of {to_unit}')
+        if from_unit == to_unit:
+            return values
+        superior = self.codes[from_unit]  # (n,)
+        if to_unit == 'row':
+            return values[superior]
+        # every row of a subordinate group carries its superior group's code, so any row's will do
+        superior_of = np.empty(self.metadata[to_unit].levels, dtype=np.int64)  # (G,)
+        superior_of[self.codes[to_unit]] = superior
+        return values[superior_of]
+
+
+def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
+    """Each factor's depth (the number of factors superior to it)."""
+    depths = []
+    for k in range(resolved.factors):
+        nested = k > 0 and rng.random() < resolved.nested_share
+        depths.append(depths[-1] + 1 if nested else 0)
+    return depths
+
+
+def _sampleSizes(
+    elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
+) -> tuple[np.ndarray, dict[str, float]]:
+    """The group sizes and alphas over the elements, equal or Dirichlet-multinomial."""
+    if rng.random() < resolved.balanced_share:
+        # n // G each, the remainder one more for the first groups
+        sizes = elements // groups + (np.arange(groups) < elements % groups)  # (G,)
+        return sizes, {}
+    # one element per group, the rest multinomial over Dirichlet(size_alpha) shares
+    size_alpha = resolved.resolveField('size_alpha', rng)
+    shares = rng.dirichlet(np.full(groups, size_alpha))  # (G,)
+    rest = rng.multinomial(elements - groups, shares)  # (G,)
+    sizes = 1 + rest  # (G,)
+    return sizes, {'size_alpha': size_alpha}
+
+
+def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
+    """The grouping factors (g0, g1, ...), each row assigned to one group per factor."""
+    depths = _nestFactors(resolved, rng)
+    # what the next factor's groups split, each row's element among them, and its bound:
+    # the rows, each row its own element, unless a subordinate factor nests in it
+    unnested = resolved.rows, np.arange(resolved.rows), resolved.rows
+    elements, element_of, high = unnested
+    metadata = {}
+    codes = {}
+    # bottom up, so that a superior factor splits the groups of the subordinate one nested in it
+    for k in reversed(range(len(depths))):
+        name = f'g{k}'
+        floor = resolved.floorGroups(depths[k])
+        groups = resolved.resolveField('groups', rng, low=floor, high=high)
+        sizes, parameters = _sampleSizes(elements, groups, resolved, rng)
+        sorted_groups = np.repeat(np.arange(groups), sizes)  # (elements,)
+        group_of = rng.permutation(sorted_groups)  # (elements,)
+        codes[name] = group_of[element_of]  # (n,)
+        metadata[name] = Column(
+            type='categorical',
+            levels=groups,
+            role='grouping_factor',
+            nests_in=f'g{k - 1}' if depths[k] else None,
+            parameters=parameters,
+        )
+        if depths[k]:
+            # the previous factor splits this one's groups into fewer
+            elements, element_of, high = groups, codes[name], groups - 1
+        else:
+            elements, element_of, high = unnested
+    # in index order: superior before subordinate along a chain
+    return Grouping(metadata=dict(reversed(metadata.items())), codes=dict(reversed(codes.items())))
 
 
 # =====================================================================================
@@ -73,7 +187,10 @@ def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generato
         family = resolved.marginal_shares.choose(rng)
         parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
         return Column(type=type, marginal=family, parameters=parameters)
-    levels = 2 if type == 'binary' else 2 + int(rng.geometric(resolved.levels_p))
+    levels = 2
+    if type != 'binary':
+        extra = rng.geometric(resolved.levels_p)  # 1, 2, …
+        levels += int(extra)
     if resolved.max_levels is not None:
         levels = min(levels, resolved.max_levels)
     # K − 1 may not overflow the budget; a column clipped to two levels is binary
@@ -100,50 +217,55 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
 # =====================================================================================
 
 
-def _sampleMarginal(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
+def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.ndarray:
     parameters = column.parameters
     match column.marginal:
         case 'normal':
-            return rng.standard_normal(n)
+            return rng.standard_normal(size)
         case 'lognormal':
-            return rng.lognormal(0, parameters['lognormal_sigma'], n)
+            return rng.lognormal(0, parameters['lognormal_sigma'], size)
         case 'student_t':
-            return rng.standard_t(parameters['student_df'], n)
+            return rng.standard_t(parameters['student_df'], size)
         case 'beta':
-            return rng.beta(parameters['beta_a'], parameters['beta_b'], n)
+            return rng.beta(parameters['beta_a'], parameters['beta_b'], size)
         case 'uniform':
-            return rng.random(n)
+            return rng.random(size)
         case 'zero_inflated_lognormal':
-            zero = rng.random(n) < parameters['zero_share']  # (n,)
-            return np.where(zero, 0, rng.lognormal(0, parameters['lognormal_sigma'], n))
+            zero = rng.random(size) < parameters['zero_share']  # (size,)
+            positive = rng.lognormal(0, parameters['lognormal_sigma'], size)  # (size,)
+            return np.where(zero, 0, positive)
         case 'normal_mixture':
-            minor = rng.random(n) < parameters['mixture_weight']  # (n,)
-            return rng.standard_normal(n) + parameters['mixture_gap'] * minor
+            minor = rng.random(size) < parameters['mixture_weight']  # (size,)
+            normal = rng.standard_normal(size)  # (size,)
+            return normal + parameters['mixture_gap'] * minor
 
 
-def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The n level codes in rank order, in K blocks sized by drawn shares."""
+def _sampleCodes(size: int, column: Column, rng: np.random.Generator) -> np.ndarray:
+    """The level codes of size values in rank order, in K blocks sized by drawn shares."""
     k = column.levels
     shares = rng.dirichlet(np.full(k, column.parameters['level_alpha']))  # (K,)
-    # one row per level first, the rest split in proportion to the shares
-    floor = 1 if n >= k else 0
-    edges = np.round(np.cumsum(shares) * (n - floor * k)).astype(np.int64)  # (K,)
+    # one value per level first, the rest split in proportion to the shares
+    floor = 1 if size >= k else 0
+    edges = np.round(np.cumsum(shares) * (size - floor * k)).astype(np.int64)  # (K,)
     counts = np.diff(edges, prepend=0) + floor  # (K,)
-    codes_by_rank = np.repeat(np.arange(k), counts)  # (n,)
+    codes_by_rank = np.repeat(np.arange(k), counts)  # (size,)
     if column.type == 'categorical':
         # nominal levels have no order along the node; permuting the labels is TabICL v1's idea
-        codes_by_rank = rng.permutation(k)[codes_by_rank]
+        labels = rng.permutation(k)  # (K,)
+        codes_by_rank = labels[codes_by_rank]
     return codes_by_rank
 
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in its node's order:
+    """The column's values in its node's order, one per distinct node value:
     a marginal sample if continuous, level codes otherwise.
+    Tied node values have the same column value.
     """
+    distinct, rank = np.unique(node, return_inverse=True)  # (D,), (m,) each element's dense rank
     if column.type == 'continuous':
-        by_rank = np.sort(_sampleMarginal(len(node), column, rng)).astype(np.float32)  # (n,)
+        sample = _sampleMarginal(len(distinct), column, rng)  # (D,)
+        by_rank = np.sort(sample).astype(np.float32)  # (D,)
     else:
-        by_rank = _sampleCodes(len(node), column, rng)  # (n,)
-    # the sorted values placed by the node's ranks are just a permutation of them (Iman and Conover, 1982)
-    ranks = np.argsort(np.argsort(node))  # (n,)
-    return by_rank[ranks]
+        by_rank = _sampleCodes(len(distinct), column, rng)  # (D,)
+    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
+    return by_rank[rank]

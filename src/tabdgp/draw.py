@@ -1,18 +1,18 @@
-"""draw.py defines the pipeline and its output: one dataset as a pure function of its key.
-
-One generator is threaded through the steps in a fixed order; a change of that order changes
-every dataset, so it is a version change.
+"""draw.py defines the pipeline and its output:
+one dataset as a pure function of its key and its hyperprior.
 
 pipeline:
 ---------
-the key
--> one generator from the key                        default_rng
--> the resolved hyperprior                           Hyperprior.resolveDataset
--> the column plan                                   plan
--> the graph                                         connect
--> the node values                                   propagate
--> the typed columns, joined to their nodes by name  apply
--> the Dataset                                       draw
+the key and the hyperprior
+-> one generator from the key                                    default_rng
+-> the resolved hyperprior                                       Hyperprior.resolveDataset
+-> the grouping factors, their codes and metadata                assign
+-> the column plan                                               plan
+-> the graph, each node at a unit of the grouping                connect
+-> the node values, each at its unit                             propagate
+-> the typed columns at the rows, joined to their nodes by name  _applyColumns
+-> the latent nodes at the rows                                  _broadcastLatent
+-> the Dataset, the grouping factors first                       draw
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import numpy as np
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.column import Column, apply, plan
+from tabdgp.column import Column, Grouping, apply, assign, plan
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
@@ -45,8 +45,8 @@ class Dataset:
     columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, else int64 codes 0..K−1
     metadata: dict[str, Column]
     graph: Graph
-    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored
-    hyperparameters: Hyperprior  # resolved, except the fields each column or node draws
+    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored over its groups if group-level
+    hyperparameters: Hyperprior  # resolved, except the fields each column, node or factor draws
     seed: int  # the corpus
     index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version
@@ -58,18 +58,45 @@ class Dataset:
 # =====================================================================================
 
 
-def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset:
+def _applyColumns(
+    nodes: dict[str, np.ndarray],
+    metadata: dict[str, Column],
+    graph: Graph,
+    grouping: Grouping,
+    rng: np.random.Generator,
+) -> dict[str, np.ndarray]:
+    unit = dict(zip(graph.names, graph.unit))
+    columns = {}
+    for name, column in metadata.items():
+        values = apply(nodes[name], column, rng)  # (m,) one per group of its unit, or per row
+        columns[name] = grouping.broadcast(values, unit[name], 'row')  # (n,)
+    return columns
+
+
+def _broadcastLatent(
+    nodes: dict[str, np.ndarray], graph: Graph, grouping: Grouping
+) -> dict[str, np.ndarray]:
+    latent = {}
+    for name, unit, is_latent in zip(graph.names, graph.unit, graph.latent):
+        if is_latent:
+            latent[name] = grouping.broadcast(nodes[name], unit, 'row')  # (n,)
+    return latent
+
+
+def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     rng = np.random.default_rng([seed, index])  # the key's generator
-    resolved = (hyperprior or Hyperprior()).resolveDataset(rng)
+    resolved = hyperprior.resolveDataset(rng)
+    # the grouping before the graph, which draws each node's unit among its factors
+    grouping = assign(resolved, rng)
     metadata = plan(resolved, rng)
-    graph = connect(resolved, list(metadata), rng)
-    nodes = propagate(graph, resolved, rng)
-    columns = {name: apply(nodes[name], column, rng) for name, column in metadata.items()}
-    latent = {name: nodes[name] for name, is_latent in zip(graph.names, graph.latent) if is_latent}
+    graph = connect(resolved, grouping, metadata, rng)
+    nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
+    columns = _applyColumns(nodes, metadata, graph, grouping, rng)
+    latent = _broadcastLatent(nodes, graph, grouping)
     return Dataset(
-        columns=columns,
-        metadata=metadata,
+        columns={**grouping.codes, **columns},
+        metadata={**grouping.metadata, **metadata},
         graph=graph,
         latent=latent,
         hyperparameters=resolved,

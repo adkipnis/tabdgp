@@ -30,9 +30,12 @@ between groups is **group-confounded**.
 _Avoid_: level-1 and level-2 variable, cluster-level, contextual variable
 
 **Group share**:
-The share of a within-group covariate's variance that lies between the groups of a grouping
-factor, the strength of its group confounding; zero for an unconfounded covariate.
-_Avoid_: ICC unqualified (the fitter's, on the outcome), random-intercept variance
+How much of a within-group node's variance comes from its group part, one value per group of
+one grouping factor, rather than its row part, one value per row: the strength of its group
+confounding. The between-group share measured on its values can be larger, since its row part
+may read group-confounded parents.
+_Avoid_: ICC unqualified (the fitter's, on the outcome), between-group share (what the
+measurement pass records), random-intercept variance
 
 **Quirk**:
 A property of real tables that an independent and identically distributed (i.i.d.) simulator
@@ -52,15 +55,21 @@ _Avoid_: feature, variable unqualified, neuron (of an MLP)
 A root node whose values assign every row to one of its G groups, in metabeta's words "a
 categorical variable whose levels index random effects"; a dataset has none (a flat table),
 one or several. Two grouping factors are **crossed** when their groups combine freely and
-**nested** when each group of the finer one lies within one group of the coarser.
+**nested** when each group of the subordinate one lies within one group of the superior one,
+which has fewer groups.
 _Avoid_: factor alone (a categorical column), cluster, subject (one kind of grouping factor),
 random-effects term
+
+**Superior** / **subordinate**:
+A grouping factor is superior to one nested in it, whose groups lie within its own; the nested
+one is subordinate. The row is subordinate to every factor.
+_Avoid_: coarser and finer, parent and child (the graph's edges), higher and lower level
 
 **Unit**:
 What a node is drawn once per: the row, or one grouping factor, in which case the node takes
 one value per group of that factor, repeated across the group's rows (broadcast). A column at
 the row unit is a within-group covariate; one at a grouping factor's unit is group-level. A
-nested grouping factor is a finer unit than the one it nests in; crossed ones are units
+nested grouping factor is a unit subordinate to the one it nests in; crossed ones are units
 without an order between them.
 _Avoid_: level (a factor level, or the multilevel literature's level 1 and 2), hierarchy
 level, grain, scope
