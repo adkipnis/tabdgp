@@ -23,7 +23,7 @@ import numpy as np
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.column import Column, apply, plan
+from tabdgp.column import Column, Grouping, apply, plan
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
@@ -63,7 +63,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior | None = None) -> Dataset
     rng = np.random.default_rng([seed, index])  # the key's generator
     resolved = (hyperprior or Hyperprior()).resolveDataset(rng)
     metadata = plan(resolved, rng)
-    graph = connect(resolved, list(metadata), rng)
+    graph = connect(resolved, Grouping(metadata={}, codes={}), list(metadata), rng)
     nodes = propagate(graph, resolved, rng)
     columns = {name: apply(nodes[name], column, rng) for name, column in metadata.items()}
     latent = {name: nodes[name] for name, is_latent in zip(graph.names, graph.latent) if is_latent}

@@ -2,11 +2,14 @@
 
 pipeline:
 ---------
-the resolved hyperprior and observed names
--> names in topological order, latent nodes first           _orderNodes
--> edges: Cauchy node terms and a block bonus               _sampleEdges
--> each node's own field draws: family, scales, activation  _resolveNodes
--> the Graph                                                connect
+the resolved hyperprior, the grouping and the observed names
+-> each node's unit: a factor's with group_level_share, else the row  _sampleUnits
+-> names and units in topological order, the factors first            _orderNodes
+-> edges: Cauchy node terms and a block bonus                         _sampleEdges
+-> the edges a child may read                                         _maskEdges
+-> each node's own field draws: family, scales, activation            _resolveNodes
+-> each row-unit node's group share and group factor                  _resolveParts
+-> the Graph                                                          connect
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import numpy as np
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from tabdgp.column import Grouping
 from tabdgp.hyperprior import Hyperprior
 
 Mechanism = Literal['linear', 'mlp']
@@ -29,11 +33,17 @@ Activation = Literal['tanh', 'relu', 'sin']
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Graph:
-    """Every node of a dataset in topological order (observed `x`, latent `z`).
+    """Every node of a dataset in topological order (factors `g`, observed `x`, latent `z`).
 
-    - A root (a node without parents) is just its noise and draws nothing.
+    - A grouping factor comes first, without edges, at its own unit: its values are its codes.
+    - Every other node is at a unit, a factor's or the row: the units in the factors' order,
+      the row last, latent before observed within a unit.
+      A node reads parents at its unit or a coarser one of its chain,
+      so a latent row-unit node may have an observed group-level parent.
+    - A root (a node without parents) is just its noise and draws no family or scale.
     - A linear node draws a noise scale.
     - An MLP node draws a noise scale, an activation and an init scale.
+    - A row-unit node of a grouped dataset, roots included, draws a group share and a group factor.
     - None at position i for any field <=> node i does not draw that field.
     - The weights are drawn in propagation and not kept.
     """
@@ -45,6 +55,9 @@ class Graph:
     activation: list[Activation | None]
     noise_scale: list[float | None]
     init_scale: list[float | None]
+    unit: list[str]  # 'row' or a grouping factor's name
+    group_share: list[float | None]
+    group_factor: list[str | None]  # the factor of the group part
 
     def __post_init__(self) -> None:
         d = len(self.names)
@@ -55,22 +68,47 @@ class Graph:
             len(self.activation),
             len(self.noise_scale),
             len(self.init_scale),
+            len(self.unit),
+            len(self.group_share),
+            len(self.group_factor),
         )
-        if shapes != ((d, d), (d,), d, d, d, d):
+        if shapes != ((d, d), (d,), d, d, d, d, d, d, d):
             raise ValueError(f'{d} names, but the per-node fields have shapes {shapes}')
         named_latent = [name.startswith('z') for name in self.names]  # (d,)
         if not np.array_equal(self.latent, named_latent):
             raise ValueError(f'the latent mask {self.latent.tolist()} disagrees with {self.names}')
         if np.triu(self.parents).any():
             raise ValueError('a parent on or above the diagonal breaks topological order')
+        # check that the grouping factors come first, without edges, each at its own unit
+        factors = [name for name in self.names if name.startswith('g')]
+        f = len(factors)
+        if self.names[:f] != factors:
+            raise ValueError(f'the grouping factors {factors} do not come first in {self.names}')
+        if self.parents[:f].any() or self.parents[:, :f].any():
+            raise ValueError(f'the grouping factors {factors} take no edge')
+        if self.unit[:f] != factors:
+            raise ValueError(f'the grouping factors {factors} are at the units {self.unit[:f]}')
+        # check that each unit and group factor is known, the units in the factors' order, the row last
+        units = [*factors, 'row']
+        unknown = (set(self.unit) - set(units)) | (set(self.group_factor) - {*factors, None})
+        if unknown:
+            raise ValueError(f'{sorted(unknown)} name no grouping factor among {factors}')
+        ranks = [units.index(unit) for unit in self.unit[f:]]  # (d − f,)
+        if ranks != sorted(ranks):
+            raise ValueError(f'the units {self.unit[f:]} are not in the order {units}')
         # check that each node holds a value for the fields it draws
         root = ~self.parents.any(axis=1)  # (d,)
         not_mlp = np.array([family != 'mlp' for family in self.mechanism])  # (d,)
+        # only a row-unit node of a grouped graph mixes a group part and a row part
+        at_row = np.array([unit == 'row' for unit in self.unit], dtype=bool)  # (d,)
+        unmixed = ~(at_row & bool(factors))  # (d,)
         unused = {
             'mechanism': (self.mechanism, root),
             'noise_scale': (self.noise_scale, root),
             'activation': (self.activation, not_mlp),
             'init_scale': (self.init_scale, not_mlp),
+            'group_share': (self.group_share, unmixed),
+            'group_factor': (self.group_factor, unmixed),
         }
         for field, (values, unused_by) in unused.items():
             missing = [value is None for value in values]  # (d,)
@@ -83,11 +121,39 @@ class Graph:
 # =====================================================================================
 
 
-def _orderNodes(latent_nodes: int, observed: list[str], rng: np.random.Generator) -> list[str]:
+def _sampleUnits(
+    resolved: Hyperprior, factors: int, nodes: int, rng: np.random.Generator
+) -> np.ndarray:
+    """(nodes,) each node's unit, an index into the factors with the row last, at index factors."""
+    if factors == 0:
+        return np.zeros(nodes, dtype=np.int64)  # a flat table draws nothing
+    group_level = rng.random(nodes) < resolved.group_level_share  # (nodes,)
+    factor = rng.integers(factors, size=nodes)  # (nodes,), uniform among the factors
+    return np.where(group_level, factor, factors)
+
+
+def _orderNodes(
+    resolved: Hyperprior, grouping: Grouping, observed: list[str], rng: np.random.Generator
+) -> tuple[list[str], list[str], np.ndarray]:
+    """The names, units and latent mask in topological order: the factors, then the other nodes
+    by unit in the factors' order and the row last, latent before observed within a unit.
+    """
+    factors = list(grouping.metadata)
+    latent_nodes = resolved.latent_nodes
     # the observed nodes take the plan's names in a random order:
     # a column's position is independent of its place in the graph
-    latent = [f'z{i}' for i in range(latent_nodes)]
-    return latent + rng.permutation(observed).tolist()
+    observed = rng.permutation(observed).tolist()
+    # sorted, so that z0, z1, … follow the order
+    latent_unit = np.sort(_sampleUnits(resolved, len(factors), latent_nodes, rng))  # (L,)
+    observed_unit = _sampleUnits(resolved, len(factors), len(observed), rng)  # (p,)
+    nodes = [f'z{k}' for k in range(latent_nodes)] + observed
+    unit_index = np.concatenate([latent_unit, observed_unit])  # (L + p,)
+    order = np.argsort(unit_index, kind='stable')  # (L + p,), latent before observed within a unit
+    units = [*factors, 'row']
+    names = factors + [nodes[i] for i in order]
+    unit = factors + [units[unit_index[i]] for i in order]
+    latent = np.concatenate([np.zeros(len(factors), dtype=bool), order < latent_nodes])  # (d,)
+    return names, unit, latent
 
 
 def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.ndarray:
@@ -108,6 +174,21 @@ def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.n
     return edges
 
 
+def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.ndarray:
+    f = len(grouping.metadata)
+    units = [*grouping.metadata, 'row']
+    # a child reads a parent at its own unit or a coarser one of its chain
+    reads = np.array(
+        [[parent in grouping.chain(child) for parent in units] for child in units]
+    )  # (f + 1, f + 1), [child's unit, parent's unit]
+    index = [units.index(unit_j) for unit_j in unit]  # (d,)
+    kept = reads[np.ix_(index, index)]  # (d, d), [j, i]
+    # a grouping factor's values are its codes: it reads no parent and is read by none
+    kept[:f] = False
+    kept[:, :f] = False
+    return edges & kept
+
+
 def _resolveNodes(
     parents: np.ndarray, resolved: Hyperprior, rng: np.random.Generator
 ) -> tuple[list[Mechanism | None], list[Activation | None], list[float | None], list[float | None]]:
@@ -126,12 +207,29 @@ def _resolveNodes(
     return mechanism, activation, noise_scale, init_scale
 
 
-def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator) -> Graph:
+def _resolveParts(
+    unit: list[str], grouping: Grouping, resolved: Hyperprior, rng: np.random.Generator
+) -> tuple[list[float | None], list[str | None]]:
+    """Each row-unit node's group share and group factor, None elsewhere and in a flat table."""
+    factors = list(grouping.metadata)
+    group_share = [None] * len(unit)
+    group_factor = [None] * len(unit)
+    for j, unit_j in enumerate(unit):
+        if unit_j == 'row' and factors:
+            group_share[j] = resolved.resolveField('group_share', rng)
+            group_factor[j] = factors[rng.integers(len(factors))]
+    return group_share, group_factor
+
+
+def connect(
+    resolved: Hyperprior, grouping: Grouping, observed: list[str], rng: np.random.Generator
+) -> Graph:
     """The graph over the latent and observed nodes, and what each node draws for itself."""
-    names = _orderNodes(resolved.latent_nodes, observed, rng)
-    latent = np.arange(len(names)) < resolved.latent_nodes  # (d,)
-    parents = _sampleEdges(resolved, len(names), rng)  # (d, d)
+    names, unit, latent = _orderNodes(resolved, grouping, observed, rng)
+    edges = _sampleEdges(resolved, len(names), rng)  # (d, d)
+    parents = _maskEdges(edges, unit, grouping)  # (d, d)
     mechanism, activation, noise_scale, init_scale = _resolveNodes(parents, resolved, rng)
+    group_share, group_factor = _resolveParts(unit, grouping, resolved, rng)
     return Graph(
         names=names,
         parents=parents,
@@ -140,4 +238,7 @@ def connect(resolved: Hyperprior, observed: list[str], rng: np.random.Generator)
         activation=activation,
         noise_scale=noise_scale,
         init_scale=init_scale,
+        unit=unit,
+        group_share=group_share,
+        group_factor=group_factor,
     )
