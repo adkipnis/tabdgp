@@ -45,11 +45,9 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 # They check their parameters when a hyperprior is built, not at a draw deep inside a run.
 
 
-def _truncate(
-    support: tuple[float, float], low: int | None, high: int | None
-) -> tuple[float, float]:
+def _truncate(ends: tuple[float, float], low: int | None, high: int | None) -> tuple[float, float]:
     """The ends of a support truncated to [low, high]."""
-    smallest, largest = support
+    smallest, largest = ends
     bottom = smallest if low is None else max(low, smallest)
     top = largest if high is None else min(high, largest)
     return bottom, top
