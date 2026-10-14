@@ -169,6 +169,28 @@ def test_chain_follows_the_nesting_on_a_hand_built_grouping() -> None:
     assert grouping.chain('row') == ['g0', 'g1', 'g2', 'g3', 'row']
 
 
+# g1 nests in g0, which holds g1's groups 1 and 2 in group 0 and its groups 0 and 3 in group 1;
+# g2 is crossed with both
+NESTED = groupingOf(
+    [[0, 1, 1, 0, 0, 1, 1, 0], [2, 0, 3, 1, 2, 0, 3, 1], [0, 1, 0, 1, 0, 1, 0, 1]],
+    nests_in=[None, 'g0', None],
+)
+
+
+def test_broadcast_repeats_a_units_values_over_its_rows_on_a_hand_built_grouping() -> None:
+    """A group's value is shared by its rows and by the finer groups within it,
+    so a node is read at the row or at a finer unit of its chain.
+    """
+    at_g0 = np.array([10.0, 20.0])
+    np.testing.assert_array_equal(NESTED.broadcast(at_g0, 'g0', 'g0'), [10, 20])
+    np.testing.assert_array_equal(NESTED.broadcast(at_g0, 'g0', 'g1'), [20, 10, 10, 20])
+    np.testing.assert_array_equal(
+        NESTED.broadcast(at_g0, 'g0', 'row'), [10, 20, 20, 10, 10, 20, 20, 10]
+    )
+    at_g1 = np.array([1.0, 2.0, 3.0, 4.0])
+    np.testing.assert_array_equal(NESTED.broadcast(at_g1, 'g1', 'row'), [3, 1, 4, 2, 3, 1, 4, 2])
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
