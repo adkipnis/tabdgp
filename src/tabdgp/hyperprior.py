@@ -35,7 +35,6 @@ from pydantic import (
     PositiveInt,
     ValidationInfo,
     field_validator,
-    model_validator,
 )
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -349,26 +348,34 @@ class Hyperprior(BaseModel):
 
     @staticmethod
     def _support(value: Integer | Real) -> tuple[float, float]:
-        """The smallest and largest value a field can take, a point's own."""
-        return value.support() if isinstance(value, Distribution) else (value, value)
+        """The smallest and largest value a field can take.
+        A field holds a distribution or a point, and a point is its own smallest and largest value.
+        """
+        if isinstance(value, Distribution):
+            return value.support()
+        return value, value
 
     def floorGroups(self, depth: int) -> int:
-        """The fewest groups a factor may draw: the lowest value of groups,
-        plus one per coarser factor it nests in, so that each of them keeps a count below it.
+        """The fewest groups a factor at this depth may have.
+        Each factor above it in its chain has fewer groups than the one below:
+        with groups from 2 up, the factors at depths 0, 1 and 2 have at least 2, 3 and 4.
         """
-        return self._support(self.groups)[0] + depth
+        lowest, _ = self._support(self.groups)
+        return lowest + depth
 
-    @model_validator(mode='after')
-    def _checkGroupsCanNest(self) -> Hyperprior:
-        """The finest factor of the longest chain needs a value of groups at its floor or above."""
-        can_nest = self._support(self.nested_share)[1] > 0
-        longest = self._support(self.factors)[1] if can_nest else 1
-        if self.floorGroups(longest - 1) > self._support(self.groups)[1]:
+    def model_post_init(self, context: Any) -> None:
+        """Checks that groups has enough values for the longest chain the fields allow:
+        its finest factor must reach its floor.
+        """
+        _, most_factors = self._support(self.factors)
+        _, most_nested = self._support(self.nested_share)
+        longest = most_factors if most_nested > 0 else 1
+        _, highest = self._support(self.groups)
+        if self.floorGroups(longest - 1) > highest:
             raise ValueError(
                 f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
                 'fewer factors, or give groups a wider range'
             )
-        return self
 
     @staticmethod
     def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
