@@ -1,9 +1,10 @@
 """draw.py defines the pipeline and its output: one dataset as a pure function of its key
 and a preset.
 
-One generator is threaded through the steps in a fixed order; a change of that order changes
-every dataset, so it is a version change. Every value is computed at its node's unit and
-broadcast to the rows only in the last step.
+One generator is threaded through the steps in a fixed order.
+A change of that order changes every dataset, so it is a version change.
+A group-level node has one value per group until the end,
+when each group's value is copied to every row of the group.
 
 pipeline:
 ---------
@@ -49,7 +50,7 @@ class Dataset:
     columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, else int64 codes 0..K−1
     metadata: dict[str, Column]
     graph: Graph
-    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored at its node's unit
+    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored over its groups if group-level
     hyperparameters: Hyperprior  # resolved, except the fields each column, node or factor draws
     seed: int  # the corpus
     index: int  # the dataset within its corpus
@@ -72,7 +73,7 @@ def _applyColumns(
     unit = dict(zip(graph.names, graph.unit))
     columns = {}
     for name, column in metadata.items():
-        values = apply(nodes[name], column, rng)  # placed at the node's unit, then broadcast
+        values = apply(nodes[name], column, rng)  # (m,) one per group of its unit, or per row
         columns[name] = grouping.broadcast(values, unit[name], 'row')  # (n,)
     return columns
 
