@@ -286,9 +286,7 @@ def test_a_tiny_size_alpha_gives_singleton_groups() -> None:
     so every other group keeps only the one row that rule 7 guarantees it.
     """
     for seed in range(10):
-        grouping = _assign(
-            seed, rows=1000, factors=1, groups=10, balanced_share=0, size_alpha=1e-6
-        )
+        grouping = _assign(seed, rows=1000, factors=1, groups=10, balanced_share=0, size_alpha=1e-6)
         sizes = np.sort(np.bincount(grouping.codes['g0']))
         np.testing.assert_array_equal(sizes, [1] * 9 + [991])
 
