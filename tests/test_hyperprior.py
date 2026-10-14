@@ -59,12 +59,17 @@ def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
 
 
 def test_an_override_on_a_preset_replaces_its_default() -> None:
-    """A study narrows one field of a preset and keeps the rest;
-    the field a preset sets is a default like any other.
-    """
+    """A study narrows one field of a preset and keeps the rest."""
     assert Hyperprior.grouped(rows=500) == Hyperprior(rows=500)
     assert Hyperprior.flat(rows=500) == Hyperprior(rows=500, factors=0)
-    assert Hyperprior.flat(factors=1).factors == 1
+
+
+def test_flat_rejects_an_override_of_factors() -> None:
+    """The flat preset is defined by its factors;
+    flat(factors=2) would be a grouped table under the wrong name.
+    """
+    with pytest.raises(TypeError, match='factors'):
+        Hyperprior.flat(factors=2)
 
 
 def test_a_point_override_resolves_to_itself() -> None:
