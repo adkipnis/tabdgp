@@ -39,7 +39,7 @@ class Graph:
     - A grouping factor comes first at its own unit: its values are its group codes.
     - Every other node is at a unit: the units in the factors' order,
       the row last, latent before observed within a unit.
-      A node reads parents at its own unit or its superior one (if present),
+      A node reads parents at its own unit or any unit superior to it,
       so a latent row-unit node may have an observed group-level parent.
     - A root (a node without parents) is just its noise and draws no family or scale.
     - A linear node draws a noise scale.
