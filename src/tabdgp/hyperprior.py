@@ -339,12 +339,18 @@ class Hyperprior(BaseModel):
     def categories(cls, field: str) -> list[str]:
         return list(cls.model_fields[field].default.alpha)
 
+    def floorGroups(self, depth: int) -> int:
+        """The fewest groups a factor may draw: the lowest value of groups,
+        plus one per coarser factor it nests in, so that each of them keeps a count below it.
+        """
+        return support(self.groups)[0] + depth
+
     @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
-        """A chain of L factors needs L counts of groups, each coarser one below the finer."""
-        longest = support(self.factors)[1] if support(self.nested_share)[1] > 0 else 1
-        lowest, highest = support(self.groups)
-        if highest - lowest + 1 < longest:
+        """The finest factor of the longest chain needs a value of groups at its floor or above."""
+        can_nest = support(self.nested_share)[1] > 0
+        longest = support(self.factors)[1] if can_nest else 1
+        if self.floorGroups(longest - 1) > support(self.groups)[1]:
             raise ValueError(
                 f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
                 'fewer factors, or give groups a wider range'
