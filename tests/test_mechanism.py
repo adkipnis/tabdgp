@@ -256,6 +256,29 @@ def test_a_row_unit_node_at_group_share_0_has_a_between_group_share_at_chance_le
             assert _betweenShare(nodes[name], grouping.codes['g0']) < 0.02
 
 
+@pytest.mark.parametrize('share', [0.2, 0.5, 0.8])
+def test_the_between_group_share_over_rows_is_near_the_group_share_under_balanced_groups(
+    share: float,
+) -> None:
+    """The group part and the row part are z-scored over the rows and the row part's group means
+    differ only by chance, so sqrt(s) and sqrt(1 − s) make s the node's between-group share:
+    the statistic the measurement pass records. A row-unit parent carries its own group variance
+    into the row part, so its child's share lies above s.
+    """
+    grouping = _balanced(4000, [20])
+    # x1 is a root at g0 and x2 its linear child at the row; x3 is a root at the row, x4 its child
+    graph = graphOf(
+        [[], [], [1], [], [3]], unit=['g0', 'g0', 'row', 'row', 'row'], group_share=share
+    )
+    for seed in range(10):
+        nodes = _nodes(graph, 4000, grouping, seed)
+        for name in ['x2', 'x3']:
+            assert _betweenShare(nodes[name], grouping.codes['g0']) == pytest.approx(
+                share, abs=0.03
+            )
+        assert _betweenShare(nodes['x4'], grouping.codes['g0']) > share + 0.03
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
