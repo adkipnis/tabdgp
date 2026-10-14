@@ -126,6 +126,13 @@ def test_a_grouping_factor_with_fewer_than_2_levels_fails() -> None:
         Column(type='categorical', levels=1, role='grouping factor')
 
 
+@pytest.mark.parametrize(('type', 'levels'), [('binary', 2), ('ordered', 3)])
+def test_a_grouping_factor_of_another_type_fails(type: str, levels: int) -> None:
+    """Its codes are labels of groups, unordered at any G, so a factor is categorical even at 2."""
+    with pytest.raises(ValidationError):
+        Column(type=type, levels=levels, role='grouping factor')
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
