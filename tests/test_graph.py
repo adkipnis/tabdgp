@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from tabdgp.column import Grouping
+from tabdgp.column import Grouping, assign
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tests.fixtures.build import graphOf, groupingOf, point
@@ -568,6 +568,20 @@ def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) ->
     assert (first.noise_scale, first.init_scale) == (second.noise_scale, second.init_scale)
     assert (first.unit, first.group_share) == (second.unit, second.group_share)
     assert first.group_factor == second.group_factor
+
+
+def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> None:
+    """graph tells a grouping factor by its g prefix and column names the factors:
+    the two lists must agree, or a drawn grouping would make an invalid graph.
+    """
+    for seed in range(20):
+        rng = np.random.default_rng(seed)
+        resolved = Hyperprior.grouped(rows=200).resolveDataset(rng)
+        grouping = assign(resolved, rng)
+        graph = connect(resolved, grouping, OBSERVED[:5], rng)
+        factors = [name for name in graph.names if name.startswith('g')]
+        assert [*factors, 'row'] == grouping.chain('row')
+        assert set(graph.unit) <= set(grouping.chain('row'))
 
 
 def _degreeSpread(hub_scale: float) -> float:
