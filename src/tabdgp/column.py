@@ -113,9 +113,10 @@ class Grouping:
         coarser = self.codes[from_unit]  # (n,)
         if to_unit == 'row':
             return values[coarser]
-        # the coarser group of each finer group is the coarser code of its first row
-        first_rows = np.unique(self.codes[to_unit], return_index=True)[1]  # (G,)
-        return values[coarser[first_rows]]
+        # every row of a finer group carries its coarser group's code, so any row's will do
+        coarser_of = np.empty(self.metadata[to_unit].levels, dtype=np.int64)  # (G,)
+        coarser_of[self.codes[to_unit]] = coarser
+        return values[coarser_of]
 
 
 def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
