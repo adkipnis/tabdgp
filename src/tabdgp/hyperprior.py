@@ -212,7 +212,8 @@ class Hyperprior(BaseModel):
       A column with levels takes one of K levels in each row.
       Due to dummy-encoding, it takes K − 1 columns in the design matrix.
     - Grouping: a grouping factor assigns every row to one of its G groups.
-      A table has none (flat) or several, each nested in the previous one or crossed with it.
+      A table has none (flat), one or several;
+      each after the first nests in the previous one or is crossed with all earlier ones.
       A factor's groups are of equal size or have Dirichlet-distributed sizes.
       A node is group-level (constant within the groups of one factor) or within-group;
       the group share of a within-group node is the share of its variance between groups.
