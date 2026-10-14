@@ -15,7 +15,7 @@ from hypothesis import strategies as st
 from tabdgp.column import Column
 from tabdgp.draw import Dataset, draw
 from tabdgp.hyperprior import Hyperprior, UniformInt
-from tests.fixtures.build import graphOf, point
+from tests.fixtures.build import betweenShare, graphOf, point
 
 
 def test_a_dataset_holds_its_arrays_without_copying() -> None:
@@ -379,14 +379,6 @@ def test_a_group_level_column_takes_its_marginals_values_at_g_distinct_ranks() -
                 assert len(np.unique(dataset.columns[name])) == levels
 
 
-def _betweenShare(values: np.ndarray, codes: np.ndarray) -> float:
-    """The share of a column's variance over rows that lies between the groups of a factor."""
-    values = values.astype(np.float64)
-    means = np.bincount(codes, weights=values) / np.bincount(codes)  # (G,)
-    between = ((means[codes] - values.mean()) ** 2).sum()
-    return float(between / ((values - values.mean()) ** 2).sum())
-
-
 def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_between_group_share_at_chance_level() -> (
     None
 ):
@@ -406,7 +398,7 @@ def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_bet
             if column.role == 'covariate' and unit[name] == 'row'
         ]
         for name in within_group:
-            assert _betweenShare(dataset.columns[name], codes) < 0.03
+            assert betweenShare(dataset.columns[name], codes) < 0.03
 
 
 def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:

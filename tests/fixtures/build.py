@@ -1,5 +1,6 @@
 """Hand-built inputs the module tests share: point-mass shares, continuous columns by name,
 a grouping from code lists and a graph from parent lists.
+Also the between-group share the grouped tests measure.
 """
 
 from __future__ import annotations
@@ -93,3 +94,11 @@ def graphOf(
         group_share=[group_share if is_mixed else None for is_mixed in mixed],
         group_factor=[group_factor if is_mixed else None for is_mixed in mixed],
     )
+
+
+def betweenShare(values: np.ndarray, codes: np.ndarray) -> float:
+    """The share of an array's variance over rows that lies between the groups of a factor."""
+    values = values.astype(np.float64)
+    means = np.bincount(codes, weights=values) / np.bincount(codes)  # (G,)
+    between = ((means[codes] - values.mean()) ** 2).sum()
+    return float(between / ((values - values.mean()) ** 2).sum())

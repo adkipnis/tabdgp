@@ -11,7 +11,7 @@ from tabdgp.column import Grouping
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import ACTIVATIONS, propagate
-from tests.fixtures.build import columnsOf, graphOf, groupingOf, point
+from tests.fixtures.build import betweenShare, columnsOf, graphOf, groupingOf, point
 
 OBSERVED = list('abcdefhijklm')  # no g, a grouping factor's prefix
 FLAT = groupingOf([])
@@ -235,13 +235,6 @@ def test_a_group_level_nodes_parents_are_read_at_its_unit() -> None:
         assert abs(np.corrcoef(parent, nodes['x3'])[0, 1]) > 0.99
 
 
-def _betweenShare(values: np.ndarray, codes: np.ndarray) -> float:
-    """The share of a node's variance over rows that lies between the groups of a factor."""
-    means = np.bincount(codes, weights=values) / np.bincount(codes)  # (G,)
-    between = ((means[codes] - values.mean()) ** 2).sum()
-    return float(between / ((values - values.mean()) ** 2).sum())
-
-
 def test_a_row_unit_node_at_group_share_1_is_constant_within_its_group_factors_groups() -> None:
     """At share 1 the row part has weight 0: a root is group-level noise, and a child of a row
     parent keeps nothing of it. Both are one value per group of the group factor.
@@ -258,7 +251,7 @@ def test_a_row_unit_node_at_group_share_1_is_constant_within_its_group_factors_g
         nodes = _nodes(graph, 600, grouping, seed)
         for name in ['x2', 'x4']:
             assert nodes[name].shape == (600,)
-            assert _betweenShare(nodes[name], grouping.codes['g1']) == pytest.approx(1.0)
+            assert betweenShare(nodes[name], grouping.codes['g1']) == pytest.approx(1.0)
             assert len(np.unique(nodes[name])) == 15
 
 
@@ -273,7 +266,7 @@ def test_a_row_unit_node_at_group_share_0_has_a_between_group_share_at_chance_le
     for seed in range(10):
         nodes = _nodes(graph, 4000, grouping, seed)
         for name in ['x1', 'x2']:
-            assert _betweenShare(nodes[name], grouping.codes['g0']) < 0.02
+            assert betweenShare(nodes[name], grouping.codes['g0']) < 0.02
 
 
 @pytest.mark.parametrize('share', [0.2, 0.5, 0.8])
@@ -294,10 +287,8 @@ def test_the_between_group_share_over_rows_is_near_the_group_share_under_balance
     for seed in range(10):
         nodes = _nodes(graph, 4000, grouping, seed)
         for name in ['x2', 'x3']:
-            assert _betweenShare(nodes[name], grouping.codes['g0']) == pytest.approx(
-                share, abs=0.03
-            )
-        assert _betweenShare(nodes['x4'], grouping.codes['g0']) > share + 0.03
+            assert betweenShare(nodes[name], grouping.codes['g0']) == pytest.approx(share, abs=0.03)
+        assert betweenShare(nodes['x4'], grouping.codes['g0']) > share + 0.03
 
 
 def test_the_group_part_follows_a_group_level_parent_at_low_noise() -> None:
@@ -335,7 +326,7 @@ def test_a_crossed_factors_parent_goes_into_the_row_part() -> None:
         row_only = _nodes(_graph(0.0), 600, grouping, seed)['x3']
         assert abs(np.corrcoef(parent, row_only)[0, 1]) > 0.99
         group_only = _nodes(_graph(1.0), 600, grouping, seed)['x3']
-        assert _betweenShare(group_only, grouping.codes['g0']) == pytest.approx(1.0)
+        assert betweenShare(group_only, grouping.codes['g0']) == pytest.approx(1.0)
         assert abs(np.corrcoef(parent, group_only)[0, 1]) < 0.2
 
 
