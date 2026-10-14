@@ -102,9 +102,7 @@ class Grouping:
         return chain
 
     def broadcast(self, values: np.ndarray, from_unit: str, to_unit: str) -> np.ndarray:
-        """Values at one unit read at a unit of whose chain it is part,
-        each group's value repeated over its rows or the finer groups within it.
-        """
+        """Copies each group's value at from_unit to every row or finer group within it."""
         if from_unit not in self.traceChain(to_unit):
             raise ValueError(f'{from_unit} is not in the chain of {to_unit}')
         if from_unit == to_unit:
