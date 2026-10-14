@@ -35,7 +35,7 @@ Activation = Literal['tanh', 'relu', 'sin']
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Graph:
-    """Every node of a dataset in topological order (factors `g`, observed `x`, latent `z`).
+    """Every node of a dataset in topological order (factors `g`, latent `z`, observed `x`).
 
     - A grouping factor comes first, without edges, at its own unit: its values are its codes.
     - Every other node is at a unit, a factor's or the row: the units in the factors' order,
