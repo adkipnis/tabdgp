@@ -242,6 +242,20 @@ def test_a_row_unit_node_at_group_share_1_is_constant_within_its_group_factors_g
             assert len(np.unique(nodes[name])) == 15
 
 
+def test_a_row_unit_node_at_group_share_0_has_a_between_group_share_at_chance_level() -> None:
+    """At share 0 the group part has weight 0 and the node is its row part alone: the group
+    means differ only by chance, a share near (G − 1) / (n − 1), here 0.005. The override that
+    switches group confounding off rests on this.
+    """
+    grouping = _balanced(4000, [20])
+    # x1 is a root at the row, x2 a linear child of it
+    graph = graphOf([[], [], [1]], unit=['g0', 'row', 'row'], group_share=0.0)
+    for seed in range(10):
+        nodes = _nodes(graph, 4000, grouping, seed)
+        for name in ['x1', 'x2']:
+            assert _betweenShare(nodes[name], grouping.codes['g0']) < 0.02
+
+
 def test_propagate_skips_the_grouping_factors() -> None:
     """A grouping factor's values are its codes, which Grouping holds; it has no mechanism."""
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
