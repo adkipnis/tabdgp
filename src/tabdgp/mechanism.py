@@ -49,7 +49,7 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin}
 
 
 def _isConstant(x: np.ndarray) -> bool:
-    # the same on every row; the first column settles most layers without reading the rest
+    # the same in every element; the first column settles most layers without reading the rest
     return bool((x[:, 0] == x[0, 0]).all() and (x == x[0]).all())
 
 
