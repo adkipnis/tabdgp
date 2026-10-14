@@ -342,11 +342,12 @@ def _isConstantWithinGroups(values: np.ndarray, codes: np.ndarray) -> bool:
     return bool(np.array_equal(values, values[first_rows][codes]))
 
 
-def test_a_group_level_column_is_constant_within_its_groups() -> None:
-    """A school's size is one value per school: a column at a factor's unit repeats its group's
-    value over the group's rows, whatever its type.
+def test_a_group_level_column_or_latent_node_is_constant_within_its_groups() -> None:
+    """A school's size is one value per school: a column or latent node at a factor's unit
+    repeats its group's value over the group's rows, whatever its type.
+    A broadcast through another factor's codes would break it.
     """
-    hyperprior = Hyperprior.grouped(rows=200, group_level_share=1.0)
+    hyperprior = Hyperprior.grouped(rows=200, group_level_share=1.0, latent_nodes=3)
     for index in range(20):
         dataset = draw(0, index, hyperprior)
         unit = _unitOf(dataset)
@@ -355,6 +356,8 @@ def test_a_group_level_column_is_constant_within_its_groups() -> None:
                 assert _exceedsAFactorsGroups(dataset, name)
             elif column.role == 'covariate':
                 assert _isConstantWithinGroups(dataset.columns[name], dataset.columns[unit[name]])
+        for name, values in dataset.latent.items():
+            assert _isConstantWithinGroups(values, dataset.columns[unit[name]])
 
 
 def test_a_group_level_column_takes_its_marginals_values_at_g_distinct_ranks() -> None:
