@@ -125,10 +125,13 @@ def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_co
     """metabeta's design matrix has the width it drew.
 
     A corner such as all-categorical must still fill a remainder of 1.
+    100 rows admit every budget up to 19 (n ≥ 2d).
     """
     for budget in range(20):
         for seed in range(10):
-            columns = _plan(seed, design_columns=budget, type_shares=point('type_shares', type))
+            columns = _plan(
+                seed, rows=100, design_columns=budget, type_shares=point('type_shares', type)
+            )
             assert sum(column.design_columns for column in columns.values()) == budget
 
 
