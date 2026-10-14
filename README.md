@@ -41,11 +41,9 @@ print(len(dataset.latent), 'latent nodes,', dataset.graph.parents.sum(), 'edges'
 ```
 
 ```text
-x0 binary [1 1 1]
-x1 binary [0 1 0]
-x2 categorical [0 0 0]
-x3 continuous [0.25 0.42 0.1 ]
-7 latent nodes, 8 edges
+x0 categorical [4 4 4]
+x1 binary [1 0 0]
+7 latent nodes, 12 edges
 ```
 
 ## Planned
