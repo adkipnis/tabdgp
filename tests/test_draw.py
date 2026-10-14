@@ -273,3 +273,22 @@ def test_a_group_level_column_is_constant_within_its_groups() -> None:
             if column.role == 'covariate':
                 assert unit[name] != 'row'
                 assert _isConstantWithinGroups(dataset.columns[name], dataset.columns[unit[name]])
+
+
+def test_a_group_level_column_takes_its_marginals_values_at_g_distinct_ranks() -> None:
+    """Its marginal is sampled at G values, one per group, not at n values with ties;
+    a tie-free family makes the count exact.
+    """
+    hyperprior = Hyperprior.grouped(
+        rows=200,
+        group_level_share=1.0,
+        type_shares=point('type_shares', 'continuous'),
+        marginal_shares=point('marginal_shares', 'normal'),
+    )
+    for index in range(20):
+        dataset = draw(0, index, hyperprior)
+        unit = _unitOf(dataset)
+        for name, column in dataset.metadata.items():
+            if column.role == 'covariate':
+                levels = dataset.metadata[unit[name]].levels
+                assert len(np.unique(dataset.columns[name])) == levels
