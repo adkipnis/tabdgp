@@ -45,12 +45,13 @@ class Column:
             raise ValueError(f'a grouping factor cannot be {self.type}')
         if self.role == 'covariate' and self.nests_in is not None:
             raise ValueError(f'a covariate cannot nest in {self.nests_in}')
-        # binary is exactly K = 2 and categorical or ordered K ≥ 3, so no two types overlap
+        # a covariate is binary at exactly K = 2 and categorical or ordered from K = 3,
+        # so no two types overlap; the split is about coding, so a factor's starts at K = 2
         if self.type == 'continuous':
             agree = self.levels is None
         elif self.type == 'binary':
             agree = self.levels == 2
-        else:  # categorical | ordered; the split from binary is about coding, so not a factor's
+        else:  # categorical | ordered
             fewest = 2 if self.role == 'grouping factor' else 3
             agree = self.levels is not None and self.levels >= fewest
         if not agree:
@@ -133,7 +134,7 @@ def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
 def _sampleSizes(
     elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
 ) -> tuple[np.ndarray, dict[str, float]]:
-    """Rule 7's group sizes over the elements, and the parameters they drew."""
+    """The group sizes over the elements, equal or Dirichlet-multinomial, and what they drew."""
     if rng.random() < resolved.balanced_share:
         # n // G each, the remainder one more for the first groups
         sizes = elements // groups + (np.arange(groups) < elements % groups)  # (G,)
@@ -254,13 +255,12 @@ def _sampleCodes(n: int, column: Column, rng: np.random.Generator) -> np.ndarray
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """The column's values in its node's order, one per distinct node value:
-    a marginal sample if continuous, level codes otherwise. Tied rows share a value.
+    a marginal sample if continuous, level codes otherwise. Tied node values share a column value.
     """
     distinct, rank = np.unique(node, return_inverse=True)  # (D,), (n,) each row's dense rank
     if column.type == 'continuous':
         by_rank = np.sort(_sampleMarginal(len(distinct), column, rng)).astype(np.float32)  # (D,)
     else:
         by_rank = _sampleCodes(len(distinct), column, rng)  # (D,)
-    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982);
-    # a node constant within groups, at a factor's unit or at share 1, gives one value per group
+    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
     return by_rank[rank]
