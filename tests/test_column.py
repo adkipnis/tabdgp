@@ -120,6 +120,12 @@ def test_a_grouping_factor_is_0_design_columns_wide() -> None:
     assert column.design_columns == 0
 
 
+def test_a_grouping_factor_with_fewer_than_2_levels_fails() -> None:
+    """One group is no grouping; two are, so a factor need not be K ≥ 3 like a categorical."""
+    with pytest.raises(ValidationError, match='1 levels'):
+        Column(type='categorical', levels=1, role='grouping factor')
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
