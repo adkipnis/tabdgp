@@ -198,6 +198,24 @@ def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_boun
         hyperprior.resolveField('groups', np.random.default_rng(0), high=7)
 
 
+OUT_OF_REACH = [
+    pytest.param(LogUniformInt(2, 400), 3, id='a floor above the bound'),
+    pytest.param(UniformInt(2, 3), 10, id='a floor above the distribution'),
+]
+
+
+@pytest.mark.parametrize(('distribution', 'bound'), OUT_OF_REACH)
+def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
+    distribution: UniformInt | LogUniformInt, bound: int
+) -> None:
+    """A chain of three factors needs 4 groups in its finest, which 3 rows cannot hold;
+    a draw below the floor would leave a coarser factor without its 2 groups.
+    """
+    hyperprior = Hyperprior(groups=distribution)
+    with pytest.raises(ValueError, match=r'groups.*\b4\b'):
+        hyperprior.resolveField('groups', np.random.default_rng(0), low=4, high=bound)
+
+
 def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
     """A point override is honoured exactly or not at all:
     50 groups cannot be assigned to 30 rows, and 19 design columns under 10 rows break n ≥ 2d.
