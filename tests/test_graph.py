@@ -213,6 +213,31 @@ def test_a_two_part_field_on_a_group_level_node_fails(change: dict) -> None:
         Graph(**GROUPED | change)
 
 
+MISSING_PARTS = [
+    pytest.param({'group_share': [None] * 3}, id='a row-unit node without a group share'),
+    pytest.param({'group_factor': [None] * 3}, id='a row-unit node without a group factor'),
+    pytest.param(
+        {
+            'parents': _parentsOf(),
+            'mechanism': [None] * 3,
+            'noise_scale': [None] * 3,
+            'group_share': [None] * 3,
+            'group_factor': [None] * 3,
+        },
+        id='a row-unit root without either',
+    ),
+]
+
+
+@pytest.mark.parametrize('change', MISSING_PARTS)
+def test_a_missing_two_part_field_on_a_row_unit_node_fails(change: dict) -> None:
+    """Every row-unit node of a grouped graph mixes a group part, roots included:
+    a root's group part is pure group-level noise.
+    """
+    with pytest.raises(ValidationError):
+        Graph(**GROUPED | change)
+
+
 # connect carries whatever names the plan gives it; letters show that it mints none of its own,
 # skipping g and z, the prefixes of grouping factors and latent nodes
 OBSERVED = list('abcdefhijk')
