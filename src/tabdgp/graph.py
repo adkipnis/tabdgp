@@ -192,6 +192,7 @@ def _sampleEdges(resolved: Hyperprior, d: int, rng: np.random.Generator) -> np.n
 
 
 def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.ndarray:
+    """Drops each edge a child cannot read."""
     units = grouping.traceChain('row')
     # a child reads a parent at its own unit or a superior one of its chain
     reads = np.array(
