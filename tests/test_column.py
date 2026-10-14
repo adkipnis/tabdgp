@@ -1,5 +1,6 @@
 """The column module's seams: what a Column guarantees on its own,
-the column plan under the budget, and a column's values from its node's.
+the grouping factors and their units, the column plan under the budget,
+and a column's values from its node's.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from tabdgp.column import Column, apply, plan
+from tabdgp.column import Column, Grouping, apply, assign, plan
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 from tests.fixtures.build import groupingOf, point
 
@@ -205,6 +206,22 @@ def test_broadcasting_out_of_a_units_chain_fails(from_unit: str, to_unit: str) -
     """
     with pytest.raises(ValueError, match=f'{from_unit}.*{to_unit}'):
         NESTED.broadcast(np.zeros(8), from_unit, to_unit)
+
+
+def _assign(seed: int, **overrides: object) -> Grouping:
+    rng = np.random.default_rng(seed)
+    resolved = Hyperprior.grouped(**overrides).resolveDataset(rng)
+    return assign(resolved, rng)
+
+
+def test_factors_0_gives_an_empty_grouping_whose_broadcast_is_the_identity() -> None:
+    """A flat table is a grouping of no factors, so every later step runs on it unchanged."""
+    grouping = _assign(0, factors=0)
+    values = np.arange(5.0)
+    assert grouping.metadata == {}
+    assert grouping.codes == {}
+    assert grouping.chain('row') == ['row']
+    np.testing.assert_array_equal(grouping.broadcast(values, 'row', 'row'), values)
 
 
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
