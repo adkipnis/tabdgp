@@ -261,6 +261,16 @@ def test_a_tiny_size_alpha_gives_singleton_groups() -> None:
         np.testing.assert_array_equal(sizes, [1] * 9 + [991])
 
 
+def test_two_crossed_factors_codes_are_independent() -> None:
+    """Crossed assignments are drawn independently: a dependence between them would be a quirk
+    the registry has not measured, so each cell's count is near the product of the margins.
+    """
+    grouping = _assign(0, rows=100_000, factors=2, nested_share=0, groups=4, balanced_share=1)
+    cells = np.bincount(4 * grouping.codes['g0'] + grouping.codes['g1']).reshape(4, 4)
+    expected = np.outer(cells.sum(axis=1), cells.sum(axis=0)) / 100_000  # (4, 4)
+    np.testing.assert_allclose(cells, expected, rtol=0.05)
+
+
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
