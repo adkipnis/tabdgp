@@ -14,8 +14,9 @@ pipeline:
 the (optional) overrides
 -> a preset with the overrides                           grouped, flat
 -> validation at construction                            Hyperprior
+-> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
--> a point per column, node or factor, in its bounds     resolveField
+   (a column, node or factor resolves its own fields later, by resolveField)
 """
 
 from __future__ import annotations
@@ -121,6 +122,15 @@ class Beta:
         return 0.0, 1.0
 
 
+class Shares(dict[str, float]):
+    """A point on the simplex: each category's share, from which a category is chosen."""
+
+    def choose(self, rng: np.random.Generator) -> str:
+        p = list(self.values())
+        choice = rng.choice(list(self), p=p)
+        return str(choice)
+
+
 @pydantic_dataclass(frozen=True)
 class Dirichlet:
     alpha: dict[str, PositiveFloat]  # concentration per category
@@ -134,15 +144,6 @@ class Dirichlet:
         return Shares(zip(self.alpha, shares))
 
 
-class Shares(dict[str, float]):
-    """A point on the simplex: each category's share, from which a category is chosen."""
-
-    def choose(self, rng: np.random.Generator) -> str:
-        p = list(self.values())
-        choice = rng.choice(list(self), p=p)
-        return str(choice)
-
-
 # every distribution a field can take
 Distribution = Uniform | LogUniform | UniformInt | LogUniformInt | Beta | Dirichlet
 
@@ -150,11 +151,6 @@ Distribution = Uniform | LogUniform | UniformInt | LogUniformInt | Beta | Dirich
 Integer = int | UniformInt | LogUniformInt
 Real = float | Uniform | LogUniform | Beta
 Simplex = dict[str, NonNegativeFloat] | Dirichlet
-
-
-def _support(value: Integer | Real) -> tuple[float, float]:
-    """The smallest and largest value a field can take, a point's own."""
-    return value.support() if isinstance(value, Distribution) else (value, value)
 
 
 def _within(
@@ -318,6 +314,16 @@ class Hyperprior(BaseModel):
     def flat(cls, **overrides: Any) -> Hyperprior:
         return cls(factors=0, **overrides)
 
+    @classmethod
+    def categories(cls, field: str) -> list[str]:
+        return list(cls.model_fields[field].default.alpha)
+
+    @staticmethod
+    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
+        if shares.keys() != set(categories):
+            raise ValueError(f'shares name {list(shares)}, not {categories}')
+        return {name: shares[name] for name in categories}
+
     @field_validator(*SHARES)
     @classmethod
     def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
@@ -330,44 +336,33 @@ class Hyperprior(BaseModel):
         return Shares(cls._inOrder(value, categories))
 
     @staticmethod
-    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
-        if shares.keys() != set(categories):
-            raise ValueError(f'shares name {list(shares)}, not {categories}')
-        return {name: shares[name] for name in categories}
-
-    @classmethod
-    def categories(cls, field: str) -> list[str]:
-        return list(cls.model_fields[field].default.alpha)
+    def _support(value: Integer | Real) -> tuple[float, float]:
+        """The smallest and largest value a field can take, a point's own."""
+        return value.support() if isinstance(value, Distribution) else (value, value)
 
     def floorGroups(self, depth: int) -> int:
         """The fewest groups a factor may draw: the lowest value of groups,
         plus one per coarser factor it nests in, so that each of them keeps a count below it.
         """
-        return _support(self.groups)[0] + depth
+        return self._support(self.groups)[0] + depth
 
     @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
         """The finest factor of the longest chain needs a value of groups at its floor or above."""
-        can_nest = _support(self.nested_share)[1] > 0
-        longest = _support(self.factors)[1] if can_nest else 1
-        if self.floorGroups(longest - 1) > _support(self.groups)[1]:
+        can_nest = self._support(self.nested_share)[1] > 0
+        longest = self._support(self.factors)[1] if can_nest else 1
+        if self.floorGroups(longest - 1) > self._support(self.groups)[1]:
             raise ValueError(
                 f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
                 'fewer factors, or give groups a wider range'
             )
         return self
 
-    def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
-        """Resolves each field drawn once per dataset."""
-        points = {}
-        for name in type(self).model_fields:
-            if name in self.PER_COLUMN + self.PER_NODE + self.PER_FACTOR:
-                points[name] = getattr(self, name)  # defer resolution to a later step
-            elif name == 'design_columns':
-                points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n ≥ 2d
-            else:
-                points[name] = self.resolveField(name, rng)
-        return Hyperprior(**points)
+    @staticmethod
+    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
+        bottom, top = _truncate(Hyperprior._support(value), low, high)
+        if bottom > top:
+            raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
 
     def resolveField(
         self, field: str, rng: np.random.Generator, low: int | None = None, high: int | None = None
@@ -380,8 +375,14 @@ class Hyperprior(BaseModel):
             value = value.draw(rng, low, high) if bounded else value.draw(rng)
         return value
 
-    @staticmethod
-    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
-        bottom, top = _truncate(_support(value), low, high)
-        if bottom > top:
-            raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
+    def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
+        """Resolves each field drawn once per dataset."""
+        points = {}
+        for name in type(self).model_fields:
+            if name in self.PER_COLUMN + self.PER_NODE + self.PER_FACTOR:
+                points[name] = getattr(self, name)  # defer resolution to a later step
+            elif name == 'design_columns':
+                points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n ≥ 2d
+            else:
+                points[name] = self.resolveField(name, rng)
+        return Hyperprior(**points)
