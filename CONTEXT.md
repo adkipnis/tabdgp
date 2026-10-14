@@ -30,9 +30,12 @@ between groups is **group-confounded**.
 _Avoid_: level-1 and level-2 variable, cluster-level, contextual variable
 
 **Group share**:
-The share of a within-group covariate's variance that lies between the groups of a grouping
-factor, the strength of its group confounding; zero for an unconfounded covariate.
-_Avoid_: ICC unqualified (the fitter's, on the outcome), random-intercept variance
+How much of a within-group node's variance comes from its group part, one value per group of
+one grouping factor, rather than its row part, one value per row: the strength of its group
+confounding. The between-group share measured on its values can be larger, since its row part
+may read group-confounded parents.
+_Avoid_: ICC unqualified (the fitter's, on the outcome), between-group share (what the
+measurement pass records), random-intercept variance
 
 **Quirk**:
 A property of real tables that an independent and identically distributed (i.i.d.) simulator
