@@ -280,10 +280,11 @@ def test_a_row_unit_node_at_group_share_0_has_a_between_group_share_at_chance_le
 def test_the_between_group_share_over_rows_is_near_the_group_share_under_balanced_groups(
     share: float,
 ) -> None:
-    """The group part and the row part are z-scored over the rows and the row part's group means
-    differ only by chance, so sqrt(s) and sqrt(1 − s) make s the node's between-group share:
-    the statistic the measurement pass records. A row-unit parent carries its own group variance
-    into the row part, so its child's share lies above s.
+    """The group part carries s of the node's variance.
+    Under balanced groups and a row part without a row-unit parent,
+    that is also its between-group share over rows, which the measurement pass records.
+    A row-unit parent carries its own group variance into the row part,
+    so its child's between-group share lies above s.
     """
     grouping = _balanced(4000, [20])
     # x1 is a root at g0 and x2 its linear child at the row; x3 is a root at the row, x4 its child
