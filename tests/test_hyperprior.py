@@ -144,6 +144,19 @@ def test_a_truncated_draw_piles_no_mass_on_its_bound(
     assert draws.count(bound) / len(draws) == pytest.approx(share, abs=0.01)
 
 
+@pytest.mark.parametrize('distribution', [UniformInt(2, 400), LogUniformInt(2, 400)])
+def test_a_truncated_support_of_one_value_draws_it(
+    distribution: UniformInt | LogUniformInt,
+) -> None:
+    """A table of two rows admits factors of two groups only.
+    Construction rejects a support of one value; a bound may narrow a support to it.
+    """
+    hyperprior = Hyperprior(groups=distribution)
+    rng = np.random.default_rng(0)
+    draws = {hyperprior.resolveField('groups', rng, high=2) for _ in range(100)}
+    assert draws == {2}
+
+
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
     """A dataset is a pure function of its key, so the same generator gives the same points."""
     hyperprior = Hyperprior()
