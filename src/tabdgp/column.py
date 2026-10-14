@@ -3,8 +3,8 @@
 pipeline:
 ---------
 resolved sizes, shares and budget
--> per factor, how many coarser factors it nests in           _nestFactors
--> per factor bottom up, its G, sizes and codes               _sampleSizes, assign
+-> per factor (top down), how many coarser factors it nests in           _nestFactors
+-> per factor (bottom up), its group IDs (G), sizes and codes               _sampleSizes, assign
 -> per column, its type, K and own parameters                 _resolveColumn
 -> one named column after another until the budget is met     plan
 -> per column, a sorted sample, one per distinct node value   _sampleMarginal, _sampleCodes
@@ -35,7 +35,7 @@ class Column:
     type: ColumnType
     levels: int | None = None  # K
     role: Literal['covariate', 'grouping factor'] = 'covariate'
-    nests_in: str | None = None  # the coarser grouping factor of a nested one
+    nests_in: str | None = None  # the superior grouping factor of a nested one
     marginal: Family | None = None  # for continuous columns
     parameters: dict[str, float] = Field(default_factory=dict)
 
@@ -45,8 +45,7 @@ class Column:
             raise ValueError(f'a grouping factor cannot be {self.type}')
         if self.role == 'covariate' and self.nests_in is not None:
             raise ValueError(f'a covariate cannot nest in {self.nests_in}')
-        # a covariate is binary at exactly K = 2 and categorical or ordered from K = 3,
-        # so no two types overlap; the split is about coding, so a factor's starts at K = 2
+        # a covariate is binary at exactly K = 2 and categorical or ordered from K = 3
         if self.type == 'continuous':
             agree = self.levels is None
         elif self.type == 'binary':
@@ -60,8 +59,7 @@ class Column:
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # check that parameters hold exactly the fields this column drew
         if self.role == 'grouping factor':
-            # an unbalanced factor draws the concentration of its sizes, a balanced one nothing;
-            # nothing else records which it is, so this check only rules out any other field
+            # an unbalanced factor draws the concentration of its sizes, a balanced one nothing
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
         elif self.type == 'continuous':
             own = MARGINAL_FIELDS[self.marginal]
@@ -84,11 +82,9 @@ class Column:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Grouping:
-    """A dataset's grouping factors g0, g1, … and the arithmetic of their units.
-
-    - A unit is the row or one factor; a node at a factor's unit has one value per group.
-    - A unit's chain is the units a node there may read: the coarser factors it nests in, then itself.
-      The row is finer than every factor, so its chain is every factor, then the row.
+    """A dataset's grouping factors (g0, g1, ...) and the arithmetic of their units.
+    A unit (of observation) is the row or one factor;
+    a node at a factor's unit has one value per group.
     """
 
     metadata: dict[str, Column]
@@ -115,16 +111,14 @@ class Grouping:
         coarser = self.codes[from_unit]  # (n,)
         if to_unit == 'row':
             return values[coarser]
-        # every row of a finer group carries its coarser group's code, so any row's will do
+        # every row of a finer group carries its superior group's code, so any row's will do
         coarser_of = np.empty(self.metadata[to_unit].levels, dtype=np.int64)  # (G,)
         coarser_of[self.codes[to_unit]] = coarser
         return values[coarser_of]
 
 
 def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
-    """Each factor's depth, the number of coarser factors it nests in:
-    after the first, a factor nests in the previous one with probability nested_share.
-    """
+    """Each factor's depth (the number of coarser factors it nests in)."""
     depths = []
     for k in range(resolved.factors):
         nested = k > 0 and rng.random() < resolved.nested_share
@@ -135,7 +129,7 @@ def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
 def _sampleSizes(
     elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
 ) -> tuple[np.ndarray, dict[str, float]]:
-    """The group sizes over the elements, equal or Dirichlet-multinomial, and what they drew."""
+    """The group sizes and alphas over the elements, equal or Dirichlet-multinomial."""
     if rng.random() < resolved.balanced_share:
         # n // G each, the remainder one more for the first groups
         sizes = elements // groups + (np.arange(groups) < elements % groups)  # (G,)
@@ -149,7 +143,7 @@ def _sampleSizes(
 
 
 def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
-    """The grouping factors g0, g1, …, each row assigned to one group per factor."""
+    """The grouping factors (g0, g1, ...), each row assigned to one group per factor."""
     depths = _nestFactors(resolved, rng)
     # what the next factor's groups split, each row's element among them, and its bound:
     # the rows, each row its own element, unless a finer factor nests in it
@@ -265,7 +259,8 @@ def _sampleCodes(size: int, column: Column, rng: np.random.Generator) -> np.ndar
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """The column's values in its node's order, one per distinct node value:
-    a marginal sample if continuous, level codes otherwise. Tied node values share a column value.
+    a marginal sample if continuous, level codes otherwise.
+    Tied node values have the same column value.
     """
     distinct, rank = np.unique(node, return_inverse=True)  # (D,), (m,) each element's dense rank
     if column.type == 'continuous':
