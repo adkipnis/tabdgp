@@ -171,7 +171,7 @@ the overrides and the hyperprior
 - A block of checks opens with one plain sentence on what it checks.
 - A comment explains the code, not its history: the case behind a rule goes to the test that
   pins it, a definition to `CONTEXT.md`, how it was decided to an ADR. Code in
-  `src/` cites no ADR and names no consumer (metabeta, metasurv).
+  `src/` cites no ADR and names no consumer (such as metabeta).
 
 ## Tests
 
@@ -212,10 +212,10 @@ How the docs and the paper explain TabDGP to a reader with only a vague idea of 
 - An abstract mechanism gets a worked example small enough to check by eye (three values
   through rank matching).
 - A design choice names the alternatives considered, the verdict and why, as a table when
-  there are several, each citing its source: an ADR, the spec, a row of the audit.
-- A choice without a recorded reason says so ("a guess, fitted in item 4") instead of
+  there are several, each citing its source: an ADR, the spec, an issue.
+- A choice without a recorded reason says so ("a guess, to be fitted") instead of
   inventing one; an opinion is marked as one, apart from the facts.
-- What is left out says where it lives: a later roadmap item, an appendix.
+- What is left out says where it lives: a GitHub issue, an appendix.
 
 ## Data
 

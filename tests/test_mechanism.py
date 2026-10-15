@@ -293,7 +293,7 @@ def test_the_between_group_share_over_rows_is_near_the_group_share_under_balance
 
 def test_the_group_part_follows_a_group_level_parent_at_low_noise() -> None:
     """A parent at the group factor's unit goes into the group part, which carries its signal
-    like item 1's mechanism: at share 1 and little noise, the child follows it over the rows.
+    like spec #1's mechanism: at share 1 and little noise, the child follows it over the rows.
     """
     grouping = _balanced(600, [20])
     # x1 is a root at g0, x2 its linear child at the row
@@ -333,7 +333,7 @@ def test_a_crossed_factors_parent_goes_into_the_row_part() -> None:
 
 def test_a_parentless_group_part_is_group_level_noise() -> None:
     """A row-unit root's group part is one standard-normal noise per group of its group factor,
-    independent across roots, like item 1's root at the row.
+    independent across roots, like spec #1's root at the row.
     """
     grouping = _balanced(40000, [20000])
     # x1 and x2 are roots at the row
@@ -355,11 +355,11 @@ def test_propagate_skips_the_grouping_factors() -> None:
     assert list(propagate(graph, resolved, grouping, rng)) == ['x2', 'x3']
 
 
-# item 1's propagation, recorded on macOS from the module at commit 6063e89 on two graphs
+# spec #1's propagation, recorded on macOS from the module at commit 6063e89 on two graphs
 # connect draws at rows 300, latent_nodes 1 and the observed nodes a to d: the first row, the
 # last row and the absolute sum, the rows as exact float32 values; seed 1 draws three MLP nodes
 # and seed 7 three linear ones
-ITEM_1 = {
+SPEC_1 = {
     1: (
         [
             -1.46487295627594,
@@ -397,15 +397,15 @@ ITEM_1 = {
 }
 
 
-@pytest.mark.parametrize('seed', ITEM_1)
-def test_the_flat_case_is_item_1s_propagation(seed: int) -> None:
-    """A flat dataset is item 1's: the units are all the row, every broadcast the identity,
-    and the generator is read in item 1's order, the noise before the weights.
+@pytest.mark.parametrize('seed', SPEC_1)
+def test_the_flat_case_is_spec_1s_propagation(seed: int) -> None:
+    """A flat dataset is spec #1's: the units are all the row, every broadcast the identity,
+    and the generator is read in spec #1's order, the noise before the weights.
     Linux's BLAS and Windows' float32 tanh and sin differ from macOS's in the last digits,
     and no key promises bits across machines.
     A change in the generator's order changes every digit, so 1e-4 still catches it.
     """
-    first, last, total = ITEM_1[seed]
+    first, last, total = SPEC_1[seed]
     values = _propagate(seed, 4, 300, latent_nodes=1)
     assert values.shape == (300, 5)
     np.testing.assert_allclose(values[0], first, rtol=1e-4, atol=1e-6)
@@ -423,8 +423,8 @@ def test_an_empty_graph_propagates_to_no_nodes() -> None:
 
 def test_every_activation_is_non_linear() -> None:
     """An MLP of identities is a linear node under another name: its z-scored output is a
-    uniformly random direction over its parents, like a linear readout's, so item 4's fit could
-    not tell the two shares apart.
+    uniformly random direction over its parents, like a linear readout's,
+    so the hyperprior's fit could not tell the two shares apart.
     """
     x = np.linspace(-3, 3, 13)
     for name, activate in ACTIVATIONS.items():

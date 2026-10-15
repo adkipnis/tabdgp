@@ -24,7 +24,7 @@ git clone https://github.com/adkipnis/tabdgp
 cd tabdgp
 uv sync
 uv run pytest               # the fast tests
-uv run pytest -m slow       # the proofs against mixedbench's registry, from roadmap item 3
+uv run pytest -m slow       # the proofs against mixedbench's registry, once they exist
 ```
 
 ## Find your way
@@ -33,7 +33,7 @@ uv run pytest -m slow       # the proofs against mixedbench's registry, from roa
 src/tabdgp/     the package; each module's docstring says what it defines and how
 tests/          mirrors src/, fixtures beside the tests
 docs/adr/       the design decisions and why they were taken
-docs/           the conventions, and from roadmap item 3 the proofs' method
+docs/           the conventions, and later the proofs' method
 ```
 
 [`CONTEXT.md`](CONTEXT.md) defines the words (node, mechanism, hyperprior, override, quirk

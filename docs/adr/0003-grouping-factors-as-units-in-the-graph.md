@@ -6,8 +6,8 @@ amended: 2026-10-14, #28: a column with more levels than its factor has groups s
 
 # 0003 — Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
 
-Roadmap item 2 adds grouping to the flat SCM of item 1. Grilled on 2026-10-14 after the
-prior-art search of 2026-10-12 (`docs/frontier-priors.md`, local), the decision is: **a
+Roadmap item 2 adds grouping to the flat SCM of item 1. Grilled on 2026-10-14 after a
+prior-art search of 2026-10-12, the decision is: **a
 grouping factor is a root node without edges whose values assign rows to groups; every other
 node carries a unit, the row or one grouping factor, and is drawn once per element of that
 unit; a row-unit node's group confounding is an explicit share, `group_share`, that mixes a

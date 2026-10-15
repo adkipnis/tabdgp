@@ -383,7 +383,7 @@ def test_a_group_level_column_takes_its_marginals_values_at_g_distinct_ranks() -
 def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_between_group_share_at_chance_level() -> (
     None
 ):
-    """Item 9's ablation switches group confounding off by this one override.
+    """The ablation #22 asks for switches group confounding off by this one override.
     Under one factor every parent lies in the group factor's chain, so a share of 0 drops the
     group part and every row-unit node, a root or a child of a group-level parent, is i.i.d.
     over rows; the chance level is about (G − 1) / (n − 1), here 0.01.
@@ -403,7 +403,7 @@ def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_bet
 
 
 def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:
-    """A flat study changes nothing: item 1's table, with the grouping fields idle."""
+    """A flat study changes nothing: spec #1's table, with the grouping fields idle."""
     for index in range(20):
         dataset = draw(0, index, Hyperprior.flat())
         graph = dataset.graph

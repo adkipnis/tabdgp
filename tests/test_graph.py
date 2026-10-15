@@ -307,8 +307,8 @@ def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
     assert graph.parents.shape == (0, 0)
 
 
-def test_connect_on_a_flat_grouping_is_item_1s_graph() -> None:
-    """A flat table keeps item 1's graph: every node at the row, no g node, no two-part field."""
+def test_connect_on_a_flat_grouping_is_spec_1s_graph() -> None:
+    """A flat table keeps spec #1's graph: every node at the row, no g node, no two-part field."""
     graph = _connect(0, 6, latent_nodes=2)
     assert graph.unit == ['row'] * 8
     assert graph.group_share == [None] * 8

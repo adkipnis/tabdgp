@@ -40,6 +40,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/tabdgp"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["/docs"]  # the ADRs and conventions are read on GitHub, not in the sdist
+
 [tool.ruff]
 line-length = 100
 
