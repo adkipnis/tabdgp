@@ -94,7 +94,7 @@ def test_parameters_other_than_the_columns_own_fail(fields: dict, parameters: di
 
 
 def test_an_unknown_marginal_family_fails_at_construction() -> None:
-    """A family outside the catalogue would otherwise fail only when the column is matched."""
+    """A family outside the catalog would otherwise fail only when the column is matched."""
     with pytest.raises(ValidationError):
         Column(type='continuous', marginal='gamma')
 
@@ -331,7 +331,7 @@ def test_each_group_of_a_nested_factor_lies_in_one_superior_group() -> None:
 @pytest.mark.parametrize('rows', [4, 6, 100])
 def test_a_superior_factor_has_fewer_groups_than_its_subordinate_one(rows: int) -> None:
     """Equal counts would put one subordinate group in each superior one:
-    one partition relabelled, two random effects no model tells apart (ADR 0004, amended).
+    one partition relabeled, two random effects no model tells apart (ADR 0004, amended).
     The top factor keeps 2 groups and each subordinate one more,
     so 4 rows are the fewest a chain of three fits in.
     """
@@ -634,7 +634,7 @@ def _large(family: str, **parameters: float) -> np.ndarray:
     return _apply(100_000, column, seed=0)
 
 
-def test_each_familys_parameters_are_honoured() -> None:
+def test_each_familys_parameters_are_honored() -> None:
     """Each family reads its own parameters; expected values are closed forms, not the sampler's.
 
     The mixture's gap is set wide, so the share above half of it is the minor weight.

@@ -125,7 +125,7 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     group_level=st.booleans(),
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
 )
-def test_every_override_is_honoured(
+def test_every_override_is_honored(
     rows: int,
     design_columns: int,
     latent_nodes: int,
@@ -139,7 +139,7 @@ def test_every_override_is_honoured(
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
-    The fields without a visible size are honoured through hyperparameters, which must hold
+    The fields without a visible size are honored through hyperparameters, which must hold
     every point override as given, a field drawn per node through the graph and one drawn per
     factor through the factor's column. A point groups cannot nest, so a chain draws its groups
     from a range below the point.
@@ -211,7 +211,7 @@ def test_every_override_is_honoured(
     )
 
 
-def test_a_distribution_override_is_honoured() -> None:
+def test_a_distribution_override_is_honored() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
         dataset = draw(0, index, Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1))
@@ -245,7 +245,7 @@ def test_every_column_is_finite_and_every_continuous_column_non_constant() -> No
                 assert np.isfinite(values).all()
 
 
-def _neighbourAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
+def _neighborAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
     """The share of rows whose code equals the next row's in the parent's order.
 
     A column cut from its parent changes code only at its K − 1 thresholds, whatever its sign
@@ -278,7 +278,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
         for index in range(10):
             dataset = draw(0, index, hyperprior)
             assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
-            agreement = _neighbourAgreement(dataset.columns['x0'], dataset.latent['z0'])
+            agreement = _neighborAgreement(dataset.columns['x0'], dataset.latent['z0'])
             assert agreement > 0.95
 
 

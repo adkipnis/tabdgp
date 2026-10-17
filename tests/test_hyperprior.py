@@ -218,7 +218,7 @@ def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
 
 
 def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
-    """A point override is honoured exactly or not at all:
+    """A point override is honored exactly or not at all:
     50 groups cannot be assigned to 30 rows, and 19 design columns under 10 rows break n ≥ 2d.
     """
     rng = np.random.default_rng(0)
@@ -307,7 +307,7 @@ def test_an_out_of_range_value_fails_at_construction(overrides: dict) -> None:
         Hyperprior(**overrides)
 
 
-def test_a_misspelt_override_fails_at_construction() -> None:
+def test_a_misspelled_override_fails_at_construction() -> None:
     """A typo in a field name would otherwise leave the default in place without a word."""
     with pytest.raises(ValidationError):
         Hyperprior(n_ob=500)
@@ -351,7 +351,7 @@ def test_resolving_one_shares_field_gives_shares_that_choose() -> None:
 
 
 def test_a_shares_field_names_its_default_categories() -> None:
-    """The catalogues and the point masses read a field's categories from its default."""
+    """The catalogs and the point masses read a field's categories from its default."""
     assert Hyperprior.categories('mechanism_shares') == ['linear', 'mlp']
 
 
@@ -418,7 +418,7 @@ def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None
     assert recorded == set(Hyperprior.PER_NODE)
 
 
-CATALOGUES = [
+CATALOGS = [
     pytest.param(set(get_args(Family)), 'marginal_shares', id='marginal families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Activation)), 'activation_shares', id='activation names'),
@@ -427,12 +427,12 @@ CATALOGUES = [
 ]
 
 
-@pytest.mark.parametrize(('catalogue', 'field'), CATALOGUES)
-def test_each_catalogue_names_exactly_the_hyperprior_defaults_categories(
-    catalogue: set[str], field: str
+@pytest.mark.parametrize(('catalog', 'field'), CATALOGS)
+def test_each_catalog_names_exactly_the_hyperprior_defaults_categories(
+    catalog: set[str], field: str
 ) -> None:
-    """A category with a share but no entry in its catalogue would fail only when drawn."""
-    assert catalogue == set(Hyperprior.categories(field))
+    """A category with a share but no entry in its catalog would fail only when drawn."""
+    assert catalog == set(Hyperprior.categories(field))
 
 
 INVALID = [

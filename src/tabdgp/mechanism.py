@@ -80,11 +80,11 @@ def _mapParents(
 
 def _zscore(x: np.ndarray) -> np.ndarray:
     # a constant node (a dead relu, or the layer after one) arrives as zeros and stays zeros
-    centred = x - x.mean()
-    std = centred.std()
+    centered = x - x.mean()
+    std = centered.std()
     if std == 0:
         return np.zeros_like(x)
-    return centred / std
+    return centered / std
 
 
 def _countElements(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:

@@ -58,13 +58,13 @@ def test_graph_fields_of_different_lengths_fail(change: dict) -> None:
         Graph(**CHAIN | change)
 
 
-MISLABELLED = [
+MISLABELED = [
     pytest.param({'latent': np.array([True, False, False])}, id='an x node marked latent'),
     pytest.param({'names': ['z0', 'x1', 'x2']}, id='a z node not marked latent'),
 ]
 
 
-@pytest.mark.parametrize('change', MISLABELLED)
+@pytest.mark.parametrize('change', MISLABELED)
 def test_a_latent_mask_that_disagrees_with_the_names_fails(change: dict) -> None:
     """The mask and the x…/z… names both tell latent from observed nodes;
     they may not disagree.
@@ -466,7 +466,7 @@ def _roots(graph: Graph) -> np.ndarray:
 
 @pytest.mark.parametrize('family', ['linear', 'mlp'])
 def test_every_node_with_parents_draws_its_family_from_the_mechanism_shares(family: str) -> None:
-    """The mechanism shares are honoured; a root is its noise, so it draws no family."""
+    """The mechanism shares are honored; a root is its noise, so it draws no family."""
     for seed in range(20):
         graph = _connect(seed, 8, mechanism_shares=point('mechanism_shares', family))
         expected = [None if root else family for root in _roots(graph)]
@@ -485,7 +485,7 @@ def test_each_node_with_parents_draws_its_own_noise_scale() -> None:
 
 
 def test_each_mlp_node_draws_its_own_activation_and_init_scale_and_a_linear_node_neither() -> None:
-    """The activation shares are honoured per MLP node; a linear node is its readout alone."""
+    """The activation shares are honored per MLP node; a linear node is its readout alone."""
     sin = point('activation_shares', 'sin')
     mlp = _connect(
         0, 6, mechanism_shares=point('mechanism_shares', 'mlp'), activation_shares=sin, **DENSE
