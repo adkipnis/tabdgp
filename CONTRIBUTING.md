@@ -6,7 +6,7 @@ Thank you for your interest. TabDGP is early stage and help is welcome.
 
 - **A real-data quirk the generator misses.** Open an issue naming the property, a public
   table that shows it and, if you can, how to measure it per column or per grouping factor;
-  the quirk catalogue grows through the measurement pass, never by hand.
+  the quirk catalog grows through the measurement pass, never by hand.
 - **A bug in a mechanism or a proof.** Open an issue with the smallest example that shows it,
   or a pull request with a failing test and the fix.
 - **A use case.** A model family or a simulation study that needs something the hyperprior
@@ -56,6 +56,6 @@ Three rules keep the generator trustworthy:
 - **Nothing from downstream.** TabDGP imports nothing from metabeta or mixedbench; the proofs
   read mixedbench's registry as a test dependency only.
 
-## Licence
+## License
 
 By contributing, you agree that your changes are released under [MIT](LICENSE).

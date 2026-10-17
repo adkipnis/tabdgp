@@ -17,7 +17,7 @@ and has no default.** What the proofs certify is `grouped()`.
 ## Decisions
 
 - **The group-size draw is rule 7**, since the Gamma(κ) weights of the prior-art search
-  normalise to the symmetric Dirichlet(α) the registry fitted per factor: with probability
+  normalize to the symmetric Dirichlet(α) the registry fitted per factor: with probability
   `balanced_share` the groups are balanced (n / G each, the remainder one more for the first
   groups); otherwise one row per group, and the remaining n − G rows multinomial over
   Dirichlet(α) proportions. Two per-factor fields; G non-empty groups always; no retry.
@@ -28,7 +28,7 @@ and has no default.** What the proofs certify is `grouped()`.
   n = 20, 57 % of draws would become all-singleton tables.
 - **A superior factor has fewer groups than the subordinate one.** Its `groups` is
   truncated at one below the subordinate factor's, so a nested pair is never one partition
-  relabelled. Each factor's floor is the lowest value of `groups` (2 by default) plus the
+  relabeled. Each factor's floor is the lowest value of `groups` (2 by default) plus the
   number of factors superior to it, so that every superior one still gets that lowest value;
   a chain of L factors needs at least L + 1 rows by default, and a `rows` override below that
   fails at resolve. A chain of L factors needs L counts, each below the subordinate one's, so
@@ -59,9 +59,9 @@ and has no default.** What the proofs certify is `grouped()`.
 - **Clip after the draw** over truncation: rejected above.
 - **A superior factor with at most as many groups as the subordinate one**, the first
   draft: equal counts put one subordinate group in each superior group, the same partition
-  relabelled, two random effects no generalized linear mixed model (GLMM) tells apart.
+  relabeled, two random effects no generalized linear mixed model (GLMM) tells apart.
   Forced when the subordinate factor has 2 groups, it hit 15.9 % of nested pairs under
-  `grouped()`. Turning such a pair crossed was the other fix: it honours `nested_share` only
+  `grouped()`. Turning such a pair crossed was the other fix: it honors `nested_share` only
   sometimes.
 - **A kwarg on `draw`** for the kind of table, `flat: bool` or a `Literal` of kinds: a bool
   is not future-proof, a `Literal` makes every kind a branch inside `draw` that can contradict

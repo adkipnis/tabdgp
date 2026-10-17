@@ -36,17 +36,17 @@ shapes. TabDGP never pads, never batches across datasets and never writes a file
   marginals, post-hoc types), so a padded batch means masks through every mechanism and a
   padded adjacency, TabICL's road, which TabICL itself left. A padded batch also breaks
   per-dataset determinism on a GPU, where matrix kernels are chosen by shape. A loop over
-  datasets, each vectorised over its own rows, groups and columns, has no masks and no way for
-  dataset `i` to depend on its neighbours. GPU generation was weighed and rejected for the
+  datasets, each vectorized over its own rows, groups and columns, has no masks and no way for
+  dataset `i` to depend on its neighbors. GPU generation was weighed and rejected for the
   same reason: a dataset of about 2,000 rows by 20 columns is launch-bound, scatter and
   index-add (group aggregations) are non-deterministic on CUDA by default, and a GPU node's
   idle CPU cores draw in parallel instead.
 - **Tensor library.** JAX's `vmap` and `jit` are what this layout does not use, and shapes
   that differ per dataset leave it eager and slow. torch buys metabeta's stack at the cost of a
-  heavy dependency on every standalone user, a keyed sampler catalogue to maintain (its
+  heavy dependency on every standalone user, a keyed sampler catalog to maintain (its
   `distributions` take no generator except `Gamma`), and five to ten times numpy's
   per-operation overhead on small CPU arrays. numpy's `Generator` is a complete keyed
-  catalogue, `default_rng([seed, index])` is the key, dynamic shapes are free, and metabeta's
+  catalog, `default_rng([seed, index])` is the key, dynamic shapes are free, and metabeta's
   tensors are `torch.from_numpy`, zero copy. scipy may be added when it supplies a sampler
   numpy lacks.
 - **Public call: a batch or a dataset.** A stateful generator argument makes dataset 256

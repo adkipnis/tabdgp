@@ -69,12 +69,12 @@ child column its parent explains.
   categorical split is about design-matrix coding and applies to covariates only.
 - **Random effects stay the outcome node's.** A group-level node is covariate structure, which
   a GLMM takes as given; the outcome node (item 5) draws its random effects per grouping
-  factor in metabeta's parameterisation, so that metabeta's model is a special case. Item 5
+  factor in metabeta's parameterization, so that metabeta's model is a special case. Item 5
   also decides whether a latent group-level node may be a parent of the outcome, an
   endogeneity that must be a switch.
 - **Time and treatment are deferred** to the item that reads them: a treatment is a binary
   column with a label nobody in this item reads, and the questions the label raises
-  (positivity, randomised or confounded) are causal-design questions; time's reader is the
+  (positivity, randomized or confounded) are causal-design questions; time's reader is the
   outcome's random slope.
 
 ## Considered options

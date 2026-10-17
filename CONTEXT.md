@@ -101,7 +101,7 @@ grouping factor; R's `levels()`.
 _Avoid_: level unqualified, category, class
 
 **Marginal**:
-The distribution a continuous column's values are mapped onto after the SCM, from a catalogue
+The distribution a continuous column's values are mapped onto after the SCM, from a catalog
 of families (skewed, heavy-tailed, bounded, zero-inflated), keeping their ranks.
 _Avoid_: noise distribution (the root's), prior
 
@@ -149,7 +149,7 @@ study, an ablation or a size outside the preset.
 _Avoid_: setting, parameter, hyperparameter
 
 **Quirk axis**:
-One field of the hyperprior that controls one quirk of the catalogue, granted only when
+One field of the hyperprior that controls one quirk of the catalog, granted only when
 mixedbench's measurement pass shows that real tables have the quirk strongly enough.
 _Avoid_: noise, perturbation, augmentation
 
@@ -161,7 +161,7 @@ _Avoid_: y, target, label, response unqualified
 
 **Random effect**:
 A per-group parameter of the outcome, an intercept or a slope, drawn jointly per group of a
-grouping factor in metabeta's parameterisation; metabeta's term. Only the outcome node draws
+grouping factor in metabeta's parameterization; metabeta's term. Only the outcome node draws
 random effects; a group-level node, latent or observed, is covariate structure, which a GLMM
 takes as given.
 _Avoid_: group effect, random intercept for a latent group-level node
