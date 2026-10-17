@@ -39,21 +39,22 @@ from pydantic import (
 )
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+MARGINAL_FIELDS = {
+    'normal': [],
+    'lognormal': ['lognormal_sigma'],
+    'student_t': ['student_df'],
+    'beta': ['beta_a', 'beta_b'],
+    'uniform': [],
+    'zero_inflated_lognormal': ['lognormal_sigma', 'zero_share'],
+    'normal_mixture': ['mixture_gap', 'mixture_weight'],
+}  # based on scamd's marginals
+Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
+
 # =====================================================================================
 # distributions
 # =====================================================================================
 # numpy has no distribution objects: these classes are the config's values.
 # They check their parameters when a hyperprior is built, not at a draw deep inside a run.
-
-
-def _truncate(ends: tuple[float, float], low: int | None, high: int | None) -> tuple[float, float]:
-    """The ends of a support truncated to [low, high]."""
-    bottom, top = ends
-    if low is not None:
-        bottom = max(low, bottom)
-    if high is not None:
-        top = min(high, top)
-    return bottom, top
 
 
 class _Interval:
@@ -99,6 +100,16 @@ class UniformInt(_Interval):
         bottom, top = _truncate(self.support(), low, high)
         out = rng.integers(bottom, top, endpoint=True)
         return int(out)
+
+
+def _truncate(ends: tuple[float, float], low: int | None, high: int | None) -> tuple[float, float]:
+    """The ends of a support truncated to [low, high]."""
+    bottom, top = ends
+    if low is not None:
+        bottom = max(low, bottom)
+    if high is not None:
+        top = min(high, top)
+    return bottom, top
 
 
 @pydantic_dataclass(frozen=True)
@@ -192,17 +203,6 @@ Share = Annotated[Real, _within(ge=0, le=1)]
 # =====================================================================================
 # the hyperprior
 # =====================================================================================
-
-MARGINAL_FIELDS = {
-    'normal': [],
-    'lognormal': ['lognormal_sigma'],
-    'student_t': ['student_df'],
-    'beta': ['beta_a', 'beta_b'],
-    'uniform': [],
-    'zero_inflated_lognormal': ['lognormal_sigma', 'zero_share'],
-    'normal_mixture': ['mixture_gap', 'mixture_weight'],
-}  # based on scamd's marginals
-Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
 
 
 class Hyperprior(BaseModel):
@@ -330,12 +330,6 @@ class Hyperprior(BaseModel):
     def categories(cls, field: str) -> list[str]:
         return list(cls.model_fields[field].default.alpha)
 
-    @staticmethod
-    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
-        if shares.keys() != set(categories):
-            raise ValueError(f'shares name {list(shares)}, not {categories}')
-        return {name: shares[name] for name in categories}
-
     @field_validator(*SHARES)
     @classmethod
     def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
@@ -348,13 +342,10 @@ class Hyperprior(BaseModel):
         return Shares(cls._inOrder(value, categories))
 
     @staticmethod
-    def _support(value: Integer | Real) -> tuple[float, float]:
-        """The smallest and largest value a field can take.
-        A field holds a distribution or a point, and a point is its own smallest and largest value.
-        """
-        if isinstance(value, Distribution):
-            return value.support()
-        return value, value
+    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
+        if shares.keys() != set(categories):
+            raise ValueError(f'shares name {list(shares)}, not {categories}')
+        return {name: shares[name] for name in categories}
 
     def floorGroups(self, depth: int) -> int:
         """The fewest groups a factor at this depth may have.
@@ -362,6 +353,15 @@ class Hyperprior(BaseModel):
         """
         lowest, _ = self._support(self.groups)
         return lowest + depth
+
+    @staticmethod
+    def _support(value: Integer | Real) -> tuple[float, float]:
+        """The smallest and largest value a field can take.
+        A field holds a distribution or a point, and a point is its own smallest and largest value.
+        """
+        if isinstance(value, Distribution):
+            return value.support()
+        return value, value
 
     @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
@@ -379,12 +379,6 @@ class Hyperprior(BaseModel):
             )
         return self  # pydantic's after-validator returns the model
 
-    @staticmethod
-    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
-        bottom, top = _truncate(Hyperprior._support(value), low, high)
-        if bottom > top:
-            raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
-
     def resolveField(
         self, field: str, rng: np.random.Generator, low: int | None = None, high: int | None = None
     ) -> Any:
@@ -395,6 +389,12 @@ class Hyperprior(BaseModel):
         if isinstance(value, Distribution):
             value = value.draw(rng, low, high) if bounded else value.draw(rng)
         return value
+
+    @staticmethod
+    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
+        bottom, top = _truncate(Hyperprior._support(value), low, high)
+        if bottom > top:
+            raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
 
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
         """Resolves each field drawn once per dataset."""

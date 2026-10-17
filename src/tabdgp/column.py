@@ -116,31 +116,6 @@ class Grouping:
         return values[superior_of]
 
 
-def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
-    """Each factor's depth (the number of factors superior to it)."""
-    depths = []
-    for i in range(resolved.factors):
-        nested = i > 0 and rng.random() < resolved.nested_share
-        depths.append(depths[-1] + 1 if nested else 0)
-    return depths
-
-
-def _sampleSizes(
-    elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
-) -> tuple[np.ndarray, dict[str, float]]:
-    """The group sizes and alphas over the elements, equal or Dirichlet-multinomial."""
-    if rng.random() < resolved.balanced_share:
-        # e // m each, the remainder one more for the first groups
-        sizes = elements // groups + (np.arange(groups) < elements % groups)  # (m,)
-        return sizes, {}
-    # one element per group, the rest multinomial over Dirichlet(size_alpha) shares
-    size_alpha = resolved.resolveField('size_alpha', rng)
-    shares = rng.dirichlet(np.full(groups, size_alpha))  # (m,)
-    rest = rng.multinomial(elements - groups, shares)  # (m,)
-    sizes = 1 + rest  # (m,)
-    return sizes, {'size_alpha': size_alpha}
-
-
 def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     """The grouping factors (g0, g1, ...), each row assigned to one group per factor."""
     depths = _nestFactors(resolved, rng)
@@ -175,9 +150,45 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     return Grouping(metadata=dict(reversed(metadata.items())), codes=dict(reversed(codes.items())))
 
 
+def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
+    """Each factor's depth (the number of factors superior to it)."""
+    depths = []
+    for i in range(resolved.factors):
+        nested = i > 0 and rng.random() < resolved.nested_share
+        depths.append(depths[-1] + 1 if nested else 0)
+    return depths
+
+
+def _sampleSizes(
+    elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
+) -> tuple[np.ndarray, dict[str, float]]:
+    """The group sizes and alphas over the elements, equal or Dirichlet-multinomial."""
+    if rng.random() < resolved.balanced_share:
+        # e // m each, the remainder one more for the first groups
+        sizes = elements // groups + (np.arange(groups) < elements % groups)  # (m,)
+        return sizes, {}
+    # one element per group, the rest multinomial over Dirichlet(size_alpha) shares
+    size_alpha = resolved.resolveField('size_alpha', rng)
+    shares = rng.dirichlet(np.full(groups, size_alpha))  # (m,)
+    rest = rng.multinomial(elements - groups, shares)  # (m,)
+    sizes = 1 + rest  # (m,)
+    return sizes, {'size_alpha': size_alpha}
+
+
 # =====================================================================================
 # the column plan
 # =====================================================================================
+
+
+def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
+    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly."""
+    columns = {}
+    remainder = resolved.design_columns
+    while remainder > 0:
+        column = _resolveColumn(resolved, remainder, rng)
+        columns[f'x{len(columns)}'] = column
+        remainder -= column.design_columns
+    return columns
 
 
 def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> Column:
@@ -201,20 +212,24 @@ def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generato
     return Column(type=type, levels=levels, parameters=parameters)
 
 
-def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
-    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly."""
-    columns = {}
-    remainder = resolved.design_columns
-    while remainder > 0:
-        column = _resolveColumn(resolved, remainder, rng)
-        columns[f'x{len(columns)}'] = column
-        remainder -= column.design_columns
-    return columns
-
-
 # =====================================================================================
 # the values
 # =====================================================================================
+
+
+def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
+    """The column's values in its node's order, one per distinct node value:
+    a marginal sample if continuous, level codes otherwise.
+    Tied node values have the same column value.
+    """
+    distinct, rank = np.unique(node, return_inverse=True)  # (u,), (e,) each element's dense rank
+    if column.type == 'continuous':
+        sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
+        by_rank = np.sort(sample).astype(np.float32)  # (u,)
+    else:
+        by_rank = _sampleCodes(len(distinct), column, rng)  # (u,)
+    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
+    return by_rank[rank]
 
 
 def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.ndarray:
@@ -254,18 +269,3 @@ def _sampleCodes(size: int, column: Column, rng: np.random.Generator) -> np.ndar
         labels = rng.permutation(k)  # (k,)
         codes_by_rank = labels[codes_by_rank]
     return codes_by_rank
-
-
-def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in its node's order, one per distinct node value:
-    a marginal sample if continuous, level codes otherwise.
-    Tied node values have the same column value.
-    """
-    distinct, rank = np.unique(node, return_inverse=True)  # (u,), (e,) each element's dense rank
-    if column.type == 'continuous':
-        sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
-        by_rank = np.sort(sample).astype(np.float32)  # (u,)
-    else:
-        by_rank = _sampleCodes(len(distinct), column, rng)  # (u,)
-    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
-    return by_rank[rank]

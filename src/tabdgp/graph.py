@@ -122,23 +122,31 @@ class Graph:
 # =====================================================================================
 
 
-def _sampleUnits(resolved: Hyperprior, f: int, nodes: int, rng: np.random.Generator) -> np.ndarray:
-    """Each node's unit as an index into the f factors, f for the row."""
-    if f == 0:
-        return np.zeros(nodes, dtype=np.int64)  # a flat table draws nothing
-    group_level = rng.random(nodes) < resolved.group_level_share  # (nodes,)
-    factor = rng.integers(f, size=nodes)  # (nodes,), uniform among the factors
-    return np.where(group_level, factor, f)  # (nodes,)
-
-
-def _keepEveryLevel(unit: np.ndarray, columns: list[Column], grouping: Grouping) -> np.ndarray:
-    """Each column's unit, the row for one with more levels than its factor has groups:
-    a column at a factor's unit takes one value per group, so it shows at most m levels.
-    """
-    groups = [factor.levels for factor in grouping.metadata.values()]
-    most_levels = np.array([*groups, math.inf])  # (f + 1,), the row is the fallback
-    levels = np.array([column.levels or 0 for column in columns])  # (d,), 0 if continuous
-    return np.where(levels > most_levels[unit], len(groups), unit)  # (d,)
+def connect(
+    resolved: Hyperprior,
+    grouping: Grouping,
+    columns: dict[str, Column],
+    rng: np.random.Generator,
+) -> Graph:
+    """The graph over every node (the grouping factors included) and what each node draws."""
+    names, unit = _orderNodes(resolved, grouping, columns, rng)
+    latent = np.array([name.startswith('z') for name in names], dtype=bool)  # (v,)
+    edges = _sampleEdges(resolved, len(names), rng)  # (v, v)
+    parents = _maskEdges(edges, unit, grouping)  # (v, v)
+    mechanism, activation, noise_scale, init_scale = _resolveNodes(parents, resolved, rng)
+    group_share, group_factor = _resolveParts(unit, grouping, resolved, rng)
+    return Graph(
+        names=names,
+        parents=parents,
+        latent=latent,
+        mechanism=mechanism,
+        activation=activation,
+        noise_scale=noise_scale,
+        init_scale=init_scale,
+        unit=unit,
+        group_share=group_share,
+        group_factor=group_factor,
+    )
 
 
 def _orderNodes(
@@ -169,6 +177,25 @@ def _orderNodes(
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
     return names, unit
+
+
+def _sampleUnits(resolved: Hyperprior, f: int, nodes: int, rng: np.random.Generator) -> np.ndarray:
+    """Each node's unit as an index into the f factors, f for the row."""
+    if f == 0:
+        return np.zeros(nodes, dtype=np.int64)  # a flat table draws nothing
+    group_level = rng.random(nodes) < resolved.group_level_share  # (nodes,)
+    factor = rng.integers(f, size=nodes)  # (nodes,), uniform among the factors
+    return np.where(group_level, factor, f)  # (nodes,)
+
+
+def _keepEveryLevel(unit: np.ndarray, columns: list[Column], grouping: Grouping) -> np.ndarray:
+    """Each column's unit, the row for one with more levels than its factor has groups:
+    a column at a factor's unit takes one value per group, so it shows at most m levels.
+    """
+    groups = [factor.levels for factor in grouping.metadata.values()]
+    most_levels = np.array([*groups, math.inf])  # (f + 1,), the row is the fallback
+    levels = np.array([column.levels or 0 for column in columns])  # (d,), 0 if continuous
+    return np.where(levels > most_levels[unit], len(groups), unit)  # (d,)
 
 
 def _sampleEdges(resolved: Hyperprior, v: int, rng: np.random.Generator) -> np.ndarray:
@@ -238,30 +265,3 @@ def _resolveParts(
             index = rng.integers(len(factors))
             group_factor[j] = factors[index]
     return group_share, group_factor
-
-
-def connect(
-    resolved: Hyperprior,
-    grouping: Grouping,
-    columns: dict[str, Column],
-    rng: np.random.Generator,
-) -> Graph:
-    """The graph over every node (the grouping factors included) and what each node draws."""
-    names, unit = _orderNodes(resolved, grouping, columns, rng)
-    latent = np.array([name.startswith('z') for name in names], dtype=bool)  # (v,)
-    edges = _sampleEdges(resolved, len(names), rng)  # (v, v)
-    parents = _maskEdges(edges, unit, grouping)  # (v, v)
-    mechanism, activation, noise_scale, init_scale = _resolveNodes(parents, resolved, rng)
-    group_share, group_factor = _resolveParts(unit, grouping, resolved, rng)
-    return Graph(
-        names=names,
-        parents=parents,
-        latent=latent,
-        mechanism=mechanism,
-        activation=activation,
-        noise_scale=noise_scale,
-        init_scale=init_scale,
-        unit=unit,
-        group_share=group_share,
-        group_factor=group_factor,
-    )

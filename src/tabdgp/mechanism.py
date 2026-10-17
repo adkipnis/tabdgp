@@ -49,49 +49,25 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin}
 # =====================================================================================
 
 
-def _isConstant(x: np.ndarray) -> bool:
-    # the same in every element; the first column settles most layers without reading the rest
-    return bool((x[:, 0] == x[0, 0]).all() and (x == x[0]).all())
+def propagate(
+    graph: Graph, resolved: Hyperprior, grouping: Grouping, rng: np.random.Generator
+) -> dict[str, np.ndarray]:
+    """Every node's values by name in the graph's order, each at its unit, z-scored, its own array.
 
-
-def _mapParents(
-    hidden: np.ndarray, j: int, graph: Graph, resolved: Hyperprior, rng: np.random.Generator
-) -> np.ndarray:
-    """Node j's family over its parents' values, with fresh weights."""
-    layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
-    constant = _isConstant(hidden)
-    for _ in range(layers):
-        fan_in = hidden.shape[1]
-        # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
-        # (LeCun et al. 1998)
-        scale = graph.init_scale[j] / fan_in**0.5
-        normal = rng.standard_normal((fan_in, resolved.hidden), dtype=np.float32)
-        weights = scale * normal  # (fan_in, hidden)
-        # a bias per neuron moves the activation off the parents' mean, after scamd's RandomScale
-        bias = rng.standard_normal(resolved.hidden, dtype=np.float32)  # (hidden,)
-        hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (e, hidden)
-        constant = constant or _isConstant(hidden)
-    # the readout's scale vanishes in the z-score that follows; only the relative weights count
-    readout = rng.standard_normal(hidden.shape[1], dtype=np.float32)  # (hidden,) or (c,)
-    if constant:  # a matrix product may since have spread it over the last bits
-        return np.zeros(len(hidden), dtype=np.float32)  # (e,)
-    return hidden @ readout  # (e,)
-
-
-def _zscore(x: np.ndarray) -> np.ndarray:
-    # a constant node (a dead relu, or the layer after one) arrives as zeros and stays zeros
-    centered = x - x.mean()
-    std = centered.std()
-    if std == 0:
-        return np.zeros_like(x)
-    return centered / std
-
-
-def _countElements(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
-    """How many elements a unit has: the groups of a factor, the rows of the row."""
-    if unit == 'row':
-        return resolved.rows
-    return grouping.metadata[unit].levels
+    The grouping factors are skipped: their values are the codes the grouping holds.
+    """
+    nodes: dict[str, np.ndarray] = {}
+    for j, name in enumerate(graph.names):
+        if name in grouping.metadata:
+            continue
+        parents = np.flatnonzero(graph.parents[j]).tolist()
+        if graph.group_factor[j] is None:  # a group-level node, or any node of a flat dataset
+            nodes[name] = _runMechanism(
+                parents, j, graph.unit[j], nodes, graph, grouping, resolved, rng
+            )
+        else:
+            nodes[name] = _mixParts(parents, j, nodes, graph, grouping, resolved, rng)
+    return nodes
 
 
 def _runMechanism(
@@ -123,6 +99,51 @@ def _runMechanism(
     return _zscore(_zscore(output) + graph.noise_scale[j] * noise)
 
 
+def _countElements(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
+    """How many elements a unit has: the groups of a factor, the rows of the row."""
+    if unit == 'row':
+        return resolved.rows
+    return grouping.metadata[unit].levels
+
+
+def _mapParents(
+    hidden: np.ndarray, j: int, graph: Graph, resolved: Hyperprior, rng: np.random.Generator
+) -> np.ndarray:
+    """Node j's family over its parents' values, with fresh weights."""
+    layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
+    constant = _isConstant(hidden)
+    for _ in range(layers):
+        fan_in = hidden.shape[1]
+        # weights N(0, init_scale² / fan_in) keep a layer's scale independent of its width
+        # (LeCun et al. 1998)
+        scale = graph.init_scale[j] / fan_in**0.5
+        normal = rng.standard_normal((fan_in, resolved.hidden), dtype=np.float32)
+        weights = scale * normal  # (fan_in, hidden)
+        # a bias per neuron moves the activation off the parents' mean, after scamd's RandomScale
+        bias = rng.standard_normal(resolved.hidden, dtype=np.float32)  # (hidden,)
+        hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (e, hidden)
+        constant = constant or _isConstant(hidden)
+    # the readout's scale vanishes in the z-score that follows; only the relative weights count
+    readout = rng.standard_normal(hidden.shape[1], dtype=np.float32)  # (hidden,) or (c,)
+    if constant:  # a matrix product may since have spread it over the last bits
+        return np.zeros(len(hidden), dtype=np.float32)  # (e,)
+    return hidden @ readout  # (e,)
+
+
+def _isConstant(x: np.ndarray) -> bool:
+    # the same in every element; the first column settles most layers without reading the rest
+    return bool((x[:, 0] == x[0, 0]).all() and (x == x[0]).all())
+
+
+def _zscore(x: np.ndarray) -> np.ndarray:
+    # a constant node (a dead relu, or the layer after one) arrives as zeros and stays zeros
+    centered = x - x.mean()
+    std = centered.std()
+    if std == 0:
+        return np.zeros_like(x)
+    return centered / std
+
+
 def _mixParts(
     parents: list[int],
     j: int,
@@ -142,24 +163,3 @@ def _mixParts(
     row = _runMechanism(row_parents, j, 'row', nodes, graph, grouping, resolved, rng)  # (n,)
     share = graph.group_share[j]
     return _zscore(math.sqrt(share) * group + math.sqrt(1 - share) * row)  # (n,)
-
-
-def propagate(
-    graph: Graph, resolved: Hyperprior, grouping: Grouping, rng: np.random.Generator
-) -> dict[str, np.ndarray]:
-    """Every node's values by name in the graph's order, each at its unit, z-scored, its own array.
-
-    The grouping factors are skipped: their values are the codes the grouping holds.
-    """
-    nodes: dict[str, np.ndarray] = {}
-    for j, name in enumerate(graph.names):
-        if name in grouping.metadata:
-            continue
-        parents = np.flatnonzero(graph.parents[j]).tolist()
-        if graph.group_factor[j] is None:  # a group-level node, or any node of a flat dataset
-            nodes[name] = _runMechanism(
-                parents, j, graph.unit[j], nodes, graph, grouping, resolved, rng
-            )
-        else:
-            nodes[name] = _mixParts(parents, j, nodes, graph, grouping, resolved, rng)
-    return nodes

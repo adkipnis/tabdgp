@@ -58,6 +58,30 @@ class Dataset:
 # =====================================================================================
 
 
+def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
+    """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
+    rng = np.random.default_rng([seed, index])  # the key's generator
+    resolved = hyperprior.resolveDataset(rng)
+    # the grouping before the graph, which draws each node's unit among its factors
+    grouping = assign(resolved, rng)
+    metadata = plan(resolved, rng)
+    graph = connect(resolved, grouping, metadata, rng)
+    nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
+    columns = _applyColumns(nodes, metadata, graph, grouping, rng)
+    latent = _broadcastLatent(nodes, graph, grouping)
+    return Dataset(
+        columns={**grouping.codes, **columns},
+        metadata={**grouping.metadata, **metadata},
+        graph=graph,
+        latent=latent,
+        hyperparameters=resolved,
+        seed=seed,
+        index=index,
+        version=VERSION,
+        numpy_version=NUMPY_VERSION,
+    )
+
+
 def _applyColumns(
     nodes: dict[str, np.ndarray],
     metadata: dict[str, Column],
@@ -81,27 +105,3 @@ def _broadcastLatent(
         if is_latent:
             latent[name] = grouping.broadcast(nodes[name], unit, 'row')  # (n,)
     return latent
-
-
-def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
-    """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
-    rng = np.random.default_rng([seed, index])  # the key's generator
-    resolved = hyperprior.resolveDataset(rng)
-    # the grouping before the graph, which draws each node's unit among its factors
-    grouping = assign(resolved, rng)
-    metadata = plan(resolved, rng)
-    graph = connect(resolved, grouping, metadata, rng)
-    nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
-    columns = _applyColumns(nodes, metadata, graph, grouping, rng)
-    latent = _broadcastLatent(nodes, graph, grouping)
-    return Dataset(
-        columns={**grouping.codes, **columns},
-        metadata={**grouping.metadata, **metadata},
-        graph=graph,
-        latent=latent,
-        hyperparameters=resolved,
-        seed=seed,
-        index=index,
-        version=VERSION,
-        numpy_version=NUMPY_VERSION,
-    )
