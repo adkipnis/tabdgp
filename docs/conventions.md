@@ -21,7 +21,7 @@ harder to understand or change; it accrues one small edit at a time.
 - **Deep modules.** A small interface over much functionality; an interface as complex as its
   implementation folds into its caller or callee.
 - **Information hiding.** Each module owns one design decision (a file format, a tensor layout,
-  a prior's parameterisation) that no other module depends on. Split code by what it knows, not
+  a prior's parameterization) that no other module depends on. Split code by what it knows, not
   by the order it runs in.
 - **One home per fact**, in code as in the docs. A rule written out twice (a truncation, an
   order, a loop's initial state) becomes one function, one named value, or a call to the module
@@ -30,7 +30,7 @@ harder to understand or change; it accrues one small edit at a time.
 - **No pass-throughs.** A method that forwards its arguments unchanged adds nothing; call the
   target directly.
 - **Pull complexity down.** The module absorbs the awkward case so its callers stay simple. A
-  fixed sensible behaviour beats a new config parameter.
+  fixed sensible behavior beats a new config parameter.
 - **Define errors out of existence.** Shape the interface so the invalid case cannot arise
   (accept the empty set, validate once at construction). The rest fails loudly: no fallbacks,
   no defensive `try`/`except`, no speculative generality. Branch only for a case observed on
@@ -48,8 +48,8 @@ harder to understand or change; it accrues one small edit at a time.
 
 ## Names
 
-- British spelling (`standardised`, `licence`), except where an outside standard fixes a name:
-  `LICENSE`, `license` in `pyproject.toml`, R's and a library's own names.
+- American spelling (`standardized`, `behavior`, `catalog`). A name already released, or fixed
+  by an outside standard such as R's own names, keeps its spelling.
 - A module is one lowercase word. A package's `__init__.py` lists its public names in `__all__`.
 - `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
   `snake_case` for variables, fields and a `Literal`'s values (`'grouping_factor'`),
@@ -108,7 +108,7 @@ harder to understand or change; it accrues one small edit at a time.
 
 - Annotate a shape inline on the line that returns it (`# (b, n, d)` for b datasets of n rows
   and d columns), never in a docstring. Reshape with `einops` where the package depends on it,
-  never mutate a reused array in place. Vectorise with broadcasting and advanced indexing, not
+  never mutate a reused array in place. Vectorize with broadcasting and advanced indexing, not
   loops; batch over datasets.
 - One lowercase letter per counted quantity, in shape comments and in the variables that hold
   the count:
@@ -164,10 +164,10 @@ a model specification
 
 ## Comments and docstrings
 
-- Comments start in lower case; docstrings are capitalised sentences. Break the lines of both at
+- Comments start in lower case; docstrings are capitalized sentences. Break the lines of both at
   sentence or clause boundaries, not at the column limit.
 - Short, plain sentences, one idea each, with a subject and a verb.
-- A docstring only where the behaviour or design is not obvious: one or two plain sentences that
+- A docstring only where the behavior or design is not obvious: one or two plain sentences that
   start with what the function does or returns and leave out what the code already shows. None
   on a method its name and body already explain, never a chain of `;` clauses. Detail goes into
   inline comments that say why.
@@ -190,7 +190,7 @@ a model specification
   (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
 - Each test says in a sentence or two why it exists, unless obvious. Bind the object under test,
   then call it; small named helpers, not lambdas or repeated comprehensions.
-- Names listed in two modules (a `Literal`, a catalogue, a table's columns) are checked against
+- Names listed in two modules (a `Literal`, a catalog, a table's columns) are checked against
   each other by a test; the code checks nothing at import.
 - No coverage gate.
 
@@ -209,7 +209,7 @@ Markdown meets the same bar as code: simple, and read top to bottom.
 - Never overwrite raw data.
 - Stream or lazily load data that would not fit in memory.
 - Figures are PDFs, never PNG or JPG. Existing vector files convert to SVG; a PDF is never
-  rasterised.
+  rasterized.
 
 ## Lab notes and experiments
 
@@ -262,7 +262,7 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 
 - `tests/` mirrors `src/`.
 - Unit tests for every mechanism: marginal ranges, the coded shapes, determinism under a fixed
-  generator, every override honoured, the flat case as zero factors.
+  generator, every override honored, the flat case as zero factors.
 - The proofs against mixedbench's registry (the two-sample test and the containment test)
   carry the `slow` mark and fixed seeds.
 - The names checked across modules include a shares field's categories and the per-column and
@@ -272,7 +272,7 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 
 - `README.md`: badges, a tagline, a short what and why, highlights of what the release does,
   install, one quickstart box and its output, planned, learn more, contributing, citing,
-  licence.
+  license.
 
 ### Explaining the design
 
