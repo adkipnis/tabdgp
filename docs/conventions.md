@@ -48,8 +48,9 @@ harder to understand or change; it accrues one small edit at a time.
 
 ## Names
 
-- American spelling (`standardized`, `behavior`, `catalog`). A name already released, or fixed
-  by an outside standard such as R's own names, keeps its spelling.
+- American spelling (`standardized`, `behavior`, `catalog`), in names as in prose. A released
+  name spelled otherwise is renamed in the next release; only a name an outside standard fixes
+  (R's own names, a library's) keeps its spelling.
 - A module is one lowercase word. A package's `__init__.py` lists its public names in `__all__`.
 - `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
   `snake_case` for variables, fields and a `Literal`'s values (`'grouping_factor'`),
