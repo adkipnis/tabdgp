@@ -25,18 +25,18 @@ def _balanced(n: int, groups: list[int], nests_in: list[str | None] | None = Non
         nests_in = [None] * len(groups)
     rng = np.random.default_rng(len(groups))
     codes = []
-    for groups_of_k, nests_in_of_k in zip(groups, nests_in):
-        if nests_in_of_k is None:
-            codes.append(rng.permutation(n) % groups_of_k)
+    for groups_of_i, nests_in_of_i in zip(groups, nests_in):
+        if nests_in_of_i is None:
+            codes.append(rng.permutation(n) % groups_of_i)
             continue
-        superior = codes[int(nests_in_of_k[1:])]  # (n,)
-        ratio = groups_of_k // (superior.max() + 1)  # subordinate groups per superior group
+        superior = codes[int(nests_in_of_i[1:])]  # (n,)
+        ratio = groups_of_i // (superior.max() + 1)  # subordinate groups per superior group
         subordinate = np.zeros(n, dtype=np.int64)  # (n,)
         for group in range(superior.max() + 1):
             rows = np.flatnonzero(superior == group)
             subordinate[rows] = group * ratio + np.arange(len(rows)) % ratio
         codes.append(subordinate)
-    return groupingOf([codes_of_k.tolist() for codes_of_k in codes], nests_in)
+    return groupingOf([codes_of_i.tolist() for codes_of_i in codes], nests_in)
 
 
 def _size(grouping: Grouping, unit: str, n: int) -> int:
@@ -49,7 +49,7 @@ GROUPINGS = [pytest.param(FLAT, id='flat'), pytest.param(GROUPED, id='grouped')]
 
 
 def _matrix(nodes: dict[str, np.ndarray]) -> np.ndarray:
-    """(n, d): the nodes side by side in the graph's order."""
+    """(n, v): the nodes side by side in the graph's order."""
     return np.stack(list(nodes.values()), axis=1)
 
 
@@ -257,7 +257,7 @@ def test_a_row_unit_node_at_group_share_1_is_constant_within_its_group_factors_g
 
 def test_a_row_unit_node_at_group_share_0_has_a_between_group_share_at_chance_level() -> None:
     """At share 0 the group part has weight 0 and the node is its row part alone: the group
-    means differ only by chance, a share near (G − 1) / (n − 1), here 0.005. The override that
+    means differ only by chance, a share near (m − 1) / (n − 1), here 0.005. The override that
     switches group confounding off rests on this.
     """
     grouping = _balanced(4000, [20])

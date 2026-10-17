@@ -191,7 +191,7 @@ def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_boun
     distribution: UniformInt | LogUniformInt,
 ) -> None:
     """No value of the distribution lies at or below the bound,
-    and a draw above it would break G ≤ n without a word.
+    and a draw above it would break m ≤ n without a word.
     """
     hyperprior = Hyperprior(groups=distribution)
     with pytest.raises(ValueError, match=r'groups.*\b7\b'):
@@ -242,7 +242,7 @@ def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
 
 
 def test_a_groups_range_too_narrow_for_the_longest_chain_fails_at_construction() -> None:
-    """A chain of L factors needs L counts, each superior one below the subordinate one,
+    """A chain of f factors needs f counts, each superior one below the subordinate one,
     so a range of fewer values fails as a point does, not in the datasets that draw a chain.
     """
     with pytest.raises(ValidationError, match='nested_share'):

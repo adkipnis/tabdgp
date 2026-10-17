@@ -18,7 +18,7 @@ _Avoid_: predictor simulation, feature matrix, X generator, design-matrix genera
 
 **Design matrix**:
 The coding of the covariates the linear predictor sees: an intercept column, z-scored
-continuous columns, 0/1 binary columns, K − 1 treatment-coded columns per categorical.
+continuous columns, 0/1 binary columns, k − 1 treatment-coded columns per categorical.
 Derived from the covariates, never drawn; the hyperprior's design-column budget counts its
 columns besides the intercept.
 _Avoid_: X for the uncoded covariates, features
@@ -52,7 +52,7 @@ mechanism; a node without parents is a root.
 _Avoid_: feature, variable unqualified, neuron (of an MLP)
 
 **Grouping factor**:
-A root node whose values assign every row to one of its G groups, in metabeta's words "a
+A root node whose values assign every row to one of its m groups, in metabeta's words "a
 categorical variable whose levels index random effects"; a dataset has none (a flat table),
 one or several. Two grouping factors are **crossed** when their groups combine freely and
 **nested** when each group of the subordinate one lies within one group of the superior one,
@@ -96,7 +96,7 @@ parameters its values were drawn with.
 _Avoid_: feature, variable unqualified
 
 **Factor level**:
-One of the K categories of a binary, categorical or ordered column, or one group of a
+One of the k categories of a binary, categorical or ordered column, or one group of a
 grouping factor; R's `levels()`.
 _Avoid_: level unqualified, category, class
 

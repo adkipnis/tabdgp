@@ -69,13 +69,13 @@ def _mapParents(
         weights = scale * normal  # (fan_in, hidden)
         # a bias per neuron moves the activation off the parents' mean, after scamd's RandomScale
         bias = rng.standard_normal(resolved.hidden, dtype=np.float32)  # (hidden,)
-        hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (m, hidden)
+        hidden = ACTIVATIONS[graph.activation[j]](hidden @ weights + bias)  # (e, hidden)
         constant = constant or _isConstant(hidden)
     # the readout's scale vanishes in the z-score that follows; only the relative weights count
-    readout = rng.standard_normal(hidden.shape[1], dtype=np.float32)  # (hidden,) or (p,)
+    readout = rng.standard_normal(hidden.shape[1], dtype=np.float32)  # (hidden,) or (c,)
     if constant:  # a matrix product may since have spread it over the last bits
-        return np.zeros(len(hidden), dtype=np.float32)  # (m,)
-    return hidden @ readout  # (m,)
+        return np.zeros(len(hidden), dtype=np.float32)  # (e,)
+    return hidden @ readout  # (e,)
 
 
 def _zscore(x: np.ndarray) -> np.ndarray:
@@ -106,8 +106,8 @@ def _runMechanism(
 ) -> np.ndarray:
     """Node j's mechanism over these parents, run at `run_unit` and z-scored at j's own unit."""
     unit_j = graph.unit[j]
-    m = _countElements(run_unit, grouping, resolved)
-    noise = rng.standard_normal(m, dtype=np.float32)  # (m,)
+    e = _countElements(run_unit, grouping, resolved)
+    noise = rng.standard_normal(e, dtype=np.float32)  # (e,)
     # output and noise are broadcast to j's unit before each z-score,
     # so that the noise scale and the group share are shares of variance over j's unit
     noise = grouping.broadcast(noise, run_unit, unit_j)
@@ -116,8 +116,8 @@ def _runMechanism(
     parent_values = [
         grouping.broadcast(nodes[graph.names[i]], graph.unit[i], run_unit) for i in parents
     ]
-    hidden = np.stack(parent_values, axis=1)  # (m, p)
-    output = _mapParents(hidden, j, graph, resolved, rng)  # (m,)
+    hidden = np.stack(parent_values, axis=1)  # (e, c)
+    output = _mapParents(hidden, j, graph, resolved, rng)  # (e,)
     output = grouping.broadcast(output, run_unit, unit_j)
     # noise scale is relative to the z-scored output
     return _zscore(_zscore(output) + graph.noise_scale[j] * noise)

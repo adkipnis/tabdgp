@@ -49,7 +49,7 @@ CONTRADICTING_LEVELS = [
 
 @pytest.mark.parametrize(('type', 'levels'), CONTRADICTING_LEVELS)
 def test_levels_that_contradict_the_type_fail(type: str, levels: int | None) -> None:
-    """Binary is exactly K = 2 and the other discrete types K ≥ 3, so the types never overlap."""
+    """Binary is exactly k = 2 and the other discrete types k ≥ 3, so the types never overlap."""
     with pytest.raises(ValidationError):
         Column(type=type, levels=levels)
 
@@ -111,7 +111,7 @@ DESIGN_COLUMNS = [
 def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
     column: Column, design_columns: int
 ) -> None:
-    """The design-column budget counts metabeta's dummy coding: K levels take K − 1 columns."""
+    """The design-column budget counts metabeta's dummy coding: k levels take k − 1 columns."""
     assert column.design_columns == design_columns
 
 
@@ -124,14 +124,14 @@ def test_a_grouping_factor_is_0_design_columns_wide() -> None:
 
 
 def test_a_grouping_factor_with_fewer_than_2_levels_fails() -> None:
-    """One group is no grouping; two are, so a factor need not be K ≥ 3 like a categorical."""
+    """One group is no grouping; two are, so a factor need not be k ≥ 3 like a categorical."""
     with pytest.raises(ValidationError, match='1 levels'):
         Column(type='categorical', levels=1, role='grouping_factor')
 
 
 @pytest.mark.parametrize(('type', 'levels'), [('binary', 2), ('ordered', 3)])
 def test_a_grouping_factor_of_another_type_fails(type: str, levels: int) -> None:
-    """Its codes are labels of groups, unordered at any G, so a factor is categorical even at 2."""
+    """Its codes are labels of groups, unordered at any m, so a factor is categorical even at 2."""
     with pytest.raises(ValidationError):
         Column(type=type, levels=levels, role='grouping_factor')
 
@@ -258,7 +258,7 @@ def test_assign_gives_g_non_empty_groups_with_g_at_most_n_for_every_factor(
 
 
 def test_a_balanced_factors_sizes_differ_by_at_most_one_and_record_no_size_alpha() -> None:
-    """Rule 7's balanced case gives each group n // G rows and the first n mod G one more;
+    """Rule 7's balanced case gives each group n // m rows and the first n mod m one more;
     a size_alpha that played no part is not recorded.
     """
     for seed in range(20):
@@ -385,12 +385,12 @@ def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_co
 
 
 def _shapes(columns: dict[str, Column]) -> list[tuple[str, int | None]]:
-    """Each column's type and K, without its drawn parameters."""
+    """Each column's type and k, without its drawn parameters."""
     return [(column.type, column.levels) for column in columns.values()]
 
 
 def test_k_is_clipped_when_it_would_overflow_the_budget() -> None:
-    """A tiny levels_p draws K in the millions; with a budget of 3, one column of K = 4 fills it."""
+    """A tiny levels_p draws k in the millions; with a budget of 3, one column of k = 4 fills it."""
     columns = _plan(
         0, design_columns=3, type_shares=point('type_shares', 'categorical'), levels_p=1e-6
     )
@@ -399,7 +399,7 @@ def test_k_is_clipped_when_it_would_overflow_the_budget() -> None:
 
 def test_max_levels_caps_k() -> None:
     """metabeta passes 10,
-    so no categorical or ordered column may exceed it however large K is drawn.
+    so no categorical or ordered column may exceed it however large k is drawn.
     """
     columns = _plan(
         0,
@@ -423,7 +423,7 @@ def test_each_column_draws_its_own_parameters() -> None:
     )
     sigmas = {column.parameters['lognormal_sigma'] for column in lognormal.values()}
     assert len(sigmas) == 5
-    # levels_p = 1 draws K = 3 every time, so 8 design columns are 4 ordered columns
+    # levels_p = 1 draws k = 3 every time, so 8 design columns are 4 ordered columns
     ordered = _plan(0, design_columns=8, type_shares=point('type_shares', 'ordered'), levels_p=1.0)
     alphas = {column.parameters['level_alpha'] for column in ordered.values()}
     assert len(alphas) == 4
@@ -442,8 +442,8 @@ def test_a_point_override_gives_every_column_its_value() -> None:
         assert column.parameters == {'lognormal_sigma': 0.7}
 
 
-def test_plan_names_its_columns_x0_to_x_p_minus_1() -> None:
-    """The one home of the rule that plan column k is node x{k};
+def test_plan_names_its_columns_x0_to_x_d_minus_1() -> None:
+    """The one home of the rule that plan column i is node x{i};
     every later step reads the names.
     """
     columns = _plan(0, design_columns=4, type_shares=point('type_shares', 'continuous'))
@@ -470,7 +470,7 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
     column: Column,
 ) -> None:
     """A level no row has would not exist in a real table;
-    n = K is the tightest case that allows all.
+    n = k is the tightest case that allows all.
     """
     for n in [column.levels, 100]:
         for seed in range(10):
@@ -481,7 +481,7 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
 
 def test_apply_gives_valid_codes_when_n_is_below_k() -> None:
     """A small rows override can leave fewer rows than levels;
-    each row still gets a code below K.
+    each row still gets a code below k.
     """
     column = Column(type='categorical', levels=6, parameters=ALPHA)
     for seed in range(10):
@@ -588,7 +588,7 @@ def test_apply_is_deterministic_under_a_fixed_generator(column: Column) -> None:
 
 def test_a_large_level_alpha_gives_even_level_counts() -> None:
     """level_alpha is the Dirichlet concentration of the level shares,
-    so a large one leaves each share near 1/K.
+    so a large one leaves each share near 1/k.
     """
     column = Column(type='ordered', levels=5, parameters={'level_alpha': 1e4})
     codes = _apply(1000, column, seed=0)

@@ -42,7 +42,7 @@ class Dataset:
     Each array is stored as drawn (not copied), so a consumer can share its memory.
     """
 
-    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, else int64 codes 0..K−1
+    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, else int64 codes 0..k−1
     metadata: dict[str, Column]
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored over its groups if group-level
@@ -68,7 +68,7 @@ def _applyColumns(
     unit = dict(zip(graph.names, graph.unit))
     columns = {}
     for name, column in metadata.items():
-        values = apply(nodes[name], column, rng)  # (m,) one per group of its unit, or per row
+        values = apply(nodes[name], column, rng)  # (e,) one per group of its unit, or per row
         columns[name] = grouping.broadcast(values, unit[name], 'row')  # (n,)
     return columns
 

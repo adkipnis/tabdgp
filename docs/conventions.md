@@ -250,8 +250,8 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 - A default the hyperprior guesses is a round number; only a fitted one carries more digits.
 - A draw is named before it is cast or transformed. The Bernoulli idiom `rng.random() < share`
   counts as one draw.
-- Letters of its own: `v` counts nodes, `f` grouping factors, `e` the elements of a unit and
-  `u` distinct values.
+- Letters of its own: `v` counts nodes, `f` grouping factors, `e` the elements of a unit, `c`
+  a node's parents (its direct causes) and `u` distinct values.
 - One marker for a missing value: `None`, in a list of Python scalars, never NaN in an array.
 
 ### Comments and docstrings

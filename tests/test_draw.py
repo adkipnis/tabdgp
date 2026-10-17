@@ -144,9 +144,9 @@ def test_every_override_is_honored(
     factor through the factor's column. A point groups cannot nest, so a chain draws its groups
     from a range below the point.
     """
-    # a point above its bound fails instead: rows ≥ 2d, G ≤ n and a chain of L factors in L + 1 rows
+    # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
     assume(rows >= max(2 * design_columns, groups, factors + 1))
-    assume(groups >= factors + 1)  # the bottom factor of a chain of L needs L + 1 groups
+    assume(groups >= factors + 1)  # the bottom factor of a chain of f needs f + 1 groups
     hyperprior = Hyperprior.grouped(
         rows=rows,
         design_columns=design_columns,
@@ -169,11 +169,11 @@ def test_every_override_is_honored(
     assert len(dataset.latent) == latent_nodes
     # the grouping factors, each recording its size draw
     factor_names = [name for name, column in metadata.items() if column.role == 'grouping_factor']
-    assert factor_names == [f'g{k}' for k in range(factors)]
-    for k, name in enumerate(factor_names):
+    assert factor_names == [f'g{i}' for i in range(factors)]
+    for i, name in enumerate(factor_names):
         column = metadata[name]
         assert 2 <= column.levels <= groups if nested else column.levels == groups
-        assert column.nests_in == (f'g{k - 1}' if nested and k > 0 else None)
+        assert column.nests_in == (f'g{i - 1}' if nested and i > 0 else None)
         assert column.parameters == ({} if balanced else {'size_alpha': 2.0})
     for name, column in metadata.items():
         if column.role == 'covariate':
@@ -248,7 +248,7 @@ def test_every_column_is_finite_and_every_continuous_column_non_constant() -> No
 def _neighborAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
     """The share of rows whose code equals the next row's in the parent's order.
 
-    A column cut from its parent changes code only at its K − 1 thresholds, whatever its sign
+    A column cut from its parent changes code only at its k − 1 thresholds, whatever its sign
     or label permutation; an independent one agrees only by chance, about the sum of squared
     level shares.
     """
@@ -259,7 +259,7 @@ def _neighborAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
 def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_low_noise() -> None:
     """scamd's categoricals were nearly independent of their parents, and only shapes were tested.
 
-    One latent root, one typed column of K ≤ 3 and a sure edge between them, so the column must
+    One latent root, one typed column of k ≤ 3 and a sure edge between them, so the column must
     follow the root's values; flat, so that the edge is the graph's only one.
     """
     dense = {'edge_offset': 30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
@@ -323,7 +323,7 @@ def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() 
 
 def test_every_level_of_a_covariate_appears() -> None:
     """A level no row has would be an all-zero dummy column in metabeta's design matrix;
-    a group-level column shows at most G levels, so one with more stays at the row.
+    a group-level column shows at most m levels, so one with more stays at the row.
     An override group_share = 1 is the known exception (ADR 0003), so the test draws the defaults.
     """
     for index in range(100):
@@ -339,7 +339,7 @@ def _unitOf(dataset: Dataset) -> dict[str, str]:
 
 
 def _isConstantWithinGroups(values: np.ndarray, codes: np.ndarray) -> bool:
-    first_rows = np.unique(codes, return_index=True)[1]  # (G,)
+    first_rows = np.unique(codes, return_index=True)[1]  # (m,)
     return bool(np.array_equal(values, values[first_rows][codes]))
 
 
@@ -362,7 +362,7 @@ def test_a_group_level_column_or_latent_node_is_constant_within_its_groups() -> 
 
 
 def test_a_group_level_column_takes_its_marginals_values_at_g_distinct_ranks() -> None:
-    """Its marginal is sampled at G values, one per group, not at n values with ties;
+    """Its marginal is sampled at m values, one per group, not at n values with ties;
     a tie-free family makes the count exact.
     """
     hyperprior = Hyperprior.grouped(
@@ -386,7 +386,7 @@ def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_bet
     """The ablation #22 asks for switches group confounding off by this one override.
     Under one factor every parent lies in the group factor's chain, so a share of 0 drops the
     group part and every row-unit node, a root or a child of a group-level parent, is i.i.d.
-    over rows; the chance level is about (G − 1) / (n − 1), here 0.01.
+    over rows; the chance level is about (m − 1) / (n − 1), here 0.01.
     """
     hyperprior = Hyperprior.grouped(rows=2000, factors=1, groups=20, group_share=0.0)
     for index in range(20):

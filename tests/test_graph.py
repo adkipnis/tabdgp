@@ -460,7 +460,7 @@ def test_latent_nodes_precede_observed_ones() -> None:
 
 
 def _roots(graph: Graph) -> np.ndarray:
-    """(d,) bool: the nodes without parents."""
+    """(v,) bool: the nodes without parents."""
     return ~graph.parents.any(axis=1)
 
 
@@ -517,8 +517,8 @@ def _density(offset: float, **overrides: object) -> float:
     densities = []
     for seed in range(50):
         graph = _connect(seed, 10, edge_offset=offset, latent_nodes=0, **overrides)
-        d = len(graph.names)
-        densities.append(graph.parents.sum() / (d * (d - 1) / 2))
+        v = len(graph.names)
+        densities.append(graph.parents.sum() / (v * (v - 1) / 2))
     return float(np.mean(densities))
 
 
@@ -535,7 +535,7 @@ def _cliques(parents: np.ndarray) -> np.ndarray:
     """Whether the undirected skeleton is a disjoint union of cliques:
     its reachability is itself.
     """
-    adjacent = parents | parents.T | np.eye(len(parents), dtype=bool)  # (d, d)
+    adjacent = parents | parents.T | np.eye(len(parents), dtype=bool)  # (v, v)
     return np.array_equal(adjacent.astype(int) @ adjacent.astype(int) > 0, adjacent)
 
 
@@ -571,7 +571,7 @@ def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) ->
 
 
 def test_a_column_with_more_levels_than_its_factors_groups_stays_at_the_row() -> None:
-    """A group-level column takes one value per group, so it shows at most G of its levels;
+    """A group-level column takes one value per group, so it shows at most m of its levels;
     one with more would leave a level no row has, an all-zero dummy column.
     """
     grouping = groupingOf([[0, 0, 1, 1, 2, 2]])  # one factor of 3 groups
@@ -610,7 +610,7 @@ def _degreeSpread(hub_scale: float) -> float:
         graph = _connect(
             seed, 10, latent_nodes=0, edge_offset=0.0, hub_scale=hub_scale, block_bonus=0.0
         )
-        degree = graph.parents.sum(axis=0) + graph.parents.sum(axis=1)  # (d,)
+        degree = graph.parents.sum(axis=0) + graph.parents.sum(axis=1)  # (v,)
         spreads.append(degree.std())
     return float(np.mean(spreads))
 

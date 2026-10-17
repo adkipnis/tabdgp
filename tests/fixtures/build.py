@@ -29,7 +29,7 @@ def columnsOf(names: list[str]) -> dict[str, Column]:
 
 
 def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None) -> Grouping:
-    """A grouping of factors g0, g1, …, codes[k] listing each row's group of factor k.
+    """A grouping of factors g0, g1, …, codes[i] listing each row's group of factor i.
 
     Without nests_in, every factor is crossed.
     """
@@ -37,14 +37,14 @@ def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None)
         nests_in = [None] * len(codes)
     metadata = {}
     arrays = {}
-    for k, (codes_of_k, nests_in_of_k) in enumerate(zip(codes, nests_in)):
-        metadata[f'g{k}'] = Column(
+    for i, (codes_of_i, nests_in_of_i) in enumerate(zip(codes, nests_in)):
+        metadata[f'g{i}'] = Column(
             type='categorical',
-            levels=max(codes_of_k) + 1,
+            levels=max(codes_of_i) + 1,
             role='grouping_factor',
-            nests_in=nests_in_of_k,
+            nests_in=nests_in_of_i,
         )
-        arrays[f'g{k}'] = np.array(codes_of_k, dtype=np.int64)  # (n,)
+        arrays[f'g{i}'] = np.array(codes_of_i, dtype=np.int64)  # (n,)
     return Grouping(metadata=metadata, codes=arrays)
 
 
@@ -67,25 +67,25 @@ def graphOf(
     and every row-unit node takes the group share and the group factor,
     the first factor unless given.
     """
-    d = len(parents)
-    adjacency = np.zeros((d, d), dtype=bool)  # (d, d)
+    v = len(parents)
+    adjacency = np.zeros((v, v), dtype=bool)  # (v, v)
     for j, parents_of_j in enumerate(parents):
         adjacency[j, parents_of_j] = True
     if mechanism is None:
         mechanism = [None if not parents_of_j else 'linear' for parents_of_j in parents]
     if unit is None:
-        unit = ['row'] * d
-    mlp = np.array([family == 'mlp' for family in mechanism], dtype=bool)  # (d,)
-    root = ~adjacency.any(axis=1)  # (d,)
-    names = [f'g{j}' if unit[j] == f'g{j}' else f'x{j}' for j in range(d)]
+        unit = ['row'] * v
+    mlp = np.array([family == 'mlp' for family in mechanism], dtype=bool)  # (v,)
+    root = ~adjacency.any(axis=1)  # (v,)
+    names = [f'g{j}' if unit[j] == f'g{j}' else f'x{j}' for j in range(v)]
     factors = [name for name in names if name.startswith('g')]
-    mixed = [unit_j == 'row' and bool(factors) for unit_j in unit]  # (d,)
+    mixed = [unit_j == 'row' and bool(factors) for unit_j in unit]  # (v,)
     if group_factor is None and factors:
         group_factor = factors[0]
     return Graph(
         names=names,
         parents=adjacency,
-        latent=np.zeros(d, dtype=bool),
+        latent=np.zeros(v, dtype=bool),
         mechanism=mechanism,
         activation=[activation if is_mlp else None for is_mlp in mlp],
         noise_scale=[None if is_root else noise_scale for is_root in root],
@@ -99,6 +99,6 @@ def graphOf(
 def betweenShare(values: np.ndarray, codes: np.ndarray) -> float:
     """The share of an array's variance over rows that lies between the groups of a factor."""
     values = values.astype(np.float64)
-    means = np.bincount(codes, weights=values) / np.bincount(codes)  # (G,)
+    means = np.bincount(codes, weights=values) / np.bincount(codes)  # (m,)
     between = ((means[codes] - values.mean()) ** 2).sum()
     return float(between / ((values - values.mean()) ** 2).sum())

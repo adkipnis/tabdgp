@@ -210,9 +210,9 @@ class Hyperprior(BaseModel):
 
     - Columns: a table has rows and typed columns.
       A column is continuous or has levels (binary, categorical or ordered).
-      A column with levels takes one of K levels in each row.
-      Due to dummy-encoding, it takes K − 1 columns in the design matrix.
-    - Grouping: a grouping factor assigns every row to one of its G groups.
+      A column with levels takes one of k levels in each row.
+      Due to dummy-encoding, it takes k − 1 columns in the design matrix.
+    - Grouping: a grouping factor assigns every row to one of its m groups.
       A table has none (flat), one or multiple grouping factors.
       Each factor after the first either nests in the one before it (classes in schools)
       or is crossed with all before it (patients and doctors).
@@ -270,13 +270,13 @@ class Hyperprior(BaseModel):
     type_shares: Simplex = Dirichlet(
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
     )  # column types
-    levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # K is 2 + Geometric(levels_p)
-    max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for K
+    levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # k is 2 + Geometric(levels_p)
+    max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for k
     level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
 
     # grouping
     factors: Count = UniformInt(1, 3)  # grouping factors; 0 is a flat table
-    groups: Annotated[Integer, _within(ge=2)] = LogUniformInt(2, 400)  # G per factor, at most n
+    groups: Annotated[Integer, _within(ge=2)] = LogUniformInt(2, 400)  # m per factor, at most n
     balanced_share: Share = 1 / 3  # probability that a factor's groups are of equal size
     size_alpha: Positive = LogUniform(0.5, 500)  # Dirichlet concentration of unequal sizes
     nested_share: Share = Uniform(0.2, 0.6)  # probability that a factor nests in the previous one
