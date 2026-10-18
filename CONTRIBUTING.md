@@ -58,4 +58,4 @@ Three rules keep the generator trustworthy:
 
 ## License
 
-By contributing, you agree that your changes are released under [MIT](LICENSE).
+By contributing, you agree that your changes are released under [Apache-2.0](LICENSE).

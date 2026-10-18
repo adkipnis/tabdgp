@@ -3,7 +3,7 @@ name = "tabdgp"
 version = "0.2.0"
 description = "A data-generating process for grouped and flat tables, to be matched to a registry of real tables"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Alex Kipnis", email = "adkipnis@users.noreply.github.com" }]
 requires-python = ">=3.12"

@@ -5,7 +5,7 @@ authors:
   - family-names: Kipnis
     given-names: Alex
 repository-code: https://github.com/adkipnis/tabdgp
-license: MIT
+license: Apache-2.0
 version: 0.2.0
 date-released: 2026-10-14
 doi: 10.5281/zenodo.23322845
