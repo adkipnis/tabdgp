@@ -46,6 +46,14 @@ harder to understand or change; it accrues one small edit at a time.
   Leave adjacent code, comments and formatting untouched.
 - A task that repeats, or is error-prone by hand, gets a `.py` or `.sh` script.
 
+## Commits and issues
+
+- Work reaches `main` only through a pull request, squash-merged into one commit that names the
+  change and closes its issue. The branch keeps the steps: the failing test, the code, the fixes.
+- A change to behavior or to an interface starts as an issue: the problem, the decision and the
+  check that closes it, in a few lines.
+- A release is a `vX.Y.Z` tag on `main` with release notes.
+
 ## Names
 
 - American spelling (`standardized`, `behavior`, `catalog`), in names as in prose. A released
