@@ -62,10 +62,6 @@ x4 binary row [0 1 0]
 - **An outcome node**, optional, for white-box misspecified datasets, with within-group time and
   a binary treatment.
 
-## Learn more
-
-[`CONTEXT.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTEXT.md) defines the vocabulary.
-
 ## Contributing
 
 Issues and pull requests are welcome; see
