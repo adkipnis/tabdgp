@@ -67,11 +67,6 @@ x4 binary row [0 1 0]
 Issues and pull requests are welcome; see
 [`CONTRIBUTING.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTRIBUTING.md).
 
-## Citing
-
-Please cite the release you used, from
-[`CITATION.cff`](https://github.com/adkipnis/tabdgp/blob/main/CITATION.cff) or GitHub's "Cite
-this repository".
 
 ## License
 
