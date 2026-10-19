@@ -51,6 +51,9 @@ harder to understand or change; it accrues one small edit at a time.
 - American spelling (`standardized`, `behavior`, `catalog`), in names as in prose. A released
   name spelled otherwise is renamed in the next release; only a name an outside standard fixes
   (R's own names, a library's) keeps its spelling.
+- A project's package, repository, paths and code are lowercase (`metabeta`, `import metabeta`);
+  prose names the project in capitals (MetaBeta), in READMEs, notebooks, docs and papers alike.
+  A release keeps the package name (metabeta 0.6.0), and a quote keeps its source's spelling.
 - A module is one lowercase word. A package's `__init__.py` holds no code of its own:
   it imports the public names from the modules that define them and lists them in `__all__`.
 - `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
