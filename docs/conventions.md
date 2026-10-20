@@ -55,6 +55,9 @@ harder to understand or change; it accrues one small edit at a time.
 - An issue holds only what a contributor needs: the problem, the decision, the check and the
   issues that block it. Who works it, with which tool, model or budget, is planning and stays
   out of the tracker.
+- A spec of several tickets closes with two more: an automated simplification and code-review
+  pass over the branch (the debloat), then a guided manual review, one file per session, with
+  small refactors. Only then is the branch merged.
 - A release is a `vX.Y.Z` tag on `main` with release notes.
 
 ## Names
