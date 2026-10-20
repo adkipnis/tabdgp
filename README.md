@@ -1,7 +1,5 @@
 [![CI](https://github.com/adkipnis/tabdgp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adkipnis/tabdgp/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/tabdgp)](https://pypi.org/project/tabdgp/)
-[![Python](https://img.shields.io/pypi/pyversions/tabdgp)](https://github.com/adkipnis/tabdgp/blob/main/pyproject.toml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/adkipnis/tabdgp/blob/main/LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23322845.svg)](https://doi.org/10.5281/zenodo.23322845)
 
 # TabDGP
@@ -64,20 +62,11 @@ x4 binary row [0 1 0]
 - **An outcome node**, optional, for white-box misspecified datasets, with within-group time and
   a binary treatment.
 
-## Learn more
-
-[`CONTEXT.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTEXT.md) defines the vocabulary.
-
 ## Contributing
 
 Issues and pull requests are welcome; see
 [`CONTRIBUTING.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTRIBUTING.md).
 
-## Citing
-
-Please cite the release you used, from
-[`CITATION.cff`](https://github.com/adkipnis/tabdgp/blob/main/CITATION.cff) or GitHub's "Cite
-this repository".
 
 ## License
 
