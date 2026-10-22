@@ -153,6 +153,7 @@ def test_every_override_is_honored(
         latent_nodes=latent_nodes,
         max_levels=max_levels,
         noise_scale=0.5,
+        outcome_noise_scale=0.5,
         factors=factors,
         groups=UniformInt(2, groups) if nested else groups,
         nested_share=1.0 if nested else 0.0,
@@ -181,7 +182,7 @@ def test_every_override_is_honored(
     # the per-node fields through the graph
     graph = dataset.graph
     for name, unit in zip(graph.names, graph.unit):
-        if name not in factor_names and group_level and factors > 0:
+        if name not in [*factor_names, 'y'] and group_level and factors > 0:
             assert unit != 'row' or _exceedsAFactorsGroups(dataset, name)
         elif name not in factor_names:
             assert unit == 'row'
@@ -236,7 +237,8 @@ def _drawsWithAndWithoutNoise() -> list[Dataset]:
     datasets = []
     for noise_scale in [0.0, 0.5]:
         for index in range(50):
-            datasets.append(draw(0, index, Hyperprior(noise_scale=noise_scale)))
+            hyperprior = Hyperprior(noise_scale=noise_scale, outcome_noise_scale=noise_scale)
+            datasets.append(draw(0, index, hyperprior))
     return datasets
 
 
