@@ -60,6 +60,7 @@ OUTCOME_DEFAULTS = {
         'ordered': 0.05,
         'count': 0.1,
     },
+    'outcome_max_levels': 10,
     'outcome_noise_scale': LogUniform(0.1, 3),
     'poisson_log_rate': Uniform(-1, 6),
 }
@@ -435,12 +436,6 @@ def test_categories_reads_a_point_default_and_a_token_fields_literal() -> None:
     assert Hyperprior(outcome_type_shares=shares).outcome_type_shares == shares
 
 
-def test_outcome_type_shares_names_the_five_column_types() -> None:
-    """The outcome takes any column type, count included, in the covariate types' order."""
-    five = ['continuous', 'binary', 'categorical', 'ordered', 'count']
-    assert Hyperprior.categories('outcome_type_shares') == five
-
-
 def test_a_point_mass_puts_every_share_on_its_category() -> None:
     """Tests force one type, family or activation
     through a point mass over the field's categories.
@@ -509,7 +504,8 @@ CATALOGS = [
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Activation)), 'activation_shares', id='activation names'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
-    pytest.param(set(get_args(ColumnType)), 'type_shares', id='column types'),
+    pytest.param(set(get_args(ColumnType)) - {'count'}, 'type_shares', id='covariate types'),
+    pytest.param(set(get_args(ColumnType)), 'outcome_type_shares', id='outcome types'),
 ]
 
 
