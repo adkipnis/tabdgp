@@ -1,15 +1,15 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default
+amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node
 ---
 
 # 0001 — One dataset per draw, keyed by seed and index, in numpy
 
 TabDGP's first consumer, `metabeta.mixed` in the private repository metabeta-v3, trains on
 simulated datasets whose sizes, groups and columns all vary; its roadmap puts padding,
-masking, collate and the `.npz` corpus on `metabeta.core`, and its Simulator adds the outcome
-before anything is written. Grilled on
+masking, collate and the `.npz` corpus on `metabeta.core`, and TabDGP's optional outcome node
+draws the outcome before anything is written. Grilled on
 2026-10-11 (storage, batch layout, tensor library, roadmap item 1), the decision is:
 **the seed is the corpus.** Dataset `i` is a pure function of its key `(seed, index)`, the
 hyperprior with its overrides and the installed versions of TabDGP and numpy, whose generator
