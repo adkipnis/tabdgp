@@ -226,6 +226,9 @@ Markdown meets the same bar as code: simple, and read top to bottom.
 ## Data
 
 - Never overwrite raw data.
+- A default, an edge or a share is read off the data collections and surveys already at hand
+  (a registry, a practice survey) before it is guessed, and cites its witness. Where no witness
+  exists and one pays off, gather the data first.
 - Stream or lazily load data that would not fit in memory.
 - Figures are PDFs, never PNG or JPG. Existing vector files convert to SVG; a PDF is never
   rasterized.
