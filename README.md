@@ -59,8 +59,10 @@ x4 binary row [0 1 0]
 - **Quirk axes:** group confounding, rare levels, ties, bounds, near dependence and more.
 - **Matched defaults**, fitted to and checked against
   [mixedbench](https://github.com/adkipnis/mixedbench)'s real grouped tables, then widened.
-- **An outcome node**, optional, for white-box misspecified datasets, with within-group time and
-  a binary treatment.
+- **An outcome node**, drawn by default as a node of the SCM and, through a preset, as a
+  generalized linear mixed model with its parameters and priors returned, exact or with a drawn
+  deviation for white-box misspecified datasets.
+- **Within-group time and a binary treatment.**
 
 ## Contributing
 
