@@ -5,14 +5,15 @@ pipeline:
 resolved sizes, shares and budget
 -> per factor (top down), how many factors it nests in           _nestFactors
 -> per factor (bottom up), its m groups, their sizes and codes   _sampleSizes, assign
--> per column, its type, k and own parameters                    _resolveColumn
--> one named column after another until the budget is met        plan
+-> per column, its type by its shares, then its k or marginal    plan, _resolveColumn
+-> x0, x1, … until the budget is met, then y if the form is scm  plan
 -> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
 -> placed by the node's ranks, tied values sharing one           apply
 """
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 import numpy as np
@@ -21,7 +22,8 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 
-ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered']
+ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered', 'count']
+Role = Literal['covariate', 'grouping_factor', 'outcome']
 
 # =====================================================================================
 # column metadata
@@ -34,19 +36,19 @@ class Column:
 
     type: ColumnType
     levels: int | None = None  # k
-    role: Literal['covariate', 'grouping_factor'] = 'covariate'
+    role: Role = 'covariate'
     nests_in: str | None = None  # the superior grouping factor of a nested one
-    marginal: Family | None = None  # for continuous columns
+    marginal: Family | None = None  # for continuous and count columns
     parameters: dict[str, float] = Field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # a grouping factor's codes label its groups, unordered at any m
         if self.role == 'grouping_factor' and self.type != 'categorical':
             raise ValueError(f'a grouping factor cannot be {self.type}')
-        if self.role == 'covariate' and self.nests_in is not None:
-            raise ValueError(f'a covariate cannot nest in {self.nests_in}')
-        # a covariate is binary at exactly k = 2 and categorical or ordered from k = 3
-        if self.type == 'continuous':
+        if self.role != 'grouping_factor' and self.nests_in is not None:
+            raise ValueError(f'a {self.role} cannot nest in {self.nests_in}')
+        # a covariate or the outcome is binary at exactly k = 2 and categorical or ordered from k = 3
+        if self.type in ('continuous', 'count'):
             agree = self.levels is None
         elif self.type == 'binary':
             agree = self.levels == 2
@@ -55,13 +57,20 @@ class Column:
             agree = self.levels is not None and self.levels >= fewest
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
-        if (self.type == 'continuous') != (self.marginal is not None):
+        # a count column is poisson, a continuous column any other family, a coded column none
+        if self.type == 'count':
+            agree = self.marginal == 'poisson'
+        elif self.type == 'continuous':
+            agree = self.marginal not in (None, 'poisson')
+        else:
+            agree = self.marginal is None
+        if not agree:
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
         # check that parameters hold exactly the fields this column drew
         if self.role == 'grouping_factor':
             # an unbalanced factor draws the concentration of its sizes, a balanced one nothing
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
-        elif self.type == 'continuous':
+        elif self.marginal is not None:
             own = MARGINAL_FIELDS[self.marginal]
         else:
             own = ['level_alpha']
@@ -70,8 +79,8 @@ class Column:
 
     @property
     def design_columns(self) -> int:
-        if self.role == 'grouping_factor':
-            return 0  # its codes index random effects
+        if self.role != 'covariate':
+            return 0  # a factor's codes index random effects, the outcome is what is predicted
         return 1 if self.levels is None else self.levels - 1
 
 
@@ -181,35 +190,48 @@ def _sampleSizes(
 
 
 def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
-    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly."""
+    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly,
+    then the outcome y if its form is scm.
+    """
     columns = {}
     remainder = resolved.design_columns
     while remainder > 0:
-        column = _resolveColumn(resolved, remainder, rng)
+        type = resolved.type_shares.choose(rng)
+        # k − 1 may not overflow the budget
+        column = _resolveColumn(type, 'covariate', remainder + 1, resolved, rng)
         columns[f'x{len(columns)}'] = column
         remainder -= column.design_columns
+    if resolved.outcome == 'scm':
+        type = resolved.outcome_type_shares.choose(rng)
+        columns['y'] = _resolveColumn(type, 'outcome', resolved.outcome_max_levels, resolved, rng)
     return columns
 
 
-def _resolveColumn(resolved: Hyperprior, remainder: int, rng: np.random.Generator) -> Column:
-    """One column's type, its k or marginal family (and its own parameters)."""
-    type = resolved.type_shares.choose(rng)
-    if type == 'continuous':
-        family = resolved.marginal_shares.choose(rng)
+def _resolveColumn(
+    type: ColumnType,
+    role: Role,
+    most_levels: int,
+    resolved: Hyperprior,
+    rng: np.random.Generator,
+) -> Column:
+    """One column's k or marginal family (and its own parameters)."""
+    if type in ('continuous', 'count'):
+        # a count's marginal is poisson by construction, so it takes no share
+        family = 'poisson' if type == 'count' else resolved.marginal_shares.choose(rng)
         parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
-        return Column(type=type, marginal=family, parameters=parameters)
+        return Column(type=type, role=role, marginal=family, parameters=parameters)
     levels = 2
     if type != 'binary':
         extra = rng.geometric(resolved.levels_p)  # 1, 2, …
         levels += int(extra)
     if resolved.max_levels is not None:
         levels = min(levels, resolved.max_levels)
-    # k − 1 may not overflow the budget; a column clipped to two levels is binary
-    levels = min(levels, remainder + 1)
+    levels = min(levels, most_levels)
+    # a column clipped to two levels is binary
     if levels == 2:
         type = 'binary'
     parameters = {'level_alpha': resolved.resolveField('level_alpha', rng)}
-    return Column(type=type, levels=levels, parameters=parameters)
+    return Column(type=type, role=role, levels=levels, parameters=parameters)
 
 
 # =====================================================================================
@@ -226,6 +248,9 @@ def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndar
     if column.type == 'continuous':
         sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
         by_rank = np.sort(sample).astype(np.float32)  # (u,)
+    elif column.type == 'count':
+        sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
+        by_rank = np.sort(sample)  # (u,) int64
     else:
         by_rank = _sampleCodes(len(distinct), column, rng)  # (u,)
     # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
@@ -253,6 +278,9 @@ def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.n
             minor = rng.random(size) < parameters['mixture_weight']  # (size,)
             normal = rng.standard_normal(size)  # (size,)
             return normal + parameters['mixture_gap'] * minor
+        case 'poisson':
+            rate = math.exp(parameters['poisson_log_rate'])
+            return rng.poisson(rate, size)
 
 
 def _sampleCodes(size: int, column: Column, rng: np.random.Generator) -> np.ndarray:
