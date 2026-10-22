@@ -272,6 +272,9 @@ def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.n
             return rng.random(size)
         case 'zero_inflated_lognormal':
             zero = rng.random(size) < parameters['zero_share']  # (size,)
+            # one positive value at least, as _sampleCodes keeps one value per level
+            if zero.all():
+                zero[0] = False
             positive = rng.lognormal(0, parameters['lognormal_sigma'], size)  # (size,)
             return np.where(zero, 0, positive)
         case 'normal_mixture':
