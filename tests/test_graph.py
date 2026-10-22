@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, assign
@@ -111,8 +113,29 @@ GROUPED = {
 
 
 def test_a_grouped_graph_that_meets_every_check_constructs() -> None:
-    """The control for the checks below: each fails for its change to GROUPED alone."""
+    """The control for the checks below: each fails for its change to GROUPED alone.
+    With its last node named y, it is a graph with the outcome.
+    """
     Graph(**GROUPED)
+    Graph(**GROUPED | {'names': ['g0', 'x1', 'y']})
+
+
+def test_a_y_not_last_fails() -> None:
+    """The outcome is a sink: a node after it could read it, a covariate as its effect."""
+    with pytest.raises(ValidationError):
+        Graph(**CHAIN | {'names': ['x0', 'y', 'x2']})
+
+
+def test_a_y_at_a_factors_unit_fails() -> None:
+    """The outcome is drawn once per row, never once per group."""
+    group_level_y = {
+        'names': ['g0', 'x1', 'y'],
+        'unit': ['g0', 'g0', 'g0'],
+        'group_share': [None] * 3,
+        'group_factor': [None] * 3,
+    }
+    with pytest.raises(ValidationError):
+        Graph(**GROUPED | group_level_y)
 
 
 UNKNOWN = [
@@ -290,14 +313,23 @@ def test_units_out_of_order_fail(change: dict) -> None:
 # skipping g and z, the prefixes of grouping factors and latent nodes
 OBSERVED = list('abcdefhijk')
 FLAT = groupingOf([])
+# the outcome as plan mints it, after the covariates
+Y = Column(type='continuous', marginal='normal', role='outcome')
 
 
 def _connect(
-    seed: int, observed_nodes: int, grouping: Grouping = FLAT, **overrides: object
+    seed: int,
+    observed_nodes: int,
+    grouping: Grouping = FLAT,
+    with_y: bool = False,
+    **overrides: object,
 ) -> Graph:
     rng = np.random.default_rng(seed)
     resolved = Hyperprior(**overrides).resolveDataset(rng)
-    return connect(resolved, grouping, columnsOf(OBSERVED[:observed_nodes]), rng)
+    columns = columnsOf(OBSERVED[:observed_nodes])
+    if with_y:
+        columns['y'] = Y
+    return connect(resolved, grouping, columns, rng)
 
 
 def test_zero_observed_and_zero_latent_nodes_give_an_empty_graph() -> None:
@@ -561,7 +593,7 @@ def test_the_observed_names_are_a_random_permutation_of_the_plan() -> None:
 @pytest.mark.parametrize('grouping', [FLAT, GROUPING], ids=['flat', 'grouped'])
 def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
-    first, second = _connect(7, 9, grouping), _connect(7, 9, grouping)
+    first, second = _connect(7, 9, grouping, with_y=True), _connect(7, 9, grouping, with_y=True)
     assert first.names == second.names
     assert np.array_equal(first.parents, second.parents)
     assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
@@ -601,6 +633,97 @@ def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> No
         factors = [name for name in graph.names if name.startswith('g')]
         assert [*factors, 'row'] == grouping.traceChain('row')
         assert set(graph.unit) <= set(grouping.traceChain('row'))
+
+
+# one factor of two groups; seed 2 puts nodes at both units and draws both families
+ONE_FACTOR = groupingOf([[0, 0, 1, 1]])
+
+
+def test_connect_without_y_is_spec_22s_graph() -> None:
+    """A plan without y, under outcome = 'none', keeps the dataset its key drew before the outcome.
+    The literals are spec #22's graph for this key.
+    """
+    graph = _connect(2, 3, ONE_FACTOR, latent_nodes=1, group_level_share=0.5)
+    child, parent = np.nonzero(graph.parents)
+    assert graph.names == ['g0', 'c', 'z0', 'b', 'a']
+    assert graph.unit == ['g0', 'g0', 'row', 'row', 'row']
+    assert list(zip(child.tolist(), parent.tolist())) == [(3, 1), (3, 2), (4, 3)]
+    assert graph.mechanism == [None, None, None, 'linear', 'mlp']
+    assert graph.noise_scale == [None, None, None, 0.7493527189794704, 0.140907138595985]
+    assert graph.group_share == [
+        None,
+        None,
+        0.3932290382601226,
+        0.0019036411256082356,
+        0.00010978727102732418,
+    ]
+
+
+@given(seed=st.integers(0, 2**32 - 1), factors=st.integers(0, 3))
+def test_y_is_last_and_at_the_row_with_no_children_under_every_grouping(
+    seed: int, factors: int
+) -> None:
+    """No covariate is an effect of the outcome, and the outcome is drawn once per row,
+    even when every other node is group-level and every pair of nodes an edge.
+    """
+    rng = np.random.default_rng(seed)
+    hyperprior = Hyperprior.grouped(
+        rows=100, factors=factors, group_level_share=1.0, edge_offset=30.0, hub_scale=0.0
+    )
+    resolved = hyperprior.resolveDataset(rng)
+    grouping = assign(resolved, rng)
+    columns = columnsOf(OBSERVED[:5])
+    columns['y'] = Y
+    graph = connect(resolved, grouping, columns, rng)
+    assert graph.names[-1] == 'y'
+    assert graph.unit[-1] == 'row'
+    assert not graph.parents[:, -1].any()
+
+
+def test_ys_noise_scale_is_drawn_from_outcome_noise_scale_and_the_other_nodes_from_noise_scale() -> (
+    None
+):
+    """The outcome's share of unexplained variance reaches far above a covariate's,
+    so its noise has a field of its own; a point override of each shows which a node reads.
+    """
+    graph = _connect(0, 5, with_y=True, noise_scale=0.3, outcome_noise_scale=2.0, **DENSE)
+    assert graph.noise_scale == [None] + [0.3] * 4 + [2.0]
+
+
+def test_a_root_y_records_no_noise_scale() -> None:
+    """A root is its noise alone, so y without parents draws no scale, as every root."""
+    no_edges = {'edge_offset': -30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
+    graph = _connect(0, 4, with_y=True, outcome_noise_scale=2.0, **no_edges)
+    assert not graph.parents[-1].any()
+    assert (graph.mechanism[-1], graph.noise_scale[-1]) == (None, None)
+
+
+def test_y_may_have_zero_parents_and_may_have_a_latent_parent() -> None:
+    """No edge into y is forced or forbidden beyond the mask:
+    a null result is a valid dataset, and a latent parent makes the outcome endogenous.
+    """
+    parents_seen = set()
+    latent_parent_seen = False
+    for seed in range(50):
+        graph = _connect(seed, 4, GROUPING, with_y=True, latent_nodes=2)
+        parents_of_y = graph.parents[-1]  # (v,)
+        parents_seen.add(int(parents_of_y.sum()))
+        latent_parent_seen |= bool((parents_of_y & graph.latent).any())
+    assert 0 in parents_seen
+    assert latent_parent_seen
+
+
+def test_y_draws_its_group_share_and_group_factor_in_a_grouped_graph_and_neither_in_a_flat_one() -> (
+    None
+):
+    """The outcome mixes a group part and a row part like any row-unit node;
+    a flat table has no groups to mix.
+    """
+    grouped = _connect(0, 4, GROUPING, with_y=True, group_share=0.25)
+    assert grouped.group_share[-1] == 0.25
+    assert grouped.group_factor[-1] in ['g0', 'g1', 'g2']
+    flat = _connect(0, 4, with_y=True, group_share=0.25)
+    assert (flat.group_share[-1], flat.group_factor[-1]) == (None, None)
 
 
 def _degreeSpread(hub_scale: float) -> float:
