@@ -13,7 +13,7 @@ factor, family, link) are not redefined.
 **Covariate generator**:
 The process that draws a dataset's grouping structure and its typed covariate columns,
 continuous, binary, categorical or ordered, each within-group or group-level, with the quirks
-of real tables. TabDGP is one; it draws an outcome only as the optional outcome node.
+of real tables. TabDGP is one; it draws an outcome only as the outcome node.
 _Avoid_: predictor simulation, feature matrix, X generator, design-matrix generator
 
 **Design matrix**:
@@ -91,9 +91,14 @@ _Avoid_: hidden unit, confounder (a role a latent node can play)
 
 **Column**:
 A node observed in the table, with its metadata: type (continuous, binary, categorical,
-ordered), levels, role (grouping factor, covariate, time, treatment, outcome), and the
+ordered, count), levels, role (grouping factor, covariate, time, treatment, outcome), and the
 parameters its values were drawn with.
 _Avoid_: feature, variable unqualified
+
+**Count**:
+A column type for non-negative integers: a Poisson outcome's today, a covariate's once the
+measurement pass admits count covariates. In the design matrix a count is a continuous column.
+_Avoid_: integer column, discrete column (an ordered one)
 
 **Factor level**:
 One of the k categories of a binary, categorical or ordered column, or one group of a
@@ -137,9 +142,9 @@ proofs certify.
 _Avoid_: prior (the fitter's, over parameters), config unqualified, meta-distribution
 
 **Preset**:
-A named hyperprior for one kind of table, grouped or flat today, item response, survival or
-causal later: a choice of fields, never a new mechanism. Every draw starts from one; metabeta
-draws from the grouped preset.
+A named hyperprior for one kind of table, grouped, flat or glmm today, item response, survival
+or causal later: a choice of fields, never a new mechanism. Every draw starts from one; metabeta
+draws from the glmm preset, the grouped preset with the outcome node in its glmm form.
 _Avoid_: dataset type, kind, mode
 
 **Override**:
@@ -154,17 +159,39 @@ mixedbench's measurement pass shows that real tables have the quirk strongly eno
 _Avoid_: noise, perturbation, augmentation
 
 **Outcome node**:
-An optional node whose parents are drawn from the covariates, with a family, a link, the
-random effects per grouping factor and terms a GLMM lacks, that builds white-box
-misspecified datasets. Just another node; never drawn unless asked for.
-_Avoid_: y, target, label, response unqualified
+The node `y`, role `outcome`, drawn by default: a sink at the row unit, last in the generating
+graph, whose parents are drawn like any node's. Its form says how y follows from them. A
+dataset has at most one.
+_Avoid_: target, label, response unqualified, dependent variable
+
+**Form**:
+How the outcome node draws y, one per dataset: `scm`, a node like the others with a marginal
+or a post-hoc type, matched to real responses; or `glmm`, a generalized linear mixed model on
+the design matrix, with a family, a link, fixed effects, random effects per grouping factor
+and, when asked for, a deviation, what metabeta trains on and what builds white-box
+misspecified datasets.
+_Avoid_: mode, kind, outcome type (its column type)
+
+**Deviation**:
+The SCM mechanism over the outcome node's parents, latent ones included, added to a glmm
+form's linear predictor at a drawn scale, zero by default: what makes a dataset misspecified
+for every GLMM while its fixed and random effects stay the exact truth. A latent group-level
+parent in it is an endogeneity.
+_Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it), noise
+
+**Prior context**:
+The resolved hyperparameters of a glmm form's priors, recorded with the dataset: the scales
+and families its fixed effects, random-effect standard deviations and residual scale were
+drawn with, the correlation prior's shape, and the signal share and split that set the scales.
+What metabeta's posterior is conditioned on.
+_Avoid_: hyperparameters unqualified (the hyperprior's), prior unqualified (the fitter's)
 
 **Random effect**:
-A per-group parameter of the outcome, an intercept or a slope, drawn jointly per group of a
-grouping factor in metabeta's parameterization; metabeta's term. Only the outcome node draws
-random effects; a group-level node, latent or observed, is covariate structure, which a GLMM
-takes as given.
-_Avoid_: group effect, random intercept for a latent group-level node
+A per-group parameter of the outcome, α, an intercept or a slope, drawn jointly per group of a
+grouping factor in metabeta's parameterization and counted in design columns, a slope on a
+categorical column taking k − 1; metabeta's term. Only the outcome node draws random effects;
+a group-level node, latent or observed, is covariate structure, which a GLMM takes as given.
+_Avoid_: group effect, b (an earlier letter), random intercept for a latent group-level node
 
 ### The proofs
 
