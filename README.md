@@ -46,12 +46,13 @@ print(len(dataset.latent), 'latent nodes,', dataset.graph.parents.sum(), 'edges'
 g0 categorical g0 [4 5 2]
 g1 categorical g1 [ 6 22 29]
 g2 categorical g2 [7 7 5]
-x0 binary g0 [1 1 1]
+x0 binary g2 [0 0 1]
 x1 binary row [1 1 1]
-x2 continuous row [0.36 0.69 0.15]
-x3 binary row [0 0 0]
-x4 binary row [0 1 0]
-7 latent nodes, 16 edges
+x2 continuous row [ 0.31 -0.45  1.64]
+x3 binary row [1 1 0]
+x4 binary row [1 0 1]
+y continuous g0 [0.83 0.45 0.89]
+7 latent nodes, 19 edges
 ```
 
 ## Planned
