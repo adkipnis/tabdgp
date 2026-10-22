@@ -5,8 +5,6 @@ and a column's values from its node's.
 
 from __future__ import annotations
 
-from typing import get_args
-
 import numpy as np
 import pytest
 from hypothesis import given
@@ -14,7 +12,7 @@ from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, apply, assign, plan
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, UniformInt
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, UniformInt
 from tests.fixtures.build import groupingOf, point
 
 TYPES = ['continuous', 'binary', 'categorical', 'ordered']
@@ -518,7 +516,7 @@ def _continuous(family: str) -> Column:
     return Column(type='continuous', marginal=family, parameters=parameters)
 
 
-CONTINUOUS = [_continuous(family) for family in get_args(Family)]
+CONTINUOUS = [_continuous(family) for family in Hyperprior.categories('marginal_shares')]
 
 
 def _node(seed: int) -> np.ndarray:
@@ -615,7 +613,7 @@ SUPPORTS = {
 }
 
 
-@pytest.mark.parametrize('family', get_args(Family))
+@pytest.mark.parametrize('family', Hyperprior.categories('marginal_shares'))
 def test_each_familys_values_lie_in_its_support(family: str) -> None:
     """A bounded column stays bounded and every column is finite, over many drawn parameters.
 
