@@ -22,7 +22,7 @@ the (optional) overrides
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal, get_args
 
 import numpy as np
 from pydantic import (
@@ -47,8 +47,10 @@ MARGINAL_FIELDS = {
     'uniform': [],
     'zero_inflated_lognormal': ['lognormal_sigma', 'zero_share'],
     'normal_mixture': ['mixture_gap', 'mixture_weight'],
+    'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
+Form = Literal['none', 'scm']  # how the outcome node draws y; 'none' draws no y
 
 # =====================================================================================
 # distributions
@@ -169,6 +171,7 @@ Distribution = Uniform | LogUniform | UniformInt | LogUniformInt | Beta | Dirich
 Integer = int | UniformInt | LogUniformInt
 Real = float | Uniform | LogUniform | Beta
 Simplex = dict[str, NonNegativeFloat] | Dirichlet
+# a token field is one category of its Literal, or a Simplex over them that chooses one
 
 
 def _within(
@@ -235,6 +238,9 @@ class Hyperprior(BaseModel):
     - Shares: a Dirichlet distribution draws the dataset's shares of the column types,
       marginal families, mechanisms and activations.
       Each column or node chooses its own by those shares.
+    - Outcome: one node y, last in the graph and at the row, so no other node reads it.
+      Its form says how y is drawn: as a node like the others (scm) or not at all (none).
+      Its type comes from its own type shares, count included, its noise from its own scale.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid', validate_default=True)
@@ -242,6 +248,7 @@ class Hyperprior(BaseModel):
         'init_scale',
         'noise_scale',
         'group_share',
+        'outcome_noise_scale',
     )
     PER_FACTOR: ClassVar[tuple[str, ...]] = (
         'groups',
@@ -256,13 +263,18 @@ class Hyperprior(BaseModel):
         'beta_b',
         'mixture_gap',
         'mixture_weight',
+        'poisson_log_rate',
     )  # columns are manifested (i.e. non-latent) nodes
     SHARES: ClassVar[tuple[str, ...]] = (
         'type_shares',
         'mechanism_shares',
         'activation_shares',
         'marginal_shares',
+        'outcome_type_shares',
     )
+    TOKENS: ClassVar[dict[str, Any]] = {
+        'outcome': Form,
+    }  # each token field's Literal
 
     # sizes and columns
     rows: PositiveCount = LogUniformInt(20, 15000)  # n, the table's length
@@ -309,7 +321,7 @@ class Hyperprior(BaseModel):
             'zero_inflated_lognormal': 1,
             'normal_mixture': 1,
         }
-    )  # a continuous column's family
+    )  # a continuous column's family; a count column's is poisson
     student_df: Positive = LogUniform(2, 30)
     lognormal_sigma: Positive = LogUniform(0.25, 1.5)
     zero_share: Annotated[Real, _within(ge=0, lt=1)] = Uniform(0.05, 0.6)  # zero-inflated lognormal
@@ -317,6 +329,18 @@ class Hyperprior(BaseModel):
     beta_b: Positive = LogUniform(0.5, 5)
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
     mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
+    poisson_log_rate: Real = Uniform(-1, 6)  # log of a count's mean
+
+    # outcome
+    outcome: Form | Simplex = 'scm'
+    outcome_type_shares: Simplex = {
+        'continuous': 0.6,
+        'binary': 0.2,
+        'categorical': 0.05,
+        'ordered': 0.05,
+        'count': 0.1,
+    }  # the outcome's column type, one per dataset, so a point
+    outcome_noise_scale: NonNegative = LogUniform(0.1, 3)  # the outcome's noise_scale
 
     @classmethod
     def grouped(cls, **overrides: Any) -> Hyperprior:
@@ -328,12 +352,18 @@ class Hyperprior(BaseModel):
 
     @classmethod
     def categories(cls, field: str) -> list[str]:
-        return list(cls.model_fields[field].default.alpha)
+        if field in cls.TOKENS:
+            return list(get_args(cls.TOKENS[field]))
+        default = cls.model_fields[field].default
+        shares = default.alpha if isinstance(default, Dirichlet) else default
+        return list(shares)
 
-    @field_validator(*SHARES)
+    @field_validator(*SHARES, *TOKENS)
     @classmethod
-    def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
+    def _orderShares(cls, value: Simplex | str, info: ValidationInfo) -> Simplex | str:
         """Puts the categories in the default order."""
+        if isinstance(value, str):
+            return value  # a token's category, checked by its Literal
         categories = cls.categories(info.field_name)
         if isinstance(value, Dirichlet):
             return Dirichlet(cls._inOrder(value.alpha, categories))
@@ -388,6 +418,8 @@ class Hyperprior(BaseModel):
             self._checkBounds(field, value, low, high)
         if isinstance(value, Distribution):
             value = value.draw(rng, low, high) if bounded else value.draw(rng)
+        if field in self.TOKENS and isinstance(value, Shares):
+            value = value.choose(rng)  # a token's point is one category
         return value
 
     @staticmethod
