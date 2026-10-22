@@ -685,6 +685,22 @@ def test_tied_node_values_share_one_column_value(column: Column) -> None:
         assert len(np.unique(values[node == value])) == 1
 
 
+def test_a_zero_inflated_column_at_two_groups_keeps_a_positive_value() -> None:
+    """A group-level column samples one value per group, so at few groups its zeros could fill
+    the sample, a constant column a consumer cannot z-score.
+    At zero_share = 0.99 two groups are both zero in 98 % of seeds without the floor.
+    """
+    column = Column(
+        type='continuous',
+        marginal='zero_inflated_lognormal',
+        parameters={'lognormal_sigma': 0.5, 'zero_share': 0.99},
+    )
+    node = np.array([-1.0, 1.0], dtype=np.float32)  # (m,) at a factor of two groups
+    for seed in range(50):
+        values = _applyTo(node, column, seed)
+        assert np.ptp(values) > 0
+
+
 def test_plan_is_deterministic_under_a_fixed_generator() -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
     assert _plan(7) == _plan(7)
