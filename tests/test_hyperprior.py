@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import get_args
 
 import numpy as np
@@ -50,6 +51,68 @@ def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
     assert defaults == GROUPING_DEFAULTS
 
 
+OUTCOME_DEFAULTS = {
+    'outcome': 'scm',
+    'outcome_type_shares': {
+        'continuous': 0.6,
+        'binary': 0.2,
+        'categorical': 0.05,
+        'ordered': 0.05,
+        'count': 0.1,
+    },
+    'outcome_noise_scale': LogUniform(0.1, 3),
+    'poisson_log_rate': Uniform(-1, 6),
+}
+
+
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Hyperprior]) -> None:
+    """ADR 0005's table: both presets draw the outcome node in its scm form."""
+    hyperprior = preset()
+    defaults = {field: getattr(hyperprior, field) for field in OUTCOME_DEFAULTS}
+    assert defaults == OUTCOME_DEFAULTS
+
+
+def test_outcome_accepts_a_category_a_dict_of_shares_and_a_dirichlet() -> None:
+    """A study draws no outcome; a corpus mixes forms by fixed or drawn shares.
+    Shares are put in the categories' order, as a shares field's are.
+    """
+    assert Hyperprior(outcome='none').outcome == 'none'
+    shares = Hyperprior(outcome={'scm': 0.7, 'none': 0.3}).outcome
+    assert list(shares.items()) == [('none', 0.3), ('scm', 0.7)]
+    dirichlet = Hyperprior(outcome=Dirichlet({'scm': 1, 'none': 2})).outcome
+    assert list(dirichlet.alpha.items()) == [('none', 2), ('scm', 1)]
+
+
+NOT_A_FORM = [
+    pytest.param('glmm', id='glmm'),
+    pytest.param('SCM', id='a misspelled form'),
+    pytest.param({'scm': 0.5, 'glmm': 0.5}, id='shares naming glmm'),
+]
+
+
+@pytest.mark.parametrize('outcome', NOT_A_FORM)
+def test_glmm_and_a_misspelled_form_fail_at_construction(outcome: str | dict) -> None:
+    """glmm is no form until its preset exists,
+    so asking for it fails where it is written, like a typo, not at a draw.
+    """
+    with pytest.raises(ValidationError):
+        Hyperprior(outcome=outcome)
+
+
+def test_resolve_gives_outcome_one_category_and_a_shares_override_chooses_by_its_shares() -> None:
+    """hyperparameters.outcome records the form a dataset was drawn with, so it is one category,
+    and a corpus that mixes forms draws each dataset's by the shares.
+    """
+    rng = np.random.default_rng(0)
+    assert Hyperprior().resolveDataset(rng).outcome == 'scm'
+    drawn = Hyperprior(outcome=Dirichlet({'none': 1, 'scm': 1})).resolveDataset(rng).outcome
+    assert drawn in {'none', 'scm'}
+    mixed = Hyperprior(outcome={'none': 0.3, 'scm': 0.7})
+    forms = [mixed.resolveField('outcome', rng) for _ in range(10_000)]
+    assert forms.count('none') / len(forms) == pytest.approx(0.3, abs=0.015)
+
+
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
     """Every draw starts from a preset; Hyperprior() stays valid as the grouped one,
     and the flat preset differs from it in factors alone.
@@ -92,11 +155,14 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
     """Each column, node or grouping factor draws its own value of these fields,
     so no dataset-wide value is drawn.
     """
-    assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale', 'group_share'}
+    per_node = {'noise_scale', 'init_scale', 'group_share', 'outcome_noise_scale'}
+    assert set(Hyperprior.PER_NODE) == per_node
     assert set(Hyperprior.PER_FACTOR) == {'groups', 'size_alpha'}
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
     assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
+    assert resolved.outcome_noise_scale == LogUniform(0.1, 3)
+    assert resolved.poisson_log_rate == Uniform(-1, 6)
     for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
@@ -289,11 +355,16 @@ OUT_OF_RANGE = [
     pytest.param({'size_alpha': 0.0}, id='a zero concentration of the group sizes'),
     pytest.param({'balanced_share': 1.5}, id='a share above 1'),
     pytest.param({'group_share': Uniform(0, 2)}, id='a support above 1 for a share'),
+    pytest.param({'outcome_noise_scale': -1.0}, id='a negative outcome noise scale'),
     pytest.param({'type_shares': ALL_CONTINUOUS | {'binary': 0.5}}, id='shares above 1'),
     pytest.param(
         {'type_shares': ALL_CONTINUOUS | {'continuous': 1.5, 'binary': -0.5}}, id='a negative share'
     ),
     pytest.param({'type_shares': {'continuous': 1.0}}, id='shares missing a category'),
+    pytest.param(
+        {'outcome_type_shares': OUTCOME_DEFAULTS['outcome_type_shares'] | {'continuous': 1.6}},
+        id='outcome type shares summing to 2',
+    ),
     pytest.param(
         {'mechanism_shares': Dirichlet({'linear': 1, 'tree': 1})}, id='an unknown category'
     ),
@@ -353,6 +424,21 @@ def test_resolving_one_shares_field_gives_shares_that_choose() -> None:
 def test_a_shares_field_names_its_default_categories() -> None:
     """The catalogs and the point masses read a field's categories from its default."""
     assert Hyperprior.categories('mechanism_shares') == ['linear', 'mlp']
+
+
+def test_categories_reads_a_point_default_and_a_token_fields_literal() -> None:
+    """A token field has no default shares to read, and a point default no Dirichlet,
+    yet the shares check and the point masses need the categories of both.
+    """
+    assert Hyperprior.categories('outcome') == ['none', 'scm']
+    shares = point('outcome_type_shares', 'count')
+    assert Hyperprior(outcome_type_shares=shares).outcome_type_shares == shares
+
+
+def test_outcome_type_shares_names_the_five_column_types() -> None:
+    """The outcome takes any column type, count included, in the covariate types' order."""
+    five = ['continuous', 'binary', 'categorical', 'ordered', 'count']
+    assert Hyperprior.categories('outcome_type_shares') == five
 
 
 def test_a_point_mass_puts_every_share_on_its_category() -> None:
@@ -415,11 +501,11 @@ def test_the_fields_drawn_per_factor_are_exactly_those_a_factor_column_records()
 def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None:
     """A field drawn per node that the graph does not record would silently stay a distribution."""
     recorded = set(Graph.__dataclass_fields__) & set(Hyperprior.model_fields)
+    recorded.add('outcome_noise_scale')  # recorded as y's noise_scale
     assert recorded == set(Hyperprior.PER_NODE)
 
 
 CATALOGS = [
-    pytest.param(set(get_args(Family)), 'marginal_shares', id='marginal families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Activation)), 'activation_shares', id='activation names'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
@@ -433,6 +519,14 @@ def test_each_catalog_names_exactly_the_hyperprior_defaults_categories(
 ) -> None:
     """A category with a share but no entry in its catalog would fail only when drawn."""
     assert catalog == set(Hyperprior.categories(field))
+
+
+def test_the_marginal_catalog_is_the_continuous_families_plus_poisson() -> None:
+    """A continuous column chooses its family by marginal_shares;
+    poisson is the count type's marginal by construction, so it takes no share.
+    """
+    continuous = set(Hyperprior.categories('marginal_shares'))
+    assert set(get_args(Family)) == continuous | {'poisson'}
 
 
 INVALID = [
