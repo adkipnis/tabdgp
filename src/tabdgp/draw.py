@@ -7,12 +7,12 @@ the key and the hyperprior
 -> one generator from the key                                    default_rng
 -> the resolved hyperprior                                       Hyperprior.resolveDataset
 -> the grouping factors, their codes and metadata                assign
--> the column plan                                               plan
--> the graph, each node at a unit of the grouping                connect
+-> the column plan, the outcome y last if its form draws one     plan
+-> the graph, each node at a unit of the grouping, y last        connect
 -> the node values, each at its unit                             propagate
 -> the typed columns at the rows, joined to their nodes by name  _applyColumns
 -> the latent nodes at the rows                                  _broadcastLatent
--> the Dataset, the grouping factors first                       draw
+-> the Dataset, the grouping factors first, y last               draw
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ class Dataset:
     Each array is stored as drawn (not copied), so a consumer can share its memory.
     """
 
-    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, else int64 codes 0..k−1
+    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, int64 counts or codes 0..k−1
     metadata: dict[str, Column]
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored over its groups if group-level
