@@ -75,7 +75,7 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
 ) -> None:
     """The seed is the corpus:
     dataset i may not depend on what else a worker, batch or shard draws.
-    On the grouped preset, so the grouping, the units and the two parts are covered.
+    On the grouped preset, so the grouping, the units, the two parts and y are covered.
     """
     grouped = Hyperprior.grouped()
     alone = draw(seed, index, grouped)
@@ -88,7 +88,7 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
 
 def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_factors_first() -> None:
     """A consumer looks a column up by name in columns, metadata and the graph alike,
-    and finds the grouping factors before the covariates.
+    and finds the grouping factors before the covariates and y after them.
     """
     for index in range(20):
         dataset = draw(0, index, Hyperprior.grouped(latent_nodes=2, factors=2))
@@ -97,8 +97,98 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
         latent = [name for name, latent in zip(graph.names, graph.latent) if latent]
         assert list(dataset.columns) == list(dataset.metadata)
         assert list(dataset.columns)[:2] == ['g0', 'g1']
+        assert list(dataset.columns)[-1] == 'y'
         assert sorted(dataset.columns) == sorted(observed)
         assert list(dataset.latent) == latent
+
+
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat])
+def test_y_is_the_last_column_and_the_last_node_with_role_outcome_under_grouped_and_flat(
+    preset,
+) -> None:
+    """A consumer takes the last column as the outcome and the rest as its predictors,
+    and no node reads y, so it is last in the graph too.
+    """
+    for index in range(20):
+        dataset = draw(0, index, preset())
+        assert list(dataset.columns)[-1] == 'y'
+        assert list(dataset.metadata)[-1] == 'y'
+        assert dataset.metadata['y'].role == 'outcome'
+        assert dataset.graph.names[-1] == 'y'
+        roles = [column.role for column in dataset.metadata.values()]
+        assert roles.count('outcome') == 1
+
+
+def test_outcome_none_gives_no_y() -> None:
+    """A covariate-only table, item 2's, is one override."""
+    for index in range(20):
+        dataset = draw(0, index, Hyperprior.grouped(outcome='none'))
+        assert 'y' not in dataset.columns
+        assert 'y' not in dataset.metadata
+        assert 'y' not in dataset.graph.names
+        assert all(column.role != 'outcome' for column in dataset.metadata.values())
+
+
+def test_a_count_y_is_non_negative_int64_and_a_continuous_y_float32() -> None:
+    """A consumer stacks y by its type: a count is an integer a Poisson likelihood reads,
+    not a code 0..k − 1, and a continuous y shares the covariates' dtype.
+    """
+    for type, dtype in [('count', np.int64), ('continuous', np.float32)]:
+        hyperprior = Hyperprior.grouped(outcome_type_shares=point('outcome_type_shares', type))
+        for index in range(20):
+            y = draw(0, index, hyperprior).columns['y']
+            assert y.dtype == dtype
+            assert y.min() >= 0 if type == 'count' else np.isfinite(y).all()
+
+
+def _spearman(a: np.ndarray, b: np.ndarray) -> float:
+    ranks_a = np.argsort(np.argsort(a))
+    ranks_b = np.argsort(np.argsort(b))
+    return float(np.corrcoef(ranks_a, ranks_b)[0, 1])
+
+
+def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at_a_high_one() -> (
+    None
+):
+    """The outcome's noise scale is its own: a learnable y at a low one, a hopeless one at a high
+    one, whatever noise_scale says. One latent root and a sure edge to y, so the correlation
+    between y and z0 is the signal's share; the noise scale is relative to the z-scored output.
+    A tie-free marginal, since a zero-inflated y's ties cost rank correlation on their own.
+    """
+    dense = {'edge_offset': 30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
+    for outcome_noise_scale, bar, above in [(0.01, 0.95, True), (100.0, 0.2, False)]:
+        hyperprior = Hyperprior.flat(
+            rows=1000,
+            design_columns=0,
+            latent_nodes=1,
+            mechanism_shares={'linear': 1.0, 'mlp': 0.0},
+            noise_scale=0.01,
+            outcome_noise_scale=outcome_noise_scale,
+            outcome_type_shares=point('outcome_type_shares', 'continuous'),
+            marginal_shares=point('marginal_shares', 'normal'),
+            **dense,
+        )
+        for index in range(10):
+            dataset = draw(0, index, hyperprior)
+            assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
+            correlation = abs(_spearman(dataset.columns['y'], dataset.latent['z0']))
+            assert (correlation > bar) == above
+
+
+def test_ys_between_group_share_under_group_share_1_and_one_factor_is_1() -> None:
+    """y is a row-unit node like any other: at group share 1 its row part has weight 0,
+    so y is one value per group and group confounding reaches the outcome.
+    Continuous, since a coded y with more levels than groups stays at the row (ADR 0003).
+    """
+    hyperprior = Hyperprior.grouped(
+        rows=600,
+        factors=1,
+        group_share=1.0,
+        outcome_type_shares=point('outcome_type_shares', 'continuous'),
+    )
+    for index in range(20):
+        dataset = draw(0, index, hyperprior)
+        assert betweenShare(dataset.columns['y'], dataset.columns['g0']) > 0.999
 
 
 def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
@@ -124,6 +214,8 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     balanced=st.booleans(),
     group_level=st.booleans(),
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
+    with_y=st.booleans(),
+    outcome_type=st.sampled_from(Hyperprior.categories('outcome_type_shares')),
 )
 def test_every_override_is_honored(
     rows: int,
@@ -136,13 +228,15 @@ def test_every_override_is_honored(
     balanced: bool,
     group_level: bool,
     group_share: float,
+    with_y: bool,
+    outcome_type: str,
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
     The fields without a visible size are honored through hyperparameters, which must hold
-    every point override as given, a field drawn per node through the graph and one drawn per
-    factor through the factor's column. A point groups cannot nest, so a chain draws its groups
-    from a range below the point.
+    every point override as given, a field drawn per node through the graph, one drawn per
+    factor through the factor's column and the outcome's through y's column. A point groups
+    cannot nest, so a chain draws its groups from a range below the point.
     """
     # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
     assume(rows >= max(2 * design_columns, groups, factors + 1))
@@ -161,6 +255,9 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
+        outcome='scm' if with_y else 'none',
+        outcome_type_shares=point('outcome_type_shares', outcome_type),
+        poisson_log_rate=2.0,
     )
     dataset = draw(0, 0, hyperprior)
     metadata = dataset.metadata
@@ -179,6 +276,12 @@ def test_every_override_is_honored(
     for name, column in metadata.items():
         if column.role == 'covariate':
             assert column.levels is None or column.levels <= max_levels
+    # the outcome's fields through y's column
+    assert ('y' in metadata) == with_y
+    if with_y:
+        assert metadata['y'].type == outcome_type
+        if outcome_type == 'count':
+            assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
     # the per-node fields through the graph
     graph = dataset.graph
     for name, unit in zip(graph.names, graph.unit):
@@ -209,6 +312,11 @@ def test_every_override_is_honored(
         hyperprior.groups,
         2.0,
         group_share,
+    )
+    assert (resolved.outcome, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
+        'scm' if with_y else 'none',
+        0.5,
+        2.0,
     )
 
 
@@ -321,6 +429,7 @@ def test_every_array_has_length_n() -> None:
     hyperprior = Hyperprior.grouped(rows=80, group_level_share=0.8, latent_nodes=3)
     for index in range(20):
         dataset = draw(0, index, hyperprior)
+        assert 'y' in dataset.columns
         for array in [*dataset.columns.values(), *dataset.latent.values()]:
             assert array.shape == (80,)
 
