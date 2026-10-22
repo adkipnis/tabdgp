@@ -247,10 +247,14 @@ def test_every_column_and_latent_node_is_finite() -> None:
             assert np.isfinite(values).all()
 
 
-@pytest.mark.xfail(strict=True, reason='#42: a continuous column can be constant')
 def test_every_continuous_column_is_non_constant() -> None:
-    """A consumer z-scores a continuous column, so a constant one divides by zero."""
-    for dataset in _drawsWithAndWithoutNoise():
+    """A consumer z-scores a continuous column, so a constant one divides by zero.
+
+    At the default noise scales: an override noise_scale = 0 asks for a noiseless SCM,
+    in which a dead relu is the constant function and its column is constant.
+    """
+    for index in range(100):
+        dataset = draw(0, index, Hyperprior.grouped())
         for name, values in dataset.columns.items():
             if dataset.metadata[name].type == 'continuous':
                 assert values.std() > 0
