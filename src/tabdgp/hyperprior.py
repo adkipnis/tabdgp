@@ -340,6 +340,7 @@ class Hyperprior(BaseModel):
         'ordered': 0.05,
         'count': 0.1,
     }  # the outcome's column type, one per dataset, so a point
+    outcome_max_levels: Annotated[int, Field(ge=3)] = 10  # y's k at most; a guess, to be fitted
     outcome_noise_scale: NonNegative = LogUniform(0.1, 3)  # the outcome's noise_scale
 
     @classmethod
