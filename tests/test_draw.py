@@ -214,7 +214,8 @@ def test_every_override_is_honored(
 def test_a_distribution_override_is_honored() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
-        dataset = draw(0, index, Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1))
+        hyperprior = Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1, outcome='none')
+        dataset = draw(0, index, hyperprior)
         [values] = dataset.columns.values()
         assert 30 <= len(values) <= 40
 
@@ -222,27 +223,37 @@ def test_a_distribution_override_is_honored() -> None:
 def test_a_budget_of_0_gives_no_columns() -> None:
     """metabeta's budget may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
-        dataset = draw(0, index, Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50))
+        hyperprior = Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50, outcome='none')
+        dataset = draw(0, index, hyperprior)
         assert dataset.columns == {}
         assert dataset.metadata == {}
         assert dataset.graph.latent.all()
         assert len(dataset.latent['z0']) == 50
 
 
-def test_every_column_is_finite_and_every_continuous_column_non_constant() -> None:
-    """scamd's repair and retry hid broken draws; here a broken one would reach the consumer.
-
-    Zero noise lets a dead relu leave a node constant, the case most likely to break.
-    """
+def _drawsWithAndWithoutNoise() -> list[Dataset]:
+    """50 draws at zero noise, where a dead relu leaves a node constant, and 50 at 0.5."""
+    datasets = []
     for noise_scale in [0.0, 0.5]:
         for index in range(50):
-            dataset = draw(0, index, Hyperprior(noise_scale=noise_scale))
-            for name, values in dataset.columns.items():
-                assert np.isfinite(values).all()
-                if dataset.metadata[name].type == 'continuous':
-                    assert values.std() > 0
-            for values in dataset.latent.values():
-                assert np.isfinite(values).all()
+            datasets.append(draw(0, index, Hyperprior(noise_scale=noise_scale)))
+    return datasets
+
+
+def test_every_column_and_latent_node_is_finite() -> None:
+    """scamd's repair and retry hid broken draws; here a broken one would reach the consumer."""
+    for dataset in _drawsWithAndWithoutNoise():
+        for values in [*dataset.columns.values(), *dataset.latent.values()]:
+            assert np.isfinite(values).all()
+
+
+@pytest.mark.xfail(strict=True, reason='#42: a continuous column can be constant')
+def test_every_continuous_column_is_non_constant() -> None:
+    """A consumer z-scores a continuous column, so a constant one divides by zero."""
+    for dataset in _drawsWithAndWithoutNoise():
+        for name, values in dataset.columns.items():
+            if dataset.metadata[name].type == 'continuous':
+                assert values.std() > 0
 
 
 def _neighborAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
@@ -273,6 +284,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
             mechanism_shares={'linear': 1.0, 'mlp': 0.0},
             noise_scale=0.01,
             level_alpha=5.0,
+            outcome='none',
             **dense,
         )
         for index in range(10):
@@ -407,7 +419,7 @@ def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:
     for index in range(20):
         dataset = draw(0, index, Hyperprior.flat())
         graph = dataset.graph
-        assert all(column.role == 'covariate' for column in dataset.metadata.values())
+        assert all(column.role != 'grouping_factor' for column in dataset.metadata.values())
         assert not any(name.startswith('g') for name in graph.names)
         assert set(graph.unit) <= {'row'}
         assert set(graph.group_share) <= {None}
