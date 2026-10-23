@@ -283,7 +283,11 @@ def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.n
             return normal + parameters['mixture_gap'] * minor
         case 'poisson':
             rate = math.exp(parameters['poisson_log_rate'])
-            return rng.poisson(rate, size)
+            counts = rng.poisson(rate, size)  # (size,)
+            # two distinct values at least, as the zero-inflated sample keeps one positive value
+            if (counts == counts[0]).all():
+                counts[0] += 1
+            return counts
 
 
 def _sampleCodes(size: int, column: Column, rng: np.random.Generator) -> np.ndarray:
