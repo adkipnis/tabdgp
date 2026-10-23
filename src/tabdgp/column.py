@@ -1,9 +1,5 @@
 """column.py defines the grouping factors, the column types and levels, and the column values.
 
-A column is constant only where its node is:
-a coded sample keeps every level, a zero-inflated one a positive value,
-a Poisson one two distinct values.
-
 pipeline:
 ---------
 resolved sizes, shares and budget
@@ -18,7 +14,7 @@ resolved sizes, shares and budget
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Literal, get_args
 
 import numpy as np
 from pydantic import ConfigDict, Field
@@ -26,8 +22,8 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 
-ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered', 'count']
-MARGINAL_TYPES = ('continuous', 'count')  # their values are a marginal sample, not level codes
+MarginalType = Literal['continuous', 'count']  # their values are a marginal sample, not level codes
+ColumnType = Literal[MarginalType, 'binary', 'categorical', 'ordered']
 Role = Literal['covariate', 'grouping_factor', 'outcome']
 
 # =====================================================================================
@@ -53,7 +49,7 @@ class Column:
         if self.role != 'grouping_factor' and self.nests_in is not None:
             raise ValueError(f'a {self.role} cannot nest in {self.nests_in}')
         # a covariate or the outcome is binary at exactly k = 2, categorical or ordered from k = 3
-        if self.type in MARGINAL_TYPES:
+        if self.type in get_args(MarginalType):
             agree = self.levels is None
         elif self.type == 'binary':
             agree = self.levels == 2
@@ -195,8 +191,8 @@ def _sampleSizes(
 
 
 def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
-    """Columns x0, x1, … drawn one by one until their design columns fill the budget exactly,
-    then the outcome y if its form is scm.
+    """Columns x0, x1, ... are drawn one by one until their design columns fill the budget.
+    The outcome y is drawn last, if its form is scm.
     """
     columns = {}
     remainder = resolved.design_columns
@@ -208,7 +204,6 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
         remainder -= column.design_columns
     if resolved.outcome == 'scm':
         type = resolved.outcome_type_shares.choose(rng)
-        # y is outside the budget, so a cap of its own bounds its k
         columns['y'] = _resolveColumn(type, 'outcome', resolved.outcome_max_levels, resolved, rng)
     return columns
 
@@ -221,11 +216,11 @@ def _resolveColumn(
     rng: np.random.Generator,
 ) -> Column:
     """One column's k or marginal family (and its own parameters)."""
-    if type in MARGINAL_TYPES:
+    if type in get_args(MarginalType):
         if type == 'continuous':
             family = resolved.marginal_shares.choose(rng)
         else:
-            family = 'poisson'  # a count's marginal by construction, so it takes no share
+            family = 'poisson'  # a count's only family, so it is not among marginal_shares'
         parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
         return Column(type=type, role=role, marginal=family, parameters=parameters)
     levels = 2
@@ -235,7 +230,6 @@ def _resolveColumn(
     if resolved.max_levels is not None:
         levels = min(levels, resolved.max_levels)
     levels = min(levels, most_levels)
-    # a column clipped to two levels is binary
     if levels == 2:
         type = 'binary'
     parameters = {'level_alpha': resolved.resolveField('level_alpha', rng)}
@@ -248,15 +242,15 @@ def _resolveColumn(
 
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
-    """The column's values in its node's order, one per distinct node value:
+    """Draws and sorts the column's values in its node's order:
     a marginal sample if continuous or a count, level codes otherwise.
-    Tied node values have the same column value.
     """
     distinct, rank = np.unique(node, return_inverse=True)  # (u,), (e,) each element's dense rank
+    u = len(distinct)
     if column.marginal is None:
-        by_rank = _sampleCodes(len(distinct), column, rng)  # (u,)
+        by_rank = _sampleCodes(u, column, rng)  # (u,)
     else:
-        sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
+        sample = _sampleMarginal(u, column, rng)  # (u,)
         by_rank = np.sort(sample)  # (u,), int64 if a count
         if column.type == 'continuous':
             by_rank = by_rank.astype(np.float32)
@@ -279,7 +273,7 @@ def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.n
             return rng.random(size)
         case 'zero_inflated_lognormal':
             zero = rng.random(size) < parameters['zero_share']  # (size,)
-            # one positive value at least
+            # fix for constant columns
             if zero.all():
                 zero[0] = False
             positive = rng.lognormal(0, parameters['lognormal_sigma'], size)  # (size,)
@@ -291,7 +285,7 @@ def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.n
         case 'poisson':
             rate = math.exp(parameters['poisson_log_rate'])
             counts = rng.poisson(rate, size)  # (size,)
-            # two distinct values at least
+            # fix for constant columns
             if (counts == counts[0]).all():
                 counts[0] += 1
             return counts
