@@ -22,7 +22,7 @@ the (optional) overrides
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any, ClassVar, Literal, get_args
+from typing import Annotated, Any, ClassVar, Literal
 
 import numpy as np
 from pydantic import (
@@ -50,7 +50,7 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-Form = Literal['none', 'scm']  # how the outcome node draws y, or 'none' for no y
+OutcomeForm = Literal['none', 'scm']  # how the outcome node draws y, or 'none' for no y
 
 # =====================================================================================
 # distributions
@@ -171,7 +171,6 @@ Distribution = Uniform | LogUniform | UniformInt | LogUniformInt | Beta | Dirich
 Integer = int | UniformInt | LogUniformInt
 Real = float | Uniform | LogUniform | Beta
 Simplex = dict[str, NonNegativeFloat] | Dirichlet
-# a token field is one category of its Literal, or a Simplex over them that chooses one
 
 
 def _within(
@@ -238,10 +237,10 @@ class Hyperprior(BaseModel):
       allowing easy finetuning using real columns (skew, zeros, heavy tails).
     - Shares: a Dirichlet distribution draws the dataset's shares of the column types,
       marginal families, mechanisms and activations.
-      Each column or node chooses its own by those shares.
-    - Outcome: one node y, last in the graph and at the row, so no other node reads it.
-      Its form says how y is drawn: as a node like the others (scm) or not at all (none).
-      Its type comes from its own type shares, count included, its noise from its own scale.
+      Each column or node chooses its own, proportional to those shares.
+    - Outcome: a single node y. No other node reads it.
+      y can either come from the SCM itself, or it is skipped.
+      It has its own type shares and noise scale.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid', validate_default=True)
@@ -273,9 +272,6 @@ class Hyperprior(BaseModel):
         'marginal_shares',
         'outcome_type_shares',
     )
-    TOKENS: ClassVar[dict[str, Any]] = {
-        'outcome': Form,
-    }  # each token field's Literal
 
     # sizes and columns
     rows: PositiveCount = LogUniformInt(20, 15000)  # n, the table's length
@@ -334,7 +330,7 @@ class Hyperprior(BaseModel):
     poisson_log_rate: Annotated[Real, _within(le=40)] = Uniform(-1, 6)
 
     # outcome
-    outcome: Form | Simplex = 'scm'  # the outcome node's form
+    outcome: OutcomeForm = 'scm'
     outcome_type_shares: Simplex = {
         'continuous': 0.6,
         'binary': 0.2,
@@ -355,18 +351,15 @@ class Hyperprior(BaseModel):
 
     @classmethod
     def categories(cls, field: str) -> list[str]:
-        if field in cls.TOKENS:
-            return list(get_args(cls.TOKENS[field]))
+        """The categories of a shares field, in the order its default lists them."""
         default = cls.model_fields[field].default
         shares = default.alpha if isinstance(default, Dirichlet) else default
         return list(shares)
 
-    @field_validator(*SHARES, *TOKENS)
+    @field_validator(*SHARES)
     @classmethod
-    def _orderShares(cls, value: Simplex | str, info: ValidationInfo) -> Simplex | str:
-        """Puts a shares field's categories, or a token field's, in the default order."""
-        if isinstance(value, str):
-            return value  # a token's category, checked by its Literal
+    def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
+        """Checks the categories named by an override and puts them in default order."""
         categories = cls.categories(info.field_name)
         if isinstance(value, Dirichlet):
             return Dirichlet(cls._inOrder(value.alpha, categories))
@@ -421,8 +414,6 @@ class Hyperprior(BaseModel):
             self._checkBounds(field, value, low, high)
         if isinstance(value, Distribution):
             value = value.draw(rng, low, high) if bounded else value.draw(rng)
-        if field in self.TOKENS and isinstance(value, Shares):
-            value = value.choose(rng)  # a token's point is one category
         return value
 
     @staticmethod
