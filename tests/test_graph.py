@@ -39,6 +39,15 @@ CHAIN = {
     'group_factor': [None] * 3,
 }
 
+
+def test_a_chain_that_meets_every_check_constructs() -> None:
+    """The control for the checks below: each fails for its change to CHAIN alone.
+    With its last node named y, it is a flat graph with the outcome.
+    """
+    Graph(**CHAIN)
+    Graph(**CHAIN | {'names': ['x0', 'x1', 'y']})
+
+
 MISMATCHED = [
     pytest.param({'names': ['x0', 'x1']}, id='names one short'),
     pytest.param({'latent': np.zeros(2, dtype=bool)}, id='latent one short'),
@@ -681,9 +690,7 @@ def test_y_is_last_and_at_the_row_with_no_children_under_every_grouping(
     assert not graph.parents[:, -1].any()
 
 
-def test_ys_noise_scale_is_drawn_from_outcome_noise_scale_and_the_other_nodes_from_noise_scale() -> (
-    None
-):
+def test_y_draws_outcome_noise_scale_and_the_other_nodes_noise_scale() -> None:
     """The outcome's share of unexplained variance reaches far above a covariate's,
     so its noise has a field of its own; a point override of each shows which a node reads.
     """
@@ -703,20 +710,18 @@ def test_y_may_have_zero_parents_and_may_have_a_latent_parent() -> None:
     """No edge into y is forced or forbidden beyond the mask:
     a null result is a valid dataset, and a latent parent makes the outcome endogenous.
     """
-    parents_seen = set()
+    parentless_seen = False
     latent_parent_seen = False
     for seed in range(50):
         graph = _connect(seed, 4, GROUPING, with_y=True, latent_nodes=2)
         parents_of_y = graph.parents[-1]  # (v,)
-        parents_seen.add(int(parents_of_y.sum()))
+        parentless_seen |= not parents_of_y.any()
         latent_parent_seen |= bool((parents_of_y & graph.latent).any())
-    assert 0 in parents_seen
+    assert parentless_seen
     assert latent_parent_seen
 
 
-def test_y_draws_its_group_share_and_group_factor_in_a_grouped_graph_and_neither_in_a_flat_one() -> (
-    None
-):
+def test_y_draws_a_group_share_and_group_factor_only_in_a_grouped_graph() -> None:
     """The outcome mixes a group part and a row part like any row-unit node;
     a flat table has no groups to mix.
     """
