@@ -144,19 +144,21 @@ def test_a_column_is_one_design_column_wide_without_levels_and_k_minus_1_with_th
     assert column.design_columns == design_columns
 
 
-def test_a_grouping_factor_is_0_design_columns_wide() -> None:
-    """Its codes index random effects and are never dummy coded,
-    so the budget counts the covariates alone.
-    """
-    column = Column(type='categorical', levels=2, role='grouping_factor')
-    assert column.design_columns == 0
+OFF_BUDGET = [
+    pytest.param(
+        Column(type='categorical', levels=2, role='grouping_factor'),
+        id='a grouping factor, whose codes index random effects',
+    ),
+    pytest.param(
+        Column(type='categorical', levels=4, role='outcome', parameters=ALPHA),
+        id='a categorical y, which the covariates predict',
+    ),
+]
 
 
-def test_an_outcome_column_is_0_design_columns_wide() -> None:
-    """The design matrix codes what predicts y, never y itself,
-    so the budget counts the covariates alone, a categorical y included.
-    """
-    column = Column(type='categorical', levels=4, role='outcome', parameters=ALPHA)
+@pytest.mark.parametrize('column', OFF_BUDGET)
+def test_a_grouping_factor_or_the_outcome_is_0_design_columns_wide(column: Column) -> None:
+    """The design matrix dummy codes the covariates alone, so the budget counts them alone."""
     assert column.design_columns == 0
 
 
@@ -692,29 +694,30 @@ def test_tied_node_values_share_one_column_value(column: Column) -> None:
         assert len(np.unique(values[node == value])) == 1
 
 
-def test_a_zero_inflated_column_at_two_groups_keeps_a_positive_value() -> None:
-    """A group-level column samples one value per group, so at few groups its zeros could fill
-    the sample, a constant column a consumer cannot z-score.
-    At zero_share = 0.99 two groups are both zero in 98 % of seeds without the floor.
-    """
-    column = Column(
-        type='continuous',
-        marginal='zero_inflated_lognormal',
-        parameters={'lognormal_sigma': 0.5, 'zero_share': 0.99},
-    )
-    node = np.array([-1.0, 1.0], dtype=np.float32)  # (m,) at a factor of two groups
-    for seed in range(50):
-        values = _applyTo(node, column, seed)
-        assert np.ptp(values) > 0
+FLOORED = [
+    # at zero_share = 0.99, two values are both zero in 98 % of seeds without the floor
+    pytest.param(
+        Column(
+            type='continuous',
+            marginal='zero_inflated_lognormal',
+            parameters={'lognormal_sigma': 0.5, 'zero_share': 0.99},
+        ),
+        id='a zero-inflated column, whose zeros could fill the sample',
+    ),
+    # at poisson_log_rate = -2, two values tie in about 78 % of seeds without the floor
+    pytest.param(
+        Column(type='count', marginal='poisson', parameters={'poisson_log_rate': -2.0}),
+        id='a count, whose low rate could tie the sample',
+    ),
+]
 
 
-def test_a_count_column_at_two_groups_keeps_two_values() -> None:
-    """A count y at group share 1 is one value per group, so at few groups and a low rate
-    its sample could tie, a constant outcome.
-    At poisson_log_rate = -2 two groups tie in about 78 % of seeds without the floor.
+@pytest.mark.parametrize('column', FLOORED)
+def test_a_marginal_sample_at_two_groups_is_not_constant(column: Column) -> None:
+    """A group-level column, or a row-unit one at group share 1, has one value per group,
+    so at two groups its sample could be constant, a column a consumer cannot z-score.
     """
-    column = Column(type='count', marginal='poisson', parameters={'poisson_log_rate': -2.0})
-    node = np.array([-1.0, 1.0], dtype=np.float32)  # (m,) at a factor of two groups
+    node = np.array([-1.0, 1.0], dtype=np.float32)  # (u,) two distinct values, as at two groups
     for seed in range(50):
         values = _applyTo(node, column, seed)
         assert np.ptp(values) > 0
