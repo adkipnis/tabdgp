@@ -47,8 +47,8 @@ _Avoid_: edge case, noise, messiness
 
 **Node**:
 One variable of a dataset's structural causal model (SCM): a grouping factor, a group-level or
-within-group covariate, time, treatment, or the outcome node. A node has a parent set and a
-mechanism; a node without parents is a root.
+within-group covariate, a latent node, time, treatment, or the outcome node.
+A node has a parent set and a mechanism; a node without parents is a root.
 _Avoid_: feature, variable unqualified, neuron (of an MLP)
 
 **Grouping factor**:
@@ -132,7 +132,8 @@ _Avoid_: rng, random state, seed alone
 **Dataset**:
 What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
 generating graph, the latent nodes' values, the hyperparameters every field resolved to except
-those each column or node draws for itself, and the key. Never padded, never a file.
+those each column or node draws for itself, and the key with the versions it reproduces under.
+Never padded, never a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
 **Hyperprior**:
