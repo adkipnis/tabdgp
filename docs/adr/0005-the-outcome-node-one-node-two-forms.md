@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form is a point, never drawn
+amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form
 ---
 
 # 0005 — The outcome node: one node, two forms, drawn by default in its scm form
@@ -10,7 +10,7 @@ Roadmap items 5 and 11 add the outcome to the grouped SCM of items 1 and 2. Gril
 2026-10-22 after a prior-art sweep of what the tabular priors give their target that a
 covariate node does not, the decision is: **the outcome is one node of the generating graph,
 role `outcome`, name `y`, at the row unit and last in order, so a sink; a field,
-`outcome`, sets its form: `scm`, a node like the others, or `glmm`, a likelihood on the design
+`outcome_form`, sets its form: `scm`, a node like the others, or `glmm`, a likelihood on the design
 matrix (ADR 0006); `grouped()` and `flat()` draw the scm form by default, and the proofs certify
 it.** The words are `CONTEXT.md`'s: outcome node, form, deviation, count, marginal, post-hoc
 type, group share.
@@ -30,10 +30,10 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
   `latent_nodes`, and in the glmm form the deviation of ADR 0006), a mechanism and, in a
   grouped table, a group share and a group factor like any row-unit node. Every registry row
   has a response, so a matched table has one: `grouped()` and `flat()` draw the scm form,
-  `outcome = 'none'` is a study's override, `Hyperprior.glmm()` the preset of the glmm form. The
-  field is a point, `'none'`, `'scm'` or `'glmm'`, and an override replaces it by another point,
-  never by shares, since a dataset of each form returns different things and no corpus mixes
-  them.
+  `outcome_form = 'none'` is a study's override, `Hyperprior.glmm()` the preset of the glmm form.
+  The field is a point, `'none'`, `'scm'` or `'glmm'`, and an override replaces it by another
+  point, never by shares, since a dataset of each form returns different things and no corpus
+  mixes them.
 - **A sink at the row.** y is last in the node order and no node reads it: TabICL's y-as-node,
   where x may descend from y, is not taken over, since a GLMM's covariates are causes or
   correlates of its outcome, never its effects. The outcome is drawn once per row; a
@@ -85,7 +85,7 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
 ## Consequences
 
 - `graph` places y last at the row unit; `column` gains the role `outcome`, the type `count`
-  and the `poisson` marginal; `hyperprior` gains `outcome`, `outcome_noise_scale` and
+  and the `poisson` marginal; `hyperprior` gains `outcome_form`, `outcome_noise_scale` and
   `outcome_type_shares`; `draw` returns y among the columns. Every default draw changes: a
   version change.
 - The proofs' summary vector gains the response's statistics; MixedBench's measurement pass
