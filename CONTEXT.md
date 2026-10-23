@@ -67,8 +67,8 @@ _Avoid_: coarser and finer, parent and child (the graph's edges), higher and low
 
 **Unit**:
 What a node is drawn once per: the row, or one grouping factor, in which case the node takes
-one value per group of that factor, repeated across the group's rows (broadcast). A column at
-the row unit is a within-group covariate; one at a grouping factor's unit is group-level. A
+one value per group of that factor, repeated across the group's rows (broadcast). A covariate at
+the row unit is within-group; one at a grouping factor's unit is group-level. A
 nested grouping factor is a unit subordinate to the one it nests in; crossed ones are units
 without an order between them.
 _Avoid_: level (a factor level, or the multilevel literature's level 1 and 2), hierarchy
@@ -106,8 +106,9 @@ grouping factor; R's `levels()`.
 _Avoid_: level unqualified, category, class
 
 **Marginal**:
-The distribution a continuous column's values are mapped onto after the SCM, from a catalog
-of families (skewed, heavy-tailed, bounded, zero-inflated), keeping their ranks.
+The distribution a continuous or count column's values are mapped onto after the SCM, keeping
+their ranks: a family from a catalog (skewed, heavy-tailed, bounded, zero-inflated) for a
+continuous column, the Poisson for a count.
 _Avoid_: noise distribution (the root's), prior
 
 **Post-hoc type**:
