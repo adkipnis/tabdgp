@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
+amended: 2026-10-23, #41: the form is a point, never drawn
 ---
 
 # 0005 — The outcome node: one node, two forms, drawn by default in its scm form
@@ -8,8 +9,8 @@ date: 2026-10-22
 Roadmap items 5 and 11 add the outcome to the grouped SCM of items 1 and 2. Grilled on
 2026-10-22 after a prior-art sweep of what the tabular priors give their target that a
 covariate node does not, the decision is: **the outcome is one node of the generating graph,
-role `outcome`, name `y`, at the row unit and last in order, so a sink; a per-dataset field,
-`outcome`, draws its form: `scm`, a node like the others, or `glmm`, a likelihood on the design
+role `outcome`, name `y`, at the row unit and last in order, so a sink; a field,
+`outcome`, sets its form: `scm`, a node like the others, or `glmm`, a likelihood on the design
 matrix (ADR 0006); `grouped()` and `flat()` draw the scm form by default, and the proofs certify
 it.** The words are `CONTEXT.md`'s: outcome node, form, deviation, count, marginal, post-hoc
 type, group share.
@@ -30,8 +31,9 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
   grouped table, a group share and a group factor like any row-unit node. Every registry row
   has a response, so a matched table has one: `grouped()` and `flat()` draw the scm form,
   `outcome = 'none'` is a study's override, `Hyperprior.glmm()` the preset of the glmm form. The
-  field is a simplex over `{'none', 'scm', 'glmm'}`, a point in every preset, a Dirichlet only
-  for a corpus that mixes forms.
+  field is a point, `'none'`, `'scm'` or `'glmm'`, and an override replaces it by another point,
+  never by shares, since a dataset of each form returns different things and no corpus mixes
+  them.
 - **A sink at the row.** y is last in the node order and no node reads it: TabICL's y-as-node,
   where x may descend from y, is not taken over, since a GLMM's covariates are causes or
   correlates of its outcome, never its effects. The outcome is drawn once per row; a
