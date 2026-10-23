@@ -126,14 +126,21 @@ DESIGN_COLUMNS = [
     pytest.param(Column(type='binary', levels=2, parameters=ALPHA), 1, id='binary'),
     pytest.param(Column(type='categorical', levels=5, parameters=ALPHA), 4, id='categorical'),
     pytest.param(Column(type='ordered', levels=3, parameters=ALPHA), 2, id='ordered'),
+    pytest.param(
+        Column(type='count', marginal='poisson', parameters={'poisson_log_rate': 1.0}),
+        1,
+        id='count',
+    ),
 ]
 
 
 @pytest.mark.parametrize(('column', 'design_columns'), DESIGN_COLUMNS)
-def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
+def test_a_column_is_one_design_column_wide_without_levels_and_k_minus_1_with_them(
     column: Column, design_columns: int
 ) -> None:
-    """The design-column budget counts metabeta's dummy coding: k levels take k − 1 columns."""
+    """The design-column budget counts metabeta's dummy coding: k levels take k − 1 columns.
+    A count enters the design matrix as a continuous column.
+    """
     assert column.design_columns == design_columns
 
 
@@ -669,6 +676,7 @@ def test_a_count_column_has_exactly_its_poisson_samples_integers() -> None:
     other = _applyTo(_node(2), COUNT, seed=0)
     assert values.dtype == np.int64
     np.testing.assert_array_equal(np.sort(values), np.sort(other))
+    assert not np.array_equal(values, other)
 
 
 @pytest.mark.parametrize('column', [*CONTINUOUS, COUNT, *DISCRETE], ids=str)
