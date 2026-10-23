@@ -59,11 +59,9 @@ y continuous row [0.76 0.62 0.93]
 
 ## Planned
 
+- **The outcome as a generalized linear mixed model**, through a preset, with its parameters and priors returned, exact or with a drawn deviation for white-box misspecified datasets.
 - **Quirk axes:** group confounding, rare levels, ties, bounds, near dependence and more.
-- **Matched defaults**, fitted to and checked against
-  [mixedbench](https://github.com/adkipnis/mixedbench)'s real grouped tables, then widened.
-- **The outcome as a generalized linear mixed model**, through a preset, with its parameters
-  and priors returned, exact or with a drawn deviation for white-box misspecified datasets.
+- **Finetuning** the hyperprior's parameters to any batch of datasets. GLMM defaults are tuned against [mixedbench](https://github.com/adkipnis/mixedbench).
 - **Within-group time and a binary treatment.**
 
 ## Contributing
