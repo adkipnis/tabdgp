@@ -306,8 +306,7 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 ### Docs
 
 - `README.md`: badges, a tagline, a short what and why, highlights of what the release does,
-  install, one quickstart box and its output, planned, learn more, contributing, citing,
-  license.
+  install, one quickstart box and its output, planned, contributing, license.
 
 ### Explaining the design
 
