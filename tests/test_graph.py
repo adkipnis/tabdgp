@@ -659,14 +659,11 @@ def test_connect_without_y_is_spec_22s_graph() -> None:
     assert graph.unit == ['g0', 'g0', 'row', 'row', 'row']
     assert list(zip(child.tolist(), parent.tolist())) == [(3, 1), (3, 2), (4, 3)]
     assert graph.mechanism == [None, None, None, 'linear', 'mlp']
-    assert graph.noise_scale == [None, None, None, 0.7493527189794704, 0.140907138595985]
-    assert graph.group_share == [
-        None,
-        None,
-        0.3932290382601226,
-        0.0019036411256082356,
-        0.00010978727102732418,
-    ]
+    # the scales pass through the platform's log and exp, whose last digit differs between platforms
+    noise_scale = [None, None, None, 0.7493527189794704, 0.140907138595985]
+    assert graph.noise_scale == pytest.approx(noise_scale, rel=1e-12)
+    group_share = [None, None, 0.3932290382601226, 0.0019036411256082356, 0.00010978727102732418]
+    assert graph.group_share == pytest.approx(group_share, rel=1e-12)
 
 
 @given(seed=st.integers(0, 2**32 - 1), factors=st.integers(0, 3))
