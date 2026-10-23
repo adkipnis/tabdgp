@@ -357,6 +357,7 @@ OUT_OF_RANGE = [
     pytest.param({'balanced_share': 1.5}, id='a share above 1'),
     pytest.param({'group_share': Uniform(0, 2)}, id='a support above 1 for a share'),
     pytest.param({'outcome_noise_scale': -1.0}, id='a negative outcome noise scale'),
+    pytest.param({'poisson_log_rate': Uniform(0, 45)}, id="a log rate past numpy's poisson limit"),
     pytest.param({'type_shares': ALL_CONTINUOUS | {'binary': 0.5}}, id='shares above 1'),
     pytest.param(
         {'type_shares': ALL_CONTINUOUS | {'continuous': 1.5, 'binary': -0.5}}, id='a negative share'
