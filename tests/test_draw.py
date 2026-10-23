@@ -5,6 +5,7 @@ and draw(seed, index, hyperprior), one dataset per key.
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -75,7 +76,7 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
 ) -> None:
     """The seed is the corpus:
     dataset i may not depend on what else a worker, batch or shard draws.
-    On the grouped preset, so the grouping, the units and the two parts are covered.
+    On the grouped preset, so the grouping, the units, the two parts and y are covered.
     """
     grouped = Hyperprior.grouped()
     alone = draw(seed, index, grouped)
@@ -101,6 +102,92 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
         assert list(dataset.latent) == latent
 
 
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+def test_y_is_the_last_column_and_the_last_node_with_role_outcome_under_grouped_and_flat(
+    preset: Callable[[], Hyperprior],
+) -> None:
+    """A consumer takes the last column as the outcome and the rest as its predictors,
+    and no node reads y, so it is last in the graph too.
+    """
+    for index in range(20):
+        dataset = draw(0, index, preset())
+        assert list(dataset.columns)[-1] == 'y'
+        assert list(dataset.metadata)[-1] == 'y'
+        assert dataset.metadata['y'].role == 'outcome'
+        assert dataset.graph.names[-1] == 'y'
+        roles = [column.role for column in dataset.metadata.values()]
+        assert roles.count('outcome') == 1
+
+
+def test_outcome_none_gives_no_y() -> None:
+    """A covariate-only table, spec #22's, is one override."""
+    for index in range(20):
+        dataset = draw(0, index, Hyperprior.grouped(outcome_form='none'))
+        assert 'y' not in dataset.columns
+        assert 'y' not in dataset.metadata
+        assert 'y' not in dataset.graph.names
+        assert all(column.role != 'outcome' for column in dataset.metadata.values())
+
+
+@pytest.mark.parametrize(
+    ('outcome_type', 'dtype'), [('count', np.int64), ('continuous', np.float32)]
+)
+def test_a_count_y_is_int64_and_a_continuous_y_float32(outcome_type: str, dtype: type) -> None:
+    """A consumer stacks y by its type: a count is an integer a Poisson likelihood reads,
+    not a code 0..k − 1, and a continuous y shares the covariates' dtype.
+    """
+    shares = point('outcome_type_shares', outcome_type)
+    hyperprior = Hyperprior.grouped(outcome_type_shares=shares)
+    for index in range(5):
+        assert draw(0, index, hyperprior).columns['y'].dtype == dtype
+
+
+# one latent root z0 and a sure linear edge from it to the one other node, in a flat table
+SURE_EDGE = {
+    'rows': 1000,
+    'latent_nodes': 1,
+    'mechanism_shares': point('mechanism_shares', 'linear'),
+    'noise_scale': 0.01,
+    'edge_offset': 30.0,
+    'hub_scale': 0.0,
+    'block_bonus': 0.0,
+}
+
+
+def _spearman(a: np.ndarray, b: np.ndarray) -> float:
+    ranks_a = np.argsort(np.argsort(a))
+    ranks_b = np.argsort(np.argsort(b))
+    return float(np.corrcoef(ranks_a, ranks_b)[0, 1])
+
+
+@pytest.mark.parametrize(
+    ('outcome_noise_scale', 'low', 'high'),
+    [(0.01, 0.95, 1.0), (100.0, 0.0, 0.2)],
+    ids=['learnable', 'hopeless'],
+)
+def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at_a_high_one(
+    outcome_noise_scale: float, low: float, high: float
+) -> None:
+    """The outcome's noise scale is its own:
+    a learnable y at a low one, a hopeless one at a high one, whatever noise_scale says.
+    With y the one node after z0, the correlation between them is the signal's share,
+    since the noise scale is relative to the z-scored output.
+    A tie-free marginal, since a zero-inflated y's ties cost rank correlation on their own.
+    """
+    hyperprior = Hyperprior.flat(
+        design_columns=0,
+        outcome_noise_scale=outcome_noise_scale,
+        outcome_type_shares=point('outcome_type_shares', 'continuous'),
+        marginal_shares=point('marginal_shares', 'normal'),
+        **SURE_EDGE,
+    )
+    for index in range(10):
+        dataset = draw(0, index, hyperprior)
+        assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
+        correlation = abs(_spearman(dataset.columns['y'], dataset.latent['z0']))
+        assert low <= correlation <= high
+
+
 def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     """Whether a column has more levels than some factor has groups,
     the one case in which a column at group_level_share = 1 stays at the row.
@@ -124,6 +211,8 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     balanced=st.booleans(),
     group_level=st.booleans(),
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
+    with_y=st.booleans(),
+    outcome_type=st.sampled_from(Hyperprior.categories('outcome_type_shares')),
 )
 def test_every_override_is_honored(
     rows: int,
@@ -136,13 +225,15 @@ def test_every_override_is_honored(
     balanced: bool,
     group_level: bool,
     group_share: float,
+    with_y: bool,
+    outcome_type: str,
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
     The fields without a visible size are honored through hyperparameters, which must hold
-    every point override as given, a field drawn per node through the graph and one drawn per
-    factor through the factor's column. A point groups cannot nest, so a chain draws its groups
-    from a range below the point.
+    every point override as given, a field drawn per node through the graph, one drawn per
+    factor through the factor's column and the outcome's through y's column. A point groups
+    cannot nest, so a chain draws its groups from a range below the point.
     """
     # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
     assume(rows >= max(2 * design_columns, groups, factors + 1))
@@ -153,6 +244,7 @@ def test_every_override_is_honored(
         latent_nodes=latent_nodes,
         max_levels=max_levels,
         noise_scale=0.5,
+        outcome_noise_scale=0.5,
         factors=factors,
         groups=UniformInt(2, groups) if nested else groups,
         nested_share=1.0 if nested else 0.0,
@@ -160,6 +252,9 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
+        outcome_form='scm' if with_y else 'none',
+        outcome_type_shares=point('outcome_type_shares', outcome_type),
+        poisson_log_rate=2.0,
     )
     dataset = draw(0, 0, hyperprior)
     metadata = dataset.metadata
@@ -178,10 +273,16 @@ def test_every_override_is_honored(
     for name, column in metadata.items():
         if column.role == 'covariate':
             assert column.levels is None or column.levels <= max_levels
+    # the outcome's fields through y's column
+    assert ('y' in metadata) == with_y
+    if with_y:
+        assert metadata['y'].type == outcome_type
+        if outcome_type == 'count':
+            assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
     # the per-node fields through the graph
     graph = dataset.graph
     for name, unit in zip(graph.names, graph.unit):
-        if name not in factor_names and group_level and factors > 0:
+        if name not in [*factor_names, 'y'] and group_level and factors > 0:
             assert unit != 'row' or _exceedsAFactorsGroups(dataset, name)
         elif name not in factor_names:
             assert unit == 'row'
@@ -209,12 +310,18 @@ def test_every_override_is_honored(
         2.0,
         group_share,
     )
+    assert (resolved.outcome_form, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
+        'scm' if with_y else 'none',
+        0.5,
+        2.0,
+    )
 
 
 def test_a_distribution_override_is_honored() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
-        dataset = draw(0, index, Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1))
+        hyperprior = Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1, outcome_form='none')
+        dataset = draw(0, index, hyperprior)
         [values] = dataset.columns.values()
         assert 30 <= len(values) <= 40
 
@@ -222,27 +329,38 @@ def test_a_distribution_override_is_honored() -> None:
 def test_a_budget_of_0_gives_no_columns() -> None:
     """metabeta's budget may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
-        dataset = draw(0, index, Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50))
+        hyperprior = Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50, outcome_form='none')
+        dataset = draw(0, index, hyperprior)
         assert dataset.columns == {}
         assert dataset.metadata == {}
         assert dataset.graph.latent.all()
         assert len(dataset.latent['z0']) == 50
 
 
-def test_every_column_is_finite_and_every_continuous_column_non_constant() -> None:
+def test_every_column_and_latent_node_is_finite() -> None:
     """scamd's repair and retry hid broken draws; here a broken one would reach the consumer.
 
     Zero noise lets a dead relu leave a node constant, the case most likely to break.
     """
     for noise_scale in [0.0, 0.5]:
+        hyperprior = Hyperprior(noise_scale=noise_scale, outcome_noise_scale=noise_scale)
         for index in range(50):
-            dataset = draw(0, index, Hyperprior(noise_scale=noise_scale))
-            for name, values in dataset.columns.items():
+            dataset = draw(0, index, hyperprior)
+            for values in [*dataset.columns.values(), *dataset.latent.values()]:
                 assert np.isfinite(values).all()
-                if dataset.metadata[name].type == 'continuous':
-                    assert values.std() > 0
-            for values in dataset.latent.values():
-                assert np.isfinite(values).all()
+
+
+def test_every_continuous_column_is_non_constant() -> None:
+    """A consumer z-scores a continuous column, so a constant one divides by zero.
+
+    At the default noise scales: an override noise_scale = 0 asks for a noiseless SCM,
+    in which a dead relu is the constant function and its column is constant.
+    """
+    for index in range(100):
+        dataset = draw(0, index, Hyperprior.grouped())
+        for name, values in dataset.columns.items():
+            if dataset.metadata[name].type == 'continuous':
+                assert values.std() > 0
 
 
 def _neighborAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
@@ -262,18 +380,14 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
     One latent root, one typed column of k ≤ 3 and a sure edge between them, so the column must
     follow the root's values; flat, so that the edge is the graph's only one.
     """
-    dense = {'edge_offset': 30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
     for type, design_columns in [('binary', 1), ('categorical', 2), ('ordered', 2)]:
         hyperprior = Hyperprior.flat(
-            rows=1000,
             design_columns=design_columns,
             type_shares=point('type_shares', type),
             max_levels=3,
-            latent_nodes=1,
-            mechanism_shares={'linear': 1.0, 'mlp': 0.0},
-            noise_scale=0.01,
             level_alpha=5.0,
-            **dense,
+            outcome_form='none',
+            **SURE_EDGE,
         )
         for index in range(10):
             dataset = draw(0, index, hyperprior)
@@ -303,6 +417,7 @@ def test_every_array_has_length_n() -> None:
     hyperprior = Hyperprior.grouped(rows=80, group_level_share=0.8, latent_nodes=3)
     for index in range(20):
         dataset = draw(0, index, hyperprior)
+        assert 'y' in dataset.columns
         for array in [*dataset.columns.values(), *dataset.latent.values()]:
             assert array.shape == (80,)
 
@@ -407,7 +522,7 @@ def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:
     for index in range(20):
         dataset = draw(0, index, Hyperprior.flat())
         graph = dataset.graph
-        assert all(column.role == 'covariate' for column in dataset.metadata.values())
+        assert all(column.role != 'grouping_factor' for column in dataset.metadata.values())
         assert not any(name.startswith('g') for name in graph.names)
         assert set(graph.unit) <= {'row'}
         assert set(graph.group_share) <= {None}
@@ -421,16 +536,17 @@ def test_draw_without_a_hyperprior_fails() -> None:
         draw(0, 0)
 
 
-def test_group_share_1_gives_every_within_group_covariate_constant_within_its_groups() -> None:
+def test_group_share_1_gives_every_row_unit_column_constant_within_its_groups() -> None:
     """At share 1 the row part has weight 0, so a row-unit node is one value per group of its
     group factor; the column keeps its ties, so it is too, whatever its type.
+    y is one of them, so group confounding reaches the outcome.
     """
     hyperprior = Hyperprior.grouped(rows=600, factors=2, group_share=1.0, group_level_share=0.0)
     for index in range(20):
         dataset = draw(0, index, hyperprior)
         group_factor = dict(zip(dataset.graph.names, dataset.graph.group_factor))
         for name, column in dataset.metadata.items():
-            if column.role == 'covariate':
+            if column.role != 'grouping_factor':
                 codes = dataset.columns[group_factor[name]]
                 assert _isConstantWithinGroups(dataset.columns[name], codes)
         for name, values in dataset.latent.items():

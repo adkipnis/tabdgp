@@ -1,8 +1,10 @@
 """hyperprior.py defines how every hyperparameter of the dataset is sampled.
 
 We save hyperparameters as fields of the Hyperprior class.
-- Each field (a size, the column types' shares, a noise scale) defaults to a distribution.
-- An override replaces it by a point or by another distribution, checked against the field's bounds.
+- Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
+  or to a point where one value serves every dataset (the outcome's form, its type shares).
+- An override replaces it by a point or, where the field's type allows, by another distribution,
+  checked against the field's bounds.
 - A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
 - A draw resolves every field to a point;
   the fields that shape a single column, node or grouping factor are resolved in a second step.
@@ -47,8 +49,10 @@ MARGINAL_FIELDS = {
     'uniform': [],
     'zero_inflated_lognormal': ['lognormal_sigma', 'zero_share'],
     'normal_mixture': ['mixture_gap', 'mixture_weight'],
+    'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
+OutcomeForm = Literal['none', 'scm']  # how the outcome node draws y, or 'none' for no y
 
 # =====================================================================================
 # distributions
@@ -198,6 +202,7 @@ PositiveCount = Annotated[Integer, _within(ge=1)]
 NonNegative = Annotated[Real, _within(ge=0)]
 Positive = Annotated[Real, _within(gt=0)]
 Share = Annotated[Real, _within(ge=0, le=1)]
+MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
 # =====================================================================================
@@ -209,7 +214,7 @@ class Hyperprior(BaseModel):
     """The hyperparameters of a dataset (grouped by when they're used).
 
     - Columns: a table has rows and typed columns.
-      A column is continuous or has levels (binary, categorical or ordered).
+      A column is continuous, a count or has levels (binary, categorical or ordered).
       A column with levels takes one of k levels in each row.
       Due to dummy-encoding, it takes k − 1 columns in the design matrix.
     - Grouping: a grouping factor assigns every row to one of its m groups.
@@ -234,7 +239,10 @@ class Hyperprior(BaseModel):
       allowing easy finetuning using real columns (skew, zeros, heavy tails).
     - Shares: a Dirichlet distribution draws the dataset's shares of the column types,
       marginal families, mechanisms and activations.
-      Each column or node chooses its own by those shares.
+      Each column or node chooses its own, proportional to those shares.
+    - Outcome: a single node y. No other node reads it.
+      y can either come from the SCM itself, or it is skipped.
+      It has its own type shares and noise scale.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid', validate_default=True)
@@ -242,6 +250,7 @@ class Hyperprior(BaseModel):
         'init_scale',
         'noise_scale',
         'group_share',
+        'outcome_noise_scale',
     )
     PER_FACTOR: ClassVar[tuple[str, ...]] = (
         'groups',
@@ -256,12 +265,14 @@ class Hyperprior(BaseModel):
         'beta_b',
         'mixture_gap',
         'mixture_weight',
+        'poisson_log_rate',
     )  # columns are manifested (i.e. non-latent) nodes
     SHARES: ClassVar[tuple[str, ...]] = (
         'type_shares',
         'mechanism_shares',
         'activation_shares',
         'marginal_shares',
+        'outcome_type_shares',
     )
 
     # sizes and columns
@@ -271,7 +282,7 @@ class Hyperprior(BaseModel):
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
     )  # column types
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # k is 2 + Geometric(levels_p)
-    max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for k
+    max_levels: MaxLevels | None = None  # optional upper bound for k
     level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
 
     # grouping
@@ -317,6 +328,19 @@ class Hyperprior(BaseModel):
     beta_b: Positive = LogUniform(0.5, 5)
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
     mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
+    poisson_log_rate: Annotated[Real, _within(le=40)] = Uniform(-1, 6)
+
+    # outcome
+    outcome_form: OutcomeForm = 'scm'
+    outcome_type_shares: Simplex = {
+        'continuous': 0.6,
+        'binary': 0.2,
+        'categorical': 0.05,
+        'ordered': 0.05,
+        'count': 0.1,
+    }  # the outcome's column type
+    outcome_max_levels: MaxLevels = 10
+    outcome_noise_scale: NonNegative = LogUniform(0.1, 3)
 
     @classmethod
     def grouped(cls, **overrides: Any) -> Hyperprior:
@@ -328,12 +352,15 @@ class Hyperprior(BaseModel):
 
     @classmethod
     def categories(cls, field: str) -> list[str]:
-        return list(cls.model_fields[field].default.alpha)
+        """Lists the categories of a field in default order."""
+        default = cls.model_fields[field].default
+        shares = default.alpha if isinstance(default, Dirichlet) else default
+        return list(shares)
 
     @field_validator(*SHARES)
     @classmethod
     def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
-        """Puts the categories in the default order."""
+        """Checks the categories named by an override and puts them in default order."""
         categories = cls.categories(info.field_name)
         if isinstance(value, Dirichlet):
             return Dirichlet(cls._inOrder(value.alpha, categories))

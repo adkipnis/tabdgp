@@ -209,6 +209,8 @@ a model specification
   (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
 - Each test says in a sentence or two why it exists, unless obvious. Bind the object under test,
   then call it; small named helpers, not lambdas or repeated comprehensions.
+- Cases of one check are one parametrized table, each case's reason in its id, not one test
+  per case.
 - Names listed in two modules (a `Literal`, a catalog, a table's columns) are checked against
   each other by a test; the code checks nothing at import.
 - No coverage gate.
@@ -266,11 +268,11 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 
 | module | owns | imported by |
 |---|---|---|
-| `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, a count truncated at another field's value, the presets, and which fields each column, node or grouping factor draws, by marginal family for a continuous column | every module |
-| `column` | the design-column budget and the post-hoc types: each column's name, type, k and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks; the grouping factor as a column, its relation, size draw and codes, and `Grouping`, the unit arithmetic (a unit's chain, the broadcast between units) | graph, mechanism, draw |
-| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, the block bonus, each node's unit and the mask on edges out of its chain, the order (the grouping factors, then the units superior first, the row last, latent before observed), each node's family, activation and scales, a row-unit node's group share and group factor, and what the graph guarantees | mechanism, draw |
+| `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, an integer truncated at another field's value, the presets, the outcome's form, type shares and noise scale, and which fields each column, node or grouping factor draws, by marginal family for a continuous or count column | every module |
+| `column` | the design-column budget, the post-hoc types and the type `count` with its `poisson` marginal: each column's name, type, k and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks; the outcome as the column `y` with role `outcome`, minted last outside the budget; the grouping factor as a column, its relation, size draw and codes, and `Grouping`, the unit arithmetic (a unit's chain, the broadcast between units) | graph, mechanism, draw |
+| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, the block bonus, each node's unit and the mask on edges out of its chain, the order (the grouping factors, then the units in the factors' order, the row last, latent before observed within a unit, the outcome last of all at the row), each node's family, activation and scales, the outcome's noise scale from its own field, a row-unit node's group share and group factor, and what the graph guarantees | mechanism, draw |
 | `mechanism` | how a node's values follow from its parents and its noise, at a unit: linear and MLP families, the parents read at the unit, relative noise, the z-score at the node's own unit, and a row-unit node's group part and row part mixed by its group share | draw |
-| `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, the grouping before the graph, nodes joined to columns by name, every column and latent node broadcast to the rows last, and what one draw returns, the grouping factors first | the package's `__init__` |
+| `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, the grouping before the graph, nodes joined to columns by name, every column and latent node broadcast to the rows last, and what one draw returns, the grouping factors first and the outcome last | the package's `__init__` |
 
 ### Changing code
 
@@ -304,8 +306,7 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 ### Docs
 
 - `README.md`: badges, a tagline, a short what and why, highlights of what the release does,
-  install, one quickstart box and its output, planned, learn more, contributing, citing,
-  license.
+  install, one quickstart box and its output, planned, contributing, license.
 
 ### Explaining the design
 

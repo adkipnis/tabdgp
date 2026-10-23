@@ -3,13 +3,13 @@
 pipeline:
 ---------
 the resolved hyperprior, the grouping and the observed columns
--> each node's unit                                                   _sampleUnits
--> names and units in topological order, the factors first            _orderNodes
--> edges: Cauchy node terms and a block bonus                         _sampleEdges
--> the edges a child may read                                         _maskEdges
--> each node's own field draws: family, scales, activation            _resolveNodes
--> each row-unit node's group share and group factor                  _resolveParts
--> the Graph                                                          connect
+-> each node's unit                                                            _sampleUnits
+-> names and units in topological order, the factors first, the outcome last   _orderNodes
+-> edges: Cauchy node terms and a block bonus                                  _sampleEdges
+-> the edges a child may read                                                  _maskEdges
+-> each node's own field draws: family, scales, activation                     _resolveNodes
+-> each row-unit node's group share and group factor                           _resolveParts
+-> the Graph                                                                   connect
 """
 
 from __future__ import annotations
@@ -34,13 +34,15 @@ Activation = Literal['tanh', 'relu', 'sin']
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Graph:
-    """Every node of a dataset in topological order (factors `g`, latent `z`, observed `x`).
+    """Every node of a dataset in topological order
+    (factors `g`, latent `z`, observed `x`, outcome `y`).
 
     - A grouping factor comes first at its own unit: its values are its group codes.
     - Every other node is at a unit: the units in the factors' order,
       the row last, latent before observed within a unit.
       A node reads parents at its own unit or any unit superior to it,
       so a latent row-unit node may have an observed group-level parent.
+    - The outcome y (when present) comes last at the row, i.e. no node reads it.
     - A root (a node without parents) is just its noise and draws no family or scale.
     - A linear node draws a noise scale.
     - An MLP node draws a noise scale, an activation and an init scale.
@@ -97,6 +99,12 @@ class Graph:
         ranks = [units.index(unit) for unit in self.unit[f:]]  # (v − f,)
         if ranks != sorted(ranks):
             raise ValueError(f'the units {self.unit[f:]} are not in the order {units}')
+        # check that the outcome, when present, is last, so that no node reads it, and at the row
+        if 'y' in self.names:
+            if self.names[-1] != 'y':
+                raise ValueError(f'the outcome y is not last in {self.names}')
+            if self.unit[-1] != 'row':
+                raise ValueError(f'the outcome y is at the unit {self.unit[-1]}, not the row')
         # check that each node holds a value for the fields it draws
         root = ~self.parents.any(axis=1)  # (v,)
         not_mlp = np.array([family != 'mlp' for family in self.mechanism])  # (v,)
@@ -133,7 +141,7 @@ def connect(
     latent = np.array([name.startswith('z') for name in names], dtype=bool)  # (v,)
     edges = _sampleEdges(resolved, len(names), rng)  # (v, v)
     parents = _maskEdges(edges, unit, grouping)  # (v, v)
-    mechanism, activation, noise_scale, init_scale = _resolveNodes(parents, resolved, rng)
+    mechanism, activation, noise_scale, init_scale = _resolveNodes(names, parents, resolved, rng)
     group_share, group_factor = _resolveParts(unit, grouping, resolved, rng)
     return Graph(
         names=names,
@@ -156,26 +164,32 @@ def _orderNodes(
     rng: np.random.Generator,
 ) -> tuple[list[str], list[str]]:
     """The names and units in topological order: the factors, then the other nodes
-    by unit in the factors' order and the row last, latent before observed within a unit.
+    by unit in the factors' order and finally the row. Latents come before observed nodes
+    within a unit, and the outcome y comes last at the row.
     """
     factors = list(grouping.metadata)
     latent_nodes = resolved.latent_nodes
+    covariates = [name for name in columns if name != 'y']
     # the observed nodes take the plan's names in a random order:
     # a column's position is independent of its place in the graph
-    permuted = rng.permutation(list(columns))  # (d,)
+    permuted = rng.permutation(covariates)  # (d,)
     observed = permuted.tolist()
-    latent_unit = _sampleUnits(resolved, len(factors), latent_nodes, rng)  # (v − f − d,)
+    latent_unit = _sampleUnits(resolved, len(factors), latent_nodes, rng)  # (latent_nodes,)
     # sorted, so that z0, z1, … follow the order
     latent_unit = np.sort(latent_unit)
     observed_unit = _sampleUnits(resolved, len(factors), len(observed), rng)  # (d,)
     observed_columns = [columns[name] for name in observed]
     observed_unit = _keepEveryLevel(observed_unit, observed_columns, grouping)
     nodes = [f'z{i}' for i in range(latent_nodes)] + observed
-    unit_index = np.concatenate([latent_unit, observed_unit])  # (v − f,)
-    order = np.argsort(unit_index, kind='stable')  # (v − f,), latent before observed within a unit
+    unit_index = np.concatenate([latent_unit, observed_unit])  # (latent_nodes + d,)
+    # latent before observed within a unit
+    order = np.argsort(unit_index, kind='stable')  # (latent_nodes + d,)
     units = grouping.traceChain('row')
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
+    if 'y' in columns:
+        names.append('y')
+        unit.append('row')
     return names, unit
 
 
@@ -235,7 +249,7 @@ def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.nda
 
 
 def _resolveNodes(
-    parents: np.ndarray, resolved: Hyperprior, rng: np.random.Generator
+    names: list[str], parents: np.ndarray, resolved: Hyperprior, rng: np.random.Generator
 ) -> tuple[list[Mechanism | None], list[Activation | None], list[float | None], list[float | None]]:
     """Each node's own draws, None where it draws nothing."""
     v = len(parents)
@@ -245,7 +259,9 @@ def _resolveNodes(
     init_scale = [None] * v
     for j in np.flatnonzero(parents.any(axis=1)):
         mechanism[j] = resolved.mechanism_shares.choose(rng)
-        noise_scale[j] = resolved.resolveField('noise_scale', rng)
+        # the outcome's share of unexplained variance reaches far above a covariate's
+        noise_field = 'outcome_noise_scale' if names[j] == 'y' else 'noise_scale'
+        noise_scale[j] = resolved.resolveField(noise_field, rng)
         if mechanism[j] == 'mlp':
             activation[j] = resolved.activation_shares.choose(rng)
             init_scale[j] = resolved.resolveField('init_scale', rng)

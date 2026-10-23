@@ -23,7 +23,7 @@ and has no default.** What the proofs certify is `grouped()`.
   Dirichlet(α) proportions. Two per-factor fields; G non-empty groups always; no retry.
 - **Truncation at resolve.** `rows` resolves first; `groups` draws from its distribution
   truncated at `rows`, a superior factor's `groups` below the subordinate factor's, and
-  `design_columns` at `rows / 2` (rule 8's one floor, n ≥ 2d, which item 1 did not enforce).
+  `design_columns` at `rows / 2` (rule 8's one floor, n ≥ 2d, which #1 did not enforce).
   A draw clipped afterwards piles mass on the bound: from `LogUniformInt(2, 400)` at
   n = 20, 57 % of draws would become all-singleton tables.
 - **A superior factor has fewer groups than the subordinate one.** Its `groups` is
@@ -51,7 +51,7 @@ and has no default.** What the proofs certify is `grouped()`.
   | `group_level_share` | `Beta(2, 4)` | a guess at the registry's 31 % |
   | `group_share`, per node | `Beta(0.5, 2)` | a guess, mass near zero |
 
-  The registry's smallest α, 0.025, lies below the floor; item 4's containment test decides
+  The registry's smallest α, 0.025, lies below the floor; the containment test decides
   whether to widen it.
 
 ## Considered options

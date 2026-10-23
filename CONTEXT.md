@@ -47,8 +47,8 @@ _Avoid_: edge case, noise, messiness
 
 **Node**:
 One variable of a dataset's structural causal model (SCM): a grouping factor, a group-level or
-within-group covariate, time, treatment, or the outcome node. A node has a parent set and a
-mechanism; a node without parents is a root.
+within-group covariate, a latent node, time, treatment, or the outcome node.
+A node has a parent set and a mechanism; a node without parents is a root.
 _Avoid_: feature, variable unqualified, neuron (of an MLP)
 
 **Grouping factor**:
@@ -67,8 +67,8 @@ _Avoid_: coarser and finer, parent and child (the graph's edges), higher and low
 
 **Unit**:
 What a node is drawn once per: the row, or one grouping factor, in which case the node takes
-one value per group of that factor, repeated across the group's rows (broadcast). A column at
-the row unit is a within-group covariate; one at a grouping factor's unit is group-level. A
+one value per group of that factor, repeated across the group's rows (broadcast). A covariate at
+the row unit is within-group; one at a grouping factor's unit is group-level. A
 nested grouping factor is a unit subordinate to the one it nests in; crossed ones are units
 without an order between them.
 _Avoid_: level (a factor level, or the multilevel literature's level 1 and 2), hierarchy
@@ -106,8 +106,9 @@ grouping factor; R's `levels()`.
 _Avoid_: level unqualified, category, class
 
 **Marginal**:
-The distribution a continuous column's values are mapped onto after the SCM, from a catalog
-of families (skewed, heavy-tailed, bounded, zero-inflated), keeping their ranks.
+The distribution a continuous or count column's values are mapped onto after the SCM, keeping
+their ranks: a family from a catalog (skewed, heavy-tailed, bounded, zero-inflated) for a
+continuous column, the Poisson for a count.
 _Avoid_: noise distribution (the root's), prior
 
 **Post-hoc type**:
@@ -131,7 +132,8 @@ _Avoid_: rng, random state, seed alone
 **Dataset**:
 What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
 generating graph, the latent nodes' values, the hyperparameters every field resolved to except
-those each column or node draws for itself, and the key. Never padded, never a file.
+those each column or node draws for itself, and the key with the versions it reproduces under.
+Never padded, never a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
 **Hyperprior**:

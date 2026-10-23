@@ -1,11 +1,12 @@
 ---
 status: accepted
 date: 2026-10-22
+amended: 2026-10-23, #41: the form's field is outcome_form
 ---
 
 # 0006 — The glmm form: metabeta's prior envelope as the glmm preset's defaults, the fit drawn jointly, no caps, the estimands returned
 
-Roadmap item 11 is the outcome node's second form (ADR 0005): a generalized linear mixed model
+The outcome node's second form (ADR 0005) is a generalized linear mixed model
 (GLMM) on the design matrix, the datasets `metabeta.mixed` trains on and, with a deviation,
 the white-box misspecified ones. Grilled on 2026-10-22 with ADR 0005, the decision is: **the
 glmm form is reached through a preset, `Hyperprior.glmm()`, whose prior fields default to
@@ -27,7 +28,7 @@ blocks at q = 2 and 3 of 18 above.
 
 ## Decisions
 
-- **The preset.** `Hyperprior.glmm()` is `grouped()` with `outcome = 'glmm'` and
+- **The preset.** `Hyperprior.glmm()` is `grouped()` with `outcome_form = 'glmm'` and
   `deviation_scale = 0`. metabeta calls `draw(seed, index, Hyperprior.glmm())` and passes no
   override; a one-family corpus is `glmm(family_shares={'normal': 1})`, a study of that family.
   The white-box misspecified study overrides `deviation_scale`.

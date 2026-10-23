@@ -1,15 +1,16 @@
 ---
 status: accepted
 date: 2026-10-22
+amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form
 ---
 
 # 0005 — The outcome node: one node, two forms, drawn by default in its scm form
 
-Roadmap items 5 and 11 add the outcome to the grouped SCM of items 1 and 2. Grilled on
+The outcome joins the grouped SCM of #1 and #22. Grilled on
 2026-10-22 after a prior-art sweep of what the tabular priors give their target that a
 covariate node does not, the decision is: **the outcome is one node of the generating graph,
-role `outcome`, name `y`, at the row unit and last in order, so a sink; a per-dataset field,
-`outcome`, draws its form: `scm`, a node like the others, or `glmm`, a likelihood on the design
+role `outcome`, name `y`, at the row unit and last in order, so a sink; a field,
+`outcome_form`, sets its form: `scm`, a node like the others, or `glmm`, a likelihood on the design
 matrix (ADR 0006); `grouped()` and `flat()` draw the scm form by default, and the proofs certify
 it.** The words are `CONTEXT.md`'s: outcome node, form, deviation, count, marginal, post-hoc
 type, group share.
@@ -29,30 +30,32 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
   `latent_nodes`, and in the glmm form the deviation of ADR 0006), a mechanism and, in a
   grouped table, a group share and a group factor like any row-unit node. Every registry row
   has a response, so a matched table has one: `grouped()` and `flat()` draw the scm form,
-  `outcome = 'none'` is a study's override, `Hyperprior.glmm()` the preset of the glmm form. The
-  field is a simplex over `{'none', 'scm', 'glmm'}`, a point in every preset, a Dirichlet only
-  for a corpus that mixes forms.
+  `outcome_form = 'none'` is a study's override, `Hyperprior.glmm()` the preset of the glmm form.
+  The field is a point, `'none'`, `'scm'` or `'glmm'`, and an override replaces it by another
+  point, never by shares, since a dataset of each form returns different things and no corpus
+  mixes them.
 - **A sink at the row.** y is last in the node order and no node reads it: TabICL's y-as-node,
   where x may descend from y, is not taken over, since a GLMM's covariates are causes or
   correlates of its outcome, never its effects. The outcome is drawn once per row; a
   group-level outcome is a later preset's.
 - **What the scm form gets beyond a covariate node**, two fields: `outcome_noise_scale`, since
   the shared `noise_scale` bounds a node's noise share at one half and the outcome's share of
-  unexplained variance reaches far higher in real tables, default `LogUniform(0.1, 3)`, a guess
-  for item 4 to fit; and `outcome_type_shares`, since the mix of response types (the practice
+  unexplained variance reaches far higher in real tables, default `LogUniform(0.1, 3)`, a guess,
+  to be fitted; and `outcome_type_shares`, since the mix of response types (the practice
   survey's families: Normal 53 %, Bernoulli 26 %, counts and ordered scales the rest) is not
   the covariate mix, default a round guess at those shares, over the five types below. The
   marginal, a categorical y's k and its permuted labels, and the rank matching are the column
   rule's: a multiclass or ordered outcome needs nothing new.
 - **A `count` type and a `poisson` marginal.** A Poisson outcome is integer-valued and neither
   continuous nor ordered, so `count` joins the column types (int64, outside the design-column
-  budget until item 4 admits count covariates), with a Poisson marginal whose log rate is a
-  field, one more entry of the catalog. scamd-audit T11 had delayed counts to item 4; the
-  outcome brings the type early, the covariate case still waits for the pass.
+  budget until the measurement pass admits count covariates), with a Poisson marginal whose
+  log rate is a field, one more entry of the catalog. scamd-audit T11 had delayed counts to the
+  measurement pass; the outcome brings the type early, the covariate case still waits for the
+  pass.
 - **No learnability filter.** A rejection changes the distribution the proofs certify, #15's
   "no forced child" already lets a node be unpredictable, and the registry has null results:
   an outcome with no parents is a valid table.
-- **What item 4 matches**: the scm form's defaults, to the response statistics MixedBench's
+- **What is matched**: the scm form's defaults, to the response statistics MixedBench's
   measurement pass adds once its exclusion of the response is lifted. The glmm form's priors
   are coverage-first (ADR 0006) and never fitted; only its covariates are matched, since they
   are `grouped()`'s.
@@ -72,7 +75,7 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
 - **Not taken over, from the sweep**: y as any node (TabICL v2, TabPFN v2 and 3), label flips
   (O'Prior, TabFM), O'Prior's target-only subgroup effects (the group share is that, on every
   node), TabPFN v2's exemption of y from post-processing (the registry's responses have real
-  marginals, which item 4 matches), the ExtraTrees and shared-class filters, a dedicated
+  marginals, to be matched), the ExtraTrees and shared-class filters, a dedicated
   mechanism family for y (TabPFN v1's multinomial head).
 - **Time and treatment** (ADR 0003 deferred them to the item that reads them) and **the GP and
   tree mechanism families** (#1's closing comment): neither is bound to the node, the random
@@ -83,7 +86,7 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
 ## Consequences
 
 - `graph` places y last at the row unit; `column` gains the role `outcome`, the type `count`
-  and the `poisson` marginal; `hyperprior` gains `outcome`, `outcome_noise_scale` and
+  and the `poisson` marginal; `hyperprior` gains `outcome_form`, `outcome_noise_scale` and
   `outcome_type_shares`; `draw` returns y among the columns. Every default draw changes: a
   version change.
 - The proofs' summary vector gains the response's statistics; MixedBench's measurement pass

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import get_args
 
 import numpy as np
@@ -50,6 +51,48 @@ def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
     assert defaults == GROUPING_DEFAULTS
 
 
+OUTCOME_DEFAULTS = {
+    'outcome_form': 'scm',
+    'outcome_type_shares': {
+        'continuous': 0.6,
+        'binary': 0.2,
+        'categorical': 0.05,
+        'ordered': 0.05,
+        'count': 0.1,
+    },
+    'outcome_max_levels': 10,
+    'outcome_noise_scale': LogUniform(0.1, 3),
+    'poisson_log_rate': Uniform(-1, 6),
+}
+
+
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Hyperprior]) -> None:
+    """ADR 0005's table: both presets draw the outcome node in its scm form."""
+    hyperprior = preset()
+    defaults = {field: getattr(hyperprior, field) for field in OUTCOME_DEFAULTS}
+    assert defaults == OUTCOME_DEFAULTS
+
+
+NOT_A_FORM = [
+    pytest.param('glmm', id='glmm'),
+    pytest.param('SCM', id='a misspelled form'),
+    pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
+    pytest.param(Dirichlet({'none': 1, 'scm': 1}), id='a dirichlet'),
+]
+
+
+@pytest.mark.parametrize('form', NOT_A_FORM)
+def test_a_form_other_than_none_or_scm_fails_at_construction(
+    form: str | dict | Dirichlet,
+) -> None:
+    """glmm is no form until its preset exists, and a dataset of each form returns different things,
+    so no corpus mixes them: each fails where it is written, like a typo, not at a draw.
+    """
+    with pytest.raises(ValidationError):
+        Hyperprior(outcome_form=form)
+
+
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
     """Every draw starts from a preset; Hyperprior() stays valid as the grouped one,
     and the flat preset differs from it in factors alone.
@@ -92,7 +135,8 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
     """Each column, node or grouping factor draws its own value of these fields,
     so no dataset-wide value is drawn.
     """
-    assert set(Hyperprior.PER_NODE) == {'noise_scale', 'init_scale', 'group_share'}
+    per_node = {'noise_scale', 'init_scale', 'group_share', 'outcome_noise_scale'}
+    assert set(Hyperprior.PER_NODE) == per_node
     assert set(Hyperprior.PER_FACTOR) == {'groups', 'size_alpha'}
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
@@ -284,16 +328,23 @@ OUT_OF_RANGE = [
     pytest.param({'zero_share': 1.0}, id='a point on an open bound'),
     pytest.param({'student_df': Uniform(-1, 5)}, id='a support across zero for a positive field'),
     pytest.param({'max_levels': 2}, id='a cap that leaves no categorical'),
+    pytest.param({'outcome_max_levels': 2}, id="a cap on y's k that leaves no categorical"),
     pytest.param({'factors': -1}, id='a negative number of factors'),
     pytest.param({'groups': 1}, id='a factor of one group'),
     pytest.param({'size_alpha': 0.0}, id='a zero concentration of the group sizes'),
     pytest.param({'balanced_share': 1.5}, id='a share above 1'),
     pytest.param({'group_share': Uniform(0, 2)}, id='a support above 1 for a share'),
+    pytest.param({'outcome_noise_scale': -1.0}, id='a negative outcome noise scale'),
+    pytest.param({'poisson_log_rate': Uniform(0, 45)}, id="a log rate past numpy's poisson limit"),
     pytest.param({'type_shares': ALL_CONTINUOUS | {'binary': 0.5}}, id='shares above 1'),
     pytest.param(
         {'type_shares': ALL_CONTINUOUS | {'continuous': 1.5, 'binary': -0.5}}, id='a negative share'
     ),
     pytest.param({'type_shares': {'continuous': 1.0}}, id='shares missing a category'),
+    pytest.param(
+        {'outcome_type_shares': OUTCOME_DEFAULTS['outcome_type_shares'] | {'continuous': 1.6}},
+        id='outcome type shares summing to 2',
+    ),
     pytest.param(
         {'mechanism_shares': Dirichlet({'linear': 1, 'tree': 1})}, id='an unknown category'
     ),
@@ -353,6 +404,14 @@ def test_resolving_one_shares_field_gives_shares_that_choose() -> None:
 def test_a_shares_field_names_its_default_categories() -> None:
     """The catalogs and the point masses read a field's categories from its default."""
     assert Hyperprior.categories('mechanism_shares') == ['linear', 'mlp']
+
+
+def test_categories_reads_a_point_default() -> None:
+    """A point default has no Dirichlet to read,
+    yet the shares check and the point masses need its categories.
+    """
+    shares = point('outcome_type_shares', 'count')
+    assert Hyperprior(outcome_type_shares=shares).outcome_type_shares == shares
 
 
 def test_a_point_mass_puts_every_share_on_its_category() -> None:
@@ -415,15 +474,18 @@ def test_the_fields_drawn_per_factor_are_exactly_those_a_factor_column_records()
 def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None:
     """A field drawn per node that the graph does not record would silently stay a distribution."""
     recorded = set(Graph.__dataclass_fields__) & set(Hyperprior.model_fields)
+    recorded.add('outcome_noise_scale')  # recorded as y's noise_scale
     assert recorded == set(Hyperprior.PER_NODE)
 
 
 CATALOGS = [
-    pytest.param(set(get_args(Family)), 'marginal_shares', id='marginal families'),
+    # a count's poisson marginal is its type's by construction, so it takes no share
+    pytest.param(set(get_args(Family)) - {'poisson'}, 'marginal_shares', id='continuous families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Activation)), 'activation_shares', id='activation names'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
-    pytest.param(set(get_args(ColumnType)), 'type_shares', id='column types'),
+    pytest.param(set(get_args(ColumnType)) - {'count'}, 'type_shares', id='covariate types'),
+    pytest.param(set(get_args(ColumnType)), 'outcome_type_shares', id='outcome types'),
 ]
 
 

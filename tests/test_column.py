@@ -5,6 +5,7 @@ and a column's values from its node's.
 
 from __future__ import annotations
 
+import math
 from typing import get_args
 
 import numpy as np
@@ -17,7 +18,6 @@ from tabdgp.column import Column, Grouping, apply, assign, plan
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, UniformInt
 from tests.fixtures.build import groupingOf, point
 
-TYPES = ['continuous', 'binary', 'categorical', 'ordered']
 ALPHA = {'level_alpha': 1.0}
 # one value per marginal parameter, for columns built by hand
 EXAMPLE = {
@@ -28,13 +28,14 @@ EXAMPLE = {
     'beta_b': 3.0,
     'mixture_gap': 2.0,
     'mixture_weight': 0.3,
+    'poisson_log_rate': 1.0,
 }
 
 
-def test_a_column_type_outside_the_four_fails() -> None:
-    """metabeta's encoder branches on the type, so a fifth would pass through unencoded."""
+def test_a_column_type_outside_the_five_fails() -> None:
+    """metabeta's encoder branches on the type, so a sixth would pass through unencoded."""
     with pytest.raises(ValidationError):
-        Column(type='count')
+        Column(type='integer')
 
 
 CONTRADICTING_LEVELS = [
@@ -44,6 +45,7 @@ CONTRADICTING_LEVELS = [
     pytest.param('categorical', 2, id='a categorical column of two levels'),
     pytest.param('ordered', 2, id='an ordered column of two levels'),
     pytest.param('categorical', None, id='a categorical column without levels'),
+    pytest.param('count', 3, id='a count column with levels'),
 ]
 
 
@@ -54,18 +56,32 @@ def test_levels_that_contradict_the_type_fail(type: str, levels: int | None) -> 
         Column(type=type, levels=levels)
 
 
-def test_a_marginal_on_a_discrete_column_fails() -> None:
-    """Only continuous columns are rank matched; a discrete column's values are its codes."""
-    with pytest.raises(ValidationError):
-        Column(type='binary', levels=2, marginal='lognormal')
+CONTRADICTING_MARGINALS = [
+    pytest.param(
+        {'type': 'binary', 'levels': 2, 'marginal': 'lognormal'},
+        id='a binary column with a marginal',
+    ),
+    pytest.param({'type': 'continuous'}, id='a continuous column without a marginal'),
+    pytest.param(
+        {'type': 'count', 'marginal': 'lognormal', 'parameters': {'lognormal_sigma': 0.5}},
+        id='a count with a continuous family',
+    ),
+    pytest.param(
+        {'type': 'continuous', 'marginal': 'poisson', 'parameters': {'poisson_log_rate': 1.0}},
+        id='a continuous column with the poisson marginal',
+    ),
+]
 
 
-def test_a_continuous_column_without_a_marginal_fails() -> None:
-    """Its parameters are its family's,
-    so a continuous column names the family it was drawn from.
+@pytest.mark.parametrize('fields', CONTRADICTING_MARGINALS)
+def test_a_marginal_that_contradicts_the_type_fails(fields: dict) -> None:
+    """A discrete column's values are its codes.
+    A rank matched column's parameters are its family's, so it names one.
+    A count's family is poisson, a continuous column's one of marginal_shares, which has no poisson:
+    a Poisson sample cast to float32 would be a count typed as continuous.
     """
-    with pytest.raises(ValidationError):
-        Column(type='continuous')
+    with pytest.raises(ValidationError, match='marginal'):
+        Column(**fields)
 
 
 FOREIGN_PARAMETERS = [
@@ -82,6 +98,12 @@ FOREIGN_PARAMETERS = [
         {'type': 'categorical', 'levels': 3},
         {'level_alpha': 1.0, 'beta_a': 2.0},
         id='a categorical with a beta shape',
+    ),
+    pytest.param({'type': 'count', 'marginal': 'poisson'}, {}, id='a count without its log rate'),
+    pytest.param(
+        {'type': 'count', 'marginal': 'poisson'},
+        {'poisson_log_rate': 1.0, 'level_alpha': 1.0},
+        id='a count with a level concentration',
     ),
 ]
 
@@ -104,22 +126,39 @@ DESIGN_COLUMNS = [
     pytest.param(Column(type='binary', levels=2, parameters=ALPHA), 1, id='binary'),
     pytest.param(Column(type='categorical', levels=5, parameters=ALPHA), 4, id='categorical'),
     pytest.param(Column(type='ordered', levels=3, parameters=ALPHA), 2, id='ordered'),
+    pytest.param(
+        Column(type='count', marginal='poisson', parameters={'poisson_log_rate': 1.0}),
+        1,
+        id='count',
+    ),
 ]
 
 
 @pytest.mark.parametrize(('column', 'design_columns'), DESIGN_COLUMNS)
-def test_a_column_is_one_design_column_wide_if_continuous_and_k_minus_1_if_not(
+def test_a_column_is_one_design_column_wide_without_levels_and_k_minus_1_with_them(
     column: Column, design_columns: int
 ) -> None:
-    """The design-column budget counts metabeta's dummy coding: k levels take k − 1 columns."""
+    """The design-column budget counts metabeta's dummy coding: k levels take k − 1 columns.
+    A count enters the design matrix as a continuous column.
+    """
     assert column.design_columns == design_columns
 
 
-def test_a_grouping_factor_is_0_design_columns_wide() -> None:
-    """Its codes index random effects and are never dummy coded,
-    so the budget counts the covariates alone.
-    """
-    column = Column(type='categorical', levels=2, role='grouping_factor')
+OFF_BUDGET = [
+    pytest.param(
+        Column(type='categorical', levels=2, role='grouping_factor'),
+        id='a grouping factor, whose codes index random effects',
+    ),
+    pytest.param(
+        Column(type='categorical', levels=4, role='outcome', parameters=ALPHA),
+        id='a categorical y, which the covariates predict',
+    ),
+]
+
+
+@pytest.mark.parametrize('column', OFF_BUDGET)
+def test_a_grouping_factor_or_the_outcome_is_0_design_columns_wide(column: Column) -> None:
+    """The design matrix dummy codes the covariates alone, so the budget counts them alone."""
     assert column.design_columns == 0
 
 
@@ -151,10 +190,11 @@ def test_a_parameter_other_than_size_alpha_on_a_grouping_factor_fails(parameters
         Column(type='categorical', levels=3, role='grouping_factor', parameters=parameters)
 
 
-def test_nests_in_on_a_covariate_fails() -> None:
-    """Nesting relates grouping factors; a covariate is at most constant within groups."""
-    with pytest.raises(ValidationError):
-        Column(type='categorical', levels=3, parameters=ALPHA, nests_in='g0')
+@pytest.mark.parametrize('role', ['covariate', 'outcome'])
+def test_nests_in_on_a_covariate_or_the_outcome_fails(role: str) -> None:
+    """Nesting relates grouping factors; any other column is at most constant within groups."""
+    with pytest.raises(ValidationError, match='nest'):
+        Column(type='categorical', levels=3, role=role, parameters=ALPHA, nests_in='g0')
 
 
 def test_chain_follows_the_nesting_on_a_hand_built_grouping() -> None:
@@ -367,7 +407,7 @@ def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     return plan(resolved, rng)
 
 
-@pytest.mark.parametrize('type', TYPES)
+@pytest.mark.parametrize('type', Hyperprior.categories('type_shares'))
 def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_corner(
     type: str,
 ) -> None:
@@ -392,7 +432,11 @@ def _shapes(columns: dict[str, Column]) -> list[tuple[str, int | None]]:
 def test_k_is_clipped_when_it_would_overflow_the_budget() -> None:
     """A tiny levels_p draws k in the millions; with a budget of 3, one column of k = 4 fills it."""
     columns = _plan(
-        0, design_columns=3, type_shares=point('type_shares', 'categorical'), levels_p=1e-6
+        0,
+        design_columns=3,
+        type_shares=point('type_shares', 'categorical'),
+        levels_p=1e-6,
+        outcome_form='none',
     )
     assert _shapes(columns) == [('categorical', 4)]
 
@@ -407,6 +451,7 @@ def test_max_levels_caps_k() -> None:
         type_shares=point('type_shares', 'ordered'),
         levels_p=1e-6,
         max_levels=10,
+        outcome_form='none',
     )
     assert _shapes(columns) == [('ordered', 10), ('ordered', 10), ('binary', 2)]
 
@@ -420,11 +465,18 @@ def test_each_column_draws_its_own_parameters() -> None:
         design_columns=5,
         type_shares=point('type_shares', 'continuous'),
         marginal_shares=point('marginal_shares', 'lognormal'),
+        outcome_form='none',
     )
     sigmas = {column.parameters['lognormal_sigma'] for column in lognormal.values()}
     assert len(sigmas) == 5
     # levels_p = 1 draws k = 3 every time, so 8 design columns are 4 ordered columns
-    ordered = _plan(0, design_columns=8, type_shares=point('type_shares', 'ordered'), levels_p=1.0)
+    ordered = _plan(
+        0,
+        design_columns=8,
+        type_shares=point('type_shares', 'ordered'),
+        levels_p=1.0,
+        outcome_form='none',
+    )
     alphas = {column.parameters['level_alpha'] for column in ordered.values()}
     assert len(alphas) == 4
 
@@ -437,6 +489,7 @@ def test_a_point_override_gives_every_column_its_value() -> None:
         type_shares=point('type_shares', 'continuous'),
         marginal_shares=point('marginal_shares', 'lognormal'),
         lognormal_sigma=0.7,
+        outcome_form='none',
     )
     for column in columns.values():
         assert column.parameters == {'lognormal_sigma': 0.7}
@@ -446,8 +499,59 @@ def test_plan_names_its_columns_x0_to_x_d_minus_1() -> None:
     """The one home of the rule that plan column i is node x{i};
     every later step reads the names.
     """
-    columns = _plan(0, design_columns=4, type_shares=point('type_shares', 'continuous'))
+    columns = _plan(
+        0, design_columns=4, type_shares=point('type_shares', 'continuous'), outcome_form='none'
+    )
     assert list(columns) == ['x0', 'x1', 'x2', 'x3']
+
+
+def test_plan_ends_with_y_under_scm_and_has_no_y_under_none() -> None:
+    """plan owns the names, so y is minted once there, after the covariates,
+    and a covariate-only study draws none.
+    y is drawn after the budget loop, so the covariates are the same either way.
+    """
+    with_y = _plan(0, design_columns=5)
+    without_y = _plan(0, design_columns=5, outcome_form='none')
+    assert list(with_y)[-1] == 'y'
+    assert with_y['y'].role == 'outcome'
+    assert 'y' not in without_y
+    assert {name: with_y[name] for name in without_y} == without_y
+
+
+@pytest.mark.parametrize('type', Hyperprior.categories('outcome_type_shares'))
+def test_ys_type_follows_outcome_type_shares_under_every_point_mass(type: str) -> None:
+    """A corpus of one outcome type is one override,
+    count included, which the covariates' type shares never draw.
+    """
+    for seed in range(10):
+        columns = _plan(seed, outcome_type_shares=point('outcome_type_shares', type))
+        assert columns['y'].type == type
+
+
+def test_ys_k_ignores_the_budget() -> None:
+    """y takes no design column, so under a budget of 1 a categorical y keeps its k,
+    where a categorical covariate is clipped to binary.
+    levels_p = 1 draws k = 3 every time.
+    """
+    columns = _plan(
+        0,
+        design_columns=1,
+        type_shares=point('type_shares', 'categorical'),
+        outcome_type_shares=point('outcome_type_shares', 'categorical'),
+        levels_p=1.0,
+    )
+    assert _shapes(columns) == [('binary', 2), ('categorical', 3)]
+
+
+def test_ys_k_stops_at_outcome_max_levels_and_at_max_levels() -> None:
+    """A tiny levels_p draws k in the millions, and no budget clips y's.
+    outcome_max_levels caps y alone; max_levels caps every column, y included.
+    """
+    ordered = point('outcome_type_shares', 'ordered')
+    capped = _plan(0, outcome_type_shares=ordered, levels_p=1e-6, outcome_max_levels=4)
+    assert capped['y'].levels == 4
+    lower = _plan(0, outcome_type_shares=ordered, levels_p=1e-6, outcome_max_levels=8, max_levels=5)
+    assert lower['y'].levels == 5
 
 
 DISCRETE = [
@@ -512,13 +616,20 @@ def test_ordered_codes_are_monotone_in_the_values() -> None:
     assert all(_monotone(200, column, seed) for seed in range(20))
 
 
-def _continuous(family: str) -> Column:
-    """A continuous column of the family with its example parameters."""
+def _matched(family: str, parameters: dict[str, float]) -> Column:
+    """A column rank matched to the family: a count if poisson, else continuous."""
+    type = 'count' if family == 'poisson' else 'continuous'
+    return Column(type=type, marginal=family, parameters=parameters)
+
+
+def _example(family: str) -> Column:
+    """A column of the family with its example parameters."""
     parameters = {field: EXAMPLE[field] for field in MARGINAL_FIELDS[family]}
-    return Column(type='continuous', marginal=family, parameters=parameters)
+    return _matched(family, parameters)
 
 
-CONTINUOUS = [_continuous(family) for family in get_args(Family)]
+CONTINUOUS = [_example(family) for family in Hyperprior.categories('marginal_shares')]
+COUNT = _example('poisson')
 
 
 def _node(seed: int) -> np.ndarray:
@@ -546,8 +657,8 @@ def test_a_continuous_column_has_exactly_its_marginal_samples_values(column: Col
     assert not np.array_equal(values, other)
 
 
-@pytest.mark.parametrize('column', CONTINUOUS, ids=str)
-def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
+@pytest.mark.parametrize('column', [*CONTINUOUS, COUNT], ids=str)
+def test_a_rank_matched_column_has_the_nodes_ranks(column: Column) -> None:
     """Rank matching keeps the dependence the SCM built: read in the node's order, the column rises.
 
     Non-decreasing rather than increasing, since the zero-inflated sample has ties at 0.
@@ -559,7 +670,18 @@ def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
     assert np.ptp(values) > 0
 
 
-@pytest.mark.parametrize('column', [*CONTINUOUS, *DISCRETE], ids=str)
+def test_a_count_column_has_exactly_its_poisson_samples_integers() -> None:
+    """A count is rank matched like a continuous column but keeps its integers:
+    two nodes under one generator get the same Poisson sample, each in its own order.
+    """
+    values = _applyTo(_node(1), COUNT, seed=0)
+    other = _applyTo(_node(2), COUNT, seed=0)
+    assert values.dtype == np.int64
+    np.testing.assert_array_equal(np.sort(values), np.sort(other))
+    assert not np.array_equal(values, other)
+
+
+@pytest.mark.parametrize('column', [*CONTINUOUS, COUNT, *DISCRETE], ids=str)
 def test_tied_node_values_share_one_column_value(column: Column) -> None:
     """A row-unit node at group share 1 is constant within its group factor's groups,
     so it ties over each group's rows.
@@ -572,13 +694,42 @@ def test_tied_node_values_share_one_column_value(column: Column) -> None:
         assert len(np.unique(values[node == value])) == 1
 
 
+FLOORED = [
+    # at zero_share = 0.99, two values are both zero in 98 % of seeds without the floor
+    pytest.param(
+        Column(
+            type='continuous',
+            marginal='zero_inflated_lognormal',
+            parameters={'lognormal_sigma': 0.5, 'zero_share': 0.99},
+        ),
+        id='a zero-inflated column, whose zeros could fill the sample',
+    ),
+    # at poisson_log_rate = -2, two values tie in about 78 % of seeds without the floor
+    pytest.param(
+        Column(type='count', marginal='poisson', parameters={'poisson_log_rate': -2.0}),
+        id='a count, whose low rate could tie the sample',
+    ),
+]
+
+
+@pytest.mark.parametrize('column', FLOORED)
+def test_a_marginal_sample_at_two_groups_is_not_constant(column: Column) -> None:
+    """A group-level column, or a row-unit one at group share 1, has one value per group,
+    so at two groups its sample could be constant, a column a consumer cannot z-score.
+    """
+    node = np.array([-1.0, 1.0], dtype=np.float32)  # (u,) two distinct values, as at two groups
+    for seed in range(50):
+        values = _applyTo(node, column, seed)
+        assert np.ptp(values) > 0
+
+
 def test_plan_is_deterministic_under_a_fixed_generator() -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
     assert _plan(7) == _plan(7)
 
 
 @pytest.mark.parametrize(
-    'column', [*CONTINUOUS, Column(type='categorical', levels=6, parameters=ALPHA)], ids=str
+    'column', [*CONTINUOUS, COUNT, Column(type='categorical', levels=6, parameters=ALPHA)], ids=str
 )
 def test_apply_is_deterministic_under_a_fixed_generator(column: Column) -> None:
     """Every marginal family and the level codes draw from the generator alone."""
@@ -600,7 +751,7 @@ def _fromDefaults(family: str, n: int, seed: int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     hyperprior = Hyperprior()
     parameters = {field: hyperprior.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
-    column = Column(type='continuous', marginal=family, parameters=parameters)
+    column = _matched(family, parameters)
     return apply(rng.standard_normal(n), column, rng)
 
 
@@ -612,6 +763,7 @@ SUPPORTS = {
     'uniform': (0, 1),
     'zero_inflated_lognormal': (0, np.inf),
     'normal_mixture': (-np.inf, np.inf),
+    'poisson': (0, np.inf),
 }
 
 
@@ -630,7 +782,7 @@ def test_each_familys_values_lie_in_its_support(family: str) -> None:
 
 def _large(family: str, **parameters: float) -> np.ndarray:
     """A column of 100,000 rows, so that its statistics sit within 0.01 of their law's."""
-    column = Column(type='continuous', marginal=family, parameters=parameters)
+    column = _matched(family, parameters)
     return _apply(100_000, column, seed=0)
 
 
@@ -639,6 +791,7 @@ def test_each_familys_parameters_are_honored() -> None:
 
     The mixture's gap is set wide, so the share above half of it is the minor weight.
     The t's two-tailed P(|T| > 3) at df = 3 is 0.0577, from its closed-form CDF.
+    A Poisson's mean is the exponential of its log rate.
     """
     lognormal = _large('lognormal', lognormal_sigma=0.5)
     assert abs(np.log(lognormal).std() - 0.5) < 0.01
@@ -651,3 +804,5 @@ def test_each_familys_parameters_are_honored() -> None:
     assert abs(mixture[mixture > 10].mean() - 20) < 0.05
     student = _large('student_t', student_df=3.0)
     assert abs((np.abs(student) > 3).mean() - 0.0577) < 0.005
+    poisson = _large('poisson', poisson_log_rate=5.0)
+    assert abs(poisson.mean() / math.exp(5) - 1) < 0.01

@@ -6,7 +6,7 @@ amended: 2026-10-15, cut to the decision and its consequences
 
 # 0002 — Package release first; a paper only with a finding of its own
 
-Asked on 2026-10-11 whether TabDGP earns a paper of its own once item 5 or 6 is reached, the
+Asked on 2026-10-11 whether TabDGP earns a paper of its own, the
 decision is: **a proper package release and a short software paper as a citable handle; the
 validation of the matched hyperprior as a section of a consumer's paper; a standalone paper
 only with a finding of its own.**
@@ -16,4 +16,4 @@ only with a finding of its own.**
 - The proofs' summary vector and bar are documented as consistency checks, never claimed as
   realism in the README or a paper.
 - A per-quirk ablation is designed so that each quirk axis can be switched off by an
-  override, which item 4's hyperprior already allows; no extra code is planned for it here.
+  override, which the hyperprior already allows; no extra code is planned for it here.

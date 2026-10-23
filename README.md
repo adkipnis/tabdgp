@@ -18,6 +18,8 @@ generated it.
 - **Grouped or flat.** One to three grouping factors by default, nested or crossed, with 2 to
   400 groups each. A covariate varies by row or is constant within the groups of one factor.
   `Hyperprior.flat()` draws none.
+- **An outcome.** One node `y`, drawn by default as the last node of the SCM: continuous,
+  binary, categorical, ordered or count, with its own noise scale. `outcome_form='none'` draws none.
 - **White-box.** Each dataset carries its graph, latent nodes, column metadata and hyperparameters.
 - **Reproducible.** A dataset is a pure function of its key (a seed and an index) and the
   hyperprior, whatever batch or worker draws it.
@@ -46,29 +48,27 @@ print(len(dataset.latent), 'latent nodes,', dataset.graph.parents.sum(), 'edges'
 g0 categorical g0 [4 5 2]
 g1 categorical g1 [ 6 22 29]
 g2 categorical g2 [7 7 5]
-x0 binary g0 [1 1 1]
-x1 binary row [1 1 1]
-x2 continuous row [0.36 0.69 0.15]
-x3 binary row [0 0 0]
-x4 binary row [0 1 0]
-7 latent nodes, 16 edges
+x0 binary row [1 0 1]
+x1 binary row [0 1 0]
+x2 continuous g2 [1.77 1.77 2.66]
+x3 binary row [0 0 1]
+x4 binary g2 [0 0 1]
+y continuous row [0.76 0.62 0.93]
+7 latent nodes, 18 edges
 ```
 
 ## Planned
 
+- **Model-based outcomes:** exact or with a drawn deviation for white-box misspecified datasets.
 - **Quirk axes:** group confounding, rare levels, ties, bounds, near dependence and more.
-- **Matched defaults**, fitted to and checked against
-  [mixedbench](https://github.com/adkipnis/mixedbench)'s real grouped tables, then widened.
-- **An outcome node**, drawn by default as a node of the SCM and, through a preset, as a
-  generalized linear mixed model with its parameters and priors returned, exact or with a drawn
-  deviation for white-box misspecified datasets.
+- **Finetuning** the hyperprior's parameters to any batch of datasets.
+  Group presets are tuned against [mixedbench](https://github.com/adkipnis/mixedbench).
 - **Within-group time and a binary treatment.**
 
 ## Contributing
 
 Issues and pull requests are welcome; see
 [`CONTRIBUTING.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTRIBUTING.md).
-
 
 ## License
 
