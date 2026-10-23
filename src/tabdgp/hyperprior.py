@@ -320,7 +320,7 @@ class Hyperprior(BaseModel):
             'zero_inflated_lognormal': 1,
             'normal_mixture': 1,
         }
-    )  # a continuous column's family (a count's is poisson)
+    )  # a continuous column's family
     student_df: Positive = LogUniform(2, 30)
     lognormal_sigma: Positive = LogUniform(0.25, 1.5)
     zero_share: Annotated[Real, _within(ge=0, lt=1)] = Uniform(0.05, 0.6)  # zero-inflated lognormal
@@ -352,7 +352,7 @@ class Hyperprior(BaseModel):
 
     @classmethod
     def categories(cls, field: str) -> list[str]:
-        """The categories of a shares field, in the order its default lists them."""
+        """Lists the categories of a field in default order."""
         default = cls.model_fields[field].default
         shares = default.alpha if isinstance(default, Dirichlet) else default
         return list(shares)
