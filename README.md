@@ -19,7 +19,7 @@ generated it.
   400 groups each. A covariate varies by row or is constant within the groups of one factor.
   `Hyperprior.flat()` draws none.
 - **An outcome.** One node `y`, drawn by default as the last node of the SCM: continuous,
-  binary, categorical, ordered or count, with its own noise scale. `outcome='none'` draws none.
+  binary, categorical, ordered or count, with its own noise scale. `outcome_form='none'` draws none.
 - **White-box.** Each dataset carries its graph, latent nodes, column metadata and hyperparameters.
 - **Reproducible.** A dataset is a pure function of its key (a seed and an index) and the
   hyperprior, whatever batch or worker draws it.
