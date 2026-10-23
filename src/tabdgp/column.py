@@ -1,5 +1,9 @@
 """column.py defines the grouping factors, the column types and levels, and the column values.
 
+A column is constant only where its node is:
+a coded sample keeps every level, a zero-inflated one a positive value,
+a Poisson one two distinct values.
+
 pipeline:
 ---------
 resolved sizes, shares and budget
@@ -23,6 +27,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 
 ColumnType = Literal['continuous', 'binary', 'categorical', 'ordered', 'count']
+MARGINAL_TYPES = ('continuous', 'count')  # their values are a marginal sample, not level codes
 Role = Literal['covariate', 'grouping_factor', 'outcome']
 
 # =====================================================================================
@@ -48,7 +53,7 @@ class Column:
         if self.role != 'grouping_factor' and self.nests_in is not None:
             raise ValueError(f'a {self.role} cannot nest in {self.nests_in}')
         # a covariate or the outcome is binary at exactly k = 2, categorical or ordered from k = 3
-        if self.type in ('continuous', 'count'):
+        if self.type in MARGINAL_TYPES:
             agree = self.levels is None
         elif self.type == 'binary':
             agree = self.levels == 2
@@ -203,6 +208,7 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
         remainder -= column.design_columns
     if resolved.outcome == 'scm':
         type = resolved.outcome_type_shares.choose(rng)
+        # y is outside the budget, so a cap of its own bounds its k
         columns['y'] = _resolveColumn(type, 'outcome', resolved.outcome_max_levels, resolved, rng)
     return columns
 
@@ -215,7 +221,7 @@ def _resolveColumn(
     rng: np.random.Generator,
 ) -> Column:
     """One column's k or marginal family (and its own parameters)."""
-    if type in ('continuous', 'count'):
+    if type in MARGINAL_TYPES:
         if type == 'continuous':
             family = resolved.marginal_shares.choose(rng)
         else:
@@ -273,7 +279,7 @@ def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.n
             return rng.random(size)
         case 'zero_inflated_lognormal':
             zero = rng.random(size) < parameters['zero_share']  # (size,)
-            # one positive value at least, as _sampleCodes keeps one value per level
+            # one positive value at least
             if zero.all():
                 zero[0] = False
             positive = rng.lognormal(0, parameters['lognormal_sigma'], size)  # (size,)
@@ -285,7 +291,7 @@ def _sampleMarginal(size: int, column: Column, rng: np.random.Generator) -> np.n
         case 'poisson':
             rate = math.exp(parameters['poisson_log_rate'])
             counts = rng.poisson(rate, size)  # (size,)
-            # two distinct values at least, as the zero-inflated sample keeps one positive value
+            # two distinct values at least
             if (counts == counts[0]).all():
                 counts[0] += 1
             return counts
