@@ -1,4 +1,4 @@
-"""column.py defines the grouping factors, the column plan under the design-column budget
+"""column.py defines the grouping factors, the column layout under the design-column budget
 with the outcome y outside it, and the column values.
 
 A column's values follow its node's ranks:
