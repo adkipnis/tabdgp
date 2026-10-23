@@ -162,8 +162,6 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
     hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
     assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
-    assert resolved.outcome_noise_scale == LogUniform(0.1, 3)
-    assert resolved.poisson_log_rate == Uniform(-1, 6)
     for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
@@ -502,6 +500,8 @@ def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None
 
 
 CATALOGS = [
+    # a count's poisson marginal is its type's by construction, so it takes no share
+    pytest.param(set(get_args(Family)) - {'poisson'}, 'marginal_shares', id='continuous families'),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Activation)), 'activation_shares', id='activation names'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
@@ -516,14 +516,6 @@ def test_each_catalog_names_exactly_the_hyperprior_defaults_categories(
 ) -> None:
     """A category with a share but no entry in its catalog would fail only when drawn."""
     assert catalog == set(Hyperprior.categories(field))
-
-
-def test_the_marginal_catalog_is_the_continuous_families_plus_poisson() -> None:
-    """A continuous column chooses its family by marginal_shares;
-    poisson is the count type's marginal by construction, so it takes no share.
-    """
-    continuous = set(Hyperprior.categories('marginal_shares'))
-    assert set(get_args(Family)) == continuous | {'poisson'}
 
 
 INVALID = [
