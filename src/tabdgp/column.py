@@ -47,7 +47,7 @@ class Column:
             raise ValueError(f'a grouping factor cannot be {self.type}')
         if self.role != 'grouping_factor' and self.nests_in is not None:
             raise ValueError(f'a {self.role} cannot nest in {self.nests_in}')
-        # a covariate or the outcome is binary at exactly k = 2 and categorical or ordered from k = 3
+        # a covariate or the outcome is binary at exactly k = 2, categorical or ordered from k = 3
         if self.type in ('continuous', 'count'):
             agree = self.levels is None
         elif self.type == 'binary':
