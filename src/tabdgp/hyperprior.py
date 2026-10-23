@@ -50,7 +50,7 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-Form = Literal['none', 'scm']  # how the outcome node draws y; 'none' draws no y
+Form = Literal['none', 'scm']  # how the outcome node draws y, or 'none' for no y
 
 # =====================================================================================
 # distributions
@@ -322,7 +322,7 @@ class Hyperprior(BaseModel):
             'zero_inflated_lognormal': 1,
             'normal_mixture': 1,
         }
-    )  # a continuous column's family; a count column's is poisson
+    )  # a continuous column's family (a count's is poisson)
     student_df: Positive = LogUniform(2, 30)
     lognormal_sigma: Positive = LogUniform(0.25, 1.5)
     zero_share: Annotated[Real, _within(ge=0, lt=1)] = Uniform(0.05, 0.6)  # zero-inflated lognormal
@@ -334,7 +334,7 @@ class Hyperprior(BaseModel):
     poisson_log_rate: Annotated[Real, _within(le=40)] = Uniform(-1, 6)
 
     # outcome
-    outcome: Form | Simplex = 'scm'
+    outcome: Form | Simplex = 'scm'  # the outcome node's form
     outcome_type_shares: Simplex = {
         'continuous': 0.6,
         'binary': 0.2,
@@ -342,7 +342,7 @@ class Hyperprior(BaseModel):
         'ordered': 0.05,
         'count': 0.1,
     }  # the outcome's column type, one per dataset, so a point
-    outcome_max_levels: MaxLevels = 10  # y's k at most; a guess, to be fitted
+    outcome_max_levels: MaxLevels = 10  # y's k at most, a guess to be fitted
     outcome_noise_scale: NonNegative = LogUniform(0.1, 3)  # y's, wider than noise_scale
 
     @classmethod
