@@ -57,11 +57,11 @@ class Column:
             agree = self.levels is not None and self.levels >= fewest
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
-        # a count column is poisson, a continuous column any other family, a coded column none
+        # a count is poisson, a continuous column a family of marginal_shares, a coded one none
         if self.type == 'count':
             agree = self.marginal == 'poisson'
         elif self.type == 'continuous':
-            agree = self.marginal not in (None, 'poisson')
+            agree = self.marginal in Hyperprior.categories('marginal_shares')
         else:
             agree = self.marginal is None
         if not agree:
@@ -216,8 +216,10 @@ def _resolveColumn(
 ) -> Column:
     """One column's k or marginal family (and its own parameters)."""
     if type in ('continuous', 'count'):
-        # a count's marginal is poisson by construction, so it takes no share
-        family = 'poisson' if type == 'count' else resolved.marginal_shares.choose(rng)
+        if type == 'continuous':
+            family = resolved.marginal_shares.choose(rng)
+        else:
+            family = 'poisson'  # a count's marginal by construction, so it takes no share
         parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
         return Column(type=type, role=role, marginal=family, parameters=parameters)
     levels = 2
@@ -241,18 +243,17 @@ def _resolveColumn(
 
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """The column's values in its node's order, one per distinct node value:
-    a marginal sample if continuous, level codes otherwise.
+    a marginal sample if continuous or a count, level codes otherwise.
     Tied node values have the same column value.
     """
     distinct, rank = np.unique(node, return_inverse=True)  # (u,), (e,) each element's dense rank
-    if column.type == 'continuous':
-        sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
-        by_rank = np.sort(sample).astype(np.float32)  # (u,)
-    elif column.type == 'count':
-        sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
-        by_rank = np.sort(sample)  # (u,) int64
-    else:
+    if column.marginal is None:
         by_rank = _sampleCodes(len(distinct), column, rng)  # (u,)
+    else:
+        sample = _sampleMarginal(len(distinct), column, rng)  # (u,)
+        by_rank = np.sort(sample)  # (u,), int64 if a count
+        if column.type == 'continuous':
+            by_rank = by_rank.astype(np.float32)
     # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
     return by_rank[rank]
 
