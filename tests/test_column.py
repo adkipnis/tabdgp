@@ -701,6 +701,18 @@ def test_a_zero_inflated_column_at_two_groups_keeps_a_positive_value() -> None:
         assert np.ptp(values) > 0
 
 
+def test_a_count_column_at_two_groups_keeps_two_values() -> None:
+    """A count y at group share 1 is one value per group, so at few groups and a low rate
+    its sample could tie, a constant outcome.
+    At poisson_log_rate = -2 two groups tie in about 78 % of seeds without the floor.
+    """
+    column = Column(type='count', marginal='poisson', parameters={'poisson_log_rate': -2.0})
+    node = np.array([-1.0, 1.0], dtype=np.float32)  # (m,) at a factor of two groups
+    for seed in range(50):
+        values = _applyTo(node, column, seed)
+        assert np.ptp(values) > 0
+
+
 def test_plan_is_deterministic_under_a_fixed_generator() -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
     assert _plan(7) == _plan(7)
