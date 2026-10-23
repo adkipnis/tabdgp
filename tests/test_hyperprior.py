@@ -74,44 +74,23 @@ def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Hyper
     assert defaults == OUTCOME_DEFAULTS
 
 
-def test_outcome_accepts_a_category_a_dict_of_shares_and_a_dirichlet() -> None:
-    """A study draws no outcome; a corpus mixes forms by fixed or drawn shares.
-    Shares are put in the categories' order, as a shares field's are.
-    """
-    assert Hyperprior(outcome='none').outcome == 'none'
-    shares = Hyperprior(outcome={'scm': 0.7, 'none': 0.3}).outcome
-    assert list(shares.items()) == [('none', 0.3), ('scm', 0.7)]
-    dirichlet = Hyperprior(outcome=Dirichlet({'scm': 1, 'none': 2})).outcome
-    assert list(dirichlet.alpha.items()) == [('none', 2), ('scm', 1)]
-
-
 NOT_A_FORM = [
     pytest.param('glmm', id='glmm'),
     pytest.param('SCM', id='a misspelled form'),
-    pytest.param({'scm': 0.5, 'glmm': 0.5}, id='shares naming glmm'),
+    pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
+    pytest.param(Dirichlet({'none': 1, 'scm': 1}), id='a dirichlet'),
 ]
 
 
 @pytest.mark.parametrize('outcome', NOT_A_FORM)
-def test_glmm_and_a_misspelled_form_fail_at_construction(outcome: str | dict) -> None:
-    """glmm is no form until its preset exists,
-    so asking for it fails where it is written, like a typo, not at a draw.
+def test_glmm_a_misspelled_form_and_shares_over_forms_fail_at_construction(
+    outcome: str | dict | Dirichlet,
+) -> None:
+    """glmm is no form until its preset exists, and a dataset of each form returns different things,
+    so no corpus mixes them: each fails where it is written, like a typo, not at a draw.
     """
     with pytest.raises(ValidationError):
         Hyperprior(outcome=outcome)
-
-
-def test_resolve_gives_outcome_one_category_and_a_shares_override_chooses_by_its_shares() -> None:
-    """hyperparameters.outcome records the form a dataset was drawn with, so it is one category,
-    and a corpus that mixes forms draws each dataset's by the shares.
-    """
-    rng = np.random.default_rng(0)
-    assert Hyperprior().resolveDataset(rng).outcome == 'scm'
-    drawn = Hyperprior(outcome=Dirichlet({'none': 1, 'scm': 1})).resolveDataset(rng).outcome
-    assert drawn in {'none', 'scm'}
-    mixed = Hyperprior(outcome={'none': 0.3, 'scm': 0.7})
-    forms = [mixed.resolveField('outcome', rng) for _ in range(10_000)]
-    assert forms.count('none') / len(forms) == pytest.approx(0.3, abs=0.015)
 
 
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
@@ -426,11 +405,10 @@ def test_a_shares_field_names_its_default_categories() -> None:
     assert Hyperprior.categories('mechanism_shares') == ['linear', 'mlp']
 
 
-def test_categories_reads_a_point_default_and_a_token_fields_literal() -> None:
-    """A token field has no default shares to read, and a point default no Dirichlet,
-    yet the shares check and the point masses need the categories of both.
+def test_categories_reads_a_point_default() -> None:
+    """A point default has no Dirichlet to read,
+    yet the shares check and the point masses need its categories.
     """
-    assert Hyperprior.categories('outcome') == ['none', 'scm']
     shares = point('outcome_type_shares', 'count')
     assert Hyperprior(outcome_type_shares=shares).outcome_type_shares == shares
 
