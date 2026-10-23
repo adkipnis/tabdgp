@@ -174,15 +174,16 @@ def _orderNodes(
     # a column's position is independent of its place in the graph
     permuted = rng.permutation(covariates)  # (d,)
     observed = permuted.tolist()
-    latent_unit = _sampleUnits(resolved, len(factors), latent_nodes, rng)  # (v − f − d,)
+    latent_unit = _sampleUnits(resolved, len(factors), latent_nodes, rng)  # (latent_nodes,)
     # sorted, so that z0, z1, … follow the order
     latent_unit = np.sort(latent_unit)
     observed_unit = _sampleUnits(resolved, len(factors), len(observed), rng)  # (d,)
     observed_columns = [columns[name] for name in observed]
     observed_unit = _keepEveryLevel(observed_unit, observed_columns, grouping)
     nodes = [f'z{i}' for i in range(latent_nodes)] + observed
-    unit_index = np.concatenate([latent_unit, observed_unit])  # (v − f,)
-    order = np.argsort(unit_index, kind='stable')  # (v − f,), latent before observed within a unit
+    unit_index = np.concatenate([latent_unit, observed_unit])  # (latent_nodes + d,)
+    # latent before observed within a unit
+    order = np.argsort(unit_index, kind='stable')  # (latent_nodes + d,)
     units = grouping.traceChain('row')
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
