@@ -1,4 +1,9 @@
-"""column.py defines the grouping factors, the column types and levels, and the column values.
+"""column.py defines the grouping factors, the column plan under the design-column budget
+with the outcome y outside it, and the column values.
+
+A column's values follow its node's ranks:
+one sorted sample or block of level codes per distinct node value,
+so the graph sets the dependence and the column its marginal.
 
 pipeline:
 ---------
