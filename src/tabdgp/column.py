@@ -25,7 +25,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
 
-MarginalType = Literal['continuous', 'count']  # their values are a marginal sample, not level codes
+MarginalType = Literal['continuous', 'count']
 ColumnType = Literal[MarginalType, 'binary', 'categorical', 'ordered']
 Role = Literal['covariate', 'grouping_factor', 'outcome']
 
