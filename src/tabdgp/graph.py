@@ -3,13 +3,13 @@
 pipeline:
 ---------
 the resolved hyperprior, the grouping and the observed columns
--> each node's unit                                                   _sampleUnits
--> names and units in topological order, the factors first, then the outcome   _orderNodes
--> edges: Cauchy node terms and a block bonus                         _sampleEdges
--> the edges a child may read                                         _maskEdges
--> each node's own field draws: family, scales, activation            _resolveNodes
--> each row-unit node's group share and group factor                  _resolveParts
--> the Graph                                                          connect
+-> each node's unit                                                            _sampleUnits
+-> names and units in topological order, the factors first, the outcome last   _orderNodes
+-> edges: Cauchy node terms and a block bonus                                  _sampleEdges
+-> the edges a child may read                                                  _maskEdges
+-> each node's own field draws: family, scales, activation                     _resolveNodes
+-> each row-unit node's group share and group factor                           _resolveParts
+-> the Graph                                                                   connect
 """
 
 from __future__ import annotations
@@ -34,14 +34,15 @@ Activation = Literal['tanh', 'relu', 'sin']
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Graph:
-    """Every node of a dataset in topological order (factors `g`, latent `z`, observed `x`, outcome `y`).
+    """Every node of a dataset in topological order
+    (factors `g`, latent `z`, observed `x`, outcome `y`).
 
     - A grouping factor comes first at its own unit: its values are its group codes.
     - Every other node is at a unit: the units in the factors' order,
       the row last, latent before observed within a unit.
       A node reads parents at its own unit or any unit superior to it,
       so a latent row-unit node may have an observed group-level parent.
-    - The outcome y (when present) comes last, i.e. no node reads it.
+    - The outcome y (when present) comes last at the row, i.e. no node reads it.
     - A root (a node without parents) is just its noise and draws no family or scale.
     - A linear node draws a noise scale.
     - An MLP node draws a noise scale, an activation and an init scale.
@@ -163,8 +164,8 @@ def _orderNodes(
     rng: np.random.Generator,
 ) -> tuple[list[str], list[str]]:
     """The names and units in topological order: the factors, then the other nodes
-    by unit in the factors' order and finally the row. Latents come before observed nodes,
-    and the outcome y comes last at the row level.
+    by unit in the factors' order and finally the row. Latents come before observed nodes
+    within a unit, and the outcome y comes last at the row.
     """
     factors = list(grouping.metadata)
     latent_nodes = resolved.latent_nodes
