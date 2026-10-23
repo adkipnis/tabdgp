@@ -71,7 +71,6 @@ y continuous row [0.76 0.62 0.93]
 Issues and pull requests are welcome; see
 [`CONTRIBUTING.md`](https://github.com/adkipnis/tabdgp/blob/main/CONTRIBUTING.md).
 
-
 ## License
 
 [Apache-2.0](https://github.com/adkipnis/tabdgp/blob/main/LICENSE).
