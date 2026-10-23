@@ -18,7 +18,6 @@ from tabdgp.column import Column, Grouping, apply, assign, plan
 from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, UniformInt
 from tests.fixtures.build import groupingOf, point
 
-TYPES = ['continuous', 'binary', 'categorical', 'ordered']
 ALPHA = {'level_alpha': 1.0}
 # one value per marginal parameter, for columns built by hand
 EXAMPLE = {
@@ -29,6 +28,7 @@ EXAMPLE = {
     'beta_b': 3.0,
     'mixture_gap': 2.0,
     'mixture_weight': 0.3,
+    'poisson_log_rate': 1.0,
 }
 
 
@@ -56,32 +56,32 @@ def test_levels_that_contradict_the_type_fail(type: str, levels: int | None) -> 
         Column(type=type, levels=levels)
 
 
-def test_a_marginal_on_a_discrete_column_fails() -> None:
-    """Only continuous columns are rank matched; a discrete column's values are its codes."""
-    with pytest.raises(ValidationError):
-        Column(type='binary', levels=2, marginal='lognormal')
+CONTRADICTING_MARGINALS = [
+    pytest.param(
+        {'type': 'binary', 'levels': 2, 'marginal': 'lognormal'},
+        id='a binary column with a marginal',
+    ),
+    pytest.param({'type': 'continuous'}, id='a continuous column without a marginal'),
+    pytest.param(
+        {'type': 'count', 'marginal': 'lognormal', 'parameters': {'lognormal_sigma': 0.5}},
+        id='a count with a continuous family',
+    ),
+    pytest.param(
+        {'type': 'continuous', 'marginal': 'poisson', 'parameters': {'poisson_log_rate': 1.0}},
+        id='a continuous column with the poisson marginal',
+    ),
+]
 
 
-def test_a_continuous_column_without_a_marginal_fails() -> None:
-    """Its parameters are its family's,
-    so a continuous column names the family it was drawn from.
-    """
-    with pytest.raises(ValidationError):
-        Column(type='continuous')
-
-
-def test_a_count_column_without_the_poisson_marginal_fails() -> None:
-    """A count's values are a Poisson sample; another family would give non-integers."""
-    with pytest.raises(ValidationError, match='marginal'):
-        Column(type='count', marginal='lognormal', parameters={'lognormal_sigma': 0.5})
-
-
-def test_the_poisson_marginal_on_a_continuous_column_fails() -> None:
-    """A continuous column chooses its family by marginal_shares, which has no poisson;
+@pytest.mark.parametrize('fields', CONTRADICTING_MARGINALS)
+def test_a_marginal_that_contradicts_the_type_fails(fields: dict) -> None:
+    """A discrete column's values are its codes.
+    A rank matched column's parameters are its family's, so it names one.
+    A count's family is poisson, a continuous column's one of marginal_shares, which has no poisson:
     a Poisson sample cast to float32 would be a count typed as continuous.
     """
     with pytest.raises(ValidationError, match='marginal'):
-        Column(type='continuous', marginal='poisson', parameters={'poisson_log_rate': 1.0})
+        Column(**fields)
 
 
 FOREIGN_PARAMETERS = [
@@ -398,7 +398,7 @@ def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     return plan(resolved, rng)
 
 
-@pytest.mark.parametrize('type', TYPES)
+@pytest.mark.parametrize('type', Hyperprior.categories('type_shares'))
 def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_corner(
     type: str,
 ) -> None:
@@ -607,13 +607,20 @@ def test_ordered_codes_are_monotone_in_the_values() -> None:
     assert all(_monotone(200, column, seed) for seed in range(20))
 
 
-def _continuous(family: str) -> Column:
-    """A continuous column of the family with its example parameters."""
+def _matched(family: str, parameters: dict[str, float]) -> Column:
+    """A column rank matched to the family: a count if poisson, else continuous."""
+    type = 'count' if family == 'poisson' else 'continuous'
+    return Column(type=type, marginal=family, parameters=parameters)
+
+
+def _example(family: str) -> Column:
+    """A column of the family with its example parameters."""
     parameters = {field: EXAMPLE[field] for field in MARGINAL_FIELDS[family]}
-    return Column(type='continuous', marginal=family, parameters=parameters)
+    return _matched(family, parameters)
 
 
-CONTINUOUS = [_continuous(family) for family in Hyperprior.categories('marginal_shares')]
+CONTINUOUS = [_example(family) for family in Hyperprior.categories('marginal_shares')]
+COUNT = _example('poisson')
 
 
 def _node(seed: int) -> np.ndarray:
@@ -641,8 +648,8 @@ def test_a_continuous_column_has_exactly_its_marginal_samples_values(column: Col
     assert not np.array_equal(values, other)
 
 
-@pytest.mark.parametrize('column', CONTINUOUS, ids=str)
-def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
+@pytest.mark.parametrize('column', [*CONTINUOUS, COUNT], ids=str)
+def test_a_rank_matched_column_has_the_nodes_ranks(column: Column) -> None:
     """Rank matching keeps the dependence the SCM built: read in the node's order, the column rises.
 
     Non-decreasing rather than increasing, since the zero-inflated sample has ties at 0.
@@ -654,21 +661,13 @@ def test_a_continuous_column_has_the_nodes_ranks(column: Column) -> None:
     assert np.ptp(values) > 0
 
 
-COUNT = Column(type='count', marginal='poisson', parameters={'poisson_log_rate': 1.0})
-
-
-def test_a_count_columns_values_are_non_negative_int64_at_the_nodes_ranks() -> None:
-    """A count is rank matched like a continuous column but keeps its integers.
-    Two nodes under one generator get the same Poisson sample, each in its own order.
+def test_a_count_column_has_exactly_its_poisson_samples_integers() -> None:
+    """A count is rank matched like a continuous column but keeps its integers:
+    two nodes under one generator get the same Poisson sample, each in its own order.
     """
-    node = _node(1)
-    values = _applyTo(node, COUNT, seed=0)
+    values = _applyTo(_node(1), COUNT, seed=0)
     other = _applyTo(_node(2), COUNT, seed=0)
-    in_node_order = values[np.argsort(node)]  # (n,)
     assert values.dtype == np.int64
-    assert values.min() >= 0
-    assert (np.diff(in_node_order) >= 0).all()
-    assert np.ptp(values) > 0
     np.testing.assert_array_equal(np.sort(values), np.sort(other))
 
 
@@ -734,12 +733,6 @@ def test_a_large_level_alpha_gives_even_level_counts() -> None:
     column = Column(type='ordered', levels=5, parameters={'level_alpha': 1e4})
     codes = _apply(1000, column, seed=0)
     np.testing.assert_allclose(np.bincount(codes), 200, atol=10)
-
-
-def _matched(family: str, parameters: dict[str, float]) -> Column:
-    """A column rank matched to the family: a count if poisson, else continuous."""
-    type = 'count' if family == 'poisson' else 'continuous'
-    return Column(type=type, marginal=family, parameters=parameters)
 
 
 def _fromDefaults(family: str, n: int, seed: int) -> np.ndarray:
