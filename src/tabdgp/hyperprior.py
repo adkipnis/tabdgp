@@ -328,7 +328,6 @@ class Hyperprior(BaseModel):
     beta_b: Positive = LogUniform(0.5, 5)
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
     mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
-    # log of a count's mean, below numpy's Poisson limit (about 43.7)
     poisson_log_rate: Annotated[Real, _within(le=40)] = Uniform(-1, 6)
 
     # outcome
@@ -339,9 +338,9 @@ class Hyperprior(BaseModel):
         'categorical': 0.05,
         'ordered': 0.05,
         'count': 0.1,
-    }  # the outcome's column type, one per dataset, so a point
-    outcome_max_levels: MaxLevels = 10  # y's k at most, a guess to be fitted
-    outcome_noise_scale: NonNegative = LogUniform(0.1, 3)  # y's, wider than noise_scale
+    }  # the outcome's column type
+    outcome_max_levels: MaxLevels = 10
+    outcome_noise_scale: NonNegative = LogUniform(0.1, 3)
 
     @classmethod
     def grouped(cls, **overrides: Any) -> Hyperprior:
