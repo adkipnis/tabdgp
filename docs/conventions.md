@@ -209,6 +209,8 @@ a model specification
   (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
 - Each test says in a sentence or two why it exists, unless obvious. Bind the object under test,
   then call it; small named helpers, not lambdas or repeated comprehensions.
+- Cases of one check are one parametrized table, each case's reason in its id, not one test
+  per case.
 - Names listed in two modules (a `Literal`, a catalog, a table's columns) are checked against
   each other by a test; the code checks nothing at import.
 - No coverage gate.
