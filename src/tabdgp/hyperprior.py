@@ -329,7 +329,8 @@ class Hyperprior(BaseModel):
     beta_b: Positive = LogUniform(0.5, 5)
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
     mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
-    poisson_log_rate: Real = Uniform(-1, 6)  # log of a count's mean
+    # log of a count's mean, below numpy's Poisson limit (about 43.7)
+    poisson_log_rate: Annotated[Real, _within(le=40)] = Uniform(-1, 6)
 
     # outcome
     outcome: Form | Simplex = 'scm'
