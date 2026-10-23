@@ -1,16 +1,16 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets
 ---
 
-# 0006 — The glmm form: metabeta's prior envelope as the glmm preset's defaults, the fit drawn jointly, no caps, the estimands returned
+# 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
 
 The outcome node's second form (ADR 0005) is a generalized linear mixed model
 (GLMM) on the design matrix, the datasets `metabeta.mixed` trains on and, with a deviation,
 the white-box misspecified ones. Grilled on 2026-10-22 with ADR 0005, the decision is: **the
-glmm form is reached through a preset, `Hyperprior.glmm()`, whose prior fields default to
-metabeta's prior envelope, as ADR 0004 made its size rules the grouped preset's defaults; the
+glmm form's prior fields default to metabeta's prior envelope, as ADR 0004 made its size rules
+the grouped preset's defaults (reached as `outcome_form='glmm'` on `grouped()`, ADR 0007); the
 parameters are drawn from the stated prior families exactly, with the scales of a dataset's
 blocks drawn jointly so that the fit is spread instead of capped; nothing is clipped,
 rerolled or rescaled after the draw; the dataset returns the estimands on both scales and
@@ -28,15 +28,17 @@ blocks at q = 2 and 3 of 18 above.
 
 ## Decisions
 
-- **The preset.** `Hyperprior.glmm()` is `grouped()` with `outcome_form = 'glmm'` and
-  `deviation_scale = 0`. metabeta calls `draw(seed, index, Hyperprior.glmm())` and passes no
-  override; a one-family corpus is `glmm(family_shares={'normal': 1})`, a study of that family.
-  The white-box misspecified study overrides `deviation_scale`.
+- **The form's defaults.** `outcome_form = 'glmm'` on `grouped()` is the form with `Glmm()`'s
+  defaults, `deviation_scale = 0` among them (ADR 0007 replaced `Hyperprior.glmm()`). metabeta
+  calls `draw(seed, index, Hyperprior.grouped(outcome_form='glmm'))` and passes nothing else;
+  a one-family corpus is `outcome_form=Glmm(family_shares={'normal': 1})`, a study of that
+  family. The white-box misspecified study overrides `deviation_scale`.
 - **The prior fields, the envelope.** `family_shares` over {normal, bernoulli, poisson},
   uniform, with canonical links; the families of metabeta's v1 (binomial, negative binomial,
-  Gamma, ordinal) are later entries. One `sd_family` token over {half_normal, half_student_t
-  with ν = 3, half_cauchy, exponential}, uniform, shared by the random-effect standard
-  deviations and the residual scale. `lkj_eta` uniform on {1, 2, 3, 4} when a factor's effects
+  Gamma, ordinal) are later entries. One `sd_family_shares` field over {half_normal,
+  half_student_t with ν = 3, half_cauchy, exponential}, uniform, chosen once per dataset and
+  shared by the random-effect standard deviations and the residual scale (a shares field, not
+  a token, ADR 0007). `lkj_eta` uniform on {1, 2, 3, 4} when a factor's effects
   are correlated, `correlated_share` 0.55 per factor with q_k ≥ 2 (the practice survey's share
   of models with slopes). The intercept's scale σ_0 `LogUniform(0.1, 10)`, the envelope.
 - **The fit drawn jointly.** Per dataset: `signal_share` r, a wide Beta; `predictor_sd` τ for
@@ -71,13 +73,14 @@ blocks at q = 2 and 3 of 18 above.
   "Endogenous but linear" is a study's override on `mechanism_shares`, not a field.
 - **The residual seam.** Each family is one class with `draw(rng, eta, scale)`, `scale` a
   per-row array (σ_ε broadcast to the rows today, per group or per row later), and the Normal
-  family's residual law a token field over {normal} today, {normal, student_t} later, so a
-  later residual quirk is one token or one array.
+  family's residual law a shares field, `residual_shares`, over {normal} today, {normal,
+  student_t} later, so a later residual quirk is one category or one array.
 - **The design matrix is coded here**, by `CONTEXT.md`'s definition: the intercept, continuous
   columns z-scored by the population sd over the n rows, binary 0/1, k − 1 dummies dropping the
   first level in the codes' order. MixedBench's contract and metabeta's schema code it too;
   either may import this coder once it exists.
-- **What the dataset returns**, on `Dataset.outcome` (None for the scm form): family, link, the
+- **What the dataset returns**, on `Dataset.outcome` (`GlmmOutcome`; the scm form returns a
+  container of its own since ADR 0007): family, link, the
   fixed and random term names per factor, the prior context (σ_β, σ_0, s_α per factor, s_ε, F,
   η, r, τ, φ), the parameters on the standardized scale as drawn (`beta` (d,), per factor
   `sd_alpha` (q_k,), `corr_alpha` (q_k, q_k), `alpha` (m_k, q_k), `sigma_eps`, the deviation
@@ -85,10 +88,11 @@ blocks at q = 2 and 3 of 18 above.
   parameters, analytic from these (β_raw,j = β_j / sd_j, the intercepts absorbing
   Σ β_j · mean_j / sd_j, Σ_k scaled by the diagonal): what a user fitting lme4 on the raw
   columns compares against.
-- **Modules.** `prior` owns the GLMM's priors: the fields over them, the joint scale draw, the
-  LKJ sampler and the parameter draw, nothing about columns; `outcome` owns the node: its forms,
-  the design matrix, η, the deviation, the families and links, and the container. `prior` is
-  imported by `outcome`, `outcome` by `draw`.
+- **Modules.** `prior` owns the GLMM's priors: the configs `Glm` and `Glmm` with the fields
+  over them (ADR 0007), the joint scale draw, the LKJ sampler and the parameter draw, nothing
+  about columns; `outcome` owns the node: its forms, the design matrix, η, the deviation, the
+  families and links, and the containers. `prior` is imported by `outcome`, `outcome` by
+  `draw`.
 
 ## Considered options
 
@@ -121,7 +125,7 @@ blocks at q = 2 and 3 of 18 above.
 ## Consequences
 
 - metabeta's `envelope.md`: rule 8's "q stays this package's" and its "q ≤ 4" give way to this
-  preset's default (6, in columns); the prior table cites this ADR; rule 9 names `glmm()`.
+  form's default (6, in columns); the prior table cites this ADR; rule 9 names the glmm form.
   mixed ADR 0003's consequence "log s log-uniform per block" becomes "jointly, so that the
   fit is spread"; the families, η and the envelope's range stand. Root ADR 0005's "until the
   node exists, `metabeta.mixed` draws its own parameters" closes: the family sampling, the
@@ -129,6 +133,6 @@ blocks at q = 2 and 3 of 18 above.
   in its network, its log-densities and its API.
 - The IMH correction's prior density reads the dataset's prior context; a corpus of one family
   is an override in metabeta's curriculum loop.
-- `hyperprior` gains the prior fields and the preset; `prior` and `outcome` are new modules;
-  `Dataset` gains `outcome`. The proofs stay on `grouped()`; `glmm()`'s covariates are
-  certified by the same proofs, its response never.
+- `prior` gains the prior fields as `Glm`'s and `Glmm`'s (ADR 0007); `prior` and `outcome` are
+  new modules; `Dataset` gains `outcome`. The proofs stay on `grouped()`; the glmm form's
+  covariates are certified by the same proofs, its response never.

@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form
+amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form; 2026-10-23, ADR 0007: a form is a model, `'glm'` and `'glmm'` the built-in models' names, no `Hyperprior.glmm()`
 ---
 
 # 0005 — The outcome node: one node, two forms, drawn by default in its scm form
@@ -10,9 +10,9 @@ The outcome joins the grouped SCM of #1 and #22. Grilled on
 2026-10-22 after a prior-art sweep of what the tabular priors give their target that a
 covariate node does not, the decision is: **the outcome is one node of the generating graph,
 role `outcome`, name `y`, at the row unit and last in order, so a sink; a field,
-`outcome_form`, sets its form: `scm`, a node like the others, or `glmm`, a likelihood on the design
-matrix (ADR 0006); `grouped()` and `flat()` draw the scm form by default, and the proofs certify
-it.** The words are `CONTEXT.md`'s: outcome node, form, deviation, count, marginal, post-hoc
+`outcome_form`, sets its form: `scm`, a node like the others, or a model, `glm` and `glmm` a
+likelihood on the design matrix (ADRs 0006 and 0007); `grouped()` and `flat()` draw the scm form
+by default, and the proofs certify it.** The words are `CONTEXT.md`'s: outcome node, form, deviation, count, marginal, post-hoc
 type, group share.
 
 The sweep (TabPFN v1–3, TabICL v1–2, O'Prior, SurvivalPFN, SurvPFN, Do-PFN, scamd): the tabular
@@ -30,10 +30,10 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
   `latent_nodes`, and in the glmm form the deviation of ADR 0006), a mechanism and, in a
   grouped table, a group share and a group factor like any row-unit node. Every registry row
   has a response, so a matched table has one: `grouped()` and `flat()` draw the scm form,
-  `outcome_form = 'none'` is a study's override, `Hyperprior.glmm()` the preset of the glmm form.
-  The field is a point, `'none'`, `'scm'` or `'glmm'`, and an override replaces it by another
-  point, never by shares, since a dataset of each form returns different things and no corpus
-  mixes them.
+  `outcome_form = 'none'` is a study's override, `'glm'` and `'glmm'` the model-based forms
+  (ADR 0007). The field is a point, `'none'`, `'scm'`, `'glm'`, `'glmm'` or a model, and an
+  override replaces it by another point, never by shares, since a dataset of each form returns
+  different things and no corpus mixes them.
 - **A sink at the row.** y is last in the node order and no node reads it: TabICL's y-as-node,
   where x may descend from y, is not taken over, since a GLMM's covariates are causes or
   correlates of its outcome, never its effects. The outcome is drawn once per row; a
