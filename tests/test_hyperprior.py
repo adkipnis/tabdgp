@@ -83,7 +83,7 @@ NOT_A_FORM = [
 
 
 @pytest.mark.parametrize('outcome', NOT_A_FORM)
-def test_glmm_a_misspelled_form_and_shares_over_forms_fail_at_construction(
+def test_an_outcome_other_than_none_or_scm_fails_at_construction(
     outcome: str | dict | Dirichlet,
 ) -> None:
     """glmm is no form until its preset exists, and a dataset of each form returns different things,
@@ -328,6 +328,7 @@ OUT_OF_RANGE = [
     pytest.param({'zero_share': 1.0}, id='a point on an open bound'),
     pytest.param({'student_df': Uniform(-1, 5)}, id='a support across zero for a positive field'),
     pytest.param({'max_levels': 2}, id='a cap that leaves no categorical'),
+    pytest.param({'outcome_max_levels': 2}, id="a cap on y's k that leaves no categorical"),
     pytest.param({'factors': -1}, id='a negative number of factors'),
     pytest.param({'groups': 1}, id='a factor of one group'),
     pytest.param({'size_alpha': 0.0}, id='a zero concentration of the group sizes'),
