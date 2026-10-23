@@ -99,10 +99,11 @@ class Graph:
         if ranks != sorted(ranks):
             raise ValueError(f'the units {self.unit[f:]} are not in the order {units}')
         # check that the outcome, when present, is last, so that no node reads it, and at the row
-        if 'y' in self.names and self.names[-1] != 'y':
-            raise ValueError(f'the outcome y is not last in {self.names}')
-        if 'y' in self.names and self.unit[-1] != 'row':
-            raise ValueError(f'the outcome y is at the unit {self.unit[-1]}, not the row')
+        if 'y' in self.names:
+            if self.names[-1] != 'y':
+                raise ValueError(f'the outcome y is not last in {self.names}')
+            if self.unit[-1] != 'row':
+                raise ValueError(f'the outcome y is at the unit {self.unit[-1]}, not the row')
         # check that each node holds a value for the fields it draws
         root = ~self.parents.any(axis=1)  # (v,)
         not_mlp = np.array([family != 'mlp' for family in self.mechanism])  # (v,)
