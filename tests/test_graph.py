@@ -640,7 +640,8 @@ ONE_FACTOR = groupingOf([[0, 0, 1, 1]])
 
 
 def test_connect_without_y_is_spec_22s_graph() -> None:
-    """A plan without y, under outcome = 'none', keeps the dataset its key drew before the outcome.
+    """A plan without y, under outcome_form = 'none',
+    keeps the dataset its key drew before the outcome.
     The literals are spec #22's graph for this key.
     """
     graph = _connect(2, 3, ONE_FACTOR, latent_nodes=1, group_level_share=0.5)

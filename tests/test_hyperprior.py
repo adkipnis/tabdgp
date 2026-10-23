@@ -52,7 +52,7 @@ def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
 
 
 OUTCOME_DEFAULTS = {
-    'outcome': 'scm',
+    'outcome_form': 'scm',
     'outcome_type_shares': {
         'continuous': 0.6,
         'binary': 0.2,
@@ -82,15 +82,15 @@ NOT_A_FORM = [
 ]
 
 
-@pytest.mark.parametrize('outcome', NOT_A_FORM)
-def test_an_outcome_other_than_none_or_scm_fails_at_construction(
-    outcome: str | dict | Dirichlet,
+@pytest.mark.parametrize('form', NOT_A_FORM)
+def test_a_form_other_than_none_or_scm_fails_at_construction(
+    form: str | dict | Dirichlet,
 ) -> None:
     """glmm is no form until its preset exists, and a dataset of each form returns different things,
     so no corpus mixes them: each fails where it is written, like a typo, not at a draw.
     """
     with pytest.raises(ValidationError):
-        Hyperprior(outcome=outcome)
+        Hyperprior(outcome_form=form)
 
 
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:

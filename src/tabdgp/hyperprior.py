@@ -331,7 +331,7 @@ class Hyperprior(BaseModel):
     poisson_log_rate: Annotated[Real, _within(le=40)] = Uniform(-1, 6)
 
     # outcome
-    outcome: OutcomeForm = 'scm'
+    outcome_form: OutcomeForm = 'scm'
     outcome_type_shares: Simplex = {
         'continuous': 0.6,
         'binary': 0.2,

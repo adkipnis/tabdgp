@@ -122,7 +122,7 @@ def test_y_is_the_last_column_and_the_last_node_with_role_outcome_under_grouped_
 def test_outcome_none_gives_no_y() -> None:
     """A covariate-only table, item 2's, is one override."""
     for index in range(20):
-        dataset = draw(0, index, Hyperprior.grouped(outcome='none'))
+        dataset = draw(0, index, Hyperprior.grouped(outcome_form='none'))
         assert 'y' not in dataset.columns
         assert 'y' not in dataset.metadata
         assert 'y' not in dataset.graph.names
@@ -266,7 +266,7 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
-        outcome='scm' if with_y else 'none',
+        outcome_form='scm' if with_y else 'none',
         outcome_type_shares=point('outcome_type_shares', outcome_type),
         poisson_log_rate=2.0,
     )
@@ -324,7 +324,7 @@ def test_every_override_is_honored(
         2.0,
         group_share,
     )
-    assert (resolved.outcome, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
+    assert (resolved.outcome_form, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
         'scm' if with_y else 'none',
         0.5,
         2.0,
@@ -334,7 +334,7 @@ def test_every_override_is_honored(
 def test_a_distribution_override_is_honored() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
-        hyperprior = Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1, outcome='none')
+        hyperprior = Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1, outcome_form='none')
         dataset = draw(0, index, hyperprior)
         [values] = dataset.columns.values()
         assert 30 <= len(values) <= 40
@@ -343,7 +343,7 @@ def test_a_distribution_override_is_honored() -> None:
 def test_a_budget_of_0_gives_no_columns() -> None:
     """metabeta's budget may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
-        hyperprior = Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50, outcome='none')
+        hyperprior = Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50, outcome_form='none')
         dataset = draw(0, index, hyperprior)
         assert dataset.columns == {}
         assert dataset.metadata == {}
@@ -400,7 +400,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
             type_shares=point('type_shares', type),
             max_levels=3,
             level_alpha=5.0,
-            outcome='none',
+            outcome_form='none',
             **SURE_EDGE,
         )
         for index in range(10):

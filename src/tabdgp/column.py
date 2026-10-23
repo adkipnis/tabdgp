@@ -202,7 +202,7 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
         column = _resolveColumn(type, 'covariate', remainder + 1, resolved, rng)
         columns[f'x{len(columns)}'] = column
         remainder -= column.design_columns
-    if resolved.outcome == 'scm':
+    if resolved.outcome_form == 'scm':
         type = resolved.outcome_type_shares.choose(rng)
         columns['y'] = _resolveColumn(type, 'outcome', resolved.outcome_max_levels, resolved, rng)
     return columns
