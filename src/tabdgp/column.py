@@ -1,9 +1,7 @@
-"""column.py defines the grouping factors, the column layout under the design-column budget
-with the outcome y outside it, and the column values.
+"""column.py defines the grouping factors, the column plan, and column values.
 
-A column's values follow its node's ranks:
-one sorted sample or block of level codes per distinct node value,
-so the graph sets the dependence and the column its marginal.
+A column's values are sampled from its marginal distribution; only the dependency
+structure between columns carries over from the SCM by rank-matching (like in Copulas).
 
 pipeline:
 ---------
