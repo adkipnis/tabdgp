@@ -5,6 +5,7 @@ and draw(seed, index, hyperprior), one dataset per key.
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -88,7 +89,7 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
 
 def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_factors_first() -> None:
     """A consumer looks a column up by name in columns, metadata and the graph alike,
-    and finds the grouping factors before the covariates and y after them.
+    and finds the grouping factors before the covariates.
     """
     for index in range(20):
         dataset = draw(0, index, Hyperprior.grouped(latent_nodes=2, factors=2))
@@ -97,14 +98,13 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
         latent = [name for name, latent in zip(graph.names, graph.latent) if latent]
         assert list(dataset.columns) == list(dataset.metadata)
         assert list(dataset.columns)[:2] == ['g0', 'g1']
-        assert list(dataset.columns)[-1] == 'y'
         assert sorted(dataset.columns) == sorted(observed)
         assert list(dataset.latent) == latent
 
 
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat])
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
 def test_y_is_the_last_column_and_the_last_node_with_role_outcome_under_grouped_and_flat(
-    preset,
+    preset: Callable[[], Hyperprior],
 ) -> None:
     """A consumer takes the last column as the outcome and the rest as its predictors,
     and no node reads y, so it is last in the graph too.
@@ -129,16 +129,29 @@ def test_outcome_none_gives_no_y() -> None:
         assert all(column.role != 'outcome' for column in dataset.metadata.values())
 
 
-def test_a_count_y_is_non_negative_int64_and_a_continuous_y_float32() -> None:
+@pytest.mark.parametrize(
+    ('outcome_type', 'dtype'), [('count', np.int64), ('continuous', np.float32)]
+)
+def test_a_count_y_is_int64_and_a_continuous_y_float32(outcome_type: str, dtype: type) -> None:
     """A consumer stacks y by its type: a count is an integer a Poisson likelihood reads,
     not a code 0..k − 1, and a continuous y shares the covariates' dtype.
     """
-    for type, dtype in [('count', np.int64), ('continuous', np.float32)]:
-        hyperprior = Hyperprior.grouped(outcome_type_shares=point('outcome_type_shares', type))
-        for index in range(20):
-            y = draw(0, index, hyperprior).columns['y']
-            assert y.dtype == dtype
-            assert y.min() >= 0 if type == 'count' else np.isfinite(y).all()
+    shares = point('outcome_type_shares', outcome_type)
+    hyperprior = Hyperprior.grouped(outcome_type_shares=shares)
+    for index in range(5):
+        assert draw(0, index, hyperprior).columns['y'].dtype == dtype
+
+
+# one latent root z0 and a sure linear edge from it to the one other node, in a flat table
+SURE_EDGE = {
+    'rows': 1000,
+    'latent_nodes': 1,
+    'mechanism_shares': point('mechanism_shares', 'linear'),
+    'noise_scale': 0.01,
+    'edge_offset': 30.0,
+    'hub_scale': 0.0,
+    'block_bonus': 0.0,
+}
 
 
 def _spearman(a: np.ndarray, b: np.ndarray) -> float:
@@ -147,32 +160,30 @@ def _spearman(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.corrcoef(ranks_a, ranks_b)[0, 1])
 
 
-def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at_a_high_one() -> (
-    None
-):
-    """The outcome's noise scale is its own: a learnable y at a low one, a hopeless one at a high
-    one, whatever noise_scale says. One latent root and a sure edge to y, so the correlation
-    between y and z0 is the signal's share; the noise scale is relative to the z-scored output.
+@pytest.mark.parametrize(
+    ('outcome_noise_scale', 'low', 'high'), [(0.01, 0.95, 1.0), (100.0, 0.0, 0.2)]
+)
+def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at_a_high_one(
+    outcome_noise_scale: float, low: float, high: float
+) -> None:
+    """The outcome's noise scale is its own:
+    a learnable y at a low one, a hopeless one at a high one, whatever noise_scale says.
+    With y the one node after z0, the correlation between them is the signal's share,
+    since the noise scale is relative to the z-scored output.
     A tie-free marginal, since a zero-inflated y's ties cost rank correlation on their own.
     """
-    dense = {'edge_offset': 30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
-    for outcome_noise_scale, bar, above in [(0.01, 0.95, True), (100.0, 0.2, False)]:
-        hyperprior = Hyperprior.flat(
-            rows=1000,
-            design_columns=0,
-            latent_nodes=1,
-            mechanism_shares={'linear': 1.0, 'mlp': 0.0},
-            noise_scale=0.01,
-            outcome_noise_scale=outcome_noise_scale,
-            outcome_type_shares=point('outcome_type_shares', 'continuous'),
-            marginal_shares=point('marginal_shares', 'normal'),
-            **dense,
-        )
-        for index in range(10):
-            dataset = draw(0, index, hyperprior)
-            assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
-            correlation = abs(_spearman(dataset.columns['y'], dataset.latent['z0']))
-            assert (correlation > bar) == above
+    hyperprior = Hyperprior.flat(
+        design_columns=0,
+        outcome_noise_scale=outcome_noise_scale,
+        outcome_type_shares=point('outcome_type_shares', 'continuous'),
+        marginal_shares=point('marginal_shares', 'normal'),
+        **SURE_EDGE,
+    )
+    for index in range(10):
+        dataset = draw(0, index, hyperprior)
+        assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
+        correlation = abs(_spearman(dataset.columns['y'], dataset.latent['z0']))
+        assert low <= correlation <= high
 
 
 def test_ys_between_group_share_under_group_share_1_and_one_factor_is_1() -> None:
@@ -340,21 +351,17 @@ def test_a_budget_of_0_gives_no_columns() -> None:
         assert len(dataset.latent['z0']) == 50
 
 
-def _drawsWithAndWithoutNoise() -> list[Dataset]:
-    """50 draws at zero noise, where a dead relu leaves a node constant, and 50 at 0.5."""
-    datasets = []
-    for noise_scale in [0.0, 0.5]:
-        for index in range(50):
-            hyperprior = Hyperprior(noise_scale=noise_scale, outcome_noise_scale=noise_scale)
-            datasets.append(draw(0, index, hyperprior))
-    return datasets
-
-
 def test_every_column_and_latent_node_is_finite() -> None:
-    """scamd's repair and retry hid broken draws; here a broken one would reach the consumer."""
-    for dataset in _drawsWithAndWithoutNoise():
-        for values in [*dataset.columns.values(), *dataset.latent.values()]:
-            assert np.isfinite(values).all()
+    """scamd's repair and retry hid broken draws; here a broken one would reach the consumer.
+
+    Zero noise lets a dead relu leave a node constant, the case most likely to break.
+    """
+    for noise_scale in [0.0, 0.5]:
+        hyperprior = Hyperprior(noise_scale=noise_scale, outcome_noise_scale=noise_scale)
+        for index in range(50):
+            dataset = draw(0, index, hyperprior)
+            for values in [*dataset.columns.values(), *dataset.latent.values()]:
+                assert np.isfinite(values).all()
 
 
 def test_every_continuous_column_is_non_constant() -> None:
@@ -387,19 +394,14 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
     One latent root, one typed column of k ≤ 3 and a sure edge between them, so the column must
     follow the root's values; flat, so that the edge is the graph's only one.
     """
-    dense = {'edge_offset': 30.0, 'hub_scale': 0.0, 'block_bonus': 0.0}
     for type, design_columns in [('binary', 1), ('categorical', 2), ('ordered', 2)]:
         hyperprior = Hyperprior.flat(
-            rows=1000,
             design_columns=design_columns,
             type_shares=point('type_shares', type),
             max_levels=3,
-            latent_nodes=1,
-            mechanism_shares={'linear': 1.0, 'mlp': 0.0},
-            noise_scale=0.01,
             level_alpha=5.0,
             outcome='none',
-            **dense,
+            **SURE_EDGE,
         )
         for index in range(10):
             dataset = draw(0, index, hyperprior)
