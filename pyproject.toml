@@ -1,6 +1,6 @@
 [project]
 name = "tabdgp"
-version = "0.2.0"
+version = "0.3.0"
 description = "A data-generating process for grouped and flat tables, to be matched to a registry of real tables"
 readme = "README.md"
 license = "Apache-2.0"
