@@ -201,6 +201,7 @@ PositiveCount = Annotated[Integer, _within(ge=1)]
 NonNegative = Annotated[Real, _within(ge=0)]
 Positive = Annotated[Real, _within(gt=0)]
 Share = Annotated[Real, _within(ge=0, le=1)]
+MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
 # =====================================================================================
@@ -212,7 +213,7 @@ class Hyperprior(BaseModel):
     """The hyperparameters of a dataset (grouped by when they're used).
 
     - Columns: a table has rows and typed columns.
-      A column is continuous or has levels (binary, categorical or ordered).
+      A column is continuous, a count or has levels (binary, categorical or ordered).
       A column with levels takes one of k levels in each row.
       Due to dummy-encoding, it takes k − 1 columns in the design matrix.
     - Grouping: a grouping factor assigns every row to one of its m groups.
@@ -283,7 +284,7 @@ class Hyperprior(BaseModel):
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
     )  # column types
     levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # k is 2 + Geometric(levels_p)
-    max_levels: Annotated[int, Field(ge=3)] | None = None  # optional upper bound for k
+    max_levels: MaxLevels | None = None  # optional upper bound for k
     level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
 
     # grouping
@@ -341,8 +342,8 @@ class Hyperprior(BaseModel):
         'ordered': 0.05,
         'count': 0.1,
     }  # the outcome's column type, one per dataset, so a point
-    outcome_max_levels: Annotated[int, Field(ge=3)] = 10  # y's k at most; a guess, to be fitted
-    outcome_noise_scale: NonNegative = LogUniform(0.1, 3)  # the outcome's noise_scale
+    outcome_max_levels: MaxLevels = 10  # y's k at most; a guess, to be fitted
+    outcome_noise_scale: NonNegative = LogUniform(0.1, 3)  # y's, wider than noise_scale
 
     @classmethod
     def grouped(cls, **overrides: Any) -> Hyperprior:
@@ -363,7 +364,7 @@ class Hyperprior(BaseModel):
     @field_validator(*SHARES, *TOKENS)
     @classmethod
     def _orderShares(cls, value: Simplex | str, info: ValidationInfo) -> Simplex | str:
-        """Puts the categories in the default order."""
+        """Puts a shares field's categories, or a token field's, in the default order."""
         if isinstance(value, str):
             return value  # a token's category, checked by its Literal
         categories = cls.categories(info.field_name)
