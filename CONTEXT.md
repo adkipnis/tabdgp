@@ -131,9 +131,10 @@ _Avoid_: rng, random state, seed alone
 
 **Dataset**:
 What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
-generating graph, the latent nodes' values, the hyperparameters every field resolved to except
-those each column or node draws for itself, and the key with the versions it reproduces under.
-Never padded, never a file.
+generating graph, the latent nodes' values, the outcome (the columns its form wrote and the
+form's truth), the hyperparameters every field resolved to except those each column, node or
+model draws for itself, and the key with the versions it reproduces under. Never padded, never
+a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
 **Hyperprior**:
@@ -144,9 +145,9 @@ proofs certify.
 _Avoid_: prior (the fitter's, over parameters), config unqualified, meta-distribution
 
 **Preset**:
-A named hyperprior for one kind of table, grouped, flat or glmm today, item response, survival
-or causal later: a choice of fields, never a new mechanism. Every draw starts from one; metabeta
-draws from the glmm preset, the grouped preset with the outcome node in its glmm form.
+A named hyperprior for one kind of table, grouped or flat today, item response, survival or
+causal later: a choice of fields, never a new mechanism. Every draw starts from one; metabeta
+draws from the grouped preset with the outcome node in its glmm form.
 _Avoid_: dataset type, kind, mode
 
 **Override**:
@@ -167,25 +168,39 @@ dataset has at most one.
 _Avoid_: target, label, response unqualified, dependent variable
 
 **Form**:
-How the outcome node draws y, one per dataset: `scm`, a node like the others with a marginal
-or a post-hoc type, matched to real responses; or `glmm`, a generalized linear mixed model on
-the design matrix, with a family, a link, fixed effects, random effects per grouping factor
-and, when asked for, a deviation, what metabeta trains on and what builds white-box
-misspecified datasets.
+How the outcome node turns its score into y, one per dataset: `scm`, a node like the others
+with a marginal or a post-hoc type, matched to real responses; or a model, `glm` and `glmm`
+the first two, a generalized linear (mixed) model on the design matrix, with a family, a
+link, fixed effects, random effects per grouping factor and, when asked for, a deviation, what
+metabeta trains on and what builds white-box misspecified datasets.
 _Avoid_: mode, kind, outcome type (its column type)
 
+**Model**:
+A form a study specifies: a function of the covariates and a generator that returns the
+columns it writes, their metadata and its truth. The GLM and the GLMM are TabDGP's own; a
+study passes its own (a Gaussian process, an MLP).
+_Avoid_: likelihood (one part of it), head, outcome function, target function
+
+**Score**:
+The outcome node's value in the SCM, its mechanism over its parents, latent ones included,
+plus its noise, z-scored: what every form turns into y. The scm form rank-matches it onto a
+marginal, a GLM or GLMM adds it to the linear predictor as the deviation, a model may ignore
+it. A real table has none.
+_Avoid_: latent outcome, y*, η (the linear predictor), f
+
 **Deviation**:
-The SCM mechanism over the outcome node's parents, latent ones included, added to a glmm
-form's linear predictor at a drawn scale, zero by default: what makes a dataset misspecified
-for every GLMM while its fixed and random effects stay the exact truth. A latent group-level
-parent in it is an endogeneity.
+The score added to a GLM's or GLMM's linear predictor at a drawn scale, zero by default: what
+makes a dataset misspecified for every GLMM while its fixed and random effects stay the exact
+truth. A latent group-level parent of the outcome node is an endogeneity. A table without an
+SCM has none.
 _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it), noise
 
 **Prior context**:
-The resolved hyperparameters of a glmm form's priors, recorded with the dataset: the scales
-and families its fixed effects, random-effect standard deviations and residual scale were
-drawn with, the correlation prior's shape, and the signal share and split that set the scales.
-What metabeta's posterior is conditioned on.
+The resolved hyperparameters of a GLM or GLMM form's priors, recorded with the dataset: the
+scales and families its fixed effects, random-effect standard deviations and residual scale
+were drawn with, the family chosen for the standard deviations and the residual law, the
+correlation prior's shape, and the signal share and split that set the scales. What
+metabeta's posterior is conditioned on.
 _Avoid_: hyperparameters unqualified (the hyperprior's), prior unqualified (the fitter's)
 
 **Random effect**:
