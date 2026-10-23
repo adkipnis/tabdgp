@@ -120,7 +120,7 @@ def test_y_is_the_last_column_and_the_last_node_with_role_outcome_under_grouped_
 
 
 def test_outcome_none_gives_no_y() -> None:
-    """A covariate-only table, item 2's, is one override."""
+    """A covariate-only table, spec #22's, is one override."""
     for index in range(20):
         dataset = draw(0, index, Hyperprior.grouped(outcome_form='none'))
         assert 'y' not in dataset.columns
@@ -161,7 +161,9 @@ def _spearman(a: np.ndarray, b: np.ndarray) -> float:
 
 
 @pytest.mark.parametrize(
-    ('outcome_noise_scale', 'low', 'high'), [(0.01, 0.95, 1.0), (100.0, 0.0, 0.2)]
+    ('outcome_noise_scale', 'low', 'high'),
+    [(0.01, 0.95, 1.0), (100.0, 0.0, 0.2)],
+    ids=['learnable', 'hopeless'],
 )
 def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at_a_high_one(
     outcome_noise_scale: float, low: float, high: float
@@ -184,22 +186,6 @@ def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at
         assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
         correlation = abs(_spearman(dataset.columns['y'], dataset.latent['z0']))
         assert low <= correlation <= high
-
-
-def test_ys_between_group_share_under_group_share_1_and_one_factor_is_1() -> None:
-    """y is a row-unit node like any other: at group share 1 its row part has weight 0,
-    so y is one value per group and group confounding reaches the outcome.
-    Continuous, since a coded y with more levels than groups stays at the row (ADR 0003).
-    """
-    hyperprior = Hyperprior.grouped(
-        rows=600,
-        factors=1,
-        group_share=1.0,
-        outcome_type_shares=point('outcome_type_shares', 'continuous'),
-    )
-    for index in range(20):
-        dataset = draw(0, index, hyperprior)
-        assert betweenShare(dataset.columns['y'], dataset.columns['g0']) > 0.999
 
 
 def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
@@ -550,16 +536,17 @@ def test_draw_without_a_hyperprior_fails() -> None:
         draw(0, 0)
 
 
-def test_group_share_1_gives_every_within_group_covariate_constant_within_its_groups() -> None:
+def test_group_share_1_gives_every_row_unit_column_constant_within_its_groups() -> None:
     """At share 1 the row part has weight 0, so a row-unit node is one value per group of its
     group factor; the column keeps its ties, so it is too, whatever its type.
+    y is one of them, so group confounding reaches the outcome.
     """
     hyperprior = Hyperprior.grouped(rows=600, factors=2, group_share=1.0, group_level_share=0.0)
     for index in range(20):
         dataset = draw(0, index, hyperprior)
         group_factor = dict(zip(dataset.graph.names, dataset.graph.group_factor))
         for name, column in dataset.metadata.items():
-            if column.role == 'covariate':
+            if column.role != 'grouping_factor':
                 codes = dataset.columns[group_factor[name]]
                 assert _isConstantWithinGroups(dataset.columns[name], codes)
         for name, values in dataset.latent.items():
