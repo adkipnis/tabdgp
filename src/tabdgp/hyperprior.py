@@ -1,8 +1,10 @@
 """hyperprior.py defines how every hyperparameter of the dataset is sampled.
 
 We save hyperparameters as fields of the Hyperprior class.
-- Each field (a size, the column types' shares, a noise scale) defaults to a distribution.
-- An override replaces it by a point or by another distribution, checked against the field's bounds.
+- Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
+  or to a point where one value serves every dataset (the outcome's form, its type shares).
+- An override replaces it by a point or, where the field's type allows, by another distribution,
+  checked against the field's bounds.
 - A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
 - A draw resolves every field to a point;
   the fields that shape a single column, node or grouping factor are resolved in a second step.
