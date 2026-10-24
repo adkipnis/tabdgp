@@ -17,6 +17,7 @@ from tabdgp.field import Beta, Dirichlet, LogUniform, LogUniformInt, Uniform, Un
 from tabdgp.graph import Activation, Graph, Mechanism
 from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tabdgp.mechanism import ACTIVATIONS
+from tabdgp.prior import Glm
 
 
 def test_the_defaults_validate() -> None:
@@ -78,36 +79,53 @@ MODELS = [
     pytest.param(_model, id='a function'),
     pytest.param(functools.partial(_model), id='a partial'),
     pytest.param(_CallableModel(), id='an object with __call__'),
+    pytest.param(Glm(signal_share=0.5), id="a glm config, TabDGP's own model"),
 ]
 
 
 @pytest.mark.parametrize('model', MODELS)
-def test_a_model_is_a_form(model: Callable[..., None]) -> None:
-    """A study passes its own model of the covariates as the form, in any callable shape;
-    it is checked at draw time, on what it returns.
+def test_a_model_is_a_form(model: Callable[..., None] | Glm) -> None:
+    """A study passes its own model of the covariates as the form, in any callable shape,
+    or a config of TabDGP's own with its fields overridden.
+    A study's model is checked at draw time, on what it returns.
     """
     assert Hyperprior(outcome_form=model).outcome_form is model
 
 
 NOT_A_FORM = [
-    pytest.param('glm', id='glm'),
     pytest.param('glmm', id='glmm'),
     pytest.param('SCM', id='a misspelled form'),
     pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
     pytest.param(Dirichlet({'none': 1, 'scm': 1}), id='a dirichlet'),
+    pytest.param({'signal_share': 0.5}, id="a dict of a glm's fields"),
+    pytest.param({}, id='an empty dict'),
 ]
 
 
 @pytest.mark.parametrize('form', NOT_A_FORM)
-def test_a_form_other_than_none_scm_or_a_model_fails_at_construction(
+def test_a_form_other_than_none_scm_glm_or_a_model_fails_at_construction(
     form: str | dict | Dirichlet,
 ) -> None:
-    """glm and glmm are no forms until #50 and #51 add their configs,
+    """glmm is no form until #51 adds its config,
     and a dataset of each form returns different things, so no corpus mixes them:
     each fails where it is written, like a typo, not at a draw.
+    A dict is not coerced into a Glm, whose fields a reader would then not see named.
     """
     with pytest.raises(ValidationError):
         Hyperprior(outcome_form=form)
+
+
+def test_glm_expands_to_its_default_config() -> None:
+    """A string names a built-in model's default config (ADR 0007),
+    and the hyperprior shows the object, so a dataset records which GLM drew it.
+    """
+    assert Hyperprior(outcome_form='glm').outcome_form == Glm()
+
+
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+def test_glm_passes_on_grouped_and_flat(preset: Callable[..., Hyperprior]) -> None:
+    """A GLM needs no grouping, and on grouped covariates it is the pooled truth."""
+    assert preset(outcome_form='glm').outcome_form == Glm()
 
 
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
@@ -162,10 +180,15 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
 
-def test_resolve_leaves_a_model_as_given() -> None:
-    """A model draws inside its own call, and the dataset's hyperparameters record it."""
-    resolved = Hyperprior(outcome_form=_model).resolveDataset(np.random.default_rng(0))
-    assert resolved.outcome_form is _model
+@pytest.mark.parametrize(
+    'model', [pytest.param(_model, id='a model'), pytest.param(Glm(), id='a config unresolved')]
+)
+def test_resolve_leaves_a_model_or_a_config_as_given(model: Callable[..., None] | Glm) -> None:
+    """A model draws inside its own call, a config resolves its fields there,
+    and the dataset's hyperparameters record it as given, its outcome the values.
+    """
+    resolved = Hyperprior(outcome_form=model).resolveDataset(np.random.default_rng(0))
+    assert resolved.outcome_form is model
 
 
 def test_a_design_columns_point_above_half_the_rows_fails_naming_the_field_and_its_bound() -> None:
