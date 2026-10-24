@@ -333,8 +333,12 @@ def _connect(
     with_y: bool = False,
     **overrides: object,
 ) -> Graph:
+    """A graph over a plan of continuous columns, with y planned under the scm form,
+    else without y unless the overrides name another form.
+    """
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolveDataset(rng)
+    form = {'outcome_form': 'scm' if with_y else 'none'}
+    resolved = Hyperprior(**form | overrides).resolveDataset(rng)
     columns = columnsOf(OBSERVED[:observed_nodes])
     if with_y:
         columns['y'] = Y
@@ -599,10 +603,17 @@ def test_the_observed_names_are_a_random_permutation_of_the_plan() -> None:
     assert len(orders) > 1
 
 
+def _model(covariates: object, rng: np.random.Generator) -> None:
+    """A model's signature; connect never calls it."""
+
+
 @pytest.mark.parametrize('grouping', [FLAT, GROUPING], ids=['flat', 'grouped'])
 def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) -> None:
-    """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
-    first, second = _connect(7, 9, grouping, with_y=True), _connect(7, 9, grouping, with_y=True)
+    """A key reproduces its dataset bitwise only if every step draws from the generator alone.
+    Under a model, so that y, which no column of the plan names, is drawn too.
+    """
+    first = _connect(7, 9, grouping, outcome_form=_model)
+    second = _connect(7, 9, grouping, outcome_form=_model)
     assert first.names == second.names
     assert np.array_equal(first.parents, second.parents)
     assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
@@ -685,6 +696,17 @@ def test_y_is_last_and_at_the_row_with_no_children_under_every_grouping(
     assert graph.names[-1] == 'y'
     assert graph.unit[-1] == 'row'
     assert not graph.parents[:, -1].any()
+
+
+def test_y_is_in_the_graph_under_a_model_without_a_planned_column_and_absent_under_none() -> None:
+    """A model writes y's column itself, so the plan holds none, but every form turns y's node
+    into y: the graph draws it like the scm form's, last at the row, with the outcome's noise.
+    """
+    model = _connect(0, 4, GROUPING, outcome_form=_model, outcome_noise_scale=2.0, **DENSE)
+    assert (model.names[-1], model.unit[-1], model.noise_scale[-1]) == ('y', 'row', 2.0)
+    assert model.group_factor[-1] in ['g0', 'g1', 'g2']
+    none = _connect(0, 4, GROUPING, outcome_form='none')
+    assert 'y' not in none.names
 
 
 def test_y_draws_outcome_noise_scale_and_the_other_nodes_noise_scale() -> None:
