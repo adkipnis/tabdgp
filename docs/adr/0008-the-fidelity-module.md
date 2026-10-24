@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-24
+amended: 2026-10-24, #58: the p-value counts the statistic among its null, (k + 1)/(B + 1); the ranks are scaled as (r − ½)/N; the band ends at observed values; sbi's c2st runs plain folds and accuracy on z-scores, so the recipe follows it, not copies it
 ---
 
 # 0008 — The fidelity module: how generated and registry summaries are compared
@@ -25,23 +26,26 @@ two-sample test, containment test, null, pairing.
   measurement pass's statistics mirrored on generated tables) is the caller's, decided in item
   3; the registry's files are read by the caller, so `src/` imports nothing downstream.
 - **The classifier.** scikit-learn's random forest at its defaults, 5 stratified folds, the
-  accuracy averaged over folds, as `sbi.utils.metrics.c2st` runs it; the forest and the folds
-  are seeded from the module's generator. One recipe, no classifier argument. The k-NN of the
-  notes is dropped: with the forest present its only merit was the missing dependency.
-  scikit-learn is an extra, `tabdgp[fidelity]`, imported inside `c2st`.
+  accuracy averaged over folds, after `sbi.utils.metrics.c2st`, which runs plain folds and
+  accuracy on z-scores; the forest and the folds are seeded from the module's generator. One
+  recipe, no classifier argument. The k-NN of the notes is dropped: with the forest present its
+  only merit was the missing dependency. scikit-learn is an extra, `tabdgp[fidelity]`, imported
+  inside `c2st`.
 - **The null.** Every accuracy and distance reads against a permutation null: the labels of
   the pooled sample are shuffled and the test rerun, 200 times by default, returning the
-  statistic, the null's values and the p-value, the share of the null at or above the statistic.
-  The bar is the caller's; the module sets none.
+  statistic, the null's values and the p-value, the share of the null at or above the statistic
+  with the statistic counted among it, (k + 1)/(B + 1), which is never 0 (Phipson and Smyth
+  2010). The bar is the caller's; the module sets none.
 - **The coding.** Each axis is ranked over both samples, tied values at their mean rank, scaled
-  to [0, 1], a missing value at −1 below every rank. A forest's trees are the same under any
-  monotone recoding, so the choice over sbi's z-scores only fixes the missing value's place and
-  keeps a heavy-tailed axis from setting a distance.
+  to (r − ½)/N over the N observed values, a missing value at −1 below every rank. A forest's
+  trees are the same under any monotone recoding, so the choice over sbi's z-scores only fixes
+  the missing value's place and keeps a heavy-tailed axis from setting a distance.
 - **The distance per axis.** Wasserstein-1 between the two samples' ranks: the area between
   their empirical distribution functions, bounded like Kolmogorov–Smirnov's largest gap and
   less noisy, since it integrates the whole gap. It says where a gap is; the band says how large.
 - **Containment.** The share of one sample's rows inside the other's band per axis, the band
-  the 1st to 99th percentile by default, and the share inside on every axis. Called twice it
+  the 1st to 99th percentile by default, its ends at the nearest observed values so that it
+  reads the same on ranks as on values, and the share inside on every axis. Called twice it
   gives recall (registry rows inside the generated band) and precision (generated rows inside
   the registry's band), the cost of widening.
 - **Sizes.** Any sizes; the score is balanced accuracy, so chance stays 0.5 while the generated
