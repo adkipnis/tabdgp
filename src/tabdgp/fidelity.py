@@ -70,11 +70,11 @@ def c2st(
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import StratifiedKFold, cross_val_score
 
-    def scoreForest(coded: np.ndarray, labels: np.ndarray) -> float:
+    def scoreForest(ranks: np.ndarray, labels: np.ndarray) -> float:
         forest = RandomForestClassifier(random_state=int(rng.integers(2**32)))
         folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=int(rng.integers(2**32)))
         scores = cross_val_score(
-            forest, coded, labels, cv=folds, scoring='balanced_accuracy', error_score='raise'
+            forest, ranks, labels, cv=folds, scoring='balanced_accuracy', error_score='raise'
         )
         return float(scores.mean())
 
@@ -89,32 +89,34 @@ def _drawNull(
     rng: np.random.Generator,
     permutations: int,
 ) -> tuple[float | np.ndarray, np.ndarray]:
-    """The score on shuffled labels; pooled codes stay unchanged."""
-    ranked, labels = _rankPooled(a, b)
-    statistic = score(ranked, labels)
-    null = np.empty((permutations, *np.shape(statistic)))
+    """The score on the samples' labels, and its null
+    (the score on shuffled labels, the ranks unchanged).
+    """
+    ranks, labels = _rankPooled(a, b)
+    statistic = score(ranks, labels)
+    null = np.empty((permutations, *np.shape(statistic)))  # (permutations,) or (permutations, p)
     for permutation in range(permutations):
         shuffled = rng.permutation(labels)
-        null[permutation] = score(ranked, shuffled)
+        null[permutation] = score(ranks, shuffled)
     return statistic, null
 
 
 def _rankPooled(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Ranks all values per axis by (r − 1/2)/N,
-    r is a value's rank among the N observed values of both samples.
-    Tied values share their average rank. Missingness is denoted with −1.
+    where r is a value's rank among the N observed values of both samples.
+    Tied values get their average rank. Missingness is denoted with −1.
     """
     pooled = np.concatenate([a, b])  # (s, p)
     labels = np.repeat([0, 1], [len(a), len(b)])  # (s,)
-    ranked = np.full(pooled.shape, -1.0)  # (s, p)
+    ranks = np.full(pooled.shape, -1.0)  # (s, p)
     for axis in range(pooled.shape[1]):
         observed = ~np.isnan(pooled[:, axis])
         values = pooled[observed, axis]
         ordered = np.sort(values)
         below = np.searchsorted(ordered, values, side='left')
-        above = np.searchsorted(ordered, values, side='right')
-        ranked[observed, axis] = (below + above) / 2 / len(values)
-    return ranked, labels
+        at_or_below = np.searchsorted(ordered, values, side='right')
+        ranks[observed, axis] = (below + at_or_below) / 2 / len(values)
+    return ranks, labels
 
 
 # -------------------------------------------------------------------------------------
@@ -125,24 +127,26 @@ def _rankPooled(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def distances(
     a: np.ndarray, b: np.ndarray, rng: np.random.Generator, permutations: int = 200
 ) -> tuple[Comparison, ...]:
-    """The Wasserstein-1 distance per axis between the two samples' codes, against its null."""
+    """The Wasserstein-1 distance per axis between two samples' ranks."""
     # the distances (p,) and their null (permutations, p)
     statistics, null = _drawNull(_measureWasserstein, a, b, rng, permutations)
     comparisons = []
     for statistic, axis_null in zip(statistics, null.T):
-        comparisons.append(Comparison(statistic=float(statistic), null=axis_null))
+        comparison = Comparison(statistic=float(statistic), null=axis_null)
+        comparisons.append(comparison)
     return tuple(comparisons)
 
 
-def _measureWasserstein(coded: np.ndarray, labels: np.ndarray) -> np.ndarray:
-    """The area between the two samples' empirical distribution functions, per axis."""
-    order = np.argsort(coded, axis=0)  # (s, p)
-    values = np.take_along_axis(coded, order, axis=0)  # (s, p)
+def _measureWasserstein(ranks: np.ndarray, labels: np.ndarray) -> np.ndarray:
+    """The area between two samples' empirical distribution functions (separately per axis)."""
+    order = np.argsort(ranks, axis=0)  # (s, p)
+    ordered_ranks = np.take_along_axis(ranks, order, axis=0)  # (s, p)
     ordered_labels = labels[order]  # (s, p)
     cdf_a = np.cumsum(ordered_labels == 0, axis=0) / np.sum(labels == 0)  # (s, p)
     cdf_b = np.cumsum(ordered_labels == 1, axis=0) / np.sum(labels == 1)  # (s, p)
-    gaps = np.diff(values, axis=0)  # (s − 1, p)
-    return np.sum(np.abs(cdf_a - cdf_b)[:-1] * gaps, axis=0)  # (p,)
+    delta = np.abs(cdf_a - cdf_b)[:-1]  # (s − 1, p)
+    gaps = np.diff(ordered_ranks, axis=0)  # (s − 1, p)
+    return np.sum(delta * gaps, axis=0)  # (p,)
 
 
 # -------------------------------------------------------------------------------------
@@ -153,16 +157,15 @@ def _measureWasserstein(coded: np.ndarray, labels: np.ndarray) -> np.ndarray:
 def containment(
     sample: np.ndarray, reference: np.ndarray, band: tuple[float, float] = (1, 99)
 ) -> Containment:
-    """The share of `sample`'s rows inside `reference`'s band, its percentiles `band` per axis.
-    With the registry as the sample it is the recall; swapped, the precision, the cost of widening.
+    """The share of `sample`'s rows inside `reference`'s percentile `band` per axis.
+    It reads as the precision if the registry is the `reference`, and as the recall otherwise.
     """
-    coded, labels = _rankPooled(sample, reference)
-    sample_codes = coded[labels == 0]  # (s, p)
-    reference_codes = coded[labels == 1]  # (s, p)
-    # the band ends at observed reference values, so a row inside on codes is inside on its values;
-    # a band interpolated between two codes would skip the sample's own codes between them
-    low, high = np.percentile(reference_codes, band, axis=0, method='nearest')  # (p,) each
-    inside = (low <= sample_codes) & (sample_codes <= high)  # (s, p)
+    ranks, labels = _rankPooled(sample, reference)
+    sample_ranks = ranks[labels == 0]  # (s, p)
+    reference_ranks = ranks[labels == 1]  # (s, p)
+    # the band ends at observed values, so ranks and raw values agree on which rows are inside
+    low, high = np.percentile(reference_ranks, band, axis=0, method='nearest')  # (p,)
+    inside = (low <= sample_ranks) & (sample_ranks <= high)  # (s, p)
     per_axis = inside.mean(axis=0)  # (p,)
     every_axis = float(inside.all(axis=1).mean())
     return Containment(per_axis=per_axis, every_axis=every_axis)
