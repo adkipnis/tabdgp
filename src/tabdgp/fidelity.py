@@ -163,7 +163,7 @@ def containment(
     ranks, labels = _rankPooled(sample, reference)
     sample_ranks = ranks[labels == 0]  # (s, p)
     reference_ranks = ranks[labels == 1]  # (s, p)
-    # the band ends at observed values, so ranks and raw values agree on which rows are inside
+    # the band ends at observed values ('nearest') -> ranks and raw values agree on which rows are inside
     low, high = np.percentile(reference_ranks, band, axis=0, method='nearest')  # (p,)
     inside = (low <= sample_ranks) & (sample_ranks <= high)  # (s, p)
     per_axis = inside.mean(axis=0)  # (p,)
