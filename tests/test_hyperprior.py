@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Callable
 from typing import get_args
 
@@ -64,7 +65,32 @@ def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Hyper
     assert defaults == OUTCOME_DEFAULTS
 
 
+def _model(covariates: object, rng: np.random.Generator) -> None:
+    """A model's signature; construction never calls it."""
+
+
+class _CallableModel:
+    def __call__(self, covariates: object, rng: np.random.Generator) -> None:
+        pass
+
+
+MODELS = [
+    pytest.param(_model, id='a function'),
+    pytest.param(functools.partial(_model), id='a partial'),
+    pytest.param(_CallableModel(), id='an object with __call__'),
+]
+
+
+@pytest.mark.parametrize('model', MODELS)
+def test_a_model_is_a_form(model: Callable[..., None]) -> None:
+    """A study passes its own model of the covariates as the form, in any callable shape;
+    it is checked at draw time, on what it returns.
+    """
+    assert Hyperprior(outcome_form=model).outcome_form is model
+
+
 NOT_A_FORM = [
+    pytest.param('glm', id='glm'),
     pytest.param('glmm', id='glmm'),
     pytest.param('SCM', id='a misspelled form'),
     pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
@@ -73,11 +99,12 @@ NOT_A_FORM = [
 
 
 @pytest.mark.parametrize('form', NOT_A_FORM)
-def test_a_form_other_than_none_or_scm_fails_at_construction(
+def test_a_form_other_than_none_scm_or_a_model_fails_at_construction(
     form: str | dict | Dirichlet,
 ) -> None:
-    """glmm is no form until its preset exists, and a dataset of each form returns different things,
-    so no corpus mixes them: each fails where it is written, like a typo, not at a draw.
+    """glm and glmm are no forms until #50 and #51 add their configs,
+    and a dataset of each form returns different things, so no corpus mixes them:
+    each fails where it is written, like a typo, not at a draw.
     """
     with pytest.raises(ValidationError):
         Hyperprior(outcome_form=form)
@@ -133,6 +160,12 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
     assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
     for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
         assert getattr(resolved, field) == getattr(hyperprior, field)
+
+
+def test_resolve_leaves_a_model_as_given() -> None:
+    """A model draws inside its own call, and the dataset's hyperparameters record it."""
+    resolved = Hyperprior(outcome_form=_model).resolveDataset(np.random.default_rng(0))
+    assert resolved.outcome_form is _model
 
 
 def test_a_design_columns_point_above_half_the_rows_fails_naming_the_field_and_its_bound() -> None:
