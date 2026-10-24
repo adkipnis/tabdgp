@@ -28,18 +28,15 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Comparison:
-    """A test's statistic on the two samples, and its null:
-    the statistic on the pooled rows with their sample labels shuffled.
-    """
+    """A test's statistic on two samples, and its permuted null."""
 
     statistic: float
     null: np.ndarray  # (permutations,)
 
     @property
     def p_value(self) -> float:
-        """The share of the null at or above the statistic, the statistic counted among it.
-        Counting it keeps the p-value above 0 and the test exact (Phipson and Smyth 2010,
-        https://doi.org/10.2202/1544-6115.1585).
+        """The share of the null at or above the statistic
+        (Phipson and Smyth 2010, https://doi.org/10.2202/1544-6115.1585).
         """
         above = int(np.sum(self.null >= self.statistic))
         return (above + 1) / (len(self.null) + 1)
@@ -64,21 +61,18 @@ class Containment:
 def c2st(
     a: np.ndarray, b: np.ndarray, rng: np.random.Generator, permutations: int = 200
 ) -> Comparison:
-    """A random forest's balanced accuracy at telling the two samples apart, against its null.
-    It follows sbi's c2st, a forest at scikit-learn's defaults over 5 folds
-    (https://github.com/sbi-dev/sbi/blob/main/sbi/utils/metrics.py),
-    but stratifies the folds and balances the accuracy, so chance stays 0.5 at unequal sizes,
-    and reads ranks instead of z-scores.
+    """A random forest's balanced classification accuracy of two sample sources.
+    It follows sbi's c2st (https://github.com/sbi-dev/sbi/blob/main/sbi/utils/metrics.py),
+    but stratifies the folds and balances the accuracy (so chance stays 0.5 at unequal sizes).
+    It also uses ranks instead of z-scores.
     """
-    # scikit-learn is the extra tabdgp[fidelity], needed only here
+    # sklearn is the extra tabdgp[fidelity]
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import StratifiedKFold, cross_val_score
 
     def scoreForest(coded: np.ndarray, labels: np.ndarray) -> float:
-        # the forest and the folds are seeded afresh on every run, so the null holds their noise
         forest = RandomForestClassifier(random_state=int(rng.integers(2**32)))
         folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=int(rng.integers(2**32)))
-        # a failing fold raises, where scikit-learn would score it NaN
         scores = cross_val_score(
             forest, coded, labels, cv=folds, scoring='balanced_accuracy', error_score='raise'
         )
@@ -95,35 +89,32 @@ def _drawNull(
     rng: np.random.Generator,
     permutations: int,
 ) -> tuple[float | np.ndarray, np.ndarray]:
-    """The score on the samples' labels, and its null:
-    the score on shuffled labels, `permutations` times, while the pooled codes stay as they are.
-    """
-    coded, labels = _rankPooled(a, b)
-    statistic = score(coded, labels)
-    null = np.empty((permutations, *np.shape(statistic)))  # (permutations,) or (permutations, p)
+    """The score on shuffled labels; pooled codes stay unchanged."""
+    ranked, labels = _rankPooled(a, b)
+    statistic = score(ranked, labels)
+    null = np.empty((permutations, *np.shape(statistic)))
     for permutation in range(permutations):
         shuffled = rng.permutation(labels)
-        null[permutation] = score(coded, shuffled)
+        null[permutation] = score(ranked, shuffled)
     return statistic, null
 
 
 def _rankPooled(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Codes each axis by (r − ½)/N,
-    r a value's rank among the N observed values of both samples.
-    Tied values share their average rank, and a missing value sits at −1, below every code.
+    """Ranks all values per axis by (r − 1/2)/N,
+    r is a value's rank among the N observed values of both samples.
+    Tied values share their average rank. Missingness is denoted with −1.
     """
     pooled = np.concatenate([a, b])  # (s, p)
     labels = np.repeat([0, 1], [len(a), len(b)])  # (s,)
-    coded = np.full(pooled.shape, -1.0)  # (s, p)
+    ranked = np.full(pooled.shape, -1.0)  # (s, p)
     for axis in range(pooled.shape[1]):
         observed = ~np.isnan(pooled[:, axis])
         values = pooled[observed, axis]
         ordered = np.sort(values)
         below = np.searchsorted(ordered, values, side='left')
-        through = np.searchsorted(ordered, values, side='right')
-        # r − ½ is the count of values below, ties counted half
-        coded[observed, axis] = (below + through) / 2 / len(values)
-    return coded, labels
+        above = np.searchsorted(ordered, values, side='right')
+        ranked[observed, axis] = (below + above) / 2 / len(values)
+    return ranked, labels
 
 
 # -------------------------------------------------------------------------------------
