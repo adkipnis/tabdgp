@@ -17,7 +17,8 @@ from hypothesis import strategies as st
 from tabdgp.column import Column
 from tabdgp.draw import Dataset, draw
 from tabdgp.hyperprior import Hyperprior, UniformInt
-from tabdgp.outcome import Covariates, Outcome, ScmOutcome
+from tabdgp.outcome import Covariates, GlmOutcome, Outcome, ScmOutcome, codeDesign
+from tabdgp.prior import Glm
 from tests.fixtures.build import betweenShare, graphOf, point
 
 
@@ -233,6 +234,71 @@ def test_the_datasets_outcome_form_records_the_model() -> None:
     assert dataset.hyperparameters.outcome_form is model
 
 
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_truth(
+    preset: Callable[..., Hyperprior],
+) -> None:
+    """A GLM corpus needs no grouping (flat), and on grouped covariates it is the pooled truth:
+    the factors' codes stay in the dataset but are no term, so a fitter's random-effect scale
+    should go to zero. One term per design column besides the intercept.
+    """
+    for index in range(10):
+        dataset = draw(0, index, preset(outcome_form='glm'))
+        outcome = dataset.outcome
+        assert type(outcome) is GlmOutcome
+        assert list(dataset.columns)[-1] == 'y'
+        assert dataset.graph.names[-1] == 'y'
+        assert outcome.columns['y'] is dataset.columns['y']
+        roles = [column.role for column in dataset.metadata.values()]
+        assert roles.count('grouping_factor') == dataset.hyperparameters.factors
+        assert len(outcome.fixed_terms) == 1 + dataset.hyperparameters.design_columns
+        assert list(outcome.context.scales) == ['fixed']
+
+
+GLM_FAMILIES = [
+    pytest.param('normal', 'continuous', np.float32, id='normal'),
+    pytest.param('bernoulli', 'binary', np.int64, id='bernoulli'),
+    pytest.param('poisson', 'count', np.int64, id='poisson'),
+]
+
+
+@pytest.mark.parametrize(('family', 'column_type', 'dtype'), GLM_FAMILIES)
+def test_glm_with_one_family_draws_that_family_only_and_ys_dtype_follows_it(
+    family: str, column_type: str, dtype: type
+) -> None:
+    """A corpus of one family is one override (ADR 0006),
+    and a consumer stacks y by its type: a Normal y float32, a Bernoulli y codes, a count int64.
+    """
+    hyperprior = Hyperprior.flat(
+        outcome_form=Glm(family_shares=point('family_shares', family, Glm))
+    )
+    for index in range(10):
+        dataset = draw(0, index, hyperprior)
+        assert dataset.outcome.family == family
+        assert dataset.metadata['y'].type == column_type
+        assert dataset.columns['y'].dtype == dtype
+
+
+def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squares_on_the_coded_columns() -> (
+    None
+):
+    """The truth refers to the design matrix a user fits on: least squares on the coded columns
+    returns beta. At r = 0.9999 and a half-normal F, σ_ε is about 0.01.
+    """
+    glm = Glm(
+        family_shares=point('family_shares', 'normal', Glm),
+        sd_family_shares=point('sd_family_shares', 'half_normal', Glm),
+        signal_share=0.9999,
+    )
+    hyperprior = Hyperprior.flat(rows=2000, outcome_form=glm)
+    for index in range(5):
+        dataset = draw(0, index, hyperprior)
+        design = codeDesign(dataset.columns, dataset.metadata, rows=2000)
+        y = dataset.columns['y'].astype(np.float64)  # (n,)
+        estimate, *_ = np.linalg.lstsq(design.matrix, y, rcond=None)
+        np.testing.assert_allclose(estimate, dataset.outcome.beta, atol=0.01)
+
+
 @pytest.mark.parametrize(
     ('outcome_type', 'dtype'), [('count', np.int64), ('continuous', np.float32)]
 )
@@ -303,6 +369,9 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     return column is not None and column.levels is not None and column.levels > min(groups)
 
 
+GLM_OVERRIDE = Glm(signal_share=0.5)
+
+
 @settings(max_examples=25, deadline=None)
 @given(
     rows=st.integers(1, 300),
@@ -315,7 +384,7 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     balanced=st.booleans(),
     group_level=st.booleans(),
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
-    with_y=st.booleans(),
+    form=st.sampled_from(['scm', 'none', GLM_OVERRIDE]),
     outcome_type=st.sampled_from(Hyperprior.categories('outcome_type_shares')),
 )
 def test_every_override_is_honored(
@@ -329,14 +398,15 @@ def test_every_override_is_honored(
     balanced: bool,
     group_level: bool,
     group_share: float,
-    with_y: bool,
+    form: str | Glm,
     outcome_type: str,
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
     The fields without a visible size are honored through hyperparameters, which must hold
     every point override as given, a field drawn per node through the graph, one drawn per
-    factor through the factor's column and the outcome's through y's column. A point groups
+    factor through the factor's column, the scm form's through y's column and a GLM's through
+    its outcome's context. A point groups
     cannot nest, so a chain draws its groups from a range below the point.
     """
     # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
@@ -356,7 +426,7 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
-        outcome_form='scm' if with_y else 'none',
+        outcome_form=form,
         outcome_type_shares=point('outcome_type_shares', outcome_type),
         poisson_log_rate=2.0,
     )
@@ -378,11 +448,13 @@ def test_every_override_is_honored(
         if column.role == 'covariate':
             assert column.levels is None or column.levels <= max_levels
     # the outcome's fields through y's column
-    assert ('y' in metadata) == with_y
-    if with_y:
+    assert ('y' in metadata) == (form != 'none')
+    if form == 'scm':
         assert metadata['y'].type == outcome_type
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
+    if form == GLM_OVERRIDE:
+        assert dataset.outcome.context.signal_share == 0.5
     # the per-node fields through the graph
     graph = dataset.graph
     for name, unit in zip(graph.names, graph.unit):
@@ -415,7 +487,7 @@ def test_every_override_is_honored(
         group_share,
     )
     assert (resolved.outcome_form, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
-        'scm' if with_y else 'none',
+        form,
         0.5,
         2.0,
     )
