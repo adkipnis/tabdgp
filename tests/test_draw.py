@@ -17,6 +17,7 @@ from hypothesis import strategies as st
 from tabdgp.column import Column
 from tabdgp.draw import Dataset, draw
 from tabdgp.hyperprior import Hyperprior, UniformInt
+from tabdgp.outcome import Covariates, Outcome, ScmOutcome
 from tests.fixtures.build import betweenShare, graphOf, point
 
 
@@ -24,11 +25,14 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
     """metabeta hands the columns to torch.from_numpy; a copy per draw would cost throughput."""
     values = np.zeros(5, dtype=np.float32)
     latent = np.ones(5, dtype=np.float32)
+    y = np.ones(5, dtype=np.float32)
+    y_column = Column(type='continuous', role='outcome')
     dataset = Dataset(
-        columns={'x0': values},
-        metadata={'x0': Column(type='continuous', marginal='normal')},
+        columns={'x0': values, 'y': y},
+        metadata={'x0': Column(type='continuous', marginal='normal'), 'y': y_column},
         graph=graphOf([[], []]),
         latent={'z0': latent},
+        outcome=Outcome(columns={'y': y}, metadata={'y': y_column}),
         hyperparameters=Hyperprior().resolveDataset(np.random.default_rng(0)),
         seed=0,
         index=0,
@@ -36,6 +40,7 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
         numpy_version='2.3.0',
     )
     assert dataset.columns['x0'] is values and dataset.latent['z0'] is latent
+    assert dataset.outcome.columns['y'] is y
 
 
 def _assertIdentical(a: Dataset, b: Dataset) -> None:
@@ -163,13 +168,69 @@ def test_y_is_the_last_column_and_the_last_node_with_role_outcome_under_grouped_
 
 
 def test_outcome_none_gives_no_y() -> None:
-    """A covariate-only table, spec #22's, is one override."""
+    """A covariate-only table, spec #22's, is one override, and it has no outcome to hold."""
     for index in range(20):
         dataset = draw(0, index, Hyperprior.grouped(outcome_form='none'))
+        assert dataset.outcome is None
         assert 'y' not in dataset.columns
         assert 'y' not in dataset.metadata
         assert 'y' not in dataset.graph.names
         assert all(column.role != 'outcome' for column in dataset.metadata.values())
+
+
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+def test_the_scm_form_returns_a_scm_outcome_whose_y_is_the_datasets_and_whose_score_is_z_scored(
+    preset: Callable[[], Hyperprior],
+) -> None:
+    """The scm form's truth is y's node before rank matching, z-scored over the rows like every
+    row-unit node; the dataset and its outcome hold one y, not two copies.
+    """
+    for index in range(10):
+        dataset = draw(0, index, preset())
+        outcome = dataset.outcome
+        assert isinstance(outcome, ScmOutcome)
+        assert outcome.columns['y'] is dataset.columns['y']
+        assert outcome.metadata['y'] is dataset.metadata['y']
+        assert outcome.score.dtype == np.float32
+        np.testing.assert_allclose(outcome.score.mean(), 0, atol=1e-5)
+        np.testing.assert_allclose(outcome.score.std(), 1, atol=1e-5)
+
+
+class _ScoreAsY:
+    """A model that keeps the covariates it was last called with and returns their score as y."""
+
+    def __call__(self, covariates: Covariates, rng: np.random.Generator) -> Outcome:
+        self.covariates = covariates
+        column = Column(type='continuous', role='outcome')
+        return Outcome(columns={'y': covariates.score}, metadata={'y': column})
+
+
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+def test_a_model_gets_the_covariates_the_grouping_and_the_score_and_its_y_is_the_last_column(
+    preset: Callable[..., Hyperprior],
+) -> None:
+    """A study's model reads every observed column but y, the grouping and the score,
+    each the dataset's own array, and its y joins the dataset after them, as the scm form's does.
+    """
+    model = _ScoreAsY()
+    for index in range(10):
+        dataset = draw(0, index, preset(outcome_form=model))
+        covariates = model.covariates
+        assert list(dataset.columns) == [*covariates.columns, 'y']
+        for name, values in covariates.columns.items():
+            assert dataset.columns[name] is values
+        for name, codes in covariates.grouping.codes.items():
+            assert dataset.columns[name] is codes
+        assert dataset.columns['y'] is covariates.score
+        assert dataset.metadata['y'].role == 'outcome'
+        assert dataset.graph.names[-1] == 'y'
+
+
+def test_the_datasets_outcome_form_records_the_model() -> None:
+    """A dataset names what drew it; a user's model is part of that, as the object passed."""
+    model = _ScoreAsY()
+    dataset = draw(0, 0, Hyperprior.grouped(outcome_form=model))
+    assert dataset.hyperparameters.outcome_form is model
 
 
 @pytest.mark.parametrize(
@@ -461,7 +522,9 @@ def test_every_array_has_length_n() -> None:
     for index in range(20):
         dataset = draw(0, index, hyperprior)
         assert 'y' in dataset.columns
-        for array in [*dataset.columns.values(), *dataset.latent.values()]:
+        outcome = dataset.outcome
+        arrays = [*dataset.columns.values(), *dataset.latent.values(), *outcome.columns.values()]
+        for array in [*arrays, outcome.score]:
             assert array.shape == (80,)
 
 
