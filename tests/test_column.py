@@ -61,7 +61,6 @@ CONTRADICTING_MARGINALS = [
         {'type': 'binary', 'levels': 2, 'marginal': 'lognormal'},
         id='a binary column with a marginal',
     ),
-    pytest.param({'type': 'continuous'}, id='a continuous column without a marginal'),
     pytest.param(
         {'type': 'count', 'marginal': 'lognormal', 'parameters': {'lognormal_sigma': 0.5}},
         id='a count with a continuous family',
@@ -75,8 +74,7 @@ CONTRADICTING_MARGINALS = [
 
 @pytest.mark.parametrize('fields', CONTRADICTING_MARGINALS)
 def test_a_marginal_that_contradicts_the_type_fails(fields: dict) -> None:
-    """A discrete column's values are its codes.
-    A rank matched column's parameters are its family's, so it names one.
+    """A discrete column's values are its codes, so it has no marginal.
     A count's family is poisson, a continuous column's one of marginal_shares, which has no poisson:
     a Poisson sample cast to float32 would be a count typed as continuous.
     """
@@ -93,7 +91,13 @@ FOREIGN_PARAMETERS = [
         {'lognormal_sigma': 1.0},
         id='a normal with a lognormal sigma',
     ),
-    pytest.param({'type': 'binary', 'levels': 2}, {}, id='a binary without its concentration'),
+    pytest.param({'type': 'binary', 'levels': 2}, {'beta_a': 2.0}, id='a binary with a beta shape'),
+    pytest.param(
+        {'type': 'continuous'}, {'lognormal_sigma': 1.0}, id='no marginal with a lognormal sigma'
+    ),
+    pytest.param(
+        {'type': 'continuous'}, {'level_alpha': 1.0}, id='a continuous column with a concentration'
+    ),
     pytest.param(
         {'type': 'categorical', 'levels': 3},
         {'level_alpha': 1.0, 'beta_a': 2.0},
@@ -110,9 +114,27 @@ FOREIGN_PARAMETERS = [
 
 @pytest.mark.parametrize(('fields', 'parameters'), FOREIGN_PARAMETERS)
 def test_parameters_other_than_the_columns_own_fail(fields: dict, parameters: dict) -> None:
-    """A missing value hides a draw; an extra one claims a draw that played no part."""
+    """A marginal's parameters are exactly its fields, a coded column's at most its concentration:
+    a missing value hides a draw; an extra one claims a draw that played no part.
+    """
     with pytest.raises(ValidationError):
         Column(**fields, parameters=parameters)
+
+
+BARE = [
+    pytest.param({'type': 'continuous'}, id='continuous'),
+    pytest.param({'type': 'count'}, id='count'),
+    pytest.param({'type': 'binary', 'levels': 2}, id='binary'),
+    pytest.param({'type': 'categorical', 'levels': 3}, id='categorical'),
+]
+
+
+@pytest.mark.parametrize('fields', BARE)
+def test_a_column_without_a_marginal_or_parameters_validates(fields: dict) -> None:
+    """A model writes y without a marginal, and a real table's columns come with none;
+    only a column plan draws carries a marginal or a level concentration.
+    """
+    Column(**fields)
 
 
 def test_an_unknown_marginal_family_fails_at_construction() -> None:
@@ -522,6 +544,16 @@ def test_a_point_override_gives_every_column_its_value() -> None:
         assert column.parameters == {'lognormal_sigma': 0.7}
 
 
+def test_plan_gives_every_column_its_marginal_or_level_alpha() -> None:
+    """apply reads them, and Column admits a column without either,
+    so the guarantee is the plan's: every column it draws, y included, carries its draws.
+    """
+    for seed in range(20):
+        for column in _plan(seed).values():
+            drawn = column.marginal is not None or 'level_alpha' in column.parameters
+            assert drawn
+
+
 def test_plan_names_its_columns_x0_to_x_d_minus_1() -> None:
     """The one home of the rule that plan column i is node x{i};
     every later step reads the names.
@@ -719,6 +751,12 @@ def test_tied_node_values_share_one_column_value(column: Column) -> None:
     assert len(np.unique(values)) <= 50
     for value in np.unique(node):
         assert len(np.unique(values[node == value])) == 1
+
+
+@pytest.mark.parametrize('column', [*CONTINUOUS, COUNT, *DISCRETE], ids=str)
+def test_apply_gives_each_column_its_dtype(column: Column) -> None:
+    """An outcome checks its arrays against Column.dtype, so the plan's columns must meet it."""
+    assert _apply(50, column, 0).dtype == column.dtype
 
 
 FLOORED = [
