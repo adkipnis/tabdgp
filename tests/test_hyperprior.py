@@ -298,6 +298,33 @@ def test_a_groups_range_too_narrow_for_the_longest_chain_fails_at_construction()
     Hyperprior(groups=UniformInt(2, 3), nested_share=0)
 
 
+def test_a_tuple_of_groups_fails_at_construction_unless_it_has_one_point_per_factor() -> None:
+    """A tuple pairs each factor with one count of a registry fit,
+    so a factor left without a point, or a point without a factor, would pair the wrong sizes.
+    A distribution of factors cannot match a tuple's length.
+    """
+    with pytest.raises(ValidationError, match='factors'):
+        Hyperprior(groups=(5, 30), factors=3, nested_share=0)
+    with pytest.raises(ValidationError, match='factors'):
+        Hyperprior(groups=(5, 30), nested_share=0)
+    Hyperprior(groups=(5, 30), factors=2, nested_share=0)
+    Hyperprior.flat(groups=())
+
+
+def test_a_tuple_of_groups_that_cannot_nest_fails_at_construction() -> None:
+    """Wherever a factor may nest in the one before it, it needs more groups than that one,
+    pair by pair along the tuple; crossed factors take any counts.
+    """
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=(30, 5), factors=2)
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=(5, 5), factors=2, nested_share=1)
+    with pytest.raises(ValidationError, match='nested_share'):
+        Hyperprior(groups=(5, 30, 10), factors=3)
+    Hyperprior(groups=(5, 30), factors=2)
+    Hyperprior(groups=(30, 5), factors=2, nested_share=0)
+
+
 @given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
 def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int) -> None:
     """A table has at least two rows per design column (metabeta's rule 8, n ≥ 2d)."""
@@ -331,6 +358,9 @@ OUT_OF_RANGE = [
     pytest.param({'outcome_max_levels': 2}, id="a cap on y's k that leaves no categorical"),
     pytest.param({'factors': -1}, id='a negative number of factors'),
     pytest.param({'groups': 1}, id='a factor of one group'),
+    pytest.param(
+        {'groups': (1, 5), 'factors': 2, 'nested_share': 0}, id='a factor of one group in a tuple'
+    ),
     pytest.param({'size_alpha': 0.0}, id='a zero concentration of the group sizes'),
     pytest.param({'balanced_share': 1.5}, id='a share above 1'),
     pytest.param({'group_share': Uniform(0, 2)}, id='a support above 1 for a share'),
