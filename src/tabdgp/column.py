@@ -23,7 +23,7 @@ import numpy as np
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 
 MarginalType = Literal['continuous', 'count']
 ColumnType = Literal[MarginalType, 'binary', 'categorical', 'ordered']
@@ -42,7 +42,7 @@ class Column:
     levels: int | None = None  # k
     role: Role = 'covariate'
     nests_in: str | None = None  # the superior grouping factor of a nested one
-    marginal: Family | None = None  # for continuous and count columns
+    marginal: Marginal | None = None  # for continuous and count columns
     parameters: dict[str, float] = Field(default_factory=dict)
 
     def __post_init__(self) -> None:
