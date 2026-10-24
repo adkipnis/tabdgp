@@ -4,7 +4,7 @@ pipeline:
 ---------
 the resolved hyperprior, the grouping and the observed columns
 -> each node's unit                                                            _sampleUnits
--> names and units in topological order, the factors first, the outcome last   _orderNodes
+-> names and units in topological order, the factors first, y last if drawn    _orderNodes
 -> edges: Cauchy node terms and a block bonus                                  _sampleEdges
 -> the edges a child may read                                                  _maskEdges
 -> each node's own field draws: family, scales, activation                     _resolveNodes
@@ -165,7 +165,7 @@ def _orderNodes(
 ) -> tuple[list[str], list[str]]:
     """The names and units in topological order: the factors, then the other nodes
     by unit in the factors' order and finally the row. Latents come before observed nodes
-    within a unit, and the outcome y comes last at the row.
+    within a unit, and the outcome y comes last at the row under every form but none.
     """
     factors = list(grouping.metadata)
     latent_nodes = resolved.latent_nodes
@@ -187,7 +187,8 @@ def _orderNodes(
     units = grouping.traceChain('row')
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
-    if 'y' in columns:
+    # every form but none turns y's node into y, whether or not the plan holds y's column
+    if resolved.outcome_form != 'none':
         names.append('y')
         unit.append('row')
     return names, unit
