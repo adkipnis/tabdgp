@@ -25,12 +25,18 @@ dependencies = [
 Repository = "https://github.com/adkipnis/tabdgp"
 Issues = "https://github.com/adkipnis/tabdgp/issues"
 
+[project.optional-dependencies]
+fidelity = [
+    "scikit-learn>=1.8,<2",
+]
+
 [dependency-groups]
 dev = [
     "pytest",
     "hypothesis",
     "ruff",
     "ipykernel",
+    "tabdgp[fidelity]",
 ]
 
 [build-system]
