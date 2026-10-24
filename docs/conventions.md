@@ -273,6 +273,7 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 | `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, the block bonus, each node's unit and the mask on edges out of its chain, the order (the grouping factors, then the units in the factors' order, the row last, latent before observed within a unit, the outcome last of all at the row), each node's family, activation and scales, the outcome's noise scale from its own field, a row-unit node's group share and group factor, and what the graph guarantees | mechanism, draw |
 | `mechanism` | how a node's values follow from its parents and its noise, at a unit: linear and MLP families, the parents read at the unit, relative noise, the z-score at the node's own unit, and a row-unit node's group part and row part mixed by its group share | draw |
 | `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, the grouping before the graph, nodes joined to columns by name, every column and latent node broadcast to the rows last, and what one draw returns, the grouping factors first and the outcome last | the package's `__init__` |
+| `fidelity` | how two samples of summary vectors are compared: pooled ranks (missing value coded as −1), the permutation null, random-forest C2ST, Wasserstein-1 distance over ranks per axis, containment bands | the caller, outside `src/` |
 
 ### Changing code
 
@@ -286,7 +287,9 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
   counts as one draw.
 - Letters of its own: `v` counts nodes, `f` grouping factors, `e` the elements of a unit, `c`
   a node's parents (its direct causes) and `u` distinct values.
-- One marker for a missing value: `None`, in a list of Python scalars, never NaN in an array.
+- One marker for a missing value in a dataset's columns: `None`, in a list of Python scalars,
+  never NaN in an array. A summary vector marks a missing statistic as NaN, since it is a float
+  array.
 
 ### Comments and docstrings
 

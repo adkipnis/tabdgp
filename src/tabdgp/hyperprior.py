@@ -19,6 +19,7 @@ the (optional) overrides
 -> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
    (a column, node or factor resolves its own fields later, by resolveField)
+-> a factor's groups (point or a draw)                   resolveGroups
 """
 
 from __future__ import annotations
@@ -287,7 +288,9 @@ class Hyperprior(BaseModel):
 
     # grouping
     factors: Count = UniformInt(1, 3)  # grouping factors; 0 is a flat table
-    groups: Annotated[Integer, _within(ge=2)] = LogUniformInt(2, 400)  # m per factor, at most n
+    groups: Annotated[Integer, _within(ge=2)] | tuple[Annotated[int, _within(ge=2)], ...] = (
+        LogUniformInt(2, 400)
+    )  # m per factor (at most n) or one point per factor
     balanced_share: Share = 1 / 3  # probability that a factor's groups are of equal size
     size_alpha: Positive = LogUniform(0.5, 500)  # Dirichlet concentration of unequal sizes
     nested_share: Share = Uniform(0.2, 0.6)  # probability that a factor nests in the previous one
@@ -374,9 +377,9 @@ class Hyperprior(BaseModel):
             raise ValueError(f'shares name {list(shares)}, not {categories}')
         return {name: shares[name] for name in categories}
 
-    def floorGroups(self, depth: int) -> int:
-        """The fewest groups a factor at this depth may have.
-        Each factor above it in its chain has fewer groups than the one below.
+    def _floorGroups(self, depth: int) -> int:
+        """The smallest number of groups a factor can have at this depth.
+        Each factor above it (in its chain) has fewer groups.
         """
         lowest, _ = self._support(self.groups)
         return lowest + depth
@@ -391,15 +394,34 @@ class Hyperprior(BaseModel):
         return value, value
 
     @model_validator(mode='after')
+    def _checkOnePointPerFactor(self) -> Hyperprior:
+        """Checks that a tuple of groups gives every factor one point."""
+        if isinstance(self.groups, tuple) and self.factors != len(self.groups):
+            raise ValueError(
+                f'groups = {self.groups} needs factors = {len(self.groups)}, not {self.factors}'
+            )
+        return self
+
+    @model_validator(mode='after')
     def _checkGroupsCanNest(self) -> Hyperprior:
         """Checks that groups has enough values for the longest chain the fields allow:
-        its bottom factor must reach its floor.
+        its bottom factor must reach its floor, and a tuple must rise from each point to the next.
         """
-        _, most_factors = self._support(self.factors)
         _, most_nested = self._support(self.nested_share)
+        if isinstance(self.groups, tuple):
+            # any factor may nest in the one before it, which then needs fewer groups
+            pairs = zip(self.groups, self.groups[1:])
+            rising = all(superior < subordinate for superior, subordinate in pairs)
+            if most_nested > 0 and not rising:
+                raise ValueError(
+                    f'groups = {self.groups} cannot nest each factor in the one before it: '
+                    'set nested_share = 0 or give each factor more groups than the one before it'
+                )
+            return self
+        _, most_factors = self._support(self.factors)
         longest = most_factors if most_nested > 0 else 1
         _, highest = self._support(self.groups)
-        if self.floorGroups(longest - 1) > highest:
+        if self._floorGroups(longest - 1) > highest:
             raise ValueError(
                 f'groups = {self.groups} cannot nest {longest} factors: set nested_share = 0, '
                 'fewer factors, or give groups a wider range'
@@ -434,3 +456,11 @@ class Hyperprior(BaseModel):
             else:
                 points[name] = self.resolveField(name, rng)
         return Hyperprior(**points)
+
+    def resolveGroups(self, factor: int, depth: int, rng: np.random.Generator, high: int) -> int:
+        """A factor's m: its own point of a tuple, else a draw from its depth's floor to high."""
+        if isinstance(self.groups, tuple):
+            groups = self.groups[factor]
+            self._checkBounds('groups', groups, None, high)
+            return groups
+        return self.resolveField('groups', rng, low=self._floorGroups(depth), high=high)

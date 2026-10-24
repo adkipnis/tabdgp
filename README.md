@@ -61,7 +61,8 @@ y continuous row [0.76 0.62 0.93]
 
 - **Model-based outcomes:** exact or with a drawn deviation for white-box misspecified datasets.
 - **Quirk axes:** group confounding, rare levels, ties, bounds, near dependence and more.
-- **Finetuning** the hyperprior's parameters to any batch of datasets.
+- **Finetuning** the hyperprior's parameters to any batch of datasets, scored by
+  `tabdgp.fidelity` (`tabdgp[fidelity]`).
   Group presets are tuned against [mixedbench](https://github.com/adkipnis/mixedbench).
 - **Within-group time and a binary treatment.**
 
