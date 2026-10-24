@@ -15,7 +15,7 @@ from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, apply, assign, plan
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, UniformInt
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal, UniformInt
 from tests.fixtures.build import groupingOf, point
 
 ALPHA = {'level_alpha': 1.0}
@@ -794,7 +794,7 @@ SUPPORTS = {
 }
 
 
-@pytest.mark.parametrize('family', get_args(Family))
+@pytest.mark.parametrize('family', get_args(Marginal))
 def test_each_familys_values_lie_in_its_support(family: str) -> None:
     """A bounded column stays bounded and every column is finite, over many drawn parameters.
 
