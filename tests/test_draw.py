@@ -4,6 +4,7 @@ and draw(seed, index, hyperprior), one dataset per key.
 
 from __future__ import annotations
 
+import hashlib
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -85,6 +86,48 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
     other_first = [draw(other_seed, index, grouped), draw(seed, index, grouped)][1]
     for dataset in [first_set, second_set, other_first]:
         _assertIdentical(alone, dataset)
+
+
+GRAPH_LISTS = [
+    'names',
+    'mechanism',
+    'activation',
+    'noise_scale',
+    'init_scale',
+    'unit',
+    'group_share',
+    'group_factor',
+]
+
+
+def _digest(datasets: list[Dataset]) -> str:
+    """A sha256 over the datasets' arrays in dtype and bytes, their metadata and their graphs."""
+    digest = hashlib.sha256()
+    for dataset in datasets:
+        for arrays in [dataset.columns, dataset.latent]:
+            for name, values in arrays.items():
+                digest.update(name.encode())
+                digest.update(values.dtype.str.encode())
+                digest.update(values.tobytes())
+        digest.update(repr(dataset.metadata).encode())
+        digest.update(dataset.graph.parents.tobytes())
+        digest.update(dataset.graph.latent.tobytes())
+        for field in GRAPH_LISTS:
+            digest.update(repr(getattr(dataset.graph, field)).encode())
+    return digest.hexdigest()
+
+
+def test_scm_and_none_draw_0_3_0s_bits() -> None:
+    """A refactor or a new form may not change a corpus the scm or none form drew under 0.3.0.
+    The digest holds for the numpy that uv.lock pins, as the README's quickstart does.
+    The resolved hyperparameters stay out: their repr is pydantic's.
+    """
+    presets = [Hyperprior.grouped(), Hyperprior.flat(), Hyperprior.grouped(outcome_form='none')]
+    datasets = []
+    for hyperprior in presets:
+        for index in range(5):
+            datasets.append(draw(3, index, hyperprior))
+    assert _digest(datasets) == 'b749a156036d5573f7430318ac8928eca50cc121b334e51c21ce7af78f1e5aff'
 
 
 def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_factors_first() -> None:
