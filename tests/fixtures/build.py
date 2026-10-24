@@ -1,5 +1,5 @@
 """Hand-built inputs the module tests share: point-mass shares, continuous columns by name,
-a grouping from code lists and a graph from parent lists.
+a grouping from code lists, covariates from both and a graph from parent lists.
 Also the between-group share the grouped tests measure.
 """
 
@@ -10,6 +10,7 @@ import numpy as np
 from tabdgp.column import Column, Grouping
 from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
+from tabdgp.outcome import Covariates
 
 
 def point(field: str, category: str) -> dict[str, float]:
@@ -46,6 +47,23 @@ def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None)
         )
         arrays[f'g{i}'] = np.array(codes_of_i, dtype=np.int64)  # (n,)
     return Grouping(metadata=metadata, codes=arrays)
+
+
+def covariatesOf(codes: list[list[int]], names: list[str]) -> Covariates:
+    """Covariates of a grouping from code lists and continuous columns of these names.
+    Each column and the score count the rows up from 0.
+    """
+    grouping = groupingOf(codes)
+    rows = len(codes[0])
+    columns = dict(grouping.codes)
+    for name in names:
+        columns[name] = np.arange(rows, dtype=np.float32)  # (n,)
+    return Covariates(
+        columns=columns,
+        metadata={**grouping.metadata, **columnsOf(names)},
+        grouping=grouping,
+        score=np.arange(rows, dtype=np.float32),
+    )
 
 
 def graphOf(
