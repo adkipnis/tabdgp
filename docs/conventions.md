@@ -286,7 +286,9 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
   counts as one draw.
 - Letters of its own: `v` counts nodes, `f` grouping factors, `e` the elements of a unit, `c`
   a node's parents (its direct causes) and `u` distinct values.
-- One marker for a missing value: `None`, in a list of Python scalars, never NaN in an array.
+- One marker for a missing value in a dataset's columns: `None`, in a list of Python scalars,
+  never NaN in an array. A summary vector marks a missing statistic as NaN, since it is a float
+  array.
 
 ### Comments and docstrings
 
