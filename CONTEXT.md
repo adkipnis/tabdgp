@@ -212,12 +212,28 @@ _Avoid_: group effect, b (an earlier letter), random intercept for a latent grou
 
 ### The proofs
 
+**Summary vector**:
+The per-dataset statistics the proofs compare generated and registry tables on, one row per
+dataset, a statistic the table cannot show (a second factor's ICC) marked missing.
+_Avoid_: features (the classifier's view of it), meta-features, embedding
+
 **Two-sample test**:
-A classifier two-sample test (C2ST) on the summary vector of generated and registry tables:
-the defaults pass when its accuracy stays below the bar.
+A classifier two-sample test (C2ST) on the summary vectors of generated and registry tables:
+how well a classifier tells the two apart, read against its null.
 _Avoid_: discriminator, realism score
 
+**Null**:
+What a test's statistic looks like when the two samples come from one distribution, drawn by
+permuting which sample each row belongs to; a statistic is read as its place in the null.
+_Avoid_: baseline, chance level unqualified, significance
+
 **Containment test**:
-The test that every registry row's summary vector lies inside the support of the generated
-ones.
-_Avoid_: coverage (the fitter's credible-interval property)
+The test that the registry rows' summary vectors lie inside the band of the generated ones,
+the generated 1st to 99th percentile per axis; the share inside on every axis is its number,
+and the generated rows inside the registry's band are the cost of widening.
+_Avoid_: coverage (the fitter's credible-interval property), support (the band is its estimate)
+
+**Pairing**:
+Drawing one generated dataset per registry fit at its sizes, rows, grouping factors and groups
+per factor, so that a two-sample test reads the prior's mismatch and not the sizes'.
+_Avoid_: matching (the hyperprior's fit to the registry), conditioning
