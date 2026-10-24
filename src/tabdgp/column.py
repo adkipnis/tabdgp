@@ -61,11 +61,12 @@ class Column:
             agree = self.levels is not None and self.levels >= fewest
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
-        # a count is poisson, a continuous column a family of marginal_shares, a coded one none
+        # a count is poisson, a continuous column a family of marginal_shares, a coded one none;
+        # a column no plan drew (a model's y, a real table's column) has none either
         if self.type == 'count':
-            agree = self.marginal == 'poisson'
+            agree = self.marginal in [None, 'poisson']
         elif self.type == 'continuous':
-            agree = self.marginal in Hyperprior.categories('marginal_shares')
+            agree = self.marginal in [None, *Hyperprior.categories('marginal_shares')]
         else:
             agree = self.marginal is None
         if not agree:
@@ -76,10 +77,17 @@ class Column:
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
         elif self.marginal is not None:
             own = MARGINAL_FIELDS[self.marginal]
+        elif self.levels is not None and 'level_alpha' in self.parameters:
+            own = ['level_alpha']  # a planned coded column's concentration
         else:
-            own = ['level_alpha']
+            own = []  # a column no plan drew
         if self.parameters.keys() != set(own):
             raise ValueError(f'a {self.type} column draws {own}, not {list(self.parameters)}')
+
+    @property
+    def dtype(self) -> type[np.generic]:
+        # a continuous column shares the covariates' float32, a count or codes are integers
+        return np.float32 if self.type == 'continuous' else np.int64
 
     @property
     def design_columns(self) -> int:
