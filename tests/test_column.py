@@ -392,6 +392,33 @@ def test_a_chain_fits_under_a_groups_range_that_starts_above_2() -> None:
         assert 10 <= levels[0] < levels[1] < levels[2]
 
 
+OWN_POINTS = [
+    pytest.param((5, 30), 1, [None, 'g0'], id='a chain, the superior factor first'),
+    pytest.param((30, 5), 0, [None, None], id='crossed factors in any order'),
+]
+
+
+@pytest.mark.parametrize(('groups', 'nested_share', 'nests_in'), OWN_POINTS)
+def test_a_tuple_of_groups_gives_each_factor_its_own_point(
+    groups: tuple[int, ...], nested_share: float, nests_in: list[str | None]
+) -> None:
+    """A registry fit with two factors has two group counts,
+    and a dataset paired to it draws each factor at its own.
+    """
+    grouping = _assign(0, rows=500, factors=2, groups=groups, nested_share=nested_share)
+    levels = [column.levels for column in grouping.metadata.values()]
+    assert levels == list(groups)
+    assert _nestsIn(grouping) == nests_in
+
+
+def test_a_tuples_point_above_the_rows_fails_naming_groups_and_the_bound() -> None:
+    """A tuple's point is honored exactly or not at all, like a point every factor shares:
+    30 balanced groups over 20 rows would leave ten of them empty.
+    """
+    with pytest.raises(ValueError, match=r'groups.*\b20\b'):
+        _assign(0, rows=20, factors=2, groups=(5, 30), nested_share=1, balanced_share=1)
+
+
 def test_assign_is_deterministic_under_a_fixed_generator() -> None:
     """A key reproduces its dataset bitwise only if the grouping draws from the generator alone."""
     first = _assign(7, factors=3)
