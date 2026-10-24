@@ -10,14 +10,17 @@ from tabdgp.field import (
     UniformInt,
 )
 from tabdgp.hyperprior import Hyperprior
+from tabdgp.outcome import Covariates, Outcome
 
 __all__ = [
     'Beta',
+    'Covariates',
     'Dataset',
     'Dirichlet',
     'Hyperprior',
     'LogUniform',
     'LogUniformInt',
+    'Outcome',
     'Uniform',
     'UniformInt',
     'draw',
