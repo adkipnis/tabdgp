@@ -141,8 +141,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     # bottom up, so that a superior factor splits the groups of the subordinate one nested in it
     for i in reversed(range(len(depths))):
         name = f'g{i}'
-        floor = resolved.floorGroups(depths[i])
-        groups = resolved.resolveField('groups', rng, low=floor, high=high)
+        groups = resolved.resolveGroups(i, depths[i], rng, high)
         sizes, parameters = _sampleSizes(elements, groups, resolved, rng)
         sorted_groups = np.repeat(np.arange(groups), sizes)  # (elements,)
         group_of = rng.permutation(sorted_groups)  # (elements,)
