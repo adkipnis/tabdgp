@@ -17,6 +17,7 @@ pipeline:
 the (optional) overrides
 -> a preset with the overrides                           grouped, flat
 -> validation at construction                            Hyperprior
+-> a built-in model's name expanded to its config        _expandForm
 -> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
    (a column, node or factor resolves its own fields later, by resolveField)
@@ -29,7 +30,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, ClassVar, Literal
 
 import numpy as np
-from pydantic import Field, model_validator
+from pydantic import Field, InstanceOf, field_validator, model_validator
 
 from tabdgp.field import (
     Beta,
@@ -49,6 +50,7 @@ from tabdgp.field import (
     UniformInt,
     within,
 )
+from tabdgp.prior import Glm
 
 MARGINAL_FIELDS = {
     'normal': [],
@@ -61,10 +63,10 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-OutcomeForm = Literal['none', 'scm']  # how the outcome node draws y, or 'none' for no y
-# a study's form: a callable of the covariates and a generator that returns an Outcome,
-# both types outcome.py's, which imports this module
-Model = Callable[[Any, np.random.Generator], Any]
+OutcomeForm = Literal['none', 'scm', 'glm']  # how the outcome node draws y, or 'none' for no y
+# a form that is a model: TabDGP's own, a config, or a study's, a callable of the covariates
+# and a generator that returns an Outcome, both types outcome.py's, which imports this module
+Model = InstanceOf[Glm] | Callable[[Any, np.random.Generator], Any]
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
@@ -104,7 +106,7 @@ class Hyperprior(Fields):
       marginal families, mechanisms and activations.
       Each column or node chooses its own, proportional to those shares.
     - Outcome: a single node y. No other node reads it.
-      Its form turns y's node (the score) into y: the SCM itself, a study's model, or none.
+      Its form turns y's node (the score) into y: the SCM itself, a GLM, a study's model, or none.
       Its type shares are the scm form's, its noise scale every form's but none.
     """
 
@@ -213,6 +215,14 @@ class Hyperprior(Fields):
     @classmethod
     def flat(cls, **overrides: Any) -> Hyperprior:
         return cls(factors=0, **overrides)
+
+    @field_validator('outcome_form')
+    @classmethod
+    def _expandForm(cls, form: OutcomeForm | Model) -> OutcomeForm | Model:
+        """Expands a built-in model's name to its default config, which the hyperprior shows."""
+        if form == 'glm':
+            return Glm()
+        return form
 
     def _floorGroups(self, depth: int) -> int:
         """The smallest number of groups a factor can have at this depth.
