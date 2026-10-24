@@ -8,15 +8,16 @@ from __future__ import annotations
 import numpy as np
 
 from tabdgp.column import Column, Grouping
+from tabdgp.field import Fields
 from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.outcome import Covariates
 
 
-def point(field: str, category: str) -> dict[str, float]:
-    """Shares of a hyperprior field that put all mass on one category."""
+def point(field: str, category: str, config: type[Fields] = Hyperprior) -> dict[str, float]:
+    """Shares of a config's field that put all mass on one category."""
     shares = {}
-    for name in Hyperprior.categories(field):
+    for name in config.categories(field):
         shares[name] = 1.0 if name == category else 0.0
     return shares
 
@@ -49,12 +50,14 @@ def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None)
     return Grouping(metadata=metadata, codes=arrays)
 
 
-def covariatesOf(codes: list[list[int]], names: list[str]) -> Covariates:
+def covariatesOf(codes: list[list[int]], names: list[str], rows: int | None = None) -> Covariates:
     """Covariates of a grouping from code lists and continuous columns of these names.
     Each column and the score count the rows up from 0.
+    A flat table has no codes to count its rows, so it passes rows.
     """
     grouping = groupingOf(codes)
-    rows = len(codes[0])
+    if rows is None:
+        rows = len(codes[0])
     columns = dict(grouping.codes)
     for name in names:
         columns[name] = np.arange(rows, dtype=np.float32)  # (n,)
