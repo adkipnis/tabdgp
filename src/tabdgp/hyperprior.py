@@ -25,6 +25,7 @@ the (optional) overrides
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Annotated, Any, ClassVar, Literal
 
 import numpy as np
@@ -61,6 +62,9 @@ MARGINAL_FIELDS = {
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
 OutcomeForm = Literal['none', 'scm']  # how the outcome node draws y, or 'none' for no y
+# a study's form: a callable of the covariates and a generator that returns an Outcome,
+# both types outcome.py's, which imports this module
+Model = Callable[[Any, np.random.Generator], Any]
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
@@ -100,8 +104,8 @@ class Hyperprior(Fields):
       marginal families, mechanisms and activations.
       Each column or node chooses its own, proportional to those shares.
     - Outcome: a single node y. No other node reads it.
-      y can either come from the SCM itself, or it is skipped.
-      It has its own type shares and noise scale.
+      Its form turns y's node (the score) into y: the SCM itself, a study's model, or none.
+      Its type shares are the scm form's, its noise scale every form's but none.
     """
 
     PER_NODE: ClassVar[tuple[str, ...]] = (
@@ -191,7 +195,7 @@ class Hyperprior(Fields):
     poisson_log_rate: Annotated[Real, within(le=40)] = Uniform(-1, 6)
 
     # outcome
-    outcome_form: OutcomeForm = 'scm'
+    outcome_form: OutcomeForm | Model = 'scm'
     outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Fields to BaseModel
         'continuous': 0.6,
         'binary': 0.2,
