@@ -559,19 +559,10 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     assert (outcome.metadata['y'].type, outcome.metadata['y'].role) == (column_type, 'outcome')
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
-    assert outcome.beta.shape == (3,)
     assert list(outcome.context.scales) == ['fixed']
     assert (outcome.sigma_eps is None) == (family != 'normal')
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
-
-
-def _fieldsOf(outcome: GlmOutcome) -> dict:
-    """The fields a GlmOutcome was built from, to build another."""
-    fields = {}
-    for field in dataclasses.fields(outcome):
-        fields[field.name] = getattr(outcome, field.name)
-    return fields
 
 
 MISSHAPEN = [
@@ -587,10 +578,8 @@ def test_a_glm_outcome_checks_its_shapes_against_n_and_d(change: dict, match: st
     so a shape that disagrees fails where the outcome is built.
     """
     outcome = run(Glm(), covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
-    fields = _fieldsOf(outcome)
-    GlmOutcome(**fields)
     with pytest.raises(ValidationError, match=match):
-        GlmOutcome(**fields | change)
+        dataclasses.replace(outcome, **change)
 
 
 def _covariance(sd: np.ndarray, corr: np.ndarray) -> np.ndarray:
@@ -673,7 +662,7 @@ def test_the_truths_arrays_are_float32_on_both_scales() -> None:
 def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> None:
     """A Glmm draws one block of random effects per grouping factor, crossed or nested alike.
     Each factor's terms are design terms led by its intercept,
-    and its effects have q sds, a q × q correlation and one row per group.
+    and its effects have one row per group; GlmmOutcome checks their q itself.
     The context names the blocks fixed, then the factors in order.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], ['x0', 'x1'])
@@ -683,12 +672,9 @@ def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> Non
     assert list(outcome.random_terms) == ['g0', 'g1']
     for factor, groups in [('g0', 3), ('g1', 2)]:
         terms = outcome.random_terms[factor]
-        q = len(terms)
         assert terms[0] == 'intercept'
         assert set(terms) <= set(outcome.fixed_terms)
-        assert outcome.sd_alpha[factor].shape == (q,)
-        assert outcome.corr_alpha[factor].shape == (q, q)
-        assert outcome.alpha[factor].shape == (groups, q)
+        assert len(outcome.alpha[factor]) == groups
 
 
 # six rows in three groups of g0, and covariates of design width 1, 2 and 3
@@ -797,10 +783,8 @@ def test_a_glmm_outcome_checks_each_factors_shapes_against_its_random_terms(
     covariates = covariatesOf([[0, 0, 1, 1]], ['x0'])
     outcome = run(Glmm(random_effects=2), covariates, np.random.default_rng(0))
     assert outcome.random_terms == {'g0': ['intercept', 'x0']}
-    fields = _fieldsOf(outcome)
-    GlmmOutcome(**fields)
     with pytest.raises(ValidationError, match=match):
-        GlmmOutcome(**fields | change)
+        dataclasses.replace(outcome, **change)
 
 
 def test_the_deviation_is_lambda_times_the_sd_of_x_beta_plus_z_alpha_times_the_score() -> None:
