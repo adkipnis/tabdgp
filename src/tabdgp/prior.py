@@ -33,7 +33,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.field import (
     Beta,
-    Fields,
+    Config,
     LogUniform,
     NonNegative,
     Positive,
@@ -102,7 +102,7 @@ class Parameters:
 # =====================================================================================
 
 
-class Glm(Fields):
+class Glm(Config):
     """The prior of a generalized linear model (GLM) over the design matrix.
 
     - Families: y's response family, with its canonical link,
@@ -118,7 +118,7 @@ class Glm(Fields):
     SHARES: ClassVar[tuple[str, ...]] = ('family_shares', 'sd_family_shares', 'residual_shares')
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()  # the fields each factor resolves on its own
 
-    # ruff cannot trace Fields to BaseModel, so it reads a shares default as a class attribute
+    # ruff cannot trace Config to BaseModel, so it reads a shares default as a class attribute
     family_shares: Simplex = {'normal': 1 / 3, 'bernoulli': 1 / 3, 'poisson': 1 / 3}  # noqa: RUF012
     sd_family_shares: Simplex = {  # noqa: RUF012
         'half_normal': 0.25,

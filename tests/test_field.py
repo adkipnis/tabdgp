@@ -1,4 +1,4 @@
-"""The field seams: a config of point-or-distribution fields built on Fields,
+"""The field seams: a config of point-or-distribution fields built on Config,
 and the distributions its fields take.
 """
 
@@ -14,9 +14,9 @@ from pydantic import ValidationError
 
 from tabdgp.field import (
     Beta,
+    Config,
     Count,
     Dirichlet,
-    Fields,
     LogUniform,
     LogUniformInt,
     Positive,
@@ -26,7 +26,7 @@ from tabdgp.field import (
 )
 
 
-class Toy(Fields):
+class Toy(Config):
     """A config of its own, so that these tests read no hyperprior."""
 
     SHARES: ClassVar[tuple[str, ...]] = ('colors', 'sizes')

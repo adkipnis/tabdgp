@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from tabdgp.column import Column, Grouping
-from tabdgp.field import Fields
+from tabdgp.field import Config
 from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.outcome import Covariates
@@ -18,7 +18,7 @@ from tabdgp.outcome import Covariates
 Y = Column(type='continuous', role='outcome')
 
 
-def point(field: str, category: str, config: type[Fields] = Hyperprior) -> dict[str, float]:
+def point(field: str, category: str, config: type[Config] = Hyperprior) -> dict[str, float]:
     """Shares of a config's field that put all mass on one category."""
     shares = {}
     for name in config.categories(field):

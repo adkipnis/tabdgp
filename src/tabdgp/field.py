@@ -7,7 +7,7 @@ Bounds are checked on a point or a distribution's support.
 pipeline:
 ---------
 a subclass's fields (each a point or a distribution)
--> validation at construction, shares in default order    Fields
+-> validation at construction, shares in default order    Config
 -> a point for one field (within the bounds it is given)  resolveField
 """
 
@@ -186,7 +186,7 @@ Share = Annotated[Real, within(ge=0, le=1)]
 # =====================================================================================
 
 
-class Fields(BaseModel):
+class Config(BaseModel):
     """A config whose every field is a point or a distribution of points.
     A `shares` field holds shares or a Dirichlet over named categories.
     """
