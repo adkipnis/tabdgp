@@ -237,6 +237,12 @@ CONTRADICTED = [
         'rater',
         id='a nesting the codes do not show',
     ),
+    pytest.param(
+        'rater',
+        Column('categorical', 2, 'grouping_factor', 'district'),
+        'rater.*district',
+        id='a nesting in no factor of the table',
+    ),
     pytest.param('x_int', None, 'x_int', id='a column without metadata'),
     pytest.param('x_float', Column('count'), 'x_float', id='a count of negative fractions'),
     pytest.param('x_string', Column('continuous'), 'x_string', id='a continuous column of strings'),
