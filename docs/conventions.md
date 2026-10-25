@@ -110,12 +110,17 @@ harder to understand or change; it accrues one small edit at a time.
 - `a if c else b` only on a short line. Lookup tables are literal dicts or `if` chains, not
   built with comprehensions, `dict.fromkeys` or `|`. Cases that read different arguments are a
   `match` over their `Literal`, not a dict of wrappers that share one signature.
+- A condition is tested once: one `if`/`else` sets every value it decides, not a conditional
+  expression per value or a second `if` on the same test. A flag that names the test (`bounded`)
+  may be read again on the next line.
 
 ### Classes
 
-- A class per concept a reader should hold apart (a format family, a distribution), static
-  methods where it holds no state. A helper or constant used by one class lives on it; module
-  functions are for what spans classes.
+- A class per concept a reader should hold apart (a format family, a distribution). A method takes
+  `self` if it calls another method of its class or reads the instance's state, unless it runs
+  before an instance exists (a validator); otherwise it is a class or a static method, as its use
+  needs. A helper or constant used by one class lives on it; module functions are for what spans
+  classes.
 - A pipeline that holds state (a cache, a run directory) is a class; a pipeline without state is
   module functions.
 - A data class holds its fields and the checks across them; the function that builds it is a
@@ -209,6 +214,8 @@ a model specification
   (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
 - Each test says in a sentence or two why it exists, unless obvious. Bind the object under test,
   then call it; small named helpers, not lambdas or repeated comprehensions.
+- A test asserts nothing its object checks itself: no shape its data class validates, no control
+  that rebuilds what the call has just built.
 - Cases of one check are one parametrized table, each case's reason in its id, not one test
   per case.
 - Names listed in two modules (a `Literal`, a catalog, a table's columns) are checked against
