@@ -4,20 +4,31 @@ and draw(seed, index, hyperprior), one dataset per key.
 
 from __future__ import annotations
 
+import functools
 import hashlib
+import json
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from tabdgp.column import Column
-from tabdgp.draw import Dataset, draw
+from tabdgp.draw import Dataset, draw, drawOutcome
 from tabdgp.hyperprior import Hyperprior, UniformInt
-from tabdgp.outcome import Covariates, GlmmOutcome, GlmOutcome, Outcome, ScmOutcome, codeDesign
+from tabdgp.outcome import (
+    Covariates,
+    GlmmOutcome,
+    GlmOutcome,
+    Outcome,
+    ScmOutcome,
+    codeDesign,
+    run,
+)
 from tabdgp.prior import Glm, Glmm
 from tests.fixtures.build import betweenShare, graphOf, point
 
@@ -385,6 +396,190 @@ def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_th
             assert outcome.alpha[factor].tobytes() == plain.outcome.alpha[factor].tobytes()
         linear_sd = _linearPart(deviated).std()
         assert outcome.deviation.std() == pytest.approx(0.3 * linear_sd, rel=1e-4)
+
+
+# a real table's shape: sixty pupils in ten classes nested in five schools, three covariates
+PUPILS = np.random.default_rng(0)
+TABLE = pd.DataFrame(
+    {
+        'school': np.repeat(np.arange(5), 12),
+        'class': np.repeat(np.arange(10), 6),
+        'age': PUPILS.normal(10, 2, size=60),
+        'girl': PUPILS.random(60) < 0.5,
+        'track': pd.Categorical(PUPILS.choice(['a', 'b', 'c'], size=60)),
+    }
+)
+TABLE_COVARIATES = Covariates.fromPandas(TABLE, ['school', 'class'])
+
+
+def test_draw_outcome_on_from_pandas_is_deterministic_per_key_and_differs_between_keys() -> None:
+    """A resampled outcome is keyed like a dataset, default_rng([seed, index]),
+    so the oracle set a study builds downstream from a table is reproducible per key.
+    """
+    model = Glmm()
+    first = drawOutcome(3, 1, TABLE_COVARIATES, model)
+    again = drawOutcome(3, 1, TABLE_COVARIATES, model)
+    other = drawOutcome(3, 2, TABLE_COVARIATES, model)
+    keyed = run(model, TABLE_COVARIATES, np.random.default_rng([3, 1]))
+    for outcome in [again, keyed]:
+        assert np.array_equal(outcome.columns['y'], first.columns['y'])
+        assert np.array_equal(outcome.beta, first.beta)
+    assert not np.array_equal(other.beta, first.beta)
+
+
+def test_a_resampled_glmm_outcome_has_as_many_groups_per_factor_as_the_table() -> None:
+    """A random effect per group of each factor the table has, a row of alpha per school
+    and per class, so a study reads a group's truth at its code.
+    """
+    for index in range(5):
+        outcome = drawOutcome(0, index, TABLE_COVARIATES, Glmm())
+        assert list(outcome.alpha) == ['school', 'class']
+        assert outcome.alpha['school'].shape[0] == 5
+        assert outcome.alpha['class'].shape[0] == 10
+
+
+def test_to_pandas_leaves_the_latent_nodes_out() -> None:
+    """A table holds what was observed, in the dataset's column order;
+    the latent nodes stay on the dataset, which keeps them white-box.
+    """
+    for index in range(5):
+        dataset = draw(0, index, Hyperprior.grouped(latent_nodes=2))
+        table = dataset.toPandas()
+        assert list(table.columns) == list(dataset.columns)
+        assert len(table) == dataset.hyperparameters.rows
+        assert not set(dataset.latent) & set(table.columns)
+
+
+# every covariate type in reach, with room for a dozen design columns
+EVERY_TYPE = {'continuous': 0.25, 'binary': 0.25, 'categorical': 0.25, 'ordered': 0.25}
+
+
+def test_to_pandas_codes_categoricals_ordered_when_ordered_continuous_float32_and_counts_int64() -> (
+    None
+):
+    """The column type picks the pandas dtype: a coded column is a categorical over its codes,
+    so a pandas-based tool sees levels, not numbers, and a count stays an integer.
+    A Poisson y is the dataset's count.
+    """
+    poisson = Glm(family_shares=point('family_shares', 'poisson', Glm))
+    hyperprior = Hyperprior.grouped(
+        rows=200, design_columns=12, type_shares=EVERY_TYPE, outcome_form=poisson
+    )
+    types = set()
+    for index in range(5):
+        dataset = draw(0, index, hyperprior)
+        table = dataset.toPandas()
+        for name, column in dataset.metadata.items():
+            values = table[name]
+            types.add(column.type)
+            if column.levels is None:
+                assert values.dtype == column.dtype
+                assert np.array_equal(values.to_numpy(), dataset.columns[name])
+            else:
+                assert list(values.cat.categories) == list(range(column.levels))
+                assert values.cat.ordered == (column.type == 'ordered')
+                assert np.array_equal(values.cat.codes, dataset.columns[name])
+    assert types == {'continuous', 'binary', 'categorical', 'ordered', 'count'}
+
+
+def test_from_pandas_reads_a_datasets_table_with_its_metadata_into_its_columns_and_metadata() -> (
+    None
+):
+    """A drawn table and its metadata come back as they went, the outcome y identified by its
+    role and left out: each covariate's and factor's values, dtype and metadata as drawn.
+    Key (2, 90) draws a crossed factor with a group per row, which lies within every other's
+    groups, so only its declared metadata tells that the draw did not nest it.
+    """
+    hyperprior = Hyperprior.grouped(rows=200, design_columns=12, type_shares=EVERY_TYPE)
+    datasets = [draw(0, index, hyperprior) for index in range(10)]
+    datasets.append(draw(2, 90, Hyperprior.grouped()))
+    for dataset in datasets:
+        covariates = Covariates.fromPandas(dataset.toPandas(), metadata=dataset.metadata)
+        observed = [name for name, column in dataset.metadata.items() if column.role != 'outcome']
+        assert list(covariates.columns) == observed
+        for name in observed:
+            assert covariates.metadata[name] == dataset.metadata[name]
+            assert covariates.columns[name].dtype == dataset.columns[name].dtype
+            assert np.array_equal(covariates.columns[name], dataset.columns[name])
+
+
+def test_to_design_is_the_coding_the_glm_used() -> None:
+    """The truth refers to the design matrix a user fits on, which toDesign returns.
+    At r = 1, s_ε and so σ_ε are 0, and y is η = Xβ in float32, exactly.
+    On grouped covariates the factors are no term.
+    """
+    glm = Glm(family_shares=point('family_shares', 'normal', Glm), signal_share=1.0)
+    for index in range(5):
+        dataset = draw(0, index, Hyperprior.grouped(outcome_form=glm))
+        design = dataset.toDesign()
+        outcome = dataset.outcome
+        assert design.names == outcome.fixed_terms
+        assert (design.means, design.sds) == (outcome.means, outcome.sds)
+        eta = design.matrix @ outcome.beta  # (n,)
+        assert np.array_equal(dataset.columns['y'], eta.astype(np.float32))
+
+
+def _shiftedScore(covariates: Covariates, rng: np.random.Generator, shift: float) -> Outcome:
+    """A model whose y is the score plus a shift, its setting bound by a partial."""
+    column = Column(type='continuous', role='outcome')
+    return Outcome(columns={'y': covariates.score + np.float32(shift)}, metadata={'y': column})
+
+
+def _throughJson(dataset: Dataset) -> dict:
+    """The dataset's dict after a trip through strict JSON."""
+    return json.loads(json.dumps(dataset.toDict(), allow_nan=False))
+
+
+def _restored(record: dict) -> np.ndarray:
+    """An array from its dict, its values in its dtype."""
+    return np.array(record['values'], dtype=record['dtype'])
+
+
+def test_to_dict_is_json_serializable_and_records_dtypes_and_a_users_model_by_name() -> None:
+    """A dataset survives a trip through JSON:
+    each array comes back bit for bit from its dtype and values, the truth's float32 too,
+    and each object and distribution keeps its class.
+    y is recorded once, among the dataset's columns: the outcome's record holds its truth.
+    A study's model, which JSON cannot hold, is recorded by its qualified name.
+    """
+    dataset = draw(0, 0, Hyperprior.grouped(outcome_form='glmm'))
+    record = _throughJson(dataset)
+    arrays = {
+        **{('columns', name): values for name, values in dataset.columns.items()},
+        **{('latent', name): values for name, values in dataset.latent.items()},
+        ('graph', 'parents'): dataset.graph.parents,
+        ('outcome', 'beta'): dataset.outcome.beta,
+    }
+    for factor, alpha in dataset.outcome.alpha.items():
+        arrays['outcome', 'alpha', factor] = alpha
+    for path, values in arrays.items():
+        stored = record
+        for key in path:
+            stored = stored[key]
+        restored = _restored(stored)
+        assert restored.dtype == values.dtype
+        assert restored.tobytes() == values.tobytes()
+    assert record['outcome']['class'] == 'GlmmOutcome'
+    assert not {'columns', 'metadata'} & set(record['outcome'])
+    assert record['hyperparameters']['outcome_form']['class'] == 'Glmm'
+    level_alpha = {'class': 'LogUniform', 'low': 0.5, 'high': 5.0}
+    assert record['hyperparameters']['level_alpha'] == level_alpha
+    models = {'_ScoreAsY': _ScoreAsY(), '_shiftedScore': functools.partial(_shiftedScore, shift=1)}
+    for name, model in models.items():
+        record = _throughJson(draw(0, 0, Hyperprior.grouped(outcome_form=model)))
+        assert record['hyperparameters']['outcome_form'].endswith(f'test_draw.{name}')
+
+
+def test_from_pandas_reads_the_metadata_to_dict_wrote_after_a_trip_through_json() -> None:
+    """A table saved beside its metadata file comes back whole:
+    the metadata as toDict writes it, each Column's fields and its class, is a declaration.
+    """
+    for index in range(5):
+        dataset = draw(0, index, Hyperprior.grouped())
+        metadata = _throughJson(dataset)['metadata']
+        covariates = Covariates.fromPandas(dataset.toPandas(), metadata=metadata)
+        for name, column in covariates.metadata.items():
+            assert column == dataset.metadata[name]
 
 
 @pytest.mark.parametrize(
