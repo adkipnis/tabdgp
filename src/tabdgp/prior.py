@@ -98,7 +98,8 @@ class Parameters:
     """A GLM's or GLMM's parameters on the standardized scale. All arrays are float32."""
 
     beta: np.ndarray  # (d,) intercept first
-    sigma_eps: float | None  # None unless the likelihood family is Normal
+    sigma_eps: float | None  # None unless the family is Normal or Student-t
+    shape: float | None  # the family's second parameter, None for Normal, Bernoulli and Poisson
     sd_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -128,7 +129,10 @@ class PriorContext:
     lkj_eta: dict[str, int | None]  # the LKJ shape by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     residual_scale: float | None  # s_ε, None unless the family has a residual
-    signal_share: float | None  # r, None unless the family is Normal
+    # ν, φ, σ_c, the Gamma shape or the beta precision, a point per dataset,
+    # None for Normal, Bernoulli and Poisson
+    shape: float | None
+    signal_share: float | None  # r, None unless the family is Normal or Student-t
     predictor_sd: float  # τ
     split: dict[str, float]  # φ by block name
     blocks: list[Block]  # the fixed block, then the factors' in order
@@ -148,6 +152,7 @@ class PriorContext:
         return Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
+            shape=self.shape,
             sd_alpha=sd_alpha,
             corr_alpha=corr_alpha,
             alpha=alpha,
@@ -246,6 +251,7 @@ class Glm(Config):
     - Scales: the predictor sd τ is the sd of eta without the intercept.
       Under the Normal family τ² = r, the signal share r being the share of y's variance
       that eta explains, so that y has unit variance at the scales.
+      The Student-t family is drawn alike, its y's variance ν / (ν − 2) at them.
       Each slope's scale is the block's times a log-normal weight, at spread 0 the block's.
       A scale is its family's scale parameter, so a draw's variance is the family's at it:
       E[σ_ε²] = s_ε² E[X²], X the standard law of σ_ε's family.
@@ -288,7 +294,7 @@ class Glm(Config):
     location_scale: NonNegative = 2.0  # a located slope's location, in its own scale, is N(0, this)
     scale_spread: NonNegative = 0.0  # the sd of each slope's log scale around the block's
     signal_share: Share = Beta(2, 2)  # r
-    predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal
+    predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal or Student-t
     deviation_scale: NonNegative = 0.0  # λ
     residual_df: Positive = LogUniform(3, 10)  # ν of the Student-t family
     dispersion: Positive = LogUniform(1, 10)  # φ of the negative binomial: variance μ (1 + μ / φ)
@@ -318,7 +324,10 @@ class Glm(Config):
         signal_share = None
         predictor_sd = self.predictor_sd
         residual_scale = None
-        if family == 'normal':
+        shape = None
+        if family in self.PER_FAMILY:
+            shape = self.resolveField(self.PER_FAMILY[family], rng)
+        if family in ['normal', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
             # τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
@@ -345,6 +354,7 @@ class Glm(Config):
             lkj_eta=lkj_eta,
             sigma_eps_family=sigma_eps_family,
             residual_scale=residual_scale,
+            shape=shape,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,

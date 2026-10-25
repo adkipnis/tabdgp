@@ -200,11 +200,26 @@ IDENTITIES = [
         id='normal: τ² = r, σ_β = τ / 1.5, s_ε = √(1 − r)',
     ),
     pytest.param(
+        'student_t',
+        THREE_QUARTERS,
+        0.36,
+        0.6,
+        0.4,
+        0.8,
+        id='student_t: drawn like the Normal, τ² = r, s_ε = √(1 − r)',
+    ),
+    pytest.param(
         'bernoulli', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='bernoulli: τ as drawn, no r or s_ε'
     ),
     pytest.param(
         'poisson', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='poisson: τ as drawn, no r or s_ε'
     ),
+    *[
+        pytest.param(
+            family, THREE_QUARTERS, None, 2.0, 4 / 3, None, id=f'{family}: τ as drawn, no r or s_ε'
+        )
+        for family in ['negative_binomial', 'latent_bernoulli', 'gamma', 'beta']
+    ],
     pytest.param('poisson', [0.0], None, 2.0, 0.0, None, id='no covariate column: σ_β = 0'),
 ]
 
@@ -222,8 +237,9 @@ def test_the_joint_draws_identities_hold(
 ) -> None:
     """ADR 0006's scales as the comment on #46 amended them: σ_β = τ √(φ_fixed / tr cov X),
     with φ_fixed = 1 for a GLM, so the fixed block realizes var(Xβ) = τ² on any coding.
-    Only the Normal family has a residual scale, and its y then has unit variance at the scales.
-    r sets nothing under the other families, so the context records none there.
+    Only the Normal and Student-t families have a residual scale, and the Normal's y then has
+    unit variance at the scales. r sets nothing under the other families, so the context
+    records none there.
     An intercept-only design has no slope for σ_β to scale.
     At spread 0 and without a located slope, every slope has the block's scale and location 0;
     the intercept's location is the field's, on the link scale.
@@ -575,7 +591,8 @@ FACTOR_BLOCKS = [
 
 
 @pytest.mark.parametrize(
-    ('family', 'sigma_eps_family'), [('normal', 'exponential'), ('poisson', None)]
+    ('family', 'sigma_eps_family'),
+    [('normal', 'exponential'), ('student_t', 'exponential'), ('poisson', None), ('gamma', None)],
 )
 def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_chosen_families(
     family: str, sigma_eps_family: str | None
@@ -621,3 +638,69 @@ def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_context_draws
         assert first.sd_alpha[name].tobytes() == second.sd_alpha[name].tobytes()
         assert first.corr_alpha[name].tobytes() == second.corr_alpha[name].tobytes()
         assert first.alpha[name].tobytes() == second.alpha[name].tobytes()
+
+
+# the support of each contaminated family's default shape field
+SHAPE_SUPPORTS = [
+    pytest.param('student_t', 3, 10, id='ν'),
+    pytest.param('negative_binomial', 1, 10, id='φ'),
+    pytest.param('latent_bernoulli', 0.5, 2, id='σ_c'),
+    pytest.param('gamma', 1, 10, id='the Gamma shape'),
+    pytest.param('beta', 2, 50, id='the beta precision'),
+]
+
+
+@pytest.mark.parametrize(('family', 'low', 'high'), SHAPE_SUPPORTS)
+def test_the_context_records_the_chosen_familys_shape_from_its_own_field(
+    family: str, low: float, high: float
+) -> None:
+    """A fitter of the family conditions on its second parameter, so the context holds it,
+    drawn from the field of the chosen family and from no other: a point is taken as given.
+    """
+    blocks = [Block(name='fixed', variances=[0.0, 1.0])]
+    resolved = Glm().resolveDataset(np.random.default_rng(0))
+    shapes = []
+    for seed in range(20):
+        context = resolved.drawContext(family, blocks, np.random.default_rng(seed))
+        shapes.append(context.shape)
+    assert low <= min(shapes) < max(shapes) <= high
+    field = CONTAMINATED[family]
+    pointed = Glm(**{field: 4.0}).resolveDataset(np.random.default_rng(0))
+    assert pointed.drawContext(family, blocks, np.random.default_rng(0)).shape == 4.0
+    others = {other: 4.0 for other in CONTAMINATED.values() if other != field}
+    free = Glm(**others).resolveDataset(np.random.default_rng(0))
+    assert low <= free.drawContext(family, blocks, np.random.default_rng(0)).shape <= high
+
+
+@pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson'])
+def test_a_base_family_has_no_shape_and_consumes_no_draw_for_one(family: str) -> None:
+    """The shape fields stay distributions in a base family's draw, so a dataset of a base
+    family draws what it drew before the contaminated families existed.
+    """
+    blocks = [Block(name='fixed', variances=[0.0, 1.0])]
+    free = Glm().resolveDataset(np.random.default_rng(0))
+    fixed = Glm(**dict.fromkeys(CONTAMINATED.values(), 4.0)).resolveDataset(
+        np.random.default_rng(0)
+    )
+    free_rng = np.random.default_rng(1)
+    fixed_rng = np.random.default_rng(1)
+    free_context = free.drawContext(family, blocks, free_rng)
+    fixed_context = fixed.drawContext(family, blocks, fixed_rng)
+    assert free_context.shape is None
+    assert free_context == fixed_context
+    assert free_rng.random() == fixed_rng.random()
+
+
+@pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson', *CONTAMINATED])
+def test_the_parameters_record_the_contexts_shape_and_a_residual_only_where_the_family_has_one(
+    family: str,
+) -> None:
+    """The shape is the truth's second parameter beside β, fixed when a truth is resampled
+    under the context; only the Normal and Student-t families have a σ_ε.
+    """
+    blocks = [Block(name='fixed', variances=[0.0, 1.0])]
+    resolved = Glm().resolveDataset(np.random.default_rng(0))
+    context = resolved.drawContext(family, blocks, np.random.default_rng(0))
+    parameters = context.drawParameters(np.random.default_rng(1))
+    assert parameters.shape == context.shape
+    assert (parameters.sigma_eps is not None) == (family in ['normal', 'student_t'])
