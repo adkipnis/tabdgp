@@ -34,10 +34,12 @@ pipeline:
 the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point for each field drawn once per dataset              Glm.resolveDataset
-   (a factor resolves its budget and its LKJ shape later)
+   (a factor resolves its budget and its LKJ shape later,
+   the chosen family its shape)
 -> given y's family and the blocks, the stated prior:
-   the families chosen, r, τ, φ, each slope's location
-   and scale, each factor's scale and LKJ shape               Glm.drawContext
+   the families chosen, the family's shape, r, τ, φ,
+   each slope's location and scale,
+   each factor's scale and LKJ shape                          Glm.drawContext
 -> β and σ_ε from their families at those locations
    and scales                                                 PriorContext.drawParameters
 -> each factor's σ_α, Ω and α per group                       PriorContext._drawRandomEffects
@@ -159,7 +161,9 @@ class PriorContext:
         )
 
     @staticmethod
-    def _drawStandard(family: str, rng: np.random.Generator, size: int | None) -> np.ndarray:
+    def _drawStandard(
+        family: str, rng: np.random.Generator, size: int | None
+    ) -> float | np.ndarray:
         """Draws a family's standard law, which a location and a scale then place:
         one law serves a symmetric family and its half version.
         """
@@ -255,6 +259,8 @@ class Glm(Config):
       Each slope's scale is the block's times a log-normal weight, at spread 0 the block's.
       A scale is its family's scale parameter, so a draw's variance is the family's at it:
       E[σ_ε²] = s_ε² E[X²], X the standard law of σ_ε's family.
+    - Shape: the second parameter of Student-t, the negative binomial, the latent-noise
+      Bernoulli, Gamma and beta, each from a field of its own, resolved for the chosen family only.
     - Deviation: the score added to eta at λ · sd(Xβ + Σ_k Z_k α_k),
       the population sd over the rows.
     """
@@ -297,10 +303,10 @@ class Glm(Config):
     predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal or Student-t
     deviation_scale: NonNegative = 0.0  # λ
     residual_df: Positive = LogUniform(3, 10)  # ν of the Student-t family
-    dispersion: Positive = LogUniform(1, 10)  # φ of the negative binomial: variance μ (1 + μ / φ)
+    dispersion: Positive = LogUniform(1, 10)  # φ of the negative binomial, variance μ + μ² / φ
     latent_scale: NonNegative = LogUniform(0.5, 2)  # σ_c of the latent-noise Bernoulli
     gamma_shape: Positive = LogUniform(1, 10)
-    beta_precision: Positive = LogUniform(2, 50)
+    beta_precision: Positive = LogUniform(2, 50)  # of the beta family, not of β
 
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
         """Resolves each field drawn once per dataset, in declaration order."""
@@ -316,7 +322,8 @@ class Glm(Config):
         self, family: str, blocks: list[Block], rng: np.random.Generator
     ) -> PriorContext:
         """Draws the stated prior for the response family over the blocks:
-        the families, the scales jointly from the budget and each slope's location.
+        the families, the family's shape, the scales jointly from the budget
+        and each slope's location.
         On a resolved Glm.
         """
         beta_family = self.beta_family_shares.choose(rng)
@@ -376,8 +383,10 @@ class Glm(Config):
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[list[float], list[float]]:
         """Each slope's location and scale, spending the fixed block's budget exactly:
-        σ_j = σ_β w_j and μ_j = δ_j σ_j, with σ_β solved from σ_β² Σ_j w_j² (1 + δ_j²) var_j = budget,
-        since E[β_j²] = σ_j² (1 + δ_j²) whatever the family's tails.
+        σ_j = σ_β w_j and μ_j = δ_j σ_j,
+        with σ_β solved from σ_β² Σ_j w_j² (1 + δ_j²) var_j = budget,
+        since E[β_j²] = σ_j² (1 + δ_j²) for a Normal β.
+        A heavier-tailed family spends more, which is recorded, not corrected.
         """
         slopes = fixed.width - 1
         located = rng.random(slopes) < self.location_share  # (d − 1,)
