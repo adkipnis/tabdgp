@@ -14,7 +14,7 @@ the covariates at the rows, their metadata, the grouping and the score  Covariat
 -> a model's outcome                                                    run
    a GLMM's, a GLM's without factors:
    -> the design matrix, the intercept first                            codeDesign
-   -> each factor's random terms within its budget                      _chooseRandomTerms
+   -> each factor's block, its random terms within its budget           _buildRandomBlocks
    -> the prior's scales and parameters over the blocks                 Glm.drawParameters
    -> η = Xβ + Σ_k Z_k α_k, plus the deviation λ · sd(Xβ + Σ_k Z_k α_k) · score,
       then y from the family through its link                           _drawGlmm
@@ -547,20 +547,11 @@ def _drawGlmm(
     family = FAMILIES[name]
     # the fixed term adds tr cov X to var(η) at scale 1, the intercept nothing
     variance = float(design.matrix.var(axis=0).sum())
-    blocks = [Block(name='fixed', width=len(design.names), variance=variance)]
-    random_terms = {}
-    random_columns = {}
-    for factor in factors:
-        budget = resolved.resolveField('random_effects', rng, high=len(design.names))
-        positions = _chooseRandomTerms(design, budget, rng)
-        z = design.matrix[:, positions]  # (n, q)
-        # a random term adds tr E[z z'] to var(η) at scale 1, its intercept 1
-        variance = float((z**2).mean(axis=0).sum())
-        groups = covariates.grouping.metadata[factor].levels
-        blocks.append(Block(name=factor, width=len(positions), variance=variance, groups=groups))
-        random_terms[factor] = [design.names[i] for i in positions]
-        random_columns[factor] = z
-    context, parameters = resolved.drawParameters(name, blocks, rng)
+    fixed = Block(name='fixed', width=len(design.names), variance=variance)
+    random_blocks, random_terms, random_columns = _buildRandomBlocks(
+        resolved, design, covariates.grouping, factors, rng
+    )
+    context, parameters = resolved.drawParameters(name, [fixed, *random_blocks], rng)
     # η in float64 from the float32 parameters, which are so its exact truth
     eta = design.matrix @ parameters.beta  # (n,)
     for factor, z in random_columns.items():
@@ -632,6 +623,30 @@ def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows
         positions[name] = list(range(start, len(names)))
     matrix = np.stack(coded, axis=1)  # (n, d)
     return Design(matrix=matrix, names=names, positions=positions, means=means, sds=sds)
+
+
+def _buildRandomBlocks(
+    resolved: Glm,
+    design: Design,
+    grouping: Grouping,
+    factors: list[str],
+    rng: np.random.Generator,
+) -> tuple[list[Block], dict[str, list[str]], dict[str, np.ndarray]]:
+    """Each factor's block of random effects, its random terms and their columns of the design."""
+    blocks = []
+    random_terms = {}
+    random_columns = {}
+    for factor in factors:
+        budget = resolved.resolveField('random_effects', rng, high=len(design.names))
+        positions = _chooseRandomTerms(design, budget, rng)
+        z = design.matrix[:, positions]  # (n, q)
+        # a random term adds tr E[z z'] to var(η) at scale 1, its intercept 1
+        variance = float((z**2).mean(axis=0).sum())
+        groups = grouping.metadata[factor].levels
+        blocks.append(Block(name=factor, width=len(positions), variance=variance, groups=groups))
+        random_terms[factor] = [design.names[i] for i in positions]
+        random_columns[factor] = z
+    return blocks, random_terms, random_columns
 
 
 def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) -> list[int]:
