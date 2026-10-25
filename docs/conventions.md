@@ -175,7 +175,9 @@ a model specification
 
 - The module docstring: one sentence on what the module defines, optionally a short paragraph
   on how, then the pipeline in run order, one `-> result` line per step with its function on the
-  right. Who imports the module is the [map](#modules)'s.
+  right. A module whose why is not obvious replaces the paragraph with a short pyramid for a
+  reader new to the repository: what it offers and why, then how. Who imports the module is the
+  [map](#modules)'s.
 - `# ====` banners separate globals, classes and main, `# ----` banners subsections. Each is
   named in plain words, with one comment line on why the section exists where neither the name
   nor a class docstring below says it.
