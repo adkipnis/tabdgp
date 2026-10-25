@@ -564,8 +564,8 @@ def _drawGlmm(
     # η in float64 from the float32 parameters, which are so its exact truth
     eta = design.matrix @ parameters.beta  # (n,)
     for factor, z in random_columns.items():
-        codes = covariates.grouping.codes[factor]  # (n,)
-        eta = eta + (z * parameters.alpha[factor][codes]).sum(axis=1)  # (n,)
+        alpha = covariates.grouping.broadcast(parameters.alpha[factor], factor, 'row')  # (n, q)
+        eta = eta + (z * alpha).sum(axis=1)  # (n,)
     deviation = np.zeros(rows, dtype=np.float32)  # (n,), a table's, which has no score
     if covariates.score is not None:
         # the score at λ times η's sd so far, the population sd over the n rows
