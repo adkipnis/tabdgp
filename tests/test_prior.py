@@ -60,15 +60,23 @@ def test_a_glmm_adds_its_fields_to_a_glms_with_their_defaults() -> None:
 
 
 @pytest.mark.parametrize(
-    'random_effects',
-    [pytest.param(0, id='a point'), pytest.param(UniformInt(0, 3), id='a range reaching 0')],
+    ('field', 'value'),
+    [
+        pytest.param('random_effects', 0, id='a budget of 0'),
+        pytest.param('random_effects', UniformInt(0, 3), id='a budget reaching 0'),
+        pytest.param(
+            'lkj_eta', UniformInt(0, 4), id='an LKJ shape reaching 0, where rng.beta fails'
+        ),
+    ],
 )
-def test_a_glmm_without_random_effects_cannot_be_written(random_effects: int | UniformInt) -> None:
-    """Every factor of a GLMM has at least its random intercept,
-    so a budget that may be 0 fails where it is written, not at a draw.
+def test_a_glmm_field_that_may_draw_0_cannot_be_written(
+    field: str, value: int | UniformInt
+) -> None:
+    """Every factor of a GLMM has at least its random intercept, and an LKJ shape is positive,
+    so a field that may draw 0 fails where it is written, not at a draw.
     """
-    with pytest.raises(ValidationError, match='random_effects'):
-        Glmm(random_effects=random_effects)
+    with pytest.raises(ValidationError, match=field):
+        Glmm(**{field: value})
 
 
 def test_resolve_gives_every_field_a_point_and_the_shares_fields_shares_that_choose() -> None:
