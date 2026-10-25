@@ -96,21 +96,26 @@ def test_a_point_mass_puts_every_share_on_its_category() -> None:
 
 
 @pytest.mark.parametrize(
-    'shares',
+    ('shares', 'reversed_shares'),
     [
-        pytest.param({'red': 0.5, 'green': 0.3, 'blue': 0.2}, id='point'),
-        pytest.param(Dirichlet({'red': 1, 'green': 2, 'blue': 3}), id='dirichlet'),
+        pytest.param(
+            {'red': 0.5, 'green': 0.3, 'blue': 0.2},
+            {'blue': 0.2, 'green': 0.3, 'red': 0.5},
+            id='point',
+        ),
+        pytest.param(
+            Dirichlet({'red': 1, 'green': 2, 'blue': 3}),
+            Dirichlet({'blue': 3, 'green': 2, 'red': 1}),
+            id='dirichlet',
+        ),
     ],
 )
 def test_the_order_an_override_lists_its_categories_in_changes_no_draw(
-    shares: dict[str, float] | Dirichlet,
+    shares: dict[str, float] | Dirichlet, reversed_shares: dict[str, float] | Dirichlet
 ) -> None:
     """A category is chosen by its place in the shares,
     so an override listed in another order must not reorder them.
     """
-    alpha = shares.alpha if isinstance(shares, Dirichlet) else shares
-    reversed_alpha = dict(reversed(alpha.items()))
-    reversed_shares = Dirichlet(reversed_alpha) if isinstance(shares, Dirichlet) else reversed_alpha
     listed = Toy(colors=shares).resolveField('colors', np.random.default_rng(0))
     reversed_listed = Toy(colors=reversed_shares).resolveField('colors', np.random.default_rng(0))
     assert list(reversed_listed.items()) == list(listed.items())
