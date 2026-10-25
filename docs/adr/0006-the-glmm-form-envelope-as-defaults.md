@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam
 ---
 
 # 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
@@ -148,3 +148,97 @@ blocks at q = 2 and 3 of 18 above.
 - `prior` gains the prior fields as `Glm`'s and `Glmm`'s (ADR 0007); `prior` and `outcome` are
   new modules; `Dataset` gains `outcome`. The proofs stay on `grouped()`; the glmm form's
   covariates are certified by the same proofs, its response never.
+
+## Amendment 2026-10-25: the prior follows what brms users state
+
+#56's read of `prior` paused on the prior's shape: β Normal at 0 with one scale per block,
+one sd family shared by σ_α and σ_ε. Grilled on 2026-10-25 against brms's `priors.R`, the
+practice survey's `priors.csv` (Tier P, 1,428 models) and metabeta-v2's `hypersample`, the
+decision is: **the glmm form's prior takes the shape a brms user states, families, locations
+and scales per block or per coefficient, drawn from the same joint budget; the prior context
+is that stated prior and draws its own parameters; metabeta-v2's contaminated likelihoods
+become families of `family_shares` at share zero, so the residual seam goes.** The defaults
+below are what the fourth fingerprint pins after ticket A; nothing the proofs certify moves.
+
+- **β's family.** `beta_family_shares` over {normal 0.68, student_t 0.30, cauchy 0.02},
+  ν = 3 for Student-t (18 of the survey's 31 stated ν), chosen once per dataset for the
+  intercept and the slopes. The scale stays the family's scale parameter, as s_ε is F's:
+  a Student-t slope has variance 3σ² and a Cauchy slope none, so the budget is met in the
+  family's unit and the tails spread the fit further, recorded, not corrected. Flat (20 % of
+  readable β rows, brms's default) is improper and stays metabeta's clamp.
+- **The intercept's location.** `intercept_location`, `Uniform(-3, 3)` on the link scale, a
+  guess, drawn before β_0 ~ family(μ_0, σ_0); the intercept adds no variance to η, so the
+  budget is untouched. The witness: 411 survey rows carry brms's data-driven default,
+  Student-t(3) at median(link y) with scale max(2.5, mad), which a network can only be told
+  as a location; a generated table's median on the link scale lands within σ_0 of μ_0 by
+  construction, so the default is a sub-case at small σ_0.
+- **A located prior per slope.** Each slope's location is a multiple δ_j of its own scale,
+  μ_j = δ_j σ_j: zero with probability 1 − `location_share` (0.1), else δ_j ~ N(0,
+  `location_scale`) (2.0), a guess; the survey's stated hypotheses sit two to three scales
+  out at a tight scale (normal(0.3, 0.1)). Relative locations keep the budget exact,
+  E[β_j²] = σ_j² (1 + δ_j²), where an absolute slab (metabeta-v2's Laplace(0, 0.5)) can
+  exceed the block's share. The context records μ_j and σ_j in absolute units.
+- **A scale per slope, as an override.** σ_j = σ_β w_j with log w_j ~ N(0, `scale_spread`)
+  and σ_β solved from the budget, σ_β² Σ_j w_j² (1 + δ_j²) var_j = τ² φ_fixed, so a constant
+  design column is harmless and no column's variance divides anything (R2D2M2's Dirichlet
+  split, σ_j² ∝ φ_j / var_j, gives a rare dummy a huge scale). The default spread is 0, the
+  block case metasurv's ADR 0008 trains on; `Glmm(scale_spread=Uniform(0, 2))` is its
+  planned ablation, in one override. The random blocks keep one scale per factor, brms's
+  one prior for class `sd`.
+- **σ_α and σ_ε apart.** `sd_alpha_family_shares` on `Glmm` and `sigma_eps_family_shares`
+  on `Glm`, each uniform over the four families, drawn independently: brms sets `sd` and
+  `sigma` apart, and 24 of the survey's 132 stated pairs differ. F goes as a symbol.
+- **The context draws its own parameters.** `Glm.drawContext(family, blocks, rng)` returns
+  the `PriorContext`, the stated prior: `beta_family`, `intercept_location` and
+  `intercept_scale`, `slope_locations` and `slope_scales` (d − 1,), `random_scales` per
+  factor, `sd_alpha_family` (None on a GLM), `sigma_eps_family` (None unless the family has
+  a residual), `residual_scale`, `lkj_eta`, `signal_share`, `predictor_sd`, `split` and the
+  `blocks` it was set from; `PriorContext.drawParameters(rng)` returns the `Parameters`
+  without a config, so a user resamples truths under a fixed prior. `Block` carries
+  `variances`, one per coefficient, the intercept's 0 first, its width their count.
+- **Contaminated families, not residual laws.** metabeta-v2's likelihood misspecification
+  experiment regenerated y under Student-t errors (ν 10, 5, 3), a negative binomial (φ 10, 3,
+  1) and a latent-noise Bernoulli, y ~ Bern(expit(η + σ_c ε)) (σ_c 0.5, 1, 2), with the
+  priors and parameters untouched. Each is a family a fitter can state, so they are entries
+  of `family_shares` at share 0, `student_t`, `negative_binomial`, `latent_bernoulli`, with
+  `gamma` and `beta` beside them (the survey's 1 % each, Gamma in metabeta's v1), each
+  drawing its second parameter from a field, `residual_df` `LogUniform(3, 10)`,
+  `dispersion` `LogUniform(1, 10)`, `latent_scale` `LogUniform(0.5, 2)`, `gamma_shape`
+  `LogUniform(1, 10)`, `beta_precision` `LogUniform(2, 50)`, metabeta-v2's severities as the
+  witness, guesses otherwise; `Parameters` records it as `shape`. `student_t` is drawn like
+  Normal (τ² = r, s_ε = √(1 − r); y's variance is ν / (ν − 2) at the scales); φ, σ_c, the
+  Gamma shape and the beta precision are the family's own noise outside η, as σ_ε is. The
+  residual seam (`residual_shares` over {normal}, the context's `residual_law`) is dropped:
+  a white-box study overrides `family_shares` as it overrides `deviation_scale`, and
+  metabeta's default corpus does not move. Ordinal and binomial stay later entries, each
+  with a column of its own to design; log-normal is a user's transform of a Normal table.
+
+### Considered options
+
+- **Uniform β families**, mixed ADR 0003's token rule: Alex's weights, 0.68 / 0.30 / 0.02,
+  keep Cauchy rare on the logit and log scales, where a Cauchy slope at scale 1 exceeds 10
+  in 6 % of its draws.
+- **β's budget divided by ν / (ν − 2)**: breaks for Cauchy, and would set β's convention
+  apart from the sd families'.
+- **The intercept's location relative to σ_0**: brms sets the two apart (median vs
+  max(2.5, mad)), so coupling them misstates the common case.
+- **A per-dataset gate on located slopes**: 1 % of the survey's models state a location,
+  too few for a network to learn the axis; per slope at 0.1 is coverage-first.
+- **Per-slope scales by default** (a continuous spread, or a gate at the block case):
+  deferred to the ablation metasurv's ADR 0008 planned; the override exists.
+- **Inverse-Wishart on Σ_k**: a second parameterization of every random block for 4 % of
+  Tier P rows, rejected in mixed ADR 0003 and not reopened.
+- **Per-family shares fields in the residual seam's spirit** (a residual, a count and a
+  binary one, each with a severity): six fields for the same draws, and the study's
+  spelling would not say what the truth is.
+
+### Consequences
+
+- Ticket A (the prior's structure) and ticket B (the families), both before #56's read of
+  `outcome`; the fourth fingerprint moves with A and is re-pinned, the other three stand.
+- `CONTEXT.md`: Prior context rewritten, Response family added.
+- metasurv's ADR 0008 carries the shared β semantics (families, the located prior, the
+  intercept's location rule under a data-driven default, the per-slope override), cited by
+  mixed ADR 0001; mixed ADR 0003 names two tokens and the intercept's drawn family with a
+  location; `envelope.md`'s prior table follows. metabeta's default corpus gains the β
+  family token and the location axes, nothing else.
