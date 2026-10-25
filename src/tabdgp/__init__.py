@@ -1,6 +1,6 @@
 """TabDGP, a data-generating process for grouped and flat tables."""
 
-from tabdgp.draw import Dataset, draw
+from tabdgp.draw import Dataset, draw, drawOutcome
 from tabdgp.field import (
     Beta,
     Dirichlet,
@@ -27,4 +27,5 @@ __all__ = [
     'Uniform',
     'UniformInt',
     'draw',
+    'drawOutcome',
 ]
