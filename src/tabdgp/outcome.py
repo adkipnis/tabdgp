@@ -68,13 +68,20 @@ class Covariates:
     score: np.ndarray | None  # (n,) float32, None for a table without an SCM
     # a table's declared metadata: Columns, or their fields as Dataset.toDict writes them
     METADATA: ClassVar[TypeAdapter] = TypeAdapter(dict[str, Column])
+    # the names a form or a model writes beside the covariates, each with what it names
+    RESERVED: ClassVar[dict[str, str]] = {
+        'y': "the outcome's name",
+        'intercept': "the design matrix's first term",
+        'fixed': "the fixed effects' block",
+    }
 
     def __post_init__(self) -> None:
-        # check that every array has one length, each column its metadata, and none is y
+        # check that every array has one length, each column its metadata, and none a reserved name
         _checkOneLength([*self.columns.values(), self.score], 'the covariates')
         _checkNames(self.columns, self.metadata)
-        if 'y' in self.columns:
-            raise ValueError("a covariate cannot be named 'y', the outcome's name: rename it")
+        for name, reason in self.RESERVED.items():
+            if name in self.columns:
+                raise ValueError(f'a column cannot be named {name!r}, {reason}: rename it')
 
     @property
     def rows(self) -> int:
