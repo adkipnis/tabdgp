@@ -279,8 +279,8 @@ class Covariates:
                 f'the {column.type} column {values.name} holds {values.dtype}, not numbers'
             )
         if column.type == 'continuous':
-            return values.to_numpy(dtype=np.float32)
-        counts = values.to_numpy(dtype=np.int64)  # (n,)
+            return values.to_numpy(dtype=column.dtype)
+        counts = values.to_numpy(dtype=column.dtype)  # (n,)
         if (counts < 0).any() or (counts != values.to_numpy()).any():
             raise ValueError(f'the count column {values.name} holds a value that is no count')
         return counts
@@ -474,7 +474,7 @@ class Normal:
     def draw(rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None) -> np.ndarray:
         noise = rng.standard_normal(len(eta))  # (n,)
         y = eta + scale * noise  # (n,)
-        return y.astype(np.float32)
+        return y.astype(Normal.COLUMN.dtype)
 
 
 class Bernoulli:
@@ -487,7 +487,7 @@ class Bernoulli:
     def draw(rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None) -> np.ndarray:
         p = 0.5 * (1 + np.tanh(eta / 2))  # (n,) the inverse logit, without exp's overflow
         uniforms = rng.random(len(eta))  # (n,)
-        return (uniforms < p).astype(np.int64)
+        return (uniforms < p).astype(Bernoulli.COLUMN.dtype)
 
 
 class Poisson:
