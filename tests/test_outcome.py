@@ -49,6 +49,16 @@ def test_covariates_that_meet_every_check_construct_with_or_without_a_score() ->
 
 # a model writes its columns without a marginal or parameters
 Y = Column(type='continuous', role='outcome')
+
+
+def _withColumn(name: str) -> dict:
+    """FIELDS' columns and metadata with a continuous covariate of this name added."""
+    return {
+        'columns': FIELDS['columns'] | {name: np.zeros(4, dtype=np.float32)},
+        'metadata': FIELDS['metadata'] | {name: Column(type='continuous')},
+    }
+
+
 UNFIT = [
     pytest.param(
         {'columns': {**GROUPING.codes, 'x0': np.zeros(3, dtype=np.float32)}},
@@ -70,15 +80,24 @@ UNFIT = [
         "'y'.*rename it",
         id='a column named y',
     ),
+    pytest.param(
+        _withColumn('intercept'),
+        "'intercept'.*rename it",
+        id="a column named the design's first term",
+    ),
+    pytest.param(_withColumn('fixed'), "'fixed'.*rename it", id='a column named the fixed block'),
 ]
 
 
 @pytest.mark.parametrize(('change', 'match'), UNFIT)
-def test_covariates_refuse_arrays_of_two_lengths_a_name_without_metadata_and_a_column_named_y(
+def test_covariates_refuse_arrays_of_two_lengths_a_name_without_metadata_and_a_reserved_name(
     change: dict, match: str
 ) -> None:
     """A model reads every array at the same rows and looks a column up by name in both dicts.
     y is the name the form writes, so a covariate under it would be overwritten in the dataset.
+    intercept is the design matrix's first term, so a covariate under it would repeat the term,
+    and fixed is the fixed block's name among the factors' blocks, so a factor under it would
+    replace the fixed block's share and scale.
     """
     with pytest.raises(ValidationError, match=match):
         Covariates(**FIELDS | change)
