@@ -223,6 +223,24 @@ class Glm(Fields):
         return {}  # a GLM has no random effects
 
     @staticmethod
+    def _drawSd(
+        family: str, scale: float, rng: np.random.Generator, size: int | None = None
+    ) -> float | np.ndarray:
+        """Draws from the sd family F at its scale, one value or size of them, as numpy does:
+        the scale times |X|, X F's standard law.
+        """
+        match family:
+            case 'half_normal':
+                standard = rng.standard_normal(size)
+            case 'half_student_t':
+                standard = rng.standard_t(3, size)
+            case 'half_cauchy':
+                standard = rng.standard_cauchy(size)
+            case 'exponential':
+                standard = rng.standard_exponential(size)
+        return scale * abs(standard)
+
+    @staticmethod
     def _drawLkj(q: int, eta: int, rng: np.random.Generator) -> np.ndarray:
         """Draws a correlation matrix from the LKJ prior at shape η by the C-vine
         of Lewandowski, Kurowicka and Joe (2009, section 3.2).
@@ -243,24 +261,6 @@ class Glm(Fields):
                 corr[k, i] = p
                 corr[i, k] = p
         return corr
-
-    @staticmethod
-    def _drawSd(
-        family: str, scale: float, rng: np.random.Generator, size: int | None = None
-    ) -> float | np.ndarray:
-        """Draws from the sd family F at its scale, one value or size of them, as numpy does:
-        the scale times |X|, X F's standard law.
-        """
-        match family:
-            case 'half_normal':
-                standard = rng.standard_normal(size)
-            case 'half_student_t':
-                standard = rng.standard_t(3, size)
-            case 'half_cauchy':
-                standard = rng.standard_cauchy(size)
-            case 'exponential':
-                standard = rng.standard_exponential(size)
-        return scale * abs(standard)
 
 
 class Glmm(Glm):
