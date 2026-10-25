@@ -17,9 +17,9 @@ the (optional) overrides
 -> a point for each field drawn once per dataset              Glm.resolveDataset
    (a factor resolves its budget and its η later)
 -> given y's family and the blocks, the families chosen,
-   r, τ, φ, each block's scale and each factor's η             _drawContext
--> β and σ_ε from their families at those scales,
-   then each factor's σ_α, Ω and α per group                   Glm.drawParameters
+   r, τ, φ, each block's scale and each factor's η            _drawContext
+-> β and σ_ε from their families at those scales              Glm.drawParameters
+-> each factor's σ_α, Ω and α per group                       _drawRandomEffects
 """
 
 from __future__ import annotations
@@ -52,7 +52,6 @@ from tabdgp.field import (
 class Block:
     """A block of η's coefficients drawn at one scale:
     the fixed effects, or a factor's random effects, one set per group.
-    The draw reads its size, never its columns.
     """
 
     name: str  # 'fixed', or the factor's
@@ -106,7 +105,7 @@ class Glm(Config):
     """The prior of a generalized linear model (GLM) over the design matrix.
 
     - Families: y's response family, with its canonical link,
-      and the family F the residual scale is drawn from.
+      and the family F the residual sd σ_ε is drawn from.
     - Scales: the predictor sd τ is the sd of η without the intercept.
       Under the Normal family τ² = r, the signal share r being the share of y's variance
       that η explains, so that y has unit variance at the scales.
@@ -125,7 +124,7 @@ class Glm(Config):
         'half_student_t': 0.25,  # ν = 3
         'half_cauchy': 0.25,
         'exponential': 0.25,
-    }  # F, the family of the residual scale σ_ε
+    }  # F, the family σ_ε and a GLMM's σ_α are drawn from
     residual_shares: Simplex = {'normal': 1.0}  # the Normal family's residual law  # noqa: RUF012
     intercept_scale: NonNegative = LogUniform(0.1, 10)  # σ_0
     signal_share: Share = Beta(2, 2)  # r
@@ -156,23 +155,8 @@ class Glm(Config):
         sigma_eps = None
         if context.residual_scale is not None:
             sigma_eps = self._drawSd(context.sd_family, context.residual_scale, rng)
-        sd_alpha = {}
-        corr_alpha = {}
-        alpha = {}
-        for block in factors:
-            scale = context.scales[block.name]
-            sd = self._drawSd(context.sd_family, scale, rng, size=block.width)  # (q,)
-            corr = np.eye(block.width)  # (q, q)
-            eta = context.lkj_eta[block.name]
-            if eta is not None:
-                corr = self._drawLkj(block.width, eta, rng)  # (q, q)
-            standard = rng.standard_normal((block.groups, block.width))  # (m, q)
-            # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
-            effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
-            # the parameters are float32, the precision of the columns they are recorded with
-            alpha[block.name] = effects.astype(np.float32)
-            sd_alpha[block.name] = sd.astype(np.float32)
-            corr_alpha[block.name] = corr.astype(np.float32)
+        sd_alpha, corr_alpha, alpha = self._drawRandomEffects(context, factors, rng)
+        # the parameters are float32, the precision of the columns they are recorded with
         parameters = Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
@@ -241,6 +225,27 @@ class Glm(Config):
                 standard = rng.standard_exponential(size)
         return scale * abs(standard)
 
+    def _drawRandomEffects(
+        self, context: PriorContext, factors: list[Block], rng: np.random.Generator
+    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
+        sd_alpha = {}
+        corr_alpha = {}
+        alpha = {}
+        for block in factors:
+            scale = context.scales[block.name]
+            sd = self._drawSd(context.sd_family, scale, rng, size=block.width)  # (q,)
+            corr = np.eye(block.width)  # (q, q)
+            eta = context.lkj_eta[block.name]
+            if eta is not None:
+                corr = self._drawLkj(block.width, eta, rng)  # (q, q)
+            standard = rng.standard_normal((block.groups, block.width))  # (m, q)
+            # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
+            effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
+            alpha[block.name] = effects.astype(np.float32)
+            sd_alpha[block.name] = sd.astype(np.float32)
+            corr_alpha[block.name] = corr.astype(np.float32)
+        return sd_alpha, corr_alpha, alpha
+
     @staticmethod
     def _drawLkj(q: int, eta: int, rng: np.random.Generator) -> np.ndarray:
         """Draws a correlation matrix from the LKJ prior at shape η by the C-vine
@@ -254,7 +259,8 @@ class Glm(Config):
         for k in range(q - 1):
             concentration -= 1 / 2
             for i in range(k + 1, q):
-                partial[k, i] = 2 * rng.beta(concentration, concentration) - 1
+                share = rng.beta(concentration, concentration)  # on (0, 1)
+                partial[k, i] = 2 * share - 1  # on (−1, 1)
                 p = partial[k, i]
                 for j in reversed(range(k)):
                     shrink = math.sqrt((1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2))
