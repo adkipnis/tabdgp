@@ -92,11 +92,11 @@ class Parameters:
     Each factor's random effects have their sds, their correlation and one row per group.
     """
 
-    beta: np.ndarray  # (d,) float64, the intercept first
+    beta: np.ndarray  # (d,) float32, the intercept first
     sigma_eps: float | None  # None unless the family is Normal
-    sd_alpha: dict[str, np.ndarray]  # (q,) float64 by factor, none for a GLM
-    corr_alpha: dict[str, np.ndarray]  # (q, q) float64 by factor
-    alpha: dict[str, np.ndarray]  # (m, q) float64 by factor
+    sd_alpha: dict[str, np.ndarray]  # (q,) float32 by factor, none for a GLM
+    corr_alpha: dict[str, np.ndarray]  # (q, q) float32 by factor
+    alpha: dict[str, np.ndarray]  # (m, q) float32 by factor
 
 
 # =====================================================================================
@@ -112,7 +112,8 @@ class Glm(Fields):
     - Scales: the predictor sd τ is the sd of η without the intercept.
       Under the Normal family τ² = r, the signal share r being the share of y's variance
       that η explains, so that y has unit variance.
-    - Deviation: the score added to η at deviation_scale · sd(η).
+    - Deviation: the score added to η at λ · sd(Xβ + Σ_k Z_k α_k),
+      the population sd over the rows.
     """
 
     SHARES: ClassVar[tuple[str, ...]] = ('family_shares', 'sd_family_shares', 'residual_shares')
@@ -167,11 +168,17 @@ class Glm(Fields):
                 corr = self._drawLkj(block.width, eta, rng)  # (q, q)
             standard = rng.standard_normal((block.groups, block.width))  # (m, q)
             # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
-            alpha[block.name] = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
-            sd_alpha[block.name] = sd
-            corr_alpha[block.name] = corr
+            effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
+            # the parameters are float32, the precision of the columns they are recorded with
+            alpha[block.name] = effects.astype(np.float32)
+            sd_alpha[block.name] = sd.astype(np.float32)
+            corr_alpha[block.name] = corr.astype(np.float32)
         parameters = Parameters(
-            beta=beta, sigma_eps=sigma_eps, sd_alpha=sd_alpha, corr_alpha=corr_alpha, alpha=alpha
+            beta=beta.astype(np.float32),
+            sigma_eps=sigma_eps,
+            sd_alpha=sd_alpha,
+            corr_alpha=corr_alpha,
+            alpha=alpha,
         )
         return context, parameters
 
