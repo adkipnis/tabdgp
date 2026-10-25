@@ -114,24 +114,21 @@ def test_a_form_other_than_none_scm_glm_glmm_or_a_model_fails_at_construction(
         Hyperprior(outcome_form=form)
 
 
-def test_glm_expands_to_its_default_config() -> None:
-    """A string names a built-in model's default config (ADR 0007),
-    and the hyperprior shows the object, so a dataset records which GLM drew it.
+EXPANSIONS = [
+    pytest.param(Hyperprior.grouped, 'glm', Glm(), id='glm on grouped, the pooled truth'),
+    pytest.param(Hyperprior.flat, 'glm', Glm(), id='glm on flat, which needs no grouping'),
+    pytest.param(Hyperprior.grouped, 'glmm', Glmm(), id="glmm on grouped, metabeta's one call"),
+]
+
+
+@pytest.mark.parametrize(('preset', 'form', 'config'), EXPANSIONS)
+def test_glm_and_glmm_expand_to_their_default_configs(
+    preset: Callable[..., Hyperprior], form: str, config: Glm
+) -> None:
+    """A string names a built-in model's default config (ADR 0007; Glmm's are ADR 0006's),
+    and the hyperprior shows the object, so a dataset records which model drew it.
     """
-    assert Hyperprior(outcome_form='glm').outcome_form == Glm()
-
-
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_glm_passes_on_grouped_and_flat(preset: Callable[..., Hyperprior]) -> None:
-    """A GLM needs no grouping, and on grouped covariates it is the pooled truth."""
-    assert preset(outcome_form='glm').outcome_form == Glm()
-
-
-def test_glmm_expands_to_its_default_config() -> None:
-    """metabeta's one call, grouped(outcome_form='glmm'), draws from Glmm()'s defaults (ADR 0006),
-    and a dataset records the config.
-    """
-    assert Hyperprior.grouped(outcome_form='glmm').outcome_form == Glmm()
+    assert preset(outcome_form=form).outcome_form == config
 
 
 WITHOUT_A_FACTOR = [
