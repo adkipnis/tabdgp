@@ -1,15 +1,14 @@
-"""field.py defines a config of fields, each a point or a distribution, and how a field resolves.
+"""field.py defines how we resolve config fields.
 
-A field's kind (an integer, a real, shares over named categories) says which points
-and distributions it takes, and its bounds are checked on a point or on the closure of a
-distribution's support.
-A subclass of Fields declares its fields and names its shares fields.
+A field's kind (integer, real, shares over named categories) declares which points
+and distributions it takes.
+Bounds are checked on a point or a distribution's support.
 
 pipeline:
 ---------
-a subclass's fields, each a point or a distribution
--> validation at construction, shares in default order  Fields
--> a point for one field, in the bounds it is given      resolveField
+a subclass's fields (each a point or a distribution)
+-> validation at construction, shares in default order    Fields
+-> a point for one field (within the bounds it is given)  resolveField
 """
 
 from __future__ import annotations
@@ -188,14 +187,11 @@ Share = Annotated[Real, within(ge=0, le=1)]
 
 class Fields(BaseModel):
     """A config whose every field is a point or a distribution of points.
-
-    - A shares field holds shares over named categories, or a Dirichlet over them.
-      Its default names the categories and their order;
-      an override names the same categories, in any order.
+    A `shares` field holds shares or a Dirichlet over named categories.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid', validate_default=True)
-    SHARES: ClassVar[tuple[str, ...]] = ()  # the shares fields, which a subclass names
+    SHARES: ClassVar[tuple[str, ...]] = ()  # the shares fields; each subclass names its own
 
     @classmethod
     def categories(cls, field: str) -> list[str]:
@@ -208,7 +204,6 @@ class Fields(BaseModel):
     @classmethod
     def _orderShares(cls, value: Any, info: ValidationInfo) -> Any:
         """Checks the categories named by an override and puts them in default order."""
-        # a subclass names its shares fields, so the validator sees every field and skips the rest
         if info.field_name not in cls.SHARES:
             return value
         categories = cls.categories(info.field_name)
@@ -235,9 +230,8 @@ class Fields(BaseModel):
             value = value.draw(rng, low, high) if bounded else value.draw(rng)
         return value
 
-    @staticmethod
-    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
-        bottom, top = _truncate(Fields._support(value), low, high)
+    def _checkBounds(self, field: str, value: Integer, low: int | None, high: int | None) -> None:
+        bottom, top = _truncate(self._support(value), low, high)
         if bottom > top:
             raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
 
