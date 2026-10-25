@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from tabdgp.column import Column, Grouping, assign
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior
-from tests.fixtures.build import columnsOf, graphOf, groupingOf, point
+from tests.fixtures.build import columnsOf, drawNothing, graphOf, groupingOf, point
 
 
 @pytest.mark.parametrize(('child', 'parent'), [(0, 1), (1, 1)], ids=['above', 'on'])
@@ -599,17 +599,13 @@ def test_the_observed_names_are_a_random_permutation_of_the_plan() -> None:
     assert len(orders) > 1
 
 
-def _model(covariates: object, rng: np.random.Generator) -> None:
-    """A model's signature; connect never calls it."""
-
-
 @pytest.mark.parametrize('grouping', [FLAT, GROUPING], ids=['flat', 'grouped'])
 def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) -> None:
     """A key reproduces its dataset bitwise only if every step draws from the generator alone.
     Under a model, so that y, which no column of the plan names, is drawn too.
     """
-    first = _connect(7, 9, grouping, outcome_form=_model)
-    second = _connect(7, 9, grouping, outcome_form=_model)
+    first = _connect(7, 9, grouping, outcome_form=drawNothing)
+    second = _connect(7, 9, grouping, outcome_form=drawNothing)
     assert first.names == second.names
     assert np.array_equal(first.parents, second.parents)
     assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
@@ -697,7 +693,7 @@ def test_y_is_in_the_graph_under_a_model_without_a_planned_column_and_absent_und
     """A model writes y's column itself, so the plan holds none, but every form turns y's node
     into y: the graph draws it like the scm form's, last at the row, with the outcome's noise.
     """
-    model = _connect(0, 4, GROUPING, outcome_form=_model, outcome_noise_scale=2.0, **DENSE)
+    model = _connect(0, 4, GROUPING, outcome_form=drawNothing, outcome_noise_scale=2.0, **DENSE)
     assert (model.names[-1], model.unit[-1], model.noise_scale[-1]) == ('y', 'row', 2.0)
     assert model.group_factor[-1] in ['g0', 'g1', 'g2']
     none = _connect(0, 4, GROUPING, outcome_form='none')

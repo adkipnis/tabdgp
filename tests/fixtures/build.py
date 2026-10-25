@@ -1,5 +1,6 @@
 """Hand-built inputs the module tests share: point-mass shares, continuous columns by name,
-a grouping from code lists, covariates from both and a graph from parent lists.
+a grouping from code lists, covariates from both, a model's y column, a model that draws nothing
+and a graph from parent lists.
 Also the between-group share the grouped tests measure.
 """
 
@@ -12,6 +13,9 @@ from tabdgp.field import Fields
 from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.outcome import Covariates
+
+# a model writes its columns without a marginal or parameters
+Y = Column(type='continuous', role='outcome')
 
 
 def point(field: str, category: str, config: type[Fields] = Hyperprior) -> dict[str, float]:
@@ -67,6 +71,10 @@ def covariatesOf(codes: list[list[int]], names: list[str], rows: int | None = No
         grouping=grouping,
         score=np.arange(rows, dtype=np.float32),
     )
+
+
+def drawNothing(covariates: object, rng: np.random.Generator) -> None:
+    """A model's signature, for a form that is never called."""
 
 
 def graphOf(

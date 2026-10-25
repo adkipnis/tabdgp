@@ -18,6 +18,7 @@ from tabdgp.graph import Activation, Graph, Mechanism
 from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tabdgp.mechanism import ACTIVATIONS
 from tabdgp.prior import Glm, Glmm
+from tests.fixtures.build import drawNothing
 
 
 def test_the_defaults_validate() -> None:
@@ -66,18 +67,14 @@ def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Hyper
     assert defaults == OUTCOME_DEFAULTS
 
 
-def _model(covariates: object, rng: np.random.Generator) -> None:
-    """A model's signature; construction never calls it."""
-
-
 class _CallableModel:
     def __call__(self, covariates: object, rng: np.random.Generator) -> None:
         pass
 
 
 MODELS = [
-    pytest.param(_model, id='a function'),
-    pytest.param(functools.partial(_model), id='a partial'),
+    pytest.param(drawNothing, id='a function'),
+    pytest.param(functools.partial(drawNothing), id='a partial'),
     pytest.param(_CallableModel(), id='an object with __call__'),
     pytest.param(Glm(signal_share=0.5), id="a glm config, TabDGP's own model"),
     pytest.param(Glmm(lkj_eta=2), id='a glmm config'),
@@ -208,7 +205,8 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
 
 
 @pytest.mark.parametrize(
-    'model', [pytest.param(_model, id='a model'), pytest.param(Glm(), id='a config unresolved')]
+    'model',
+    [pytest.param(drawNothing, id='a model'), pytest.param(Glm(), id='a config unresolved')],
 )
 def test_resolve_leaves_a_model_or_a_config_as_given(model: Callable[..., None] | Glm) -> None:
     """A model draws inside its own call, a config resolves its fields there,

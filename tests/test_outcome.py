@@ -29,7 +29,7 @@ from tabdgp.outcome import (
     run,
 )
 from tabdgp.prior import Glm, Glmm
-from tests.fixtures.build import columnsOf, covariatesOf, groupingOf, point
+from tests.fixtures.build import Y, columnsOf, covariatesOf, groupingOf, point
 
 # four rows in two groups of g0, one continuous covariate x0 and the score
 GROUPING = groupingOf([[0, 0, 1, 1]])
@@ -45,10 +45,6 @@ def test_covariates_that_meet_every_check_construct_with_or_without_a_score() ->
     """The control for the checks below; a real table has no SCM and so no score."""
     Covariates(**FIELDS)
     Covariates(**FIELDS | {'score': None})
-
-
-# a model writes its columns without a marginal or parameters
-Y = Column(type='continuous', role='outcome')
 
 
 def _withColumn(name: str) -> dict:

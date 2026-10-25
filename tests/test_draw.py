@@ -26,11 +26,10 @@ from tabdgp.outcome import (
     GlmOutcome,
     Outcome,
     ScmOutcome,
-    codeDesign,
     run,
 )
 from tabdgp.prior import Glm, Glmm
-from tests.fixtures.build import betweenShare, graphOf, point
+from tests.fixtures.build import Y, betweenShare, graphOf, point
 
 
 def test_a_dataset_holds_its_arrays_without_copying() -> None:
@@ -38,13 +37,12 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
     values = np.zeros(5, dtype=np.float32)
     latent = np.ones(5, dtype=np.float32)
     y = np.ones(5, dtype=np.float32)
-    y_column = Column(type='continuous', role='outcome')
     dataset = Dataset(
         columns={'x0': values, 'y': y},
-        metadata={'x0': Column(type='continuous', marginal='normal'), 'y': y_column},
+        metadata={'x0': Column(type='continuous', marginal='normal'), 'y': Y},
         graph=graphOf([[], []]),
         latent={'z0': latent},
-        outcome=Outcome(columns={'y': y}, metadata={'y': y_column}),
+        outcome=Outcome(columns={'y': y}, metadata={'y': Y}),
         hyperparameters=Hyperprior().resolveDataset(np.random.default_rng(0)),
         seed=0,
         index=0,
@@ -213,8 +211,7 @@ class _ScoreAsY:
 
     def __call__(self, covariates: Covariates, rng: np.random.Generator) -> Outcome:
         self.covariates = covariates
-        column = Column(type='continuous', role='outcome')
-        return Outcome(columns={'y': covariates.score}, metadata={'y': column})
+        return Outcome(columns={'y': covariates.score}, metadata={'y': Y})
 
 
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
@@ -333,7 +330,7 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
     hyperprior = Hyperprior.flat(rows=2000, outcome_form=glm)
     for index in range(5):
         dataset = draw(0, index, hyperprior)
-        design = codeDesign(dataset.columns, dataset.metadata, rows=2000)
+        design = dataset.toDesign()
         y = dataset.columns['y'].astype(np.float64)  # (n,)
         estimate, *_ = np.linalg.lstsq(design.matrix, y, rcond=None)
         np.testing.assert_allclose(estimate, dataset.outcome.beta, atol=0.01)
@@ -342,7 +339,7 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
 def _linearPart(dataset: Dataset) -> np.ndarray:
     """Xβ + Σ_k Z_k α_k[codes_k] on the coded columns, a GLMM's η without the deviation."""
     outcome = dataset.outcome
-    design = codeDesign(dataset.columns, dataset.metadata, rows=dataset.hyperparameters.rows)
+    design = dataset.toDesign()
     linear = design.matrix @ outcome.beta  # (n,)
     for factor, terms in outcome.random_terms.items():
         positions = [design.names.index(term) for term in terms]
@@ -521,8 +518,7 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
 
 def _shiftedScore(covariates: Covariates, rng: np.random.Generator, shift: float) -> Outcome:
     """A model whose y is the score plus a shift, its setting bound by a partial."""
-    column = Column(type='continuous', role='outcome')
-    return Outcome(columns={'y': covariates.score + np.float32(shift)}, metadata={'y': column})
+    return Outcome(columns={'y': covariates.score + np.float32(shift)}, metadata={'y': Y})
 
 
 def _throughJson(dataset: Dataset) -> dict:
