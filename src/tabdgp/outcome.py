@@ -105,13 +105,13 @@ class Covariates:
         """
         if (factors is None) == (metadata is None):
             raise ValueError('name the grouping factors to infer the metadata, or declare it')
-        observed = list(table.columns)
-        if metadata is not None:
+        if metadata is None:
+            cls._checkValues(table)
+            metadata = cls._inferMetadata(table, factors)
+        else:
             metadata = cls._validateMetadata(table, metadata)
             observed = [name for name, column in metadata.items() if column.role != 'outcome']
-        cls._checkValues(table[observed])
-        if metadata is None:
-            metadata = cls._inferMetadata(table, factors)
+            cls._checkValues(table[observed])
         grouping = cls._readGrouping(table, metadata)
         columns = dict(grouping.codes)
         for name, column in metadata.items():
