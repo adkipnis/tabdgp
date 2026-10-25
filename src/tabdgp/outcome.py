@@ -545,9 +545,8 @@ def _drawGlmm(
     design = codeDesign(covariates.columns, covariates.metadata, rows)
     name = resolved.family_shares.choose(rng)
     family = FAMILIES[name]
-    # the fixed term adds tr cov X to var(η) at scale 1, the intercept nothing
-    variance = float(design.matrix.var(axis=0).sum())
-    fixed = Block(name='fixed', width=len(design.names), variance=variance)
+    # a fixed effect adds its column's variance to var(η) at scale 1, the intercept nothing
+    fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist())
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
         resolved, design, covariates.grouping, factors, rng
     )
@@ -640,10 +639,9 @@ def _buildRandomBlocks(
         budget = resolved.resolveField('random_effects', rng, high=len(design.names))
         positions = _chooseRandomTerms(design, budget, rng)
         z = design.matrix[:, positions]  # (n, q)
-        # a random term adds tr E[z z'] to var(η) at scale 1, its intercept 1
-        variance = float((z**2).mean(axis=0).sum())
+        # a random effect adds E[z²] to var(η) at scale 1, the intercept 1
         groups = grouping.metadata[factor].levels
-        blocks.append(Block(name=factor, width=len(positions), variance=variance, groups=groups))
+        blocks.append(Block(name=factor, variances=(z**2).mean(axis=0).tolist(), groups=groups))
         random_terms[factor] = [design.names[i] for i in positions]
         random_columns[factor] = z
     return blocks, random_terms, random_columns

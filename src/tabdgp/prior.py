@@ -39,10 +39,10 @@ the (optional) overrides
 from __future__ import annotations
 
 import math
-from typing import ClassVar
+from typing import Annotated, ClassVar
 
 import numpy as np
-from pydantic import ConfigDict, NonNegativeFloat, PositiveInt
+from pydantic import ConfigDict, Field, NonNegativeFloat, PositiveInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.field import (
@@ -64,14 +64,24 @@ from tabdgp.field import (
 
 @pydantic_dataclass(frozen=True)
 class Block:
-    """A block of eta's coefficients drawn at the same scale:
+    """A block of eta's coefficients drawn under one budget:
     fixed effects or a factor's random effects (one set per group).
     """
 
     name: str  # 'fixed', or the factor's
-    width: PositiveInt  # its coefficients per group, the intercept included
-    variance: NonNegativeFloat  # what its term adds to var(eta) at scale 1: tr cov X if fixed
+    # what each coefficient adds to var(eta) at scale 1, the intercept first:
+    # a fixed effect its column's variance (the intercept's 0), a random effect its E[z²]
+    variances: Annotated[list[NonNegativeFloat], Field(min_length=1)]
     groups: PositiveInt = 1  # m, the fixed effects' one set for all rows
+
+    @property
+    def width(self) -> int:
+        return len(self.variances)
+
+    @property
+    def variance(self) -> float:
+        """What the block's term adds to var(eta) at scale 1."""
+        return sum(self.variances)
 
 
 @pydantic_dataclass(frozen=True)

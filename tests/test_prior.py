@@ -31,6 +31,15 @@ DEFAULTS = {
 }
 
 
+def test_a_block_is_as_wide_as_its_variances_and_has_at_least_one() -> None:
+    """A block names what each coefficient adds to var(η) at scale 1, the intercept first,
+    so its width is their count and a block without a coefficient cannot be written.
+    """
+    assert Block(name='fixed', variances=[0.0, 1.0, 0.25]).width == 3
+    with pytest.raises(ValidationError, match='variances'):
+        Block(name='fixed', variances=[])
+
+
 def test_the_fields_take_their_defaults_and_an_override() -> None:
     """ADR 0006's envelope as the comment on #46 amended it: what a GLM corpus draws by default.
     An override names a shares field's categories in any order and keeps the default's.
@@ -104,24 +113,33 @@ def test_resolve_leaves_the_fields_each_factor_draws_as_given() -> None:
 
 
 # r = 0.36 and τ = 2 give √r = 0.6 and √(1 − r) = 0.8; tr cov X = 2.25 gives √ 1.5
+THREE_QUARTERS = [0.0, 0.75, 0.75, 0.75]
 IDENTITIES = [
     pytest.param(
-        'normal', 2.25, 0.36, 0.6, 0.4, 0.8, id='normal: τ² = r, σ_β = τ / 1.5, s_ε = √(1 − r)'
+        'normal',
+        THREE_QUARTERS,
+        0.36,
+        0.6,
+        0.4,
+        0.8,
+        id='normal: τ² = r, σ_β = τ / 1.5, s_ε = √(1 − r)',
     ),
     pytest.param(
-        'bernoulli', 2.25, None, 2.0, 4 / 3, None, id='bernoulli: τ as drawn, no r or s_ε'
+        'bernoulli', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='bernoulli: τ as drawn, no r or s_ε'
     ),
-    pytest.param('poisson', 2.25, None, 2.0, 4 / 3, None, id='poisson: τ as drawn, no r or s_ε'),
-    pytest.param('poisson', 0.0, None, 2.0, 0.0, None, id='no covariate column: σ_β = 0'),
+    pytest.param(
+        'poisson', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='poisson: τ as drawn, no r or s_ε'
+    ),
+    pytest.param('poisson', [0.0], None, 2.0, 0.0, None, id='no covariate column: σ_β = 0'),
 ]
 
 
 @pytest.mark.parametrize(
-    ('family', 'variance', 'signal_share', 'predictor_sd', 'scale', 'residual_scale'), IDENTITIES
+    ('family', 'variances', 'signal_share', 'predictor_sd', 'scale', 'residual_scale'), IDENTITIES
 )
 def test_the_joint_draws_identities_hold(
     family: str,
-    variance: float,
+    variances: list[float],
     signal_share: float | None,
     predictor_sd: float,
     scale: float,
@@ -134,7 +152,7 @@ def test_the_joint_draws_identities_hold(
     An intercept-only design has no slope for σ_β to scale.
     """
     glm = Glm(signal_share=0.36, predictor_sd=2.0, intercept_scale=1.5)
-    blocks = [Block(name='fixed', width=4, variance=variance)]
+    blocks = [Block(name='fixed', variances=variances)]
     context, _ = glm.drawParameters(family, blocks, np.random.default_rng(0))
     assert (context.signal_share, context.intercept_scale) == (signal_share, 1.5)
     assert context.predictor_sd == pytest.approx(predictor_sd)
@@ -150,8 +168,8 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
     """
     glmm = Glmm(signal_share=0.36, fixed_share=0.64, intercept_scale=1.0)
     blocks = [
-        Block(name='fixed', width=4, variance=2.25),
-        Block(name='g0', width=2, variance=4.0, groups=3),
+        Block(name='fixed', variances=THREE_QUARTERS),
+        Block(name='g0', variances=[1.0, 3.0], groups=3),
     ]
     context, _ = glmm.drawParameters('normal', blocks, np.random.default_rng(0))
     assert context.split == {'fixed': 0.64, 'g0': pytest.approx(0.36)}
@@ -161,9 +179,9 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
 @pytest.mark.parametrize(
     'fixed',
     [
-        pytest.param(Block(name='fixed', width=4, variance=2.25), id='covariate columns'),
+        pytest.param(Block(name='fixed', variances=THREE_QUARTERS), id='covariate columns'),
         pytest.param(
-            Block(name='fixed', width=1, variance=0.0),
+            Block(name='fixed', variances=[0.0]),
             id='no covariate column: the factors take all of var(η)',
         ),
     ],
@@ -177,8 +195,8 @@ def test_the_blocks_of_a_glmm_share_all_of_var_eta(fixed: Block) -> None:
     glmm = Glmm(predictor_sd=2.0)
     blocks = [
         fixed,
-        Block(name='g0', width=2, variance=1.5, groups=3),
-        Block(name='g1', width=1, variance=1.0, groups=20),
+        Block(name='g0', variances=[1.0, 0.5], groups=3),
+        Block(name='g1', variances=[1.0], groups=20),
     ]
     context, _ = glmm.resolveDataset(np.random.default_rng(0)).drawParameters(
         'poisson', blocks, np.random.default_rng(1)
@@ -254,8 +272,8 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     )
     # each block's share 0.5 over its variance 0.18 gives σ_β = s_α = 0.6 · √(0.5 / 0.18) = 1
     blocks = [
-        Block(name='fixed', width=3, variance=0.18),
-        Block(name='g0', width=2, variance=0.18, groups=5),
+        Block(name='fixed', variances=[0.0, 0.09, 0.09]),
+        Block(name='g0', variances=[0.09, 0.09], groups=5),
     ]
     rng = np.random.default_rng(0)
     residual_sds = []
@@ -284,9 +302,9 @@ def test_the_split_follows_fixed_share_and_the_dirichlet_over_many_draws() -> No
     and two factors split the rest by a Dirichlet at split_alpha = 1, so either share is uniform.
     """
     blocks = [
-        Block(name='fixed', width=3, variance=1.0),
-        Block(name='g0', width=1, variance=1.0, groups=4),
-        Block(name='g1', width=1, variance=1.0, groups=8),
+        Block(name='fixed', variances=[0.0, 0.5, 0.5]),
+        Block(name='g0', variances=[1.0], groups=4),
+        Block(name='g1', variances=[1.0], groups=8),
     ]
     rng = np.random.default_rng(0)
     fixed = []
@@ -310,8 +328,8 @@ def test_the_lkj_marginal_variance_is_1_over_2_eta_plus_q_minus_1_over_draws_sym
     """
     glmm = Glmm(correlated_share=1.0, lkj_eta=2).resolveDataset(np.random.default_rng(0))
     blocks = [
-        Block(name='fixed', width=3, variance=1.0),
-        Block(name='g0', width=4, variance=4.0, groups=2),
+        Block(name='fixed', variances=[0.0, 0.5, 0.5]),
+        Block(name='g0', variances=[1.0, 1.0, 1.0, 1.0], groups=2),
     ]
     rng = np.random.default_rng(1)
     draws = []
@@ -343,8 +361,8 @@ def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width
     glmm = Glmm(correlated_share=correlated_share, lkj_eta=2)
     resolved = glmm.resolveDataset(np.random.default_rng(0))
     blocks = [
-        Block(name='fixed', width=3, variance=1.0),
-        Block(name='g0', width=width, variance=1.0, groups=5),
+        Block(name='fixed', variances=[0.0, 0.5, 0.5]),
+        Block(name='g0', variances=[1.0] * width, groups=5),
     ]
     context, parameters = resolved.drawParameters('poisson', blocks, np.random.default_rng(1))
     assert context.lkj_eta == {'g0': None}
@@ -353,9 +371,9 @@ def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width
 
 # the fixed block and two factors' blocks, in the factors' order
 FACTOR_BLOCKS = [
-    Block(name='fixed', width=5, variance=3.0),
-    Block(name='g0', width=3, variance=2.0, groups=4),
-    Block(name='g1', width=2, variance=1.5, groups=12),
+    Block(name='fixed', variances=[0.0, 0.75, 0.75, 0.75, 0.75]),
+    Block(name='g0', variances=[1.0, 0.5, 0.5], groups=4),
+    Block(name='g1', variances=[1.0, 0.5], groups=12),
 ]
 
 
