@@ -67,7 +67,7 @@ UNFIT = [
             'columns': FIELDS['columns'] | {'y': np.zeros(4, dtype=np.float32)},
             'metadata': FIELDS['metadata'] | {'y': Y},
         },
-        "'y'",
+        "'y'.*rename it",
         id='a column named y',
     ),
 ]
@@ -176,8 +176,8 @@ UNREADABLE = [
     pytest.param(
         'school', ['north'] * 3 + [None] + ['south'] * 4, 'school', id="a factor's missing value"
     ),
-    pytest.param('x_int', [1] * 8, 'x_int', id='a constant covariate'),
-    pytest.param('rater', ['r1'] * 8, 'rater', id='a factor of one group'),
+    pytest.param('x_int', [1] * 8, 'x_int takes one value.*drop it', id='a constant covariate'),
+    pytest.param('rater', ['r1'] * 8, 'rater takes one value.*drop it', id='a factor of one group'),
     pytest.param(
         'rater',
         ['c', 'c', 'a', 'a', 'd', 'd', 'b', 'b'],
@@ -201,6 +201,8 @@ def test_from_pandas_refuses_a_missing_value_a_constant_column_an_identical_part
     Two factors that group the rows alike are one factor under two names.
     A negative integer may be a code for a missing value, so it is no count,
     and a dtype outside the five states no column type.
+    A real table meets the constant column most (an empty interaction cell, a fixed setting),
+    so its refusal says what to do.
     """
     table = TABLE.assign(**{name: values})
     with pytest.raises(ValueError, match=match):
