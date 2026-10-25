@@ -17,7 +17,7 @@ from tabdgp.field import Beta, Dirichlet, LogUniform, LogUniformInt, Uniform, Un
 from tabdgp.graph import Activation, Graph, Mechanism
 from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tabdgp.mechanism import ACTIVATIONS
-from tabdgp.prior import Glm
+from tabdgp.prior import Glm, Glmm
 
 
 def test_the_defaults_validate() -> None:
@@ -80,6 +80,7 @@ MODELS = [
     pytest.param(functools.partial(_model), id='a partial'),
     pytest.param(_CallableModel(), id='an object with __call__'),
     pytest.param(Glm(signal_share=0.5), id="a glm config, TabDGP's own model"),
+    pytest.param(Glmm(lkj_eta=2), id='a glmm config'),
 ]
 
 
@@ -93,7 +94,6 @@ def test_a_model_is_a_form(model: Callable[..., None] | Glm) -> None:
 
 
 NOT_A_FORM = [
-    pytest.param('glmm', id='glmm'),
     pytest.param('SCM', id='a misspelled form'),
     pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
     pytest.param(Dirichlet({'none': 1, 'scm': 1}), id='a dirichlet'),
@@ -103,11 +103,10 @@ NOT_A_FORM = [
 
 
 @pytest.mark.parametrize('form', NOT_A_FORM)
-def test_a_form_other_than_none_scm_glm_or_a_model_fails_at_construction(
+def test_a_form_other_than_none_scm_glm_glmm_or_a_model_fails_at_construction(
     form: str | dict | Dirichlet,
 ) -> None:
-    """glmm is no form until #51 adds its config,
-    and a dataset of each form returns different things, so no corpus mixes them:
+    """A dataset of each form returns different things, so no corpus mixes them:
     each fails where it is written, like a typo, not at a draw.
     A dict is not coerced into a Glm, whose fields a reader would then not see named.
     """
@@ -126,6 +125,37 @@ def test_glm_expands_to_its_default_config() -> None:
 def test_glm_passes_on_grouped_and_flat(preset: Callable[..., Hyperprior]) -> None:
     """A GLM needs no grouping, and on grouped covariates it is the pooled truth."""
     assert preset(outcome_form='glm').outcome_form == Glm()
+
+
+def test_glmm_expands_to_its_default_config() -> None:
+    """metabeta's one call, grouped(outcome_form='glmm'), draws from Glmm()'s defaults (ADR 0006),
+    and a dataset records the config.
+    """
+    assert Hyperprior.grouped(outcome_form='glmm').outcome_form == Glmm()
+
+
+WITHOUT_A_FACTOR = [
+    pytest.param(Hyperprior.flat, {'outcome_form': 'glmm'}, id='flat'),
+    pytest.param(
+        Hyperprior.grouped,
+        {'factors': UniformInt(0, 3), 'outcome_form': 'glmm'},
+        id='a factors range reaching 0',
+    ),
+    pytest.param(
+        Hyperprior.grouped, {'factors': 0, 'outcome_form': Glmm(lkj_eta=2)}, id='a glmm config'
+    ),
+]
+
+
+@pytest.mark.parametrize(('preset', 'overrides'), WITHOUT_A_FACTOR)
+def test_glmm_fails_on_flat_and_on_a_factors_range_reaching_0_naming_the_field(
+    preset: Callable[..., Hyperprior], overrides: dict
+) -> None:
+    """A GLMM's random effects belong to a grouping factor, so a dataset without one
+    cannot be drawn; the hyperprior fails where it is written, not on the draw that reaches 0.
+    """
+    with pytest.raises(ValidationError, match='factors'):
+        preset(**overrides)
 
 
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
