@@ -215,7 +215,7 @@ def _drawOutcome(
         case 'none':
             return None
         case 'scm':
-            # y's column rank-matched to the score, the last draw, as under 0.3.0
+            # y's column rank-matched to the score, the last draw
             y = apply(covariates.score, planned['y'], rng)  # (n,)
             metadata = {'y': planned['y']}
             return ScmOutcome(columns={'y': y}, metadata=metadata, score=covariates.score)
