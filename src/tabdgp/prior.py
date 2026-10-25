@@ -150,7 +150,7 @@ class Glm(Config):
         context = self._drawContext(family, blocks, rng)
         fixed, *factors = blocks
         intercept = rng.normal(0, context.intercept_scale, size=1)  # (1,)
-        slopes = rng.normal(0, context.scales['fixed'], size=fixed.width - 1)  # (d − 1,)
+        slopes = rng.normal(0, context.scales[fixed.name], size=fixed.width - 1)  # (d − 1,)
         beta = np.concatenate([intercept, slopes])  # (d,)
         sigma_eps = None
         if context.residual_scale is not None:
@@ -200,7 +200,7 @@ class Glm(Config):
         )
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
-        return {'fixed': 1.0}  # a GLM's one block takes all of var(η)
+        return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(η)
 
     def _drawCorrelations(
         self, blocks: list[Block], rng: np.random.Generator
@@ -293,7 +293,7 @@ class Glmm(Glm):
         fixed, *factors = blocks
         # a fixed block without covariate columns adds nothing to var(η), so the factors take all
         fixed_share = self.fixed_share if fixed.variance > 0 else 0.0
-        split = {'fixed': fixed_share}
+        split = {fixed.name: fixed_share}
         shares = rng.dirichlet([self.split_alpha] * len(factors))  # (f,)
         for block, share in zip(factors, shares):
             split[block.name] = (1 - fixed_share) * float(share)
