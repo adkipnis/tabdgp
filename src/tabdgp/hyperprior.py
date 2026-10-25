@@ -16,8 +16,8 @@ pipeline:
 ---------
 the (optional) overrides
 -> a preset with the overrides                           grouped, flat
--> validation at construction                            Hyperprior
 -> a built-in model's name expanded to its config        _expandForm
+-> validation at construction                            Hyperprior
 -> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
    (a column, node or factor resolves its own fields later, by resolveField)
@@ -227,13 +227,6 @@ class Hyperprior(Fields):
             return Glmm()
         return form
 
-    def _floorGroups(self, depth: int) -> int:
-        """The smallest number of groups a factor can have at this depth.
-        Each factor above it (in its chain) has fewer groups.
-        """
-        lowest, _ = self._support(self.groups)
-        return lowest + depth
-
     @model_validator(mode='after')
     def _checkOnePointPerFactor(self) -> Hyperprior:
         """Checks that a tuple of groups gives every factor one point."""
@@ -268,6 +261,13 @@ class Hyperprior(Fields):
                 'fewer factors, or give groups a wider range'
             )
         return self  # pydantic's after-validator returns the model
+
+    def _floorGroups(self, depth: int) -> int:
+        """The smallest number of groups a factor can have at this depth.
+        Each factor above it (in its chain) has fewer groups.
+        """
+        lowest, _ = self._support(self.groups)
+        return lowest + depth
 
     @model_validator(mode='after')
     def _checkFactorsForGlmm(self) -> Hyperprior:
