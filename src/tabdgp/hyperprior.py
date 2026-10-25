@@ -1,6 +1,6 @@
 """hyperprior.py defines how every hyperparameter of the dataset is sampled.
 
-We save hyperparameters as fields of the Hyperprior class, a Config (field.py).
+We save hyperparameters as fields of the Hyperprior class (a Config in field.py).
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
   or to a point where one value serves every dataset (the outcome's form, its type shares).
 - An override replaces it by a point or, where the field's type allows, by another distribution,
