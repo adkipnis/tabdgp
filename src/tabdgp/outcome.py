@@ -15,7 +15,8 @@ the covariates at the rows, their metadata, the grouping and the score  Covariat
    a GLMM's, a GLM's without factors:
    -> the design matrix, the intercept first                            codeDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
-   -> the prior's scales and parameters over the blocks                 Glm.drawParameters
+   -> the stated prior over the blocks, then its parameters             Glm.drawContext,
+                                                                        PriorContext.drawParameters
    -> η = Xβ + Σ_k Z_k α_k, plus the deviation λ · sd(Xβ + Σ_k Z_k α_k) · score,
       then y from the family through its link                           _drawGlmm
    a study's:
@@ -550,7 +551,8 @@ def _drawGlmm(
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
         resolved, design, covariates.grouping, factors, rng
     )
-    context, parameters = resolved.drawParameters(name, [fixed, *random_blocks], rng)
+    context = resolved.drawContext(name, [fixed, *random_blocks], rng)
+    parameters = context.drawParameters(rng)
     # η in float64 from the float32 parameters, which are so its exact truth
     eta = design.matrix @ parameters.beta  # (n,)
     for factor, z in random_columns.items():

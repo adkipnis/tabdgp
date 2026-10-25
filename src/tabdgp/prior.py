@@ -24,16 +24,23 @@ This adapts the R2D2M2 prior (Aguilar and Bürkner, 2023),
 without its Dirichlet over all effects (which rarely lets a random intercept
 carry the signal in eta, which is observed in real datasets with strong grouping).
 
+The prior takes the shape a brms user states: a family for β (Normal, Student-t or Cauchy),
+a location and a scale per coefficient, a family for the random-effect sds and one for the
+residual sd, each scale the family's own scale parameter. The prior context records that
+prior and draws the parameters from it, so a truth can be resampled under a fixed prior.
+
 pipeline:
 ---------
 the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point for each field drawn once per dataset              Glm.resolveDataset
    (a factor resolves its budget and its LKJ shape later)
--> given y's family and the blocks, the families chosen,
-   r, τ, φ, each block's scale and each factor's LKJ shape    _drawContext
--> β and σ_ε from their families at those scales              Glm.drawParameters
--> each factor's σ_α, Ω and α per group                       _drawRandomEffects
+-> given y's family and the blocks, the stated prior:
+   the families chosen, r, τ, φ, each slope's location
+   and scale, each factor's scale and LKJ shape               Glm.drawContext
+-> β and σ_ε from their families at those locations
+   and scales                                                 PriorContext.drawParameters
+-> each factor's σ_α, Ω and α per group                       PriorContext._drawRandomEffects
 """
 
 from __future__ import annotations
@@ -86,17 +93,29 @@ class Block:
         return sum(self.variances)
 
 
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class Parameters:
+    """A GLM's or GLMM's parameters on the standardized scale. All arrays are float32."""
+
+    beta: np.ndarray  # (d,) intercept first
+    sigma_eps: float | None  # None unless the likelihood family is Normal
+    sd_alpha: dict[str, np.ndarray]  # (q,) by factor
+    corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
+    alpha: dict[str, np.ndarray]  # (m, q) by factor
+
+
 @pydantic_dataclass(frozen=True)
 class PriorContext:
     """The stated prior a GLM's or GLMM's parameters are drawn from, resolved per dataset:
     what a fitter would state, in the families' own scale parameters.
+    It draws the parameters itself, so a truth can be resampled under a fixed prior.
 
     - Fixed effects: their family, the intercept's location and scale and each slope's.
     - Random effects: each factor's scale, the family of its sds
       and its LKJ shape, if its effects are correlated.
     - Residual: the family and scale of σ_ε, for a response family with one.
-    - Budget: the signal share r, the predictor sd τ and each block's share φ of var(eta),
-      which set the scales.
+    - Budget: the signal share r, the predictor sd τ, each block's share φ of var(eta)
+      and the blocks, which set the scales.
     """
 
     beta_family: str
@@ -112,17 +131,96 @@ class PriorContext:
     signal_share: float | None  # r, None unless the family is Normal
     predictor_sd: float  # τ
     split: dict[str, float]  # φ by block name
+    blocks: list[Block]  # the fixed block, then the factors' in order
 
+    def drawParameters(self, rng: np.random.Generator) -> Parameters:
+        """Draws each parameter from its family at its location and scale exactly."""
+        _, *factors = self.blocks
+        locations = np.array([self.intercept_location, *self.slope_locations])  # (d,)
+        scales = np.array([self.intercept_scale, *self.slope_scales])  # (d,)
+        standard = self._drawStandard(self.beta_family, rng, len(scales))  # (d,)
+        beta = locations + scales * standard  # (d,)
+        sigma_eps = None
+        if self.residual_scale is not None:
+            sigma_eps = self._drawSd(self.sigma_eps_family, self.residual_scale, rng)
+        sd_alpha, corr_alpha, alpha = self._drawRandomEffects(factors, rng)
+        # the parameters are float32, the precision of the columns they are recorded with
+        return Parameters(
+            beta=beta.astype(np.float32),
+            sigma_eps=sigma_eps,
+            sd_alpha=sd_alpha,
+            corr_alpha=corr_alpha,
+            alpha=alpha,
+        )
 
-@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
-class Parameters:
-    """A GLM's or GLMM's parameters on the standardized scale. All arrays are float32."""
+    @staticmethod
+    def _drawStandard(family: str, rng: np.random.Generator, size: int | None) -> np.ndarray:
+        """Draws a family's standard law, which a location and a scale then place:
+        one law serves a symmetric family and its half version.
+        """
+        match family.removeprefix('half_'):
+            case 'normal':
+                return rng.standard_normal(size)
+            case 'student_t':
+                return rng.standard_t(3, size)
+            case 'cauchy':
+                return rng.standard_cauchy(size)
+            case 'exponential':
+                return rng.standard_exponential(size)
 
-    beta: np.ndarray  # (d,) intercept first
-    sigma_eps: float | None  # None unless the likelihood family is Normal
-    sd_alpha: dict[str, np.ndarray]  # (q,) by factor
-    corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
-    alpha: dict[str, np.ndarray]  # (m, q) by factor
+    @classmethod
+    def _drawSd(
+        cls, family: str, scale: float, rng: np.random.Generator, size: int | None = None
+    ) -> float | np.ndarray:
+        """Draws from an sd family at its scale, one value or size of them, as numpy does:
+        the scale times |X|, X the family's standard law.
+        """
+        standard = cls._drawStandard(family, rng, size)
+        return scale * abs(standard)
+
+    def _drawRandomEffects(
+        self, factors: list[Block], rng: np.random.Generator
+    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
+        sd_alpha = {}
+        corr_alpha = {}
+        alpha = {}
+        for block in factors:
+            scale = self.random_scales[block.name]
+            sd = self._drawSd(self.sd_alpha_family, scale, rng, size=block.width)  # (q,)
+            corr = np.eye(block.width)  # (q, q)
+            lkj_eta = self.lkj_eta[block.name]
+            if lkj_eta is not None:
+                corr = self._drawLkj(block.width, lkj_eta, rng)  # (q, q)
+            standard = rng.standard_normal((block.groups, block.width))  # (m, q)
+            # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
+            effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
+            alpha[block.name] = effects.astype(np.float32)
+            sd_alpha[block.name] = sd.astype(np.float32)
+            corr_alpha[block.name] = corr.astype(np.float32)
+        return sd_alpha, corr_alpha, alpha
+
+    @staticmethod
+    def _drawLkj(q: int, lkj_eta: int, rng: np.random.Generator) -> np.ndarray:
+        """Draws a correlation matrix from the LKJ prior at shape lkj_eta by the C-vine
+        of Lewandowski, Kurowicka and Joe (2009, section 3.2).
+        Each partial correlation is a Beta on (−1, 1),
+        turned into a correlation by the recursion over the variables before it.
+        """
+        partial = np.zeros((q, q))  # (q, q)
+        corr = np.eye(q)  # (q, q)
+        concentration = lkj_eta + (q - 1) / 2  # the paper's β
+        for k in range(q - 1):
+            concentration -= 1 / 2
+            for i in range(k + 1, q):
+                share = rng.beta(concentration, concentration)  # on (0, 1)
+                partial[k, i] = 2 * share - 1  # on (−1, 1)
+                p = partial[k, i]
+                for j in reversed(range(k)):
+                    shrink = math.sqrt((1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2))
+                    p = p * shrink + partial[j, i] * partial[j, k]
+                corr[k, i] = p
+                corr[i, k] = p
+        return corr
 
 
 # =====================================================================================
@@ -185,35 +283,13 @@ class Glm(Config):
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
 
-    def drawParameters(
-        self, family: str, blocks: list[Block], rng: np.random.Generator
-    ) -> tuple[PriorContext, Parameters]:
-        """Draws the scales jointly, then each parameter from its family at its scale exactly.
-        On a resolved Glm, for the response family chosen.
-        """
-        context = self._drawContext(family, blocks, rng)
-        _, *factors = blocks
-        locations = np.array([context.intercept_location, *context.slope_locations])  # (d,)
-        scales = np.array([context.intercept_scale, *context.slope_scales])  # (d,)
-        standard = self._drawStandard(context.beta_family, rng, len(scales))  # (d,)
-        beta = locations + scales * standard  # (d,)
-        sigma_eps = None
-        if context.residual_scale is not None:
-            sigma_eps = self._drawSd(context.sigma_eps_family, context.residual_scale, rng)
-        sd_alpha, corr_alpha, alpha = self._drawRandomEffects(context, factors, rng)
-        # the parameters are float32, the precision of the columns they are recorded with
-        parameters = Parameters(
-            beta=beta.astype(np.float32),
-            sigma_eps=sigma_eps,
-            sd_alpha=sd_alpha,
-            corr_alpha=corr_alpha,
-            alpha=alpha,
-        )
-        return context, parameters
-
-    def _drawContext(
+    def drawContext(
         self, family: str, blocks: list[Block], rng: np.random.Generator
     ) -> PriorContext:
+        """Draws the stated prior for the response family over the blocks:
+        the families, the scales jointly from the budget and each slope's location.
+        On a resolved Glm.
+        """
         beta_family = self.beta_family_shares.choose(rng)
         sigma_eps_family = None
         signal_share = None
@@ -249,7 +325,19 @@ class Glm(Config):
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
+            blocks=blocks,
         )
+
+    def _drawSdAlphaFamily(self, rng: np.random.Generator) -> str | None:
+        return None  # a GLM has no random effects
+
+    def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
+        return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
+
+    def _drawCorrelations(
+        self, blocks: list[Block], rng: np.random.Generator
+    ) -> dict[str, int | None]:
+        return {}  # a GLM has no random effects
 
     def _drawSlopes(
         self, fixed: Block, budget: float, rng: np.random.Generator
@@ -272,86 +360,6 @@ class Glm(Config):
         slope_locations = delta * slope_scales  # (d − 1,)
         return slope_locations.tolist(), slope_scales.tolist()
 
-    def _drawSdAlphaFamily(self, rng: np.random.Generator) -> str | None:
-        return None  # a GLM has no random effects
-
-    def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
-        return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
-
-    def _drawCorrelations(
-        self, blocks: list[Block], rng: np.random.Generator
-    ) -> dict[str, int | None]:
-        return {}  # a GLM has no random effects
-
-    @staticmethod
-    def _drawStandard(family: str, rng: np.random.Generator, size: int | None) -> np.ndarray:
-        """Draws a family's standard law, which a location and a scale then place:
-        one law serves a symmetric family and its half version.
-        """
-        match family.removeprefix('half_'):
-            case 'normal':
-                return rng.standard_normal(size)
-            case 'student_t':
-                return rng.standard_t(3, size)
-            case 'cauchy':
-                return rng.standard_cauchy(size)
-            case 'exponential':
-                return rng.standard_exponential(size)
-
-    @classmethod
-    def _drawSd(
-        cls, family: str, scale: float, rng: np.random.Generator, size: int | None = None
-    ) -> float | np.ndarray:
-        """Draws from an sd family at its scale, one value or size of them, as numpy does:
-        the scale times |X|, X the family's standard law.
-        """
-        standard = cls._drawStandard(family, rng, size)
-        return scale * abs(standard)
-
-    def _drawRandomEffects(
-        self, context: PriorContext, factors: list[Block], rng: np.random.Generator
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
-        sd_alpha = {}
-        corr_alpha = {}
-        alpha = {}
-        for block in factors:
-            scale = context.random_scales[block.name]
-            sd = self._drawSd(context.sd_alpha_family, scale, rng, size=block.width)  # (q,)
-            corr = np.eye(block.width)  # (q, q)
-            lkj_eta = context.lkj_eta[block.name]
-            if lkj_eta is not None:
-                corr = self._drawLkj(block.width, lkj_eta, rng)  # (q, q)
-            standard = rng.standard_normal((block.groups, block.width))  # (m, q)
-            # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
-            effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
-            alpha[block.name] = effects.astype(np.float32)
-            sd_alpha[block.name] = sd.astype(np.float32)
-            corr_alpha[block.name] = corr.astype(np.float32)
-        return sd_alpha, corr_alpha, alpha
-
-    @staticmethod
-    def _drawLkj(q: int, lkj_eta: int, rng: np.random.Generator) -> np.ndarray:
-        """Draws a correlation matrix from the LKJ prior at shape lkj_eta by the C-vine
-        of Lewandowski, Kurowicka and Joe (2009, section 3.2).
-        Each partial correlation is a Beta on (−1, 1),
-        turned into a correlation by the recursion over the variables before it.
-        """
-        partial = np.zeros((q, q))  # (q, q)
-        corr = np.eye(q)  # (q, q)
-        concentration = lkj_eta + (q - 1) / 2  # the paper's β
-        for k in range(q - 1):
-            concentration -= 1 / 2
-            for i in range(k + 1, q):
-                share = rng.beta(concentration, concentration)  # on (0, 1)
-                partial[k, i] = 2 * share - 1  # on (−1, 1)
-                p = partial[k, i]
-                for j in reversed(range(k)):
-                    shrink = math.sqrt((1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2))
-                    p = p * shrink + partial[j, i] * partial[j, k]
-                corr[k, i] = p
-                corr[i, k] = p
-        return corr
-
 
 class Glmm(Glm):
     """The prior of a generalized linear mixed model (GLMM): a GLM with random effects.
@@ -368,9 +376,7 @@ class Glmm(Glm):
     SHARES: ClassVar[tuple[str, ...]] = (*Glm.SHARES, 'sd_alpha_family_shares')
     PER_FACTOR: ClassVar[tuple[str, ...]] = ('random_effects', 'lkj_eta')
 
-    sd_alpha_family_shares: Simplex = (
-        SD_FAMILY_SHARES  # the family each factor's σ_α are drawn from
-    )
+    sd_alpha_family_shares: Simplex = SD_FAMILY_SHARES  # the family each factor's σ_α come from
     fixed_share: Share = Beta(1, 1)  # φ_fixed
     split_alpha: Positive = 1.0  # the Dirichlet's concentration over the factors' blocks
     random_effects: PositiveCount = UniformInt(1, 6)  # q_k per factor, truncated at d

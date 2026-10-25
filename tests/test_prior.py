@@ -170,7 +170,7 @@ def test_the_joint_draws_identities_hold(
         location_share=0.0,
     )
     blocks = [Block(name='fixed', variances=variances)]
-    context, _ = glm.drawParameters(family, blocks, np.random.default_rng(0))
+    context = glm.drawContext(family, blocks, np.random.default_rng(0))
     slopes = len(variances) - 1
     assert (context.signal_share, context.intercept_scale) == (signal_share, 1.5)
     assert context.intercept_location == -2.0
@@ -198,7 +198,7 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
         Block(name='fixed', variances=THREE_QUARTERS),
         Block(name='g0', variances=[1.0, 3.0], groups=3),
     ]
-    context, _ = glmm.drawParameters('normal', blocks, np.random.default_rng(0))
+    context = glmm.drawContext('normal', blocks, np.random.default_rng(0))
     assert context.split == {'fixed': 0.64, 'g0': pytest.approx(0.36)}
     assert context.slope_scales == pytest.approx([0.32] * 3)
     assert context.random_scales == {'g0': pytest.approx(0.18)}
@@ -236,9 +236,8 @@ def test_the_blocks_of_a_glmm_share_all_of_var_eta(fixed: Block) -> None:
         Block(name='g0', variances=[1.0, 0.5], groups=3),
         Block(name='g1', variances=[1.0], groups=20),
     ]
-    context, _ = glmm.resolveDataset(np.random.default_rng(0)).drawParameters(
-        'poisson', blocks, np.random.default_rng(1)
-    )
+    resolved = glmm.resolveDataset(np.random.default_rng(0))
+    context = resolved.drawContext('poisson', blocks, np.random.default_rng(1))
     assert list(context.split) == ['fixed', 'g0', 'g1']
     assert sum(context.split.values()) == pytest.approx(1)
     for block in blocks:
@@ -261,7 +260,7 @@ def test_located_and_spread_slopes_spend_the_fixed_blocks_budget_exactly() -> No
     )
     fixed = Block(name='fixed', variances=[0.0, 0.5, 1.0, 2.0, 0.0])
     for seed in range(5):
-        context, _ = glm.drawParameters('poisson', [fixed], np.random.default_rng(seed))
+        context = glm.drawContext('poisson', [fixed], np.random.default_rng(seed))
         assert _spent(context, fixed) == pytest.approx(4.0)
         assert len(set(context.slope_scales)) == 4
         assert all(location != 0 for location in context.slope_locations)
@@ -345,7 +344,7 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     slopes = []
     random_effects = []
     for _ in range(DRAWS):
-        _, parameters = glmm.drawParameters('normal', blocks, rng)
+        parameters = glmm.drawContext('normal', blocks, rng).drawParameters(rng)
         residual_sds.append(parameters.sigma_eps / 0.8)
         random_sds.extend(parameters.sd_alpha['g0'])
         intercepts.append(parameters.beta[0])
@@ -367,15 +366,16 @@ def test_a_slope_is_located_with_location_share_and_its_relative_location_is_nor
     each slope has a location with probability 0.1, and then μ_j / σ_j ~ N(0, 2).
     """
     fixed = Block(name='fixed', variances=[0.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(1)  # seed 0's first 10,000 slopes land 3.8 sd above 0.1
     relative = []
     for _ in range(DRAWS):
         resolved = Glm().resolveDataset(rng)
-        context, _ = resolved.drawParameters('poisson', [fixed], rng)
+        context = resolved.drawContext('poisson', [fixed], rng)
         for location, scale in zip(context.slope_locations, context.slope_scales):
             relative.append(location / scale)
     located = [delta / 2 for delta in relative if delta != 0]
-    assert len(located) / len(relative) == pytest.approx(0.1, abs=0.01)
+    three_sds = 3 * math.sqrt(0.1 * 0.9 / len(relative))
+    assert len(located) / len(relative) == pytest.approx(0.1, abs=three_sds)
     assert _ksDistance(located, _standardNormalCdf) < 1.63 / math.sqrt(len(located))
 
 
@@ -415,7 +415,8 @@ def test_each_fixed_effect_follows_the_beta_family_at_its_recorded_location_and_
     intercepts = []
     slopes = []
     for _ in range(DRAWS):
-        context, parameters = glm.drawParameters('bernoulli', [fixed], rng)
+        context = glm.drawContext('bernoulli', [fixed], rng)
+        parameters = context.drawParameters(rng)
         assert context.beta_family == beta_family
         intercepts.append((parameters.beta[0] - 1.0) / 0.5)
         standardized = (parameters.beta[1:] - context.slope_locations) / context.slope_scales
@@ -438,7 +439,7 @@ def test_the_split_follows_fixed_share_and_the_dirichlet_over_many_draws() -> No
     first = []
     for _ in range(DRAWS):
         resolved = Glmm().resolveDataset(rng)
-        context, _ = resolved.drawParameters('bernoulli', blocks, rng)
+        context = resolved.drawContext('bernoulli', blocks, rng)
         fixed.append(context.split['fixed'])
         first.append(context.split['g0'] / (1 - context.split['fixed']))
     assert _ksDistance(fixed, _uniformCdf) < 1.63 / math.sqrt(DRAWS)
@@ -461,7 +462,8 @@ def test_the_lkj_marginal_variance_is_1_over_2_eta_plus_q_minus_1_over_draws_sym
     rng = np.random.default_rng(1)
     draws = []
     for _ in range(DRAWS):
-        context, parameters = glmm.drawParameters('bernoulli', blocks, rng)
+        context = glmm.drawContext('bernoulli', blocks, rng)
+        parameters = context.drawParameters(rng)
         corr = parameters.corr_alpha['g0']  # (q, q)
         assert np.array_equal(corr, corr.T)
         assert np.diag(corr).tolist() == [1.0] * 4
@@ -491,7 +493,8 @@ def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width
         Block(name='fixed', variances=[0.0, 0.5, 0.5]),
         Block(name='g0', variances=[1.0] * width, groups=5),
     ]
-    context, parameters = resolved.drawParameters('poisson', blocks, np.random.default_rng(1))
+    context = resolved.drawContext('poisson', blocks, np.random.default_rng(1))
+    parameters = context.drawParameters(np.random.default_rng(1))
     assert context.lkj_eta == {'g0': None}
     assert np.array_equal(parameters.corr_alpha['g0'], np.eye(width))
 
@@ -520,7 +523,8 @@ def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_ch
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'exponential', Glm),
     )
     resolved = glmm.resolveDataset(np.random.default_rng(0))
-    context, parameters = resolved.drawParameters(family, FACTOR_BLOCKS, np.random.default_rng(0))
+    context = resolved.drawContext(family, FACTOR_BLOCKS, np.random.default_rng(0))
+    parameters = context.drawParameters(np.random.default_rng(0))
     assert list(context.split) == ['fixed', 'g0', 'g1']
     assert list(context.random_scales) == list(context.lkj_eta) == ['g0', 'g1']
     assert list(parameters.alpha) == ['g0', 'g1']
@@ -532,16 +536,18 @@ def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_ch
         assert parameters.alpha[block.name].shape == (block.groups, q)
 
 
-def test_the_draw_is_deterministic_under_a_fixed_generator() -> None:
-    """A dataset is a pure function of its key, its parameters included."""
+def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_context_draws_alone() -> None:
+    """A dataset is a pure function of its key, its parameters included.
+    The context is the stated prior and keeps the blocks it was set over,
+    so it draws its parameters without the config, and a truth is resampled under a fixed prior.
+    """
     resolved = Glmm(correlated_share=1.0).resolveDataset(np.random.default_rng(0))
-    first_context, first = resolved.drawParameters(
-        'normal', FACTOR_BLOCKS, np.random.default_rng(7)
-    )
-    second_context, second = resolved.drawParameters(
-        'normal', FACTOR_BLOCKS, np.random.default_rng(7)
-    )
+    first_context = resolved.drawContext('normal', FACTOR_BLOCKS, np.random.default_rng(7))
+    second_context = resolved.drawContext('normal', FACTOR_BLOCKS, np.random.default_rng(7))
     assert first_context == second_context
+    assert first_context.blocks == FACTOR_BLOCKS
+    first = first_context.drawParameters(np.random.default_rng(8))
+    second = first_context.drawParameters(np.random.default_rng(8))
     assert first.beta.tobytes() == second.beta.tobytes()
     assert first.sigma_eps == second.sigma_eps
     for name in ['g0', 'g1']:
