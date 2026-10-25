@@ -63,9 +63,9 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-OutcomeForm = Literal['none', 'scm', 'glm', 'glmm']  # how the outcome node draws y, or none
-# a form that is a model: TabDGP's own, a config, or a study's, a callable of the covariates
-# and a generator that returns an Outcome, both types outcome.py's, which imports this module
+OutcomeForm = Literal['none', 'scm', 'glm', 'glmm']
+# a config of TabDGP's own, or a study's callable (Covariates, Generator) -> Outcome,
+# both types outcome.py's, which imports this module
 Model = InstanceOf[Glm] | Callable[[Any, np.random.Generator], Any]
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
@@ -131,7 +131,7 @@ class Hyperprior(Fields):
         'mixture_gap',
         'mixture_weight',
         'poisson_log_rate',
-    )  # columns are manifested (i.e. non-latent) nodes
+    )  # columns are observed (i.e. non-latent) nodes
     SHARES: ClassVar[tuple[str, ...]] = (
         'type_shares',
         'mechanism_shares',
@@ -220,7 +220,7 @@ class Hyperprior(Fields):
     @field_validator('outcome_form')
     @classmethod
     def _expandForm(cls, form: OutcomeForm | Model) -> OutcomeForm | Model:
-        """Expands a built-in model's name to its default config, which the hyperprior shows."""
+        """Expands a built-in model's name to its default config. Syntactic sugar."""
         if form == 'glm':
             return Glm()
         if form == 'glmm':
