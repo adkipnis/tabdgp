@@ -25,7 +25,8 @@ generated it.
   binary, categorical, ordered or count.
 - **Model-based outcome.** Instead of the SCM's node, `outcome_form='glmm'` draws `y` from a
   generalized linear mixed model (GLMM) on the covariates. The family is Normal, Bernoulli or
-  Poisson, with fixed effects and random effects per grouping factor. The true parameters are
+  Poisson (or, by overriding `family_shares`, Student-t, negative binomial, latent-noise
+  Bernoulli, Gamma or beta), with fixed effects and random effects per grouping factor. The true parameters are
   returned with the priors they were drawn from.
   `outcome_form='glm'` skips random effects, `Glmm(deviation_scale=0.3)` adds a known misspecification.
   You can pass your own model as a function of the covariates by defining it as a Callable.
