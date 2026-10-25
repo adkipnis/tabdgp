@@ -406,13 +406,16 @@ def _covariance(sd: np.ndarray, corr: np.ndarray) -> np.ndarray:
     return corr * np.outer(sd, sd)  # (q, q)
 
 
-def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_exactly() -> None:
+def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_up_to_float32() -> (
+    None
+):
     """A user fitting the raw columns (lme4 on a table) compares against the raw-scale truth:
     a z-scored column's β over its sd, the intercept absorbing each one's β · mean / sd,
     a 0/1 column's β as drawn, and each group's random effects alike.
     Σ on the raw columns must give each row's random part the variance Σ gives it on the coded
     ones, which scaling Σ by the sds alone would miss in the intercept's row and column.
     The raw matrix here is built by hand, not by the coder.
+    Both scales are float32, so they agree up to its rounding.
     """
     columns = {
         'x0': np.array([1.5, -2, 3, 0.25, 7, 4], dtype=np.float32),
@@ -448,18 +451,31 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_e
         axis=1,
     ).astype(np.float64)  # (n, d)
     standardized = codeDesign(columns, metadata, rows=6).matrix  # (n, d)
-    np.testing.assert_allclose(raw @ outcome.beta_raw, standardized @ outcome.beta, rtol=1e-12)
+    np.testing.assert_allclose(raw @ outcome.beta_raw, standardized @ outcome.beta, rtol=1e-6)
     assert outcome.beta_raw[2:5].tolist() == outcome.beta[2:5].tolist()
     assert outcome.random_terms['g0'] == outcome.fixed_terms
     codes = grouping.codes['g0']  # (n,)
     random_raw = (raw * outcome.alpha_raw['g0'][codes]).sum(axis=1)  # (n,)
     random_standardized = (standardized * outcome.alpha['g0'][codes]).sum(axis=1)  # (n,)
-    np.testing.assert_allclose(random_raw, random_standardized, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(random_raw, random_standardized, rtol=1e-6, atol=1e-6)
     sigma = _covariance(outcome.sd_alpha['g0'], outcome.corr_alpha['g0'])  # (q, q)
     sigma_raw = _covariance(outcome.sd_alpha_raw['g0'], outcome.corr_alpha_raw['g0'])  # (q, q)
     variance_raw = ((raw @ sigma_raw) * raw).sum(axis=1)  # (n,)
     variance_standardized = ((standardized @ sigma) * standardized).sum(axis=1)  # (n,)
-    np.testing.assert_allclose(variance_raw, variance_standardized, rtol=1e-10)
+    np.testing.assert_allclose(variance_raw, variance_standardized, rtol=1e-6, atol=1e-6)
+
+
+def test_the_truths_arrays_are_float32_on_both_scales() -> None:
+    """The truth goes to torch with the columns, so it has their precision, float32,
+    on the raw columns too.
+    """
+    covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
+    outcome = run(Glmm(), covariates, np.random.default_rng(0))
+    arrays = {'beta': outcome.beta, 'beta_raw': outcome.beta_raw, 'deviation': outcome.deviation}
+    for field in ['sd_alpha', 'corr_alpha', 'alpha', 'sd_alpha_raw', 'corr_alpha_raw', 'alpha_raw']:
+        arrays[field] = getattr(outcome, field)['g0']
+    for field, array in arrays.items():
+        assert array.dtype == np.float32, field
 
 
 def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> None:
@@ -583,3 +599,48 @@ def test_a_glmm_outcome_checks_each_factors_shapes_against_its_random_terms(
     GlmmOutcome(**fields)
     with pytest.raises(ValidationError, match=match):
         GlmmOutcome(**fields | change)
+
+
+def test_the_deviation_is_lambda_times_the_sd_of_x_beta_plus_z_alpha_times_the_score() -> None:
+    """The deviation is the score at λ · sd(η_lin), η_lin = Xβ + Zα the linear part,
+    the sd over the n rows, so that a fitted GLMM is misspecified by exactly this term.
+    The score counts up from 0, so a deviation that z-scored it again would differ.
+    The design matrix here is built by hand, not by the coder.
+    """
+    covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
+    glmm = Glmm(random_effects=2, deviation_scale=0.5)
+    outcome = run(glmm, covariates, np.random.default_rng(0))
+    x0 = np.arange(6.0)  # (n,)
+    design = np.stack([np.ones(6), (x0 - x0.mean()) / x0.std()], axis=1)  # (n, d)
+    codes = covariates.grouping.codes['g0']  # (n,)
+    linear = design @ outcome.beta + (design * outcome.alpha['g0'][codes]).sum(axis=1)  # (n,)
+    assert outcome.random_terms['g0'] == ['intercept', 'x0']
+    assert outcome.deviation_scale == 0.5
+    np.testing.assert_allclose(outcome.deviation, 0.5 * linear.std() * x0, rtol=1e-6)
+
+
+WITHOUT_DEVIATION = [
+    pytest.param(False, 0.5, id='no score, as in a table'),
+    pytest.param(True, 0.0, id='lambda 0, the default'),
+]
+
+
+@pytest.mark.parametrize(('scored', 'deviation_scale'), WITHOUT_DEVIATION)
+def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_linear_parts(
+    scored: bool, deviation_scale: float
+) -> None:
+    """Either way the deviation is zeros and λ is recorded as given,
+    so that a GlmOutcome has the same fields whether the covariates come from a draw or a table.
+    y is then bitwise the y drawn as if neither the score nor λ existed.
+    """
+    scored_covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
+    plain = dataclasses.replace(scored_covariates, score=None)
+    covariates = scored_covariates if scored else plain
+    normal = point('family_shares', 'normal', Glm)
+    glmm = Glmm(family_shares=normal, deviation_scale=deviation_scale)
+    outcome = run(glmm, covariates, np.random.default_rng(0))
+    reference = run(Glmm(family_shares=normal), plain, np.random.default_rng(0))
+    assert outcome.deviation.tolist() == [0.0] * 6
+    assert outcome.deviation.dtype == np.float32
+    assert outcome.deviation_scale == deviation_scale
+    assert outcome.columns['y'].tobytes() == reference.columns['y'].tobytes()
