@@ -18,6 +18,7 @@ from tabdgp.outcome import (
     FAMILIES,
     Bernoulli,
     Covariates,
+    GlmmOutcome,
     GlmOutcome,
     Normal,
     Outcome,
@@ -26,7 +27,7 @@ from tabdgp.outcome import (
     codeDesign,
     run,
 )
-from tabdgp.prior import Glm
+from tabdgp.prior import Glm, Glmm
 from tests.fixtures.build import columnsOf, covariatesOf, groupingOf, point
 
 # four rows in two groups of g0, one continuous covariate x0 and the score
@@ -400,10 +401,18 @@ def test_a_glm_outcome_checks_its_shapes_against_n_and_d(change: dict, match: st
         GlmOutcome(**fields | change)
 
 
+def _covariance(sd: np.ndarray, corr: np.ndarray) -> np.ndarray:
+    """Σ = diag(sd) corr diag(sd)."""
+    return corr * np.outer(sd, sd)  # (q, q)
+
+
 def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_exactly() -> None:
-    """A user fitting the raw columns (lme4 on a table) compares against beta_raw:
+    """A user fitting the raw columns (lme4 on a table) compares against the raw-scale truth:
     a z-scored column's β over its sd, the intercept absorbing each one's β · mean / sd,
-    a 0/1 column's β as drawn. The raw matrix here is built by hand, not by the coder.
+    a 0/1 column's β as drawn, and each group's random effects alike.
+    Σ on the raw columns must give each row's random part the variance Σ gives it on the coded
+    ones, which scaling Σ by the sds alone would miss in the intercept's row and column.
+    The raw matrix here is built by hand, not by the coder.
     """
     columns = {
         'x0': np.array([1.5, -2, 3, 0.25, 7, 4], dtype=np.float32),
@@ -417,8 +426,16 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_e
         'c': Column(type='categorical', levels=3),
         'n': Column(type='count'),
     }
-    covariates = Covariates(columns=columns, metadata=metadata, grouping=groupingOf([]), score=None)
-    outcome = run(Glm(), covariates, np.random.default_rng(0))
+    grouping = groupingOf([[0, 0, 1, 1, 2, 2]])
+    covariates = Covariates(
+        columns={**grouping.codes, **columns},
+        metadata={**grouping.metadata, **metadata},
+        grouping=grouping,
+        score=None,
+    )
+    # at a budget of d every term is random too, the effects correlated
+    glmm = Glmm(random_effects=6, correlated_share=1.0)
+    outcome = run(glmm, covariates, np.random.default_rng(0))
     raw = np.stack(
         [
             np.ones(6),
@@ -433,3 +450,136 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_e
     standardized = codeDesign(columns, metadata, rows=6).matrix  # (n, d)
     np.testing.assert_allclose(raw @ outcome.beta_raw, standardized @ outcome.beta, rtol=1e-12)
     assert outcome.beta_raw[2:5].tolist() == outcome.beta[2:5].tolist()
+    assert outcome.random_terms['g0'] == outcome.fixed_terms
+    codes = grouping.codes['g0']  # (n,)
+    random_raw = (raw * outcome.alpha_raw['g0'][codes]).sum(axis=1)  # (n,)
+    random_standardized = (standardized * outcome.alpha['g0'][codes]).sum(axis=1)  # (n,)
+    np.testing.assert_allclose(random_raw, random_standardized, rtol=1e-12, atol=1e-12)
+    sigma = _covariance(outcome.sd_alpha['g0'], outcome.corr_alpha['g0'])  # (q, q)
+    sigma_raw = _covariance(outcome.sd_alpha_raw['g0'], outcome.corr_alpha_raw['g0'])  # (q, q)
+    variance_raw = ((raw @ sigma_raw) * raw).sum(axis=1)  # (n,)
+    variance_standardized = ((standardized @ sigma) * standardized).sum(axis=1)  # (n,)
+    np.testing.assert_allclose(variance_raw, variance_standardized, rtol=1e-10)
+
+
+def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> None:
+    """A Glmm draws one block of random effects per grouping factor, crossed or nested alike.
+    Each factor's terms are design terms led by its intercept,
+    and its effects have q sds, a q × q correlation and one row per group.
+    The context names the blocks fixed, then the factors in order.
+    """
+    covariates = covariatesOf([[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], ['x0', 'x1'])
+    outcome = run(Glmm(), covariates, np.random.default_rng(0))
+    assert type(outcome) is GlmmOutcome
+    assert list(outcome.context.scales) == ['fixed', 'g0', 'g1']
+    assert list(outcome.random_terms) == ['g0', 'g1']
+    for factor, groups in [('g0', 3), ('g1', 2)]:
+        terms = outcome.random_terms[factor]
+        q = len(terms)
+        assert terms[0] == 'intercept'
+        assert set(terms) <= set(outcome.fixed_terms)
+        assert outcome.sd_alpha[factor].shape == (q,)
+        assert outcome.corr_alpha[factor].shape == (q, q)
+        assert outcome.alpha[factor].shape == (groups, q)
+
+
+# six rows in three groups of g0, and covariates of design width 1, 2 and 3
+SLOPE_GROUPING = groupingOf([[0, 0, 1, 1, 2, 2]])
+SLOPE_COLUMNS = {
+    'x': np.array([1.5, -2, 3, 0.25, 7, 4], dtype=np.float32),
+    'c': np.array([0, 1, 2, 2, 1, 0]),
+    'k': np.array([0, 1, 2, 3, 1, 0]),
+}
+SLOPE_METADATA = {
+    'x': Column(type='continuous'),
+    'c': Column(type='categorical', levels=3),
+    'k': Column(type='categorical', levels=4),
+}
+
+
+def _slopeCovariates(names: list[str]) -> Covariates:
+    """The grouping and these covariates of SLOPE_COLUMNS."""
+    columns = dict(SLOPE_GROUPING.codes)
+    metadata = dict(SLOPE_GROUPING.metadata)
+    for name in names:
+        columns[name] = SLOPE_COLUMNS[name]
+        metadata[name] = SLOPE_METADATA[name]
+    return Covariates(columns=columns, metadata=metadata, grouping=SLOPE_GROUPING, score=None)
+
+
+def _randomTerms(names: list[str], random_effects: int, seed: int) -> list[str]:
+    """g0's random terms under a budget, on the grouping and these covariates."""
+    glmm = Glmm(random_effects=random_effects)
+    outcome = run(glmm, _slopeCovariates(names), np.random.default_rng(seed))
+    return outcome.random_terms['g0']
+
+
+BUDGETS = [
+    pytest.param(['x', 'c'], 1, ['intercept'], id='a budget of 1: the intercept alone'),
+    pytest.param(['x', 'c'], 2, ['intercept', 'x'], id="a budget of 2: c's two dummies never fit"),
+    pytest.param(['k'], 3, ['intercept'], id="nothing fits k's three dummies: q = 1"),
+    pytest.param(['x', 'c'], 4, ['intercept', 'x', 'c=1', 'c=2'], id='a budget of d: every term'),
+]
+
+
+@pytest.mark.parametrize(('names', 'random_effects', 'terms'), BUDGETS)
+def test_the_random_slopes_fit_the_budget_and_q_is_1_when_nothing_fits(
+    names: list[str], random_effects: int, terms: list[str]
+) -> None:
+    """ADR 0006: the intercept always, then whole covariates, each taken while it fits
+    what remains of the budget q_k, so a factor with no room keeps its intercept alone.
+    Whatever order the covariates are drawn in, these budgets admit one set of terms.
+    """
+    for seed in range(10):
+        assert _randomTerms(names, random_effects, seed) == terms
+
+
+def test_a_slope_on_a_categorical_column_takes_its_k_minus_1_dummies() -> None:
+    """A random slope on a categorical column is one per dummy (the glossary's random effect),
+    in the design's order, so q_k counts design columns.
+    """
+    assert _randomTerms(['c'], 3, seed=0) == ['intercept', 'c=1', 'c=2']
+
+
+def test_the_covariates_that_take_the_slopes_vary_with_the_draw() -> None:
+    """The covariates are tried in a random order: at a budget of 3, x then c gives x alone
+    and c then x gives c's two dummies, so both sets occur over the draws.
+    """
+    drawn = set()
+    for seed in range(20):
+        drawn.add(tuple(_randomTerms(['x', 'c'], 3, seed)))
+    assert drawn == {('intercept', 'x'), ('intercept', 'c=1', 'c=2')}
+
+
+def test_a_random_effects_point_above_d_fails_naming_the_field() -> None:
+    """A random term needs its fixed one (every random slope in the registry has it),
+    so q_k cannot exceed d, and a point above d fails like any point above its bound.
+    """
+    with pytest.raises(ValueError, match='random_effects'):
+        _randomTerms(['x'], 3, seed=0)
+
+
+MISSHAPEN_RANDOM = [
+    pytest.param({'sd_alpha': {'g0': np.ones(1)}}, 'sd_alpha', id='sds one term short'),
+    pytest.param({'corr_alpha': {'g0': np.eye(3)}}, 'corr_alpha', id='a correlation one too wide'),
+    pytest.param({'alpha': {'g0': np.zeros((2, 1))}}, 'alpha', id='effects one term short'),
+    pytest.param({'alpha': {'g0': np.zeros(2)}}, 'alpha', id='effects as one row'),
+    pytest.param({'sd_alpha': {}}, 'sd_alpha', id='sds without the factor'),
+]
+
+
+@pytest.mark.parametrize(('change', 'match'), MISSHAPEN_RANDOM)
+def test_a_glmm_outcome_checks_each_factors_shapes_against_its_random_terms(
+    change: dict, match: str
+) -> None:
+    """A consumer pairs each factor's effects with its terms by position and its groups by row,
+    so a shape that disagrees with the terms fails where the outcome is built.
+    The rows are the groups, which the outcome does not hold; the draw sizes them.
+    """
+    covariates = covariatesOf([[0, 0, 1, 1]], ['x0'])
+    outcome = run(Glmm(random_effects=2), covariates, np.random.default_rng(0))
+    assert outcome.random_terms == {'g0': ['intercept', 'x0']}
+    fields = _fieldsOf(outcome)
+    GlmmOutcome(**fields)
+    with pytest.raises(ValidationError, match=match):
+        GlmmOutcome(**fields | change)
