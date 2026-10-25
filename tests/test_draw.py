@@ -17,8 +17,8 @@ from hypothesis import strategies as st
 from tabdgp.column import Column
 from tabdgp.draw import Dataset, draw
 from tabdgp.hyperprior import Hyperprior, UniformInt
-from tabdgp.outcome import Covariates, GlmOutcome, Outcome, ScmOutcome, codeDesign
-from tabdgp.prior import Glm
+from tabdgp.outcome import Covariates, GlmmOutcome, GlmOutcome, Outcome, ScmOutcome, codeDesign
+from tabdgp.prior import Glm, Glmm
 from tests.fixtures.build import betweenShare, graphOf, point
 
 
@@ -255,6 +255,28 @@ def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_truth(
         assert list(outcome.context.scales) == ['fixed']
 
 
+def test_grouped_with_glmm_returns_y_last_with_a_glmm_outcome_of_one_block_per_factor() -> None:
+    """metabeta's one call (ADR 0006): y last, after the grouping factors and the covariates,
+    and one block of random effects per grouping factor, a row per group,
+    each block within its budget of 6 and within the design.
+    """
+    for index in range(10):
+        dataset = draw(0, index, Hyperprior.grouped(outcome_form='glmm'))
+        outcome = dataset.outcome
+        assert type(outcome) is GlmmOutcome
+        assert list(dataset.columns)[-1] == 'y'
+        assert outcome.columns['y'] is dataset.columns['y']
+        factors = [
+            name for name, column in dataset.metadata.items() if column.role == 'grouping_factor'
+        ]
+        assert list(outcome.random_terms) == factors
+        assert list(outcome.context.scales) == ['fixed', *factors]
+        for factor in factors:
+            q = len(outcome.random_terms[factor])
+            assert q <= min(6, len(outcome.fixed_terms))
+            assert outcome.alpha[factor].shape == (dataset.metadata[factor].levels, q)
+
+
 GLM_FAMILIES = [
     pytest.param('normal', 'continuous', np.float32, id='normal'),
     pytest.param('bernoulli', 'binary', np.int64, id='bernoulli'),
@@ -262,16 +284,23 @@ GLM_FAMILIES = [
 ]
 
 
+@pytest.mark.parametrize(
+    ('preset', 'config'),
+    [(Hyperprior.flat, Glm), (Hyperprior.grouped, Glmm)],
+    ids=['glm on flat', 'glmm on grouped'],
+)
 @pytest.mark.parametrize(('family', 'column_type', 'dtype'), GLM_FAMILIES)
-def test_glm_with_one_family_draws_that_family_only_and_ys_dtype_follows_it(
-    family: str, column_type: str, dtype: type
+def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows_it(
+    family: str,
+    column_type: str,
+    dtype: type,
+    preset: Callable[..., Hyperprior],
+    config: type[Glm],
 ) -> None:
     """A corpus of one family is one override (ADR 0006),
     and a consumer stacks y by its type: a Normal y float32, a Bernoulli y codes, a count int64.
     """
-    hyperprior = Hyperprior.flat(
-        outcome_form=Glm(family_shares=point('family_shares', family, Glm))
-    )
+    hyperprior = preset(outcome_form=config(family_shares=point('family_shares', family, Glm)))
     for index in range(10):
         dataset = draw(0, index, hyperprior)
         assert dataset.outcome.family == family
@@ -297,6 +326,32 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
         y = dataset.columns['y'].astype(np.float64)  # (n,)
         estimate, *_ = np.linalg.lstsq(design.matrix, y, rcond=None)
         np.testing.assert_allclose(estimate, dataset.outcome.beta, atol=0.01)
+
+
+def test_a_normal_glmms_y_minus_x_beta_and_every_factors_z_alpha_is_noise_at_sigma_eps() -> None:
+    """The truth refers to the design matrix a user fits on:
+    η = Xβ + Σ_k Z_k α_k[codes_k], Z_k the design's columns of the factor's random terms,
+    so what y leaves after them is the Normal noise, sd σ_ε, up to y's float32 rounding.
+    At r = 0.9999 and a half-normal F, σ_ε is about 0.01, too small to hide a wrong Zα.
+    """
+    glmm = Glmm(
+        family_shares=point('family_shares', 'normal', Glm),
+        sd_family_shares=point('sd_family_shares', 'half_normal', Glm),
+        signal_share=0.9999,
+        correlated_share=1.0,
+    )
+    hyperprior = Hyperprior.grouped(rows=2000, outcome_form=glmm)
+    for index in range(5):
+        dataset = draw(0, index, hyperprior)
+        outcome = dataset.outcome
+        design = codeDesign(dataset.columns, dataset.metadata, rows=2000)
+        residual = dataset.columns['y'].astype(np.float64) - design.matrix @ outcome.beta  # (n,)
+        for factor, terms in outcome.random_terms.items():
+            positions = [design.names.index(term) for term in terms]
+            z = design.matrix[:, positions]  # (n, q)
+            codes = dataset.columns[factor]  # (n,)
+            residual = residual - (z * outcome.alpha[factor][codes]).sum(axis=1)  # (n,)
+        assert abs(residual.std() - outcome.sigma_eps) < 0.1 * outcome.sigma_eps + 1e-4
 
 
 @pytest.mark.parametrize(
@@ -369,7 +424,8 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     return column is not None and column.levels is not None and column.levels > min(groups)
 
 
-GLM_OVERRIDE = Glm(signal_share=0.5)
+GLM_OVERRIDE = Glm(intercept_scale=0.5)  # the context records σ_0 under every family
+GLMM_OVERRIDE = Glmm(random_effects=1)  # every factor's intercept alone
 
 
 @settings(max_examples=25, deadline=None)
@@ -384,7 +440,7 @@ GLM_OVERRIDE = Glm(signal_share=0.5)
     balanced=st.booleans(),
     group_level=st.booleans(),
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
-    form=st.sampled_from(['scm', 'none', GLM_OVERRIDE]),
+    form=st.sampled_from(['scm', 'none', GLM_OVERRIDE, GLMM_OVERRIDE]),
     outcome_type=st.sampled_from(Hyperprior.categories('outcome_type_shares')),
 )
 def test_every_override_is_honored(
@@ -398,20 +454,21 @@ def test_every_override_is_honored(
     balanced: bool,
     group_level: bool,
     group_share: float,
-    form: str | Glm,
+    form: str | Glm | Glmm,
     outcome_type: str,
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
     The fields without a visible size are honored through hyperparameters, which must hold
     every point override as given, a field drawn per node through the graph, one drawn per
-    factor through the factor's column, the scm form's through y's column and a GLM's through
-    its outcome's context. A point groups
+    factor through the factor's column, the scm form's through y's column, a GLM's through
+    its outcome's context and a GLMM's through each factor's random terms. A point groups
     cannot nest, so a chain draws its groups from a range below the point.
     """
     # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
     assume(rows >= max(2 * design_columns, groups, factors + 1))
     assume(groups >= factors + 1)  # the bottom factor of a chain of f needs f + 1 groups
+    assume(form != GLMM_OVERRIDE or factors > 0)  # a GLMM needs a factor
     hyperprior = Hyperprior.grouped(
         rows=rows,
         design_columns=design_columns,
@@ -454,7 +511,11 @@ def test_every_override_is_honored(
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
     if form == GLM_OVERRIDE:
-        assert dataset.outcome.context.signal_share == 0.5
+        assert dataset.outcome.context.intercept_scale == 0.5
+    if form == GLMM_OVERRIDE:
+        assert list(dataset.outcome.random_terms) == factor_names
+        for name in factor_names:
+            assert dataset.outcome.random_terms[name] == ['intercept']
     # the per-node fields through the graph
     graph = dataset.graph
     for name, unit in zip(graph.names, graph.unit):
