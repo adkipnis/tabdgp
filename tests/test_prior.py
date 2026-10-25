@@ -150,13 +150,25 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
     assert context.scales == {'fixed': pytest.approx(0.32), 'g0': pytest.approx(0.18)}
 
 
-def test_the_blocks_of_a_glmm_share_all_of_var_eta() -> None:
+@pytest.mark.parametrize(
+    'fixed',
+    [
+        pytest.param(Block(name='fixed', width=4, variance=2.25), id='covariate columns'),
+        pytest.param(
+            Block(name='fixed', width=1, variance=0.0),
+            id='no covariate column: the factors take all of var(η)',
+        ),
+    ],
+)
+def test_the_blocks_of_a_glmm_share_all_of_var_eta(fixed: Block) -> None:
     """φ sums to 1 over the blocks, and each block realizes its share at scale s:
     s² · (the variance its term adds at scale 1) = τ² φ, so the scales spend exactly τ².
+    A fixed block without covariate columns adds nothing at any scale,
+    so its share would be lost unless the factors take it.
     """
     glmm = Glmm(predictor_sd=2.0)
     blocks = [
-        Block(name='fixed', width=4, variance=2.25),
+        fixed,
         Block(name='g0', width=2, variance=1.5, groups=3),
         Block(name='g1', width=1, variance=1.0, groups=20),
     ]
