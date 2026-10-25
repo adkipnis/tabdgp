@@ -4,7 +4,7 @@ one dataset as a pure function of its key and its hyperprior.
 pipeline:
 ---------
 the key and the hyperprior
--> one generator from the key                                    default_rng
+-> one generator from the key                                    _seedGenerator
 -> the resolved hyperprior                                       Hyperprior.resolveDataset
 -> the grouping factors, their codes and metadata                assign
 -> the column plan, y's column last under the scm form           plan
