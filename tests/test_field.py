@@ -56,6 +56,15 @@ def test_an_invalid_distribution_fails_at_construction(
         distribution(*parameters)
 
 
+def test_a_distribution_may_touch_an_open_bound_and_a_point_may_not() -> None:
+    """A draw lands on a support's endpoint with probability 0,
+    so Beta(1, 1) is a positive scale while the point 0 is not.
+    """
+    assert Toy(scale=Beta(1, 1)).scale == Beta(1, 1)
+    with pytest.raises(ValidationError, match='gt=0'):
+        Toy(scale=0.0)
+
+
 class OnlyColors(Toy):
     """The toy with sizes left out of its shares fields."""
 
