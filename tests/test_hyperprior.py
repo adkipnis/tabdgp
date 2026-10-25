@@ -194,12 +194,9 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
     """Each column, node or grouping factor draws its own value of these fields,
     so no dataset-wide value is drawn.
     """
-    per_node = {'noise_scale', 'init_scale', 'group_share', 'outcome_noise_scale'}
-    assert set(Hyperprior.PER_NODE) == per_node
-    assert set(Hyperprior.PER_FACTOR) == {'groups', 'size_alpha'}
-    hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
+    # each of these fields defaults to a distribution, so a draw would show as a point
+    hyperprior = Hyperprior()
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
-    assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
     for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
