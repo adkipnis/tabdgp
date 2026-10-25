@@ -16,8 +16,9 @@ def test_readme_links_are_absolute() -> None:
     assert relative == []
 
 
+@pytest.mark.parametrize('box', [0, 1], ids=['draw', 'drawOutcome'])
 def test_the_readme_quickstart_prints_the_output_it_shows(
-    capsys: pytest.CaptureFixture[str],
+    box: int, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The first code a user copies must work and print what the README shows.
     A release that changes the dataset a key draws fails here until the README follows.
@@ -25,7 +26,7 @@ def test_the_readme_quickstart_prints_the_output_it_shows(
     quickstart = README.read_text().split('## Quickstart')[1].split('\n## ')[0]
     code = re.findall(r'```python\n(.*?)```', quickstart, re.DOTALL)
     shown = re.findall(r'```text\n(.*?)```', quickstart, re.DOTALL)
-    assert len(code) == 1
-    assert len(shown) == 1
-    exec(code[0], {})
-    assert capsys.readouterr().out == shown[0]
+    assert len(code) == 2
+    assert len(shown) == 2
+    exec(code[box], {})
+    assert capsys.readouterr().out == shown[box]
