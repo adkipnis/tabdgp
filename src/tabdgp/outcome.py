@@ -14,7 +14,8 @@ the covariates at the rows, their metadata, the grouping and the score  Covariat
    -> the design matrix, the intercept first                            codeDesign
    -> each factor's random terms within its budget                      _chooseRandomTerms
    -> the prior's scales and parameters over the blocks                 Glm.drawParameters
-   -> η = Xβ + Σ_k Z_k α_k, then y from the family through its link     _drawGlmm
+   -> η = Xβ + Σ_k Z_k α_k, plus the deviation λ · sd(Xβ + Σ_k Z_k α_k) · score,
+      then y from the family through its link                           _drawGlmm
    a study's:
    -> its call, its result checked at the covariates' rows              _callModel
 """
@@ -133,7 +134,8 @@ class GlmOutcome(Outcome):
     """A GLM's y and its truth, on the standardized scale as drawn and on the raw columns.
 
     - Terms: the design's columns, the intercept first, each with one coefficient in beta.
-    - Deviation: the score's part of η at the deviation scale λ, zero at λ = 0.
+    - Deviation: the score's part of η at the deviation scale λ,
+      zero at λ = 0 or without a score.
     - Coding: each continuous column's mean and sd, which map beta onto the raw columns.
     """
 
@@ -141,9 +143,9 @@ class GlmOutcome(Outcome):
     link: str  # the family's canonical link
     fixed_terms: list[str]  # the design's names
     context: PriorContext
-    beta: np.ndarray  # (d,) float64
+    beta: np.ndarray  # (d,) float32
     sigma_eps: float | None  # None unless the family is Normal
-    deviation: np.ndarray  # (n,) float64
+    deviation: np.ndarray  # (n,) float32
     deviation_scale: float  # λ
     means: dict[str, float]  # the design's
     sds: dict[str, float]  # the design's
@@ -167,7 +169,7 @@ class GlmOutcome(Outcome):
         from the design matrix to the raw columns.
         A 0/1 column is coded as it is, so its row is the identity's.
         """
-        raw_map = np.eye(len(terms))  # (q, q)
+        raw_map = np.eye(len(terms), dtype=np.float32)  # (q, q)
         for j, term in enumerate(terms):
             if term in self.sds:
                 # β (x − mean) / sd = (β / sd) x − β mean / sd
@@ -188,9 +190,9 @@ class GlmmOutcome(GlmOutcome):
     """
 
     random_terms: dict[str, list[str]]  # by factor, the intercept first
-    sd_alpha: dict[str, np.ndarray]  # (q,) float64 by factor
-    corr_alpha: dict[str, np.ndarray]  # (q, q) float64 by factor
-    alpha: dict[str, np.ndarray]  # (m, q) float64 by factor, a row per group
+    sd_alpha: dict[str, np.ndarray]  # (q,) float32 by factor
+    corr_alpha: dict[str, np.ndarray]  # (q, q) float32 by factor
+    alpha: dict[str, np.ndarray]  # (m, q) float32 by factor, a row per group
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -346,11 +348,16 @@ def _drawGlmm(
         random_terms[factor] = [design.names[i] for i in positions]
         random_columns[factor] = z
     context, parameters = resolved.drawParameters(name, blocks, rng)
+    # η in float64 from the float32 parameters, which are so its exact truth
     eta = design.matrix @ parameters.beta  # (n,)
     for factor, z in random_columns.items():
         codes = covariates.grouping.codes[factor]  # (n,)
         eta = eta + (z * parameters.alpha[factor][codes]).sum(axis=1)  # (n,)
-    deviation = np.zeros(rows)  # (n,)
+    deviation = np.zeros(rows, dtype=np.float32)  # (n,), a table's, which has no score
+    if covariates.score is not None:
+        # the score at λ times η's sd so far, the population sd over the n rows
+        linear_sd = float(eta.std())
+        deviation = resolved.deviation_scale * linear_sd * covariates.score  # (n,) float32
     eta = eta + deviation  # (n,)
     scale = None
     if parameters.sigma_eps is not None:
