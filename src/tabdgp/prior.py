@@ -21,8 +21,8 @@ but capping them would degrade the prior. Instead, the scales are drawn jointly 
 - **Prior scales:** set so that each term adds its share of var(eta).
 
 This adapts the R2D2M2 prior (Aguilar and Bürkner, 2023),
-without its Dirichlet over all effects
-(which rarely lets a random intercept carry most of var(eta)).
+without its Dirichlet over all effects (which rarely lets a random intercept
+carry the signal in eta, which is observed in real datasets with strong grouping).
 
 pipeline:
 ---------
