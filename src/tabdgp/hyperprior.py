@@ -50,7 +50,7 @@ from tabdgp.field import (
     UniformInt,
     within,
 )
-from tabdgp.prior import Glm
+from tabdgp.prior import Glm, Glmm
 
 MARGINAL_FIELDS = {
     'normal': [],
@@ -63,7 +63,7 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-OutcomeForm = Literal['none', 'scm', 'glm']  # how the outcome node draws y, or 'none' for no y
+OutcomeForm = Literal['none', 'scm', 'glm', 'glmm']  # how the outcome node draws y, or none
 # a form that is a model: TabDGP's own, a config, or a study's, a callable of the covariates
 # and a generator that returns an Outcome, both types outcome.py's, which imports this module
 Model = InstanceOf[Glm] | Callable[[Any, np.random.Generator], Any]
@@ -106,7 +106,8 @@ class Hyperprior(Fields):
       marginal families, mechanisms and activations.
       Each column or node chooses its own, proportional to those shares.
     - Outcome: a single node y. No other node reads it.
-      Its form turns y's node (the score) into y: the SCM itself, a GLM, a study's model, or none.
+      Its form turns y's node (the score) into y:
+      the SCM itself, a GLM or GLMM, a study's model, or none.
       Its type shares are the scm form's, its noise scale every form's but none.
     """
 
@@ -222,6 +223,8 @@ class Hyperprior(Fields):
         """Expands a built-in model's name to its default config, which the hyperprior shows."""
         if form == 'glm':
             return Glm()
+        if form == 'glmm':
+            return Glmm()
         return form
 
     def _floorGroups(self, depth: int) -> int:
@@ -265,6 +268,17 @@ class Hyperprior(Fields):
                 'fewer factors, or give groups a wider range'
             )
         return self  # pydantic's after-validator returns the model
+
+    @model_validator(mode='after')
+    def _checkFactorsForGlmm(self) -> Hyperprior:
+        """Checks that a GLMM's random effects have a grouping factor in every dataset."""
+        lowest, _ = self._support(self.factors)
+        if isinstance(self.outcome_form, Glmm) and lowest == 0:
+            raise ValueError(
+                f'a GLMM needs a grouping factor in every dataset, not factors = {self.factors}: '
+                "set factors to at least 1 or use outcome_form = 'glm'"
+            )
+        return self
 
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
         """Resolves each field drawn once per dataset."""
