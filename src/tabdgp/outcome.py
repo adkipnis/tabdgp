@@ -346,12 +346,13 @@ class GlmOutcome(Outcome):
     - Coding: each continuous column's mean and sd, which map beta onto the raw columns.
     """
 
-    family: str  # 'normal', 'bernoulli' or 'poisson'
+    family: str  # a category of Glm's family_shares
     link: str  # the family's canonical link
     fixed_terms: list[str]  # the design's names
     context: PriorContext
     beta: np.ndarray  # (d,) float32
-    sigma_eps: float | None  # None unless the family is Normal
+    sigma_eps: float | None  # None unless the family is Normal or Student-t
+    shape: float | None  # the family's second parameter, None for Normal, Bernoulli and Poisson
     deviation: np.ndarray  # (n,) float32
     deviation_scale: float  # λ
     means: dict[str, float]  # the design's
@@ -679,7 +680,7 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    y = family.draw(rng, eta, scale, None)  # (n,)
+    y = family.draw(rng, eta, scale, parameters.shape)  # (n,)
     truth = {
         'columns': {'y': y},
         'metadata': {'y': family.COLUMN},
@@ -689,6 +690,7 @@ def _drawGlmm(
         'context': context,
         'beta': parameters.beta,
         'sigma_eps': parameters.sigma_eps,
+        'shape': parameters.shape,
         'deviation': deviation,
         'deviation_scale': resolved.deviation_scale,
         'means': design.means,

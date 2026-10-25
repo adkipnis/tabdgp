@@ -609,7 +609,20 @@ RUNS = [
     pytest.param('normal', 'identity', 'continuous', id='normal'),
     pytest.param('bernoulli', 'logit', 'binary', id='bernoulli'),
     pytest.param('poisson', 'log', 'count', id='poisson'),
+    pytest.param('student_t', 'identity', 'continuous', id='student_t'),
+    pytest.param('negative_binomial', 'log', 'count', id='negative_binomial'),
+    pytest.param('latent_bernoulli', 'logit', 'binary', id='latent_bernoulli'),
+    pytest.param('gamma', 'log', 'continuous', id='gamma'),
+    pytest.param('beta', 'logit', 'continuous', id='beta'),
 ]
+# every shape field a point, so the shape a run records is known
+SHAPES = {
+    'residual_df': 4.0,
+    'dispersion': 4.0,
+    'latent_scale': 4.0,
+    'gamma_shape': 4.0,
+    'beta_precision': 4.0,
+}
 
 
 @pytest.mark.parametrize(('family', 'link', 'column_type'), RUNS)
@@ -626,9 +639,10 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     """A Glm is TabDGP's own model: run codes the covariates, draws the prior and writes y.
     On grouped covariates it is the pooled truth: the factors' codes are no term,
     and the context has the one block fixed.
-    Only the Normal family has a σ_ε, and the deviation is zero at λ = 0.
+    Only the Normal and Student-t families have a σ_ε, only the contaminated families have a
+    shape, and the deviation is zero at λ = 0.
     """
-    glm = Glm(family_shares=point('family_shares', family, Glm))
+    glm = Glm(family_shares=point('family_shares', family, Glm), **SHAPES)
     outcome = run(glm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmOutcome
     assert (outcome.family, outcome.link) == (family, link)
@@ -637,7 +651,9 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
     assert list(outcome.context.split) == ['fixed']
-    assert (outcome.sigma_eps is None) == (family != 'normal')
+    assert (outcome.sigma_eps is None) == (family not in ['normal', 'student_t'])
+    assert outcome.shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert outcome.context.shape == outcome.shape
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
@@ -907,3 +923,19 @@ def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_line
     assert outcome.deviation.dtype == np.float32
     assert outcome.deviation_scale == deviation_scale
     assert outcome.columns['y'].tobytes() == reference.columns['y'].tobytes()
+
+
+@pytest.mark.parametrize(('family', 'link', 'column_type'), RUNS)
+def test_run_on_a_glmm_records_the_shape_beside_the_random_effects(
+    family: str, link: str, column_type: str
+) -> None:
+    """The contaminated families draw on a GLMM as on a GLM: η holds the random effects,
+    and the shape is the family's own, not a group's.
+    """
+    glmm = Glmm(family_shares=point('family_shares', family, Glm), **SHAPES)
+    covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
+    outcome = run(glmm, covariates, np.random.default_rng(0))
+    assert type(outcome) is GlmmOutcome
+    assert (outcome.family, outcome.link, outcome.metadata['y'].type) == (family, link, column_type)
+    assert outcome.shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert list(outcome.alpha) == ['g0']
