@@ -279,11 +279,13 @@ class Glmm(Glm):
     lkj_eta: Annotated[Integer, within(gt=0)] = UniformInt(1, 4)  # η per correlated factor
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
-        _, *factors = blocks
-        split = {'fixed': self.fixed_share}
+        fixed, *factors = blocks
+        # a fixed block without covariate columns adds nothing to var(η), so the factors take all
+        fixed_share = self.fixed_share if fixed.variance > 0 else 0.0
+        split = {'fixed': fixed_share}
         shares = rng.dirichlet([self.split_alpha] * len(factors))  # (f,)
         for block, share in zip(factors, shares):
-            split[block.name] = (1 - self.fixed_share) * float(share)
+            split[block.name] = (1 - fixed_share) * float(share)
         return split
 
     def _drawCorrelations(
