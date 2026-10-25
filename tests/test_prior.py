@@ -129,7 +129,7 @@ def test_the_joint_draws_identities_hold(
 ) -> None:
     """ADR 0006's scales as the comment on #46 amended them: σ_β = τ √(φ_fixed / tr cov X),
     with φ_fixed = 1 for a GLM, so the fixed block realizes var(Xβ) = τ² on any coding.
-    Only the Normal family has a residual scale, and its y then has unit variance.
+    Only the Normal family has a residual scale, and its y then has unit variance at the scales.
     r sets nothing under the other families, so the context records none there.
     An intercept-only design has no slope for σ_β to scale.
     """

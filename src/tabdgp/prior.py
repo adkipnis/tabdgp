@@ -109,7 +109,8 @@ class Glm(Fields):
       and the family F the residual scale is drawn from.
     - Scales: the predictor sd τ is the sd of η without the intercept.
       Under the Normal family τ² = r, the signal share r being the share of y's variance
-      that η explains, so that y has unit variance.
+      that η explains, so that y has unit variance at the scales.
+      σ_ε is drawn from F at s_ε, so E[σ_ε²] = s_ε² E[X²], X F's standard law.
     - Deviation: the score added to η at λ · sd(Xβ + Σ_k Z_k α_k),
       the population sd over the rows.
     """
@@ -186,7 +187,7 @@ class Glm(Fields):
         normal = family == 'normal'
         sd_family = self.sd_family_shares.choose(rng)
         residual_law = self.residual_shares.choose(rng) if normal else None
-        # under the Normal family τ² = r, so that y has unit variance
+        # under the Normal family τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
         predictor_sd = math.sqrt(self.signal_share) if normal else self.predictor_sd
         split = self._drawSplit(blocks, rng)
         lkj_eta = self._drawCorrelations(blocks, rng)

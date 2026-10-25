@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales
 ---
 
 # 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
@@ -43,13 +43,14 @@ blocks at q = 2 and 3 of 18 above.
   of models with slopes). The intercept's scale σ_0 `LogUniform(0.1, 10)`, the envelope.
 - **The fit drawn jointly.** Per dataset: `signal_share` r, a wide Beta; `predictor_sd` τ for
   the unit-free families, log-uniform on about [0.25, 4] on the logit and log scales, and
-  τ² = r for the Normal family, whose y then has unit variance by construction; the fixed
+  τ² = r for the Normal family, whose y then has unit variance at the scales (F's draw gives
+  E[σ_ε²] = s_ε² E[X²], X F's standard law); the fixed
   block's share φ_fixed of var(η) from `fixed_share`, a Beta, and the rest split over the
   factors' random blocks by a Dirichlet at `split_alpha` (#47: the registry's fixed share of
   the explained variance is close to uniform whatever the number of factors, where one
   Dirichlet over 1 + f blocks gave the fixed block 1 / (1 + f)). The scales follow, each
   block's budget over its design's second moment rather than its width: σ_β = τ √(φ_fixed /
-  tr cov X), s_α,k = τ √(φ_k / tr E[z_k z_k']), s_ε = √(1 − r) as the half-t's scale (#47:
+  tr cov X), s_α,k = τ √(φ_k / tr E[z_k z_k']), s_ε = √(1 − r) as F's scale (#47:
   dummies and 0/1 columns have variance below 1 and the intercept none, so a block divided by
   its width realized a third of its budget and R²_m piled near 0). Given the scales,
   β ~ N(0, σ_β), σ_α ~ F(s_α), σ_ε ~ F(s_ε) exactly, so metabeta's conditioning on its context
@@ -57,7 +58,7 @@ blocks at q = 2 and 3 of 18 above.
   finding on the side: at d = 20 and r = 0.5, σ_β ≈ 0.11, so realistic LMMs sit at the
   envelope's lower edge and its upper decade produces only saturated data.
 - **No caps, no rerolls, no rescaling.** A Poisson rate is `exp(η)` in float64, no clip; above
-  numpy's limit the count comes from the Normal approximation, so a draw never fails. The
+  numpy's limit the count saturates at int64's largest, so a draw never fails. The
   absurd log-link tables at σ = 10 are the shared envelope's cost (mixed ADR 0001's
   amendment), and a per-family edge is metabeta's to reopen. The Normal family's y is returned
   as drawn; metabeta's internal z-scoring (its ADR 0002) applies to y and θ together, as to a
