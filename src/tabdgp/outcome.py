@@ -1,18 +1,20 @@
-"""outcome.py defines what a form reads and what it returns, and TabDGP's own model, the GLM.
+"""outcome.py defines what a form reads and returns, and TabDGP's own models, the GLM and GLMM.
 
 A form reads the covariates: the observed columns at the rows, their metadata,
 the grouping and the score (the outcome node's z-scored value in the SCM, None without one).
 A GLM codes the covariates as the design matrix and draws y from its family through the link.
+A GLMM adds random effects per grouping factor on some of the design's columns.
 
 pipeline:
 ---------
 the covariates at the rows, their metadata, the grouping and the score  Covariates
 -> the columns a form writes, their metadata and its truth              Outcome
 -> a model's outcome                                                    run
-   a GLM's:
+   a GLMM's, a GLM's without factors:
    -> the design matrix, the intercept first                            codeDesign
-   -> the prior's scales and parameters over the block fixed            Glm.drawParameters
-   -> η = Xβ, then y from the family through its canonical link         _drawGlm
+   -> each factor's random terms within its budget                      _chooseRandomTerms
+   -> the prior's scales and parameters over the blocks                 Glm.drawParameters
+   -> η = Xβ + Σ_k Z_k α_k, then y from the family through its link     _drawGlmm
    a study's:
    -> its call, its result checked at the covariates' rows              _callModel
 """
@@ -27,7 +29,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping
 from tabdgp.hyperprior import Model
-from tabdgp.prior import Block, Glm, PriorContext
+from tabdgp.prior import Block, Glm, Glmm, PriorContext
 
 # =====================================================================================
 # the checks
@@ -82,6 +84,7 @@ class Design:
 
     matrix: np.ndarray  # (n, d) float64
     names: list[str]  # the terms: 'intercept', then each covariate's
+    positions: dict[str, list[int]]  # each covariate's columns of the matrix
     means: dict[str, float]  # each continuous column's, before z-scoring
     sds: dict[str, float]  # each continuous column's population sd over the n rows
 
@@ -157,17 +160,92 @@ class GlmOutcome(Outcome):
     @property
     def beta_raw(self) -> np.ndarray:
         """beta on the raw columns, which gives the same η as beta on the design matrix."""
-        intercept = float(self.beta[0])
-        slopes = []
-        for term, coefficient in zip(self.fixed_terms[1:], self.beta[1:]):
+        return self._buildRawMap(self.fixed_terms) @ self.beta  # (d,)
+
+    def _buildRawMap(self, terms: list[str]) -> np.ndarray:
+        """The matrix A that takes a block's coefficients, the intercept first,
+        from the design matrix to the raw columns.
+        A 0/1 column is coded as it is, so its row is the identity's.
+        """
+        raw_map = np.eye(len(terms))  # (q, q)
+        for j, term in enumerate(terms):
             if term in self.sds:
                 # β (x − mean) / sd = (β / sd) x − β mean / sd
-                slope = float(coefficient) / self.sds[term]
-                intercept -= slope * self.means[term]
-            else:
-                slope = float(coefficient)  # a 0/1 column is coded as it is
-            slopes.append(slope)
-        return np.array([intercept, *slopes])  # (d,)
+                raw_map[j, j] = 1 / self.sds[term]
+                raw_map[0, j] = -self.means[term] / self.sds[term]
+        return raw_map
+
+
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class GlmmOutcome(GlmOutcome):
+    """A GLMM's y and its truth: a GLM's, and each grouping factor's random effects.
+
+    - Random terms: a factor's intercept and slopes, terms of the design,
+      each with one random effect per group.
+    - Covariance: a group's random effects are N(0, Σ), with Σ = diag(sd) corr diag(sd).
+    - Raw scale: the random intercept absorbs each slope's α · mean / sd, like the fixed one,
+      so Σ's intercept row and column change on the raw columns, not only its diagonal.
+    """
+
+    random_terms: dict[str, list[str]]  # by factor, the intercept first
+    sd_alpha: dict[str, np.ndarray]  # (q,) float64 by factor
+    corr_alpha: dict[str, np.ndarray]  # (q, q) float64 by factor
+    alpha: dict[str, np.ndarray]  # (m, q) float64 by factor, a row per group
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # check that every field has each factor, sized by the factor's q terms
+        factors = list(self.random_terms)
+        for field in ['sd_alpha', 'corr_alpha', 'alpha']:
+            named = list(getattr(self, field))
+            if named != factors:
+                raise ValueError(f'{field} has the factors {named}, not {factors}')
+        for factor, terms in self.random_terms.items():
+            q = len(terms)
+            sd_shape = self.sd_alpha[factor].shape
+            if sd_shape != (q,):
+                raise ValueError(f'sd_alpha of {factor} has the shape {sd_shape}, not ({q},)')
+            corr_shape = self.corr_alpha[factor].shape
+            if corr_shape != (q, q):
+                raise ValueError(
+                    f'corr_alpha of {factor} has the shape {corr_shape}, not ({q}, {q})'
+                )
+            alpha_shape = self.alpha[factor].shape
+            if len(alpha_shape) != 2 or alpha_shape[1] != q:
+                raise ValueError(f'alpha of {factor} has the shape {alpha_shape}, not (m, {q})')
+
+    @property
+    def alpha_raw(self) -> dict[str, np.ndarray]:
+        """alpha on the raw columns, which gives the same η as alpha on the design matrix."""
+        raw = {}
+        for factor, terms in self.random_terms.items():
+            raw[factor] = self.alpha[factor] @ self._buildRawMap(terms).T  # (m, q)
+        return raw
+
+    @property
+    def sd_alpha_raw(self) -> dict[str, np.ndarray]:
+        sds = {}
+        for factor, covariance in self._transformCovariances().items():
+            sds[factor] = np.sqrt(np.diag(covariance))  # (q,)
+        return sds
+
+    @property
+    def corr_alpha_raw(self) -> dict[str, np.ndarray]:
+        sds = self.sd_alpha_raw
+        corrs = {}
+        for factor, covariance in self._transformCovariances().items():
+            corrs[factor] = covariance / np.outer(sds[factor], sds[factor])  # (q, q)
+        return corrs
+
+    def _transformCovariances(self) -> dict[str, np.ndarray]:
+        """Each factor's Σ on the raw columns, A Σ A' for the raw map A of its terms."""
+        covariances = {}
+        for factor, terms in self.random_terms.items():
+            sd = self.sd_alpha[factor]
+            covariance = self.corr_alpha[factor] * np.outer(sd, sd)  # (q, q)
+            raw_map = self._buildRawMap(terms)  # (q, q)
+            covariances[factor] = raw_map @ covariance @ raw_map.T  # (q, q)
+        return covariances
 
 
 # =====================================================================================
@@ -230,18 +308,23 @@ FAMILIES = {'normal': Normal, 'bernoulli': Bernoulli, 'poisson': Poisson}
 def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """Draws the outcome of TabDGP's own model, or of a study's, from the covariates."""
     match model:
+        case Glmm():
+            # random effects for every grouping factor
+            return _drawGlmm(model, covariates, list(covariates.grouping.metadata), rng)
         case Glm():
-            return _drawGlm(model, covariates, rng)
+            return _drawGlmm(model, covariates, [], rng)
         case _:
             return _callModel(model, covariates, rng)
 
 
 # -------------------------------------------------------------------------------------
-# a GLM: the covariates -> the design matrix -> η -> y
+# a GLMM, a GLM without factors: the covariates -> the design matrix -> the blocks -> η -> y
 # -------------------------------------------------------------------------------------
 
 
-def _drawGlm(glm: Glm, covariates: Covariates, rng: np.random.Generator) -> GlmOutcome:
+def _drawGlmm(
+    glm: Glm, covariates: Covariates, factors: list[str], rng: np.random.Generator
+) -> GlmOutcome:
     resolved = glm.resolveDataset(rng)
     rows = covariates.rows
     design = codeDesign(covariates.columns, covariates.metadata, rows)
@@ -249,27 +332,52 @@ def _drawGlm(glm: Glm, covariates: Covariates, rng: np.random.Generator) -> GlmO
     family = FAMILIES[name]
     # the fixed term adds tr cov X to var(η) at scale 1, the intercept nothing
     variance = float(design.matrix.var(axis=0).sum())
-    fixed = Block(name='fixed', width=len(design.names), variance=variance)
-    context, parameters = resolved.drawParameters(name, [fixed], rng)
+    blocks = [Block(name='fixed', width=len(design.names), variance=variance)]
+    random_terms = {}
+    random_columns = {}
+    for factor in factors:
+        budget = resolved.resolveField('random_effects', rng, high=len(design.names))
+        positions = _chooseRandomTerms(design, budget, rng)
+        z = design.matrix[:, positions]  # (n, q)
+        # a random term adds tr E[z z'] to var(η) at scale 1, its intercept 1
+        variance = float((z**2).mean(axis=0).sum())
+        groups = covariates.grouping.metadata[factor].levels
+        blocks.append(Block(name=factor, width=len(positions), variance=variance, groups=groups))
+        random_terms[factor] = [design.names[i] for i in positions]
+        random_columns[factor] = z
+    context, parameters = resolved.drawParameters(name, blocks, rng)
+    eta = design.matrix @ parameters.beta  # (n,)
+    for factor, z in random_columns.items():
+        codes = covariates.grouping.codes[factor]  # (n,)
+        eta = eta + (z * parameters.alpha[factor][codes]).sum(axis=1)  # (n,)
     deviation = np.zeros(rows)  # (n,)
-    eta = design.matrix @ parameters.beta + deviation  # (n,)
+    eta = eta + deviation  # (n,)
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
     y = family.draw(rng, eta, scale)  # (n,)
-    return GlmOutcome(
-        columns={'y': y},
-        metadata={'y': family.COLUMN},
-        family=name,
-        link=family.LINK,
-        fixed_terms=design.names,
-        context=context,
-        beta=parameters.beta,
-        sigma_eps=parameters.sigma_eps,
-        deviation=deviation,
-        deviation_scale=resolved.deviation_scale,
-        means=design.means,
-        sds=design.sds,
+    truth = {
+        'columns': {'y': y},
+        'metadata': {'y': family.COLUMN},
+        'family': name,
+        'link': family.LINK,
+        'fixed_terms': design.names,
+        'context': context,
+        'beta': parameters.beta,
+        'sigma_eps': parameters.sigma_eps,
+        'deviation': deviation,
+        'deviation_scale': resolved.deviation_scale,
+        'means': design.means,
+        'sds': design.sds,
+    }
+    if not factors:
+        return GlmOutcome(**truth)
+    return GlmmOutcome(
+        **truth,
+        random_terms=random_terms,
+        sd_alpha=parameters.sd_alpha,
+        corr_alpha=parameters.corr_alpha,
+        alpha=parameters.alpha,
     )
 
 
@@ -280,11 +388,13 @@ def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows
     """
     names = ['intercept']
     coded = [np.ones(rows)]  # (n,) each
+    positions = {}
     means = {}
     sds = {}
     for name, column in metadata.items():
         if column.role != 'covariate':
             continue
+        start = len(names)
         values = columns[name].astype(np.float64)  # (n,)
         if column.type in ['continuous', 'count']:
             means[name] = float(values.mean())
@@ -299,8 +409,22 @@ def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows
             for level in range(1, column.levels):
                 names.append(f'{name}={level}')
                 coded.append((values == level).astype(np.float64))
+        positions[name] = list(range(start, len(names)))
     matrix = np.stack(coded, axis=1)  # (n, d)
-    return Design(matrix=matrix, names=names, means=means, sds=sds)
+    return Design(matrix=matrix, names=names, positions=positions, means=means, sds=sds)
+
+
+def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) -> list[int]:
+    """A factor's random terms, as positions in the design:
+    the intercept, then whole covariates in a random order, each while it fits the budget.
+    """
+    positions = [0]
+    covariates = list(design.positions)
+    for i in rng.permutation(len(covariates)):
+        columns = design.positions[covariates[i]]
+        if len(positions) + len(columns) <= budget:
+            positions.extend(columns)
+    return sorted(positions)
 
 
 # -------------------------------------------------------------------------------------
