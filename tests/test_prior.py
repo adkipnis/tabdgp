@@ -21,8 +21,25 @@ SD_FAMILY_SHARES = {
     'half_cauchy': 0.25,
     'exponential': 0.25,
 }
+# the contaminated families, each with the field its shape is drawn from, at share zero
+CONTAMINATED = {
+    'student_t': 'residual_df',
+    'negative_binomial': 'dispersion',
+    'latent_bernoulli': 'latent_scale',
+    'gamma': 'gamma_shape',
+    'beta': 'beta_precision',
+}
 DEFAULTS = {
-    'family_shares': {'normal': 1 / 3, 'bernoulli': 1 / 3, 'poisson': 1 / 3},
+    'family_shares': {
+        'normal': 1 / 3,
+        'bernoulli': 1 / 3,
+        'poisson': 1 / 3,
+        'student_t': 0.0,
+        'negative_binomial': 0.0,
+        'latent_bernoulli': 0.0,
+        'gamma': 0.0,
+        'beta': 0.0,
+    },
     'beta_family_shares': {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02},
     'sigma_eps_family_shares': SD_FAMILY_SHARES,
     'intercept_location': Uniform(-3, 3),
@@ -33,6 +50,11 @@ DEFAULTS = {
     'signal_share': Beta(2, 2),
     'predictor_sd': LogUniform(0.25, 4),
     'deviation_scale': 0.0,
+    'residual_df': LogUniform(3, 10),  # ν
+    'dispersion': LogUniform(1, 10),  # φ
+    'latent_scale': LogUniform(0.5, 2),  # σ_c
+    'gamma_shape': LogUniform(1, 10),
+    'beta_precision': LogUniform(2, 50),
 }
 
 
@@ -52,9 +74,44 @@ def test_the_fields_take_their_defaults_and_an_override() -> None:
     """
     defaults = {field: getattr(Glm(), field) for field in Glm.model_fields}
     assert defaults == DEFAULTS
-    glm = Glm(family_shares={'poisson': 1.0, 'normal': 0.0, 'bernoulli': 0.0}, signal_share=0.5)
-    assert list(glm.family_shares) == ['normal', 'bernoulli', 'poisson']
+    glm = Glm(family_shares=point('family_shares', 'poisson', Glm), signal_share=0.5)
+    assert list(glm.family_shares) == ['normal', 'bernoulli', 'poisson', *CONTAMINATED]
     assert (glm.family_shares['poisson'], glm.signal_share) == (1.0, 0.5)
+
+
+def test_the_contaminated_families_are_the_last_categories_each_with_a_shape_field_to_override() -> (
+    None
+):
+    """A study that draws a contaminated family overrides family_shares like deviation_scale.
+    The base three keep their places, so a share of zero never moves the choice among them,
+    and each shape field takes a point or a distribution of its own.
+    """
+    assert Glm.categories('family_shares')[3:] == list(CONTAMINATED)
+    glm = Glm(
+        family_shares=point('family_shares', 'student_t', Glm),
+        residual_df=4.0,
+        beta_precision=Uniform(5, 6),
+    )
+    assert (glm.family_shares['student_t'], glm.residual_df) == (1.0, 4.0)
+    assert glm.beta_precision == Uniform(5, 6)
+
+
+@pytest.mark.parametrize(
+    'field', ['residual_df', 'dispersion', 'gamma_shape', 'beta_precision', 'latent_scale']
+)
+def test_a_shape_that_is_negative_cannot_be_written_and_only_a_latent_scale_may_be_zero(
+    field: str,
+) -> None:
+    """ν, φ, the Gamma shape and the beta precision are positive, where numpy fails at 0;
+    σ_c = 0 is the plain Bernoulli.
+    """
+    with pytest.raises(ValidationError, match=field):
+        Glm(**{field: -1.0})
+    if field == 'latent_scale':
+        assert Glm(latent_scale=0.0).latent_scale == 0.0
+    else:
+        with pytest.raises(ValidationError, match=field):
+            Glm(**{field: 0.0})
 
 
 GLMM_DEFAULTS = DEFAULTS | {
@@ -103,21 +160,31 @@ def test_resolve_gives_every_field_a_point_and_the_shares_fields_shares_that_cho
     uniform = Dirichlet({'half_normal': 1, 'half_student_t': 1, 'half_cauchy': 1, 'exponential': 1})
     resolved = Glm(sigma_eps_family_shares=uniform).resolveDataset(np.random.default_rng(0))
     for field in Glm.model_fields:
-        assert not isinstance(getattr(resolved, field), Distribution)
+        if field not in CONTAMINATED.values():
+            assert not isinstance(getattr(resolved, field), Distribution)
     for field in Glm.SHARES:
         shares = getattr(resolved, field)
         assert shares.choose(np.random.default_rng(0)) in Glm.categories(field)
 
 
-def test_resolve_leaves_the_fields_each_factor_draws_as_given() -> None:
-    """Each factor draws its own budget q_k, truncated at d, and its own η when correlated,
-    so a dataset's resolution keeps both distributions and gives every other field a point.
+def test_resolve_leaves_the_fields_each_factor_or_family_draws_as_given() -> None:
+    """Each factor draws its own budget q_k, truncated at d, and its own η when correlated.
+    Only the chosen family draws its shape, so a family at share zero consumes no draw.
+    A dataset's resolution keeps these distributions and gives every other field a point.
     """
     resolved = Glmm().resolveDataset(np.random.default_rng(0))
     assert (resolved.random_effects, resolved.lkj_eta) == (UniformInt(1, 6), UniformInt(1, 4))
+    for field in CONTAMINATED.values():
+        assert getattr(resolved, field) == getattr(Glmm(), field)
     for field in Glmm.model_fields:
-        if field not in ['random_effects', 'lkj_eta']:
+        if field not in ['random_effects', 'lkj_eta', *CONTAMINATED.values()]:
             assert not isinstance(getattr(resolved, field), Distribution)
+    # shape fields that are points or distributions leave the generator at the same state
+    as_distributions = np.random.default_rng(0)
+    as_points = np.random.default_rng(0)
+    Glmm().resolveDataset(as_distributions)
+    Glmm(**dict.fromkeys(CONTAMINATED.values(), 4.0)).resolveDataset(as_points)
+    assert as_distributions.random() == as_points.random()
 
 
 # r = 0.36 and τ = 2 give √r = 0.6 and √(1 − r) = 0.8; tr cov X = 2.25 gives √ 1.5

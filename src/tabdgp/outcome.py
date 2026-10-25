@@ -25,7 +25,6 @@ the covariates at the rows, their metadata, the grouping and the score  Covariat
 
 from __future__ import annotations
 
-import math
 from typing import Any, ClassVar
 
 import numpy as np
@@ -462,7 +461,8 @@ class GlmmOutcome(GlmOutcome):
 # the families
 # =====================================================================================
 # each draws y from its linear predictor η through its canonical link,
-# at a residual scale per row that only the Normal family has (None for the others).
+# at a residual scale per row that only the Normal and Student-t families have (None otherwise)
+# and a shape, the family's second parameter, that only the contaminated families have.
 
 
 class Normal:
@@ -472,7 +472,9 @@ class Normal:
     COLUMN = Column(type='continuous', role='outcome')
 
     @staticmethod
-    def draw(rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None) -> np.ndarray:
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
         noise = rng.standard_normal(len(eta))  # (n,)
         y = eta + scale * noise  # (n,)
         return y.astype(Normal.COLUMN.dtype)
@@ -485,10 +487,17 @@ class Bernoulli:
     COLUMN = Column(type='binary', levels=2, role='outcome')
 
     @staticmethod
-    def draw(rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None) -> np.ndarray:
-        p = 0.5 * (1 + np.tanh(eta / 2))  # (n,) the inverse logit, without exp's overflow
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
+        p = Bernoulli.invertLogit(eta)  # (n,)
         uniforms = rng.random(len(eta))  # (n,)
         return (uniforms < p).astype(Bernoulli.COLUMN.dtype)
+
+    @staticmethod
+    def invertLogit(eta: np.ndarray) -> np.ndarray:
+        """The inverse logit, without exp's overflow."""
+        return 0.5 * (1 + np.tanh(eta / 2))
 
 
 class Poisson:
@@ -499,15 +508,118 @@ class Poisson:
     RATE_LIMIT = 9.2e18  # numpy refuses a rate above about 9.22e18, int64's largest count
 
     @staticmethod
-    def draw(rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None) -> np.ndarray:
-        # above the limit no int64 holds the count, so y saturates at int64's largest
-        drawn = eta < math.log(Poisson.RATE_LIMIT)  # (n,)
-        rate = np.exp(np.where(drawn, eta, 0.0))  # (n,) float64, exp(η) wherever it is drawn
-        counts = rng.poisson(rate)  # (n,) int64
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
+        rate = np.exp(np.minimum(eta, 700.0))  # (n,) float64, exp's overflow cut at 700
+        return Poisson.drawCounts(rng, rate)
+
+    @staticmethod
+    def drawCounts(rng: np.random.Generator, rate: np.ndarray) -> np.ndarray:
+        """Poisson counts at a rate per row, saturated at int64's largest above the limit,
+        where no int64 holds the count.
+        """
+        drawn = rate < Poisson.RATE_LIMIT  # (n,)
+        counts = rng.poisson(np.where(drawn, rate, 1.0))  # (n,) int64
         return np.where(drawn, counts, np.iinfo(np.int64).max)
 
 
-FAMILIES = {'normal': Normal, 'bernoulli': Bernoulli, 'poisson': Poisson}
+class StudentT:
+    """y = η + σ_ε t_ν, the identity link, the shape ν."""
+
+    LINK = 'identity'
+    COLUMN = Column(type='continuous', role='outcome')
+
+    @staticmethod
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
+        noise = rng.standard_t(shape, len(eta))  # (n,)
+        y = eta + scale * noise  # (n,)
+        return y.astype(StudentT.COLUMN.dtype)
+
+
+class NegativeBinomial:
+    """y ~ Poisson(λ) with λ ~ Gamma(φ, mean e^η), the log link, the shape φ:
+    the mean is e^η and the variance μ (1 + μ / φ), the Poisson's at φ → ∞.
+    """
+
+    LINK = 'log'
+    COLUMN = Column(type='count', role='outcome')
+
+    @staticmethod
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
+        mean = np.exp(np.minimum(eta, 700.0))  # (n,)
+        # numpy's negative_binomial raises on a gamma rate above the Poisson's limit, which
+        # this draws in two steps to saturate
+        rate = rng.gamma(shape, mean / shape)  # (n,)
+        return Poisson.drawCounts(rng, rate)
+
+
+class LatentBernoulli:
+    """y ~ Bernoulli(expit(η + σ_c ε)) with ε standard normal, the logit link, the shape σ_c."""
+
+    LINK = 'logit'
+    COLUMN = Column(type='binary', levels=2, role='outcome')
+
+    @staticmethod
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
+        latent = eta + shape * rng.standard_normal(len(eta))  # (n,)
+        return Bernoulli.draw(rng, latent, None, None)
+
+
+class Gamma:
+    """y ~ Gamma(k, mean e^η), the log link, the shape k: the variance is μ² / k.
+    y is held inside float32's positive range, which a fitter's Gamma likelihood needs.
+    """
+
+    LINK = 'log'
+    COLUMN = Column(type='continuous', role='outcome')
+
+    @staticmethod
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
+        mean = np.exp(np.clip(eta, -700.0, 700.0))  # (n,)
+        y = rng.gamma(shape, mean / shape)  # (n,)
+        limits = np.finfo(np.float32)
+        return np.clip(y, limits.tiny, limits.max).astype(Gamma.COLUMN.dtype)
+
+
+class Beta:
+    """y ~ Beta(μ φ, (1 − μ) φ), the logit link, the shape φ, the precision: the mean is
+    μ = expit(η) and the variance μ (1 − μ) / (φ + 1).
+    y is held inside float32's open interval (0, 1), which a fitter's beta likelihood needs.
+    """
+
+    LINK = 'logit'
+    COLUMN = Column(type='continuous', role='outcome')
+    MEAN_EDGE = 2.0**-53  # keeps both parameters positive, which numpy needs, at any η
+
+    @staticmethod
+    def draw(
+        rng: np.random.Generator, eta: np.ndarray, scale: np.ndarray | None, shape: float | None
+    ) -> np.ndarray:
+        mean = np.clip(Bernoulli.invertLogit(eta), Beta.MEAN_EDGE, 1 - Beta.MEAN_EDGE)  # (n,)
+        y = rng.beta(mean * shape, (1 - mean) * shape)  # (n,)
+        below_one = 1 - 2.0**-24  # the largest float32 below 1
+        return np.clip(y, np.finfo(np.float32).tiny, below_one).astype(Beta.COLUMN.dtype)
+
+
+FAMILIES = {
+    'normal': Normal,
+    'bernoulli': Bernoulli,
+    'poisson': Poisson,
+    'student_t': StudentT,
+    'negative_binomial': NegativeBinomial,
+    'latent_bernoulli': LatentBernoulli,
+    'gamma': Gamma,
+    'beta': Beta,
+}
 
 
 # =====================================================================================
@@ -567,7 +679,7 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    y = family.draw(rng, eta, scale)  # (n,)
+    y = family.draw(rng, eta, scale, None)  # (n,)
     truth = {
         'columns': {'y': y},
         'metadata': {'y': family.COLUMN},

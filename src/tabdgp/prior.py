@@ -259,9 +259,27 @@ class Glm(Config):
         'sigma_eps_family_shares',
     )
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()  # the fields each factor resolves on its own
+    # the field only the chosen family resolves, so a family at share zero consumes no draw
+    PER_FAMILY: ClassVar[dict[str, str]] = {
+        'student_t': 'residual_df',
+        'negative_binomial': 'dispersion',
+        'latent_bernoulli': 'latent_scale',
+        'gamma': 'gamma_shape',
+        'beta': 'beta_precision',
+    }
 
     # ruff cannot trace Config to BaseModel, so it reads a shares default as a class attribute
-    family_shares: Simplex = {'normal': 1 / 3, 'bernoulli': 1 / 3, 'poisson': 1 / 3}  # noqa: RUF012
+    family_shares: Simplex = {  # noqa: RUF012
+        'normal': 1 / 3,
+        'bernoulli': 1 / 3,
+        'poisson': 1 / 3,
+        # the contaminated families, each with a shape of its own, a white-box study's to draw
+        'student_t': 0.0,
+        'negative_binomial': 0.0,
+        'latent_bernoulli': 0.0,
+        'gamma': 0.0,
+        'beta': 0.0,
+    }
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # the family σ_ε is drawn from
     intercept_location: Real = Uniform(-3, 3)  # μ_0, on the link scale
@@ -272,13 +290,18 @@ class Glm(Config):
     signal_share: Share = Beta(2, 2)  # r
     predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal
     deviation_scale: NonNegative = 0.0  # λ
+    residual_df: Positive = LogUniform(3, 10)  # ν of the Student-t family
+    dispersion: Positive = LogUniform(1, 10)  # φ of the negative binomial: variance μ (1 + μ / φ)
+    latent_scale: NonNegative = LogUniform(0.5, 2)  # σ_c of the latent-noise Bernoulli
+    gamma_shape: Positive = LogUniform(1, 10)
+    beta_precision: Positive = LogUniform(2, 50)
 
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
         """Resolves each field drawn once per dataset, in declaration order."""
         points = {}
         for name in type(self).model_fields:
-            if name in self.PER_FACTOR:
-                points[name] = getattr(self, name)  # defer resolution to each factor
+            if name in self.PER_FACTOR or name in self.PER_FAMILY.values():
+                points[name] = getattr(self, name)  # defer resolution to each factor or family
             else:
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)

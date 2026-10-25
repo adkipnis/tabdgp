@@ -18,13 +18,18 @@ from tabdgp.column import Column
 from tabdgp.outcome import (
     FAMILIES,
     Bernoulli,
+    Beta,
     Covariates,
+    Gamma,
     GlmmOutcome,
     GlmOutcome,
+    LatentBernoulli,
+    NegativeBinomial,
     Normal,
     Outcome,
     Poisson,
     ScmOutcome,
+    StudentT,
     codeDesign,
     run,
 )
@@ -468,44 +473,120 @@ def test_the_families_are_exactly_the_categories_of_glms_family_shares() -> None
     assert list(FAMILIES) == Glm.categories('family_shares')
 
 
+FLOAT32 = np.finfo(np.float32)
+BELOW_ONE = 1 - 2.0**-24  # the largest float32 below 1
+INT64_MAX = np.iinfo(np.int64).max
+# a family, y's dtype and its range, and a shape that suits it (None for the base three)
 RANGES = [
-    pytest.param(Normal, np.float32, -np.inf, np.inf, id='normal'),
-    pytest.param(Bernoulli, np.int64, 0, 1, id='bernoulli'),
-    pytest.param(Poisson, np.int64, 0, np.inf, id='poisson'),
+    pytest.param(Normal, np.float32, -np.inf, np.inf, None, id='normal'),
+    pytest.param(Bernoulli, np.int64, 0, 1, None, id='bernoulli'),
+    pytest.param(Poisson, np.int64, 0, np.inf, None, id='poisson'),
+    pytest.param(StudentT, np.float32, -np.inf, np.inf, 3.0, id='student_t'),
+    pytest.param(NegativeBinomial, np.int64, 0, INT64_MAX, 1.0, id='negative_binomial'),
+    pytest.param(LatentBernoulli, np.int64, 0, 1, 2.0, id='latent_bernoulli'),
+    pytest.param(Gamma, np.float32, FLOAT32.tiny, FLOAT32.max, 1.0, id='gamma'),
+    pytest.param(Beta, np.float32, FLOAT32.tiny, BELOW_ONE, 2.0, id='beta'),
+]
+# η over what a wide prior reaches, and far beyond it, where float64 and float32 run out
+ETAS = [
+    pytest.param(np.linspace(-40, 40, 1001), id='wide prior'),
+    pytest.param(np.array([-800.0, -100.0, -10.0, 0.0, 10.0, 100.0, 800.0]), id='beyond'),
 ]
 
 
-@pytest.mark.parametrize(('family', 'dtype', 'low', 'high'), RANGES)
-def test_each_familys_draw_is_in_range_and_of_its_dtype(
-    family: type, dtype: type, low: float, high: float
+@pytest.mark.parametrize(('family', 'dtype', 'low', 'high', 'shape'), RANGES)
+@pytest.mark.parametrize('eta', ETAS)
+def test_each_familys_draw_is_in_range_and_of_its_dtype_without_a_warning(
+    family: type, dtype: type, low: float, high: float, shape: float | None, eta: np.ndarray
 ) -> None:
-    """y's column holds the family's draw in its type's dtype, over the η a wide prior reaches:
-    a Normal y any float32, a Bernoulli y the codes 0 and 1, a Poisson y a count.
+    """y's column holds the family's draw in its type's dtype, at any η:
+    a Gamma y is positive and a beta y inside (0, 1) as float32 holds them, so neither is
+    a bound the fitter's likelihood would reject; a count saturates at int64's largest.
     """
-    eta = np.linspace(-40, 40, 1001)  # (n,)
-    y = family.draw(np.random.default_rng(0), eta, np.full(1001, 0.5))
+    scale = np.full(len(eta), 0.5)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        y = family.draw(np.random.default_rng(0), eta, scale, shape)
     assert y.dtype == family.COLUMN.dtype == dtype
     assert y.shape == eta.shape
     assert np.isfinite(y).all()
     assert low <= y.min() and y.max() <= high
 
 
-# η at which each family's mean is a round number: 1.5, logit⁻¹(log 3) = 0.75, exp(log 4) = 4
-MEANS = [
-    pytest.param(Normal, 1.5, 1.5, id='normal: the identity'),
-    pytest.param(Bernoulli, math.log(3), 0.75, id='bernoulli: the logit'),
-    pytest.param(Poisson, math.log(4), 4.0, id='poisson: the log'),
+def _latentMean(eta: float, scale: float) -> float:
+    """E[expit(η + σ ε)] for ε standard normal, by Gauss-Hermite quadrature."""
+    nodes, weights = np.polynomial.hermite_e.hermegauss(80)
+    return float((weights / math.sqrt(2 * math.pi) * _expit(eta + scale * nodes)).sum())
+
+
+def _expit(x: np.ndarray | float) -> np.ndarray | float:
+    return 1 / (1 + np.exp(-x))
+
+
+# η, the shape and y's mean and variance in closed form: the identity, the logit and the log of η
+# at which the means are round (1.5, logit⁻¹(log 3) = 0.75, e^(log 4) = 4), the variance of each
+# family's own noise at scale 1
+LAWS = [
+    pytest.param(Normal, 1.5, None, 1.5, 1.0, id='normal: the identity'),
+    pytest.param(Bernoulli, math.log(3), None, 0.75, 0.75 * 0.25, id='bernoulli: the logit'),
+    pytest.param(Poisson, math.log(4), None, 4.0, 4.0, id='poisson: the log'),
+    pytest.param(StudentT, 1.5, 10.0, 1.5, 10 / 8, id='student_t: ν / (ν − 2) at σ_ε = 1'),
+    pytest.param(
+        NegativeBinomial,
+        math.log(4),
+        2.0,
+        4.0,
+        4 * (1 + 4 / 2),
+        id='negative_binomial: μ (1 + μ / φ)',
+    ),
+    pytest.param(
+        LatentBernoulli,
+        math.log(3),
+        1.5,
+        _latentMean(math.log(3), 1.5),
+        _latentMean(math.log(3), 1.5) * (1 - _latentMean(math.log(3), 1.5)),
+        id='latent_bernoulli: the logit of η plus noise, attenuated toward ½',
+    ),
+    pytest.param(Gamma, math.log(2), 4.0, 2.0, 2.0**2 / 4, id='gamma: the log, μ² / shape'),
+    pytest.param(
+        Beta,
+        math.log(3),
+        4.0,
+        0.75,
+        0.75 * 0.25 / (4 + 1),
+        id='beta: the logit, μ (1 − μ) / (φ + 1)',
+    ),
 ]
 
 
-@pytest.mark.parametrize(('family', 'eta', 'mean'), MEANS)
-def test_each_familys_mean_is_its_inverse_link_of_eta(
-    family: type, eta: float, mean: float
+@pytest.mark.parametrize(('family', 'eta', 'shape', 'mean', 'variance'), LAWS)
+def test_each_familys_draw_has_the_mean_and_variance_of_its_law_at_its_shape(
+    family: type, eta: float, shape: float | None, mean: float, variance: float
 ) -> None:
-    """Each family has its canonical link (ADR 0006), which a fitter of that family assumes."""
-    rows = 20000
-    y = family.draw(np.random.default_rng(0), np.full(rows, eta), np.ones(rows))
+    """Each family has its canonical link (ADR 0006), which a fitter of that family assumes,
+    and its own noise at the shape: the draw's moments are the law's, not numpy's by construction.
+    """
+    rows = 400_000
+    y = family.draw(np.random.default_rng(0), np.full(rows, eta), np.ones(rows), shape)
     assert y.mean() == pytest.approx(mean, rel=0.02)
+    assert y.var() == pytest.approx(variance, rel=0.05)
+
+
+def test_a_latent_bernoullis_mean_is_attenuated_by_its_noise() -> None:
+    """The latent noise makes y misspecified for a Bernoulli fitter: its mean is pulled to ½."""
+    assert 0.5 < _latentMean(math.log(3), 1.5) < 0.7
+
+
+def test_a_negative_binomial_count_above_numpys_limit_saturates_as_the_poisson_does() -> None:
+    """numpy's own negative_binomial raises when its gamma rate passes the limit,
+    which happens at a mean far below it when φ is small, so y saturates instead.
+    """
+    eta = np.array([0.0, 800.0])  # (n,)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        y = NegativeBinomial.draw(np.random.default_rng(0), eta, np.ones(2), 1.0)
+    assert y[0] < INT64_MAX
+    assert y[1] == INT64_MAX
 
 
 def test_a_poisson_rate_above_numpys_limit_draws_without_failing() -> None:
@@ -516,7 +597,7 @@ def test_a_poisson_rate_above_numpys_limit_draws_without_failing() -> None:
     eta = np.array([0.0, 43.0, 44.0, 800.0])  # (n,)
     with warnings.catch_warnings():
         warnings.simplefilter('error')
-        y = Poisson.draw(np.random.default_rng(0), eta, np.ones(4))
+        y = Poisson.draw(np.random.default_rng(0), eta, np.ones(4), None)
     largest = np.iinfo(np.int64).max
     assert y.dtype == np.int64
     assert y[1] < largest
