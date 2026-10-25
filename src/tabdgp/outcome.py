@@ -440,10 +440,10 @@ class GlmmOutcome(GlmOutcome):
 
     @property
     def corr_alpha_raw(self) -> dict[str, np.ndarray]:
-        sds = self.sd_alpha_raw
         corrs = {}
         for factor, covariance in self._transformCovariances().items():
-            corrs[factor] = covariance / np.outer(sds[factor], sds[factor])  # (q, q)
+            sd = np.sqrt(np.diag(covariance))  # (q,)
+            corrs[factor] = covariance / np.outer(sd, sd)  # (q, q)
         return corrs
 
     def _transformCovariances(self) -> dict[str, np.ndarray]:
