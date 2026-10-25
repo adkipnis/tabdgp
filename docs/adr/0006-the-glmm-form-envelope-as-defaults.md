@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal
 ---
 
 # 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
@@ -92,7 +92,9 @@ blocks at q = 2 and 3 of 18 above.
   `sd_alpha` (q_k,), `corr_alpha` (q_k, q_k), `alpha` (m_k, q_k), `sigma_eps`, the deviation
   (n,) and λ), the coding statistics (each continuous column's mean and sd) and the raw-scale
   parameters, analytic from these (β_raw,j = β_j / sd_j, the intercepts absorbing
-  Σ β_j · mean_j / sd_j, Σ_k scaled by the diagonal): what a user fitting lme4 on the raw
+  Σ β_j · mean_j / sd_j and the random ones each slope's α_j · mean_j / sd_j, so that
+  Σ_k becomes A Σ_k A′ for that linear map A, returned as its sds and its correlation, in
+  which only the intercept's row and column move): what a user fitting lme4 on the raw
   columns compares against.
 - **Modules.** `prior` owns the GLMM's priors: the configs `Glm` and `Glmm` with the fields
   over them (ADR 0007), the joint scale draw, the LKJ sampler and the parameter draw, nothing
