@@ -328,30 +328,63 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
         np.testing.assert_allclose(estimate, dataset.outcome.beta, atol=0.01)
 
 
-def test_a_normal_glmms_y_minus_x_beta_and_every_factors_z_alpha_is_noise_at_sigma_eps() -> None:
+def _linearPart(dataset: Dataset) -> np.ndarray:
+    """Xβ + Σ_k Z_k α_k[codes_k] on the coded columns, a GLMM's η without the deviation."""
+    outcome = dataset.outcome
+    design = codeDesign(dataset.columns, dataset.metadata, rows=dataset.hyperparameters.rows)
+    linear = design.matrix @ outcome.beta  # (n,)
+    for factor, terms in outcome.random_terms.items():
+        positions = [design.names.index(term) for term in terms]
+        z = design.matrix[:, positions]  # (n, q)
+        linear = linear + (z * outcome.alpha[factor][dataset.columns[factor]]).sum(axis=1)  # (n,)
+    return linear
+
+
+@pytest.mark.parametrize('deviation_scale', [0.0, 0.3], ids=['lambda 0', 'lambda 0.3'])
+def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_is_noise_at_sigma_eps(
+    deviation_scale: float,
+) -> None:
     """The truth refers to the design matrix a user fits on:
-    η = Xβ + Σ_k Z_k α_k[codes_k], Z_k the design's columns of the factor's random terms,
-    so what y leaves after them is the Normal noise, sd σ_ε, up to y's float32 rounding.
-    At r = 0.9999 and a half-normal F, σ_ε is about 0.01, too small to hide a wrong Zα.
+    η = Xβ + Σ_k Z_k α_k[codes_k] + the deviation, Z_k the design's columns of the factor's
+    random terms, so what y leaves after them is the Normal noise, sd σ_ε, up to y's float32
+    rounding. At r = 0.9999 and a half-normal F, σ_ε is about 0.01, too small to hide a wrong
+    Zα, or at λ = 0.3 a deviation that is not the one which entered η.
     """
     glmm = Glmm(
         family_shares=point('family_shares', 'normal', Glm),
         sd_family_shares=point('sd_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
         correlated_share=1.0,
+        deviation_scale=deviation_scale,
     )
     hyperprior = Hyperprior.grouped(rows=2000, outcome_form=glmm)
     for index in range(5):
         dataset = draw(0, index, hyperprior)
         outcome = dataset.outcome
-        design = codeDesign(dataset.columns, dataset.metadata, rows=2000)
-        residual = dataset.columns['y'].astype(np.float64) - design.matrix @ outcome.beta  # (n,)
-        for factor, terms in outcome.random_terms.items():
-            positions = [design.names.index(term) for term in terms]
-            z = design.matrix[:, positions]  # (n, q)
-            codes = dataset.columns[factor]  # (n,)
-            residual = residual - (z * outcome.alpha[factor][codes]).sum(axis=1)  # (n,)
+        y = dataset.columns['y'].astype(np.float64)  # (n,)
+        residual = y - _linearPart(dataset) - outcome.deviation  # (n,)
         assert abs(residual.std() - outcome.sigma_eps) < 0.1 * outcome.sigma_eps + 1e-4
+
+
+def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_the_same_beta_and_alpha_as_without_it_under_one_key() -> (
+    None
+):
+    """The white-box misspecified corpus differs from metabeta's only by the deviation:
+    λ enters after the parameter draw, so under one key β, α and the context do not move.
+    The score is z-scored over the rows, so the deviation's sd is λ times the linear part's.
+    """
+    for index in range(10):
+        plain = draw(0, index, Hyperprior.grouped(outcome_form='glmm'))
+        deviated = draw(0, index, Hyperprior.grouped(outcome_form=Glmm(deviation_scale=0.3)))
+        outcome = deviated.outcome
+        assert outcome.deviation_scale == 0.3
+        assert outcome.context == plain.outcome.context
+        assert outcome.beta.tobytes() == plain.outcome.beta.tobytes()
+        assert outcome.random_terms == plain.outcome.random_terms
+        for factor in outcome.random_terms:
+            assert outcome.alpha[factor].tobytes() == plain.outcome.alpha[factor].tobytes()
+        linear_sd = _linearPart(deviated).std()
+        assert outcome.deviation.std() == pytest.approx(0.3 * linear_sd, rel=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -424,7 +457,7 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     return column is not None and column.levels is not None and column.levels > min(groups)
 
 
-GLM_OVERRIDE = Glm(intercept_scale=0.5)  # the context records σ_0 under every family
+GLM_OVERRIDE = Glm(intercept_scale=0.5, deviation_scale=0.3)  # σ_0 in the context, λ beside it
 GLMM_OVERRIDE = Glmm(random_effects=1)  # every factor's intercept alone
 
 
@@ -512,6 +545,7 @@ def test_every_override_is_honored(
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
     if form == GLM_OVERRIDE:
         assert dataset.outcome.context.intercept_scale == 0.5
+        assert dataset.outcome.deviation_scale == 0.3
     if form == GLMM_OVERRIDE:
         assert list(dataset.outcome.random_terms) == factor_names
         for name in factor_names:
