@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node
+amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node; 2026-10-25, #52: a GLM's or GLMM's truth is float32 too
 ---
 
 # 0001 — One dataset per draw, keyed by seed and index, in numpy
@@ -81,7 +81,8 @@ shapes. TabDGP never pads, never batches across datasets and never writes a file
   so numpy holds; the draw is bound by arithmetic, not by the interpreter, so a padded torch
   batch on CPU buys nothing and one on the node's only GPU takes time from training. The
   bar was first set at 500 per core, before the consumer's numbers were known.
-- Continuous columns and latent values are float32, the precision the network trains in, so
+- Continuous columns, latent values and a GLM's or GLMM's truth (its parameters and
+  deviation) are float32, the precision the network trains in, so
   `torch.from_numpy` hands them over unconverted; single precision also runs the
   activations three to four times faster.
 - When online drawing falls behind, or several models (4 to 16) train at once, a consumer
