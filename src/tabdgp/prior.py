@@ -184,11 +184,17 @@ class Glm(Fields):
     def _drawContext(
         self, family: str, blocks: list[Block], rng: np.random.Generator
     ) -> PriorContext:
-        normal = family == 'normal'
         sd_family = self.sd_family_shares.choose(rng)
-        residual_law = self.residual_shares.choose(rng) if normal else None
-        # under the Normal family τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
-        predictor_sd = math.sqrt(self.signal_share) if normal else self.predictor_sd
+        residual_law = None
+        signal_share = None
+        predictor_sd = self.predictor_sd
+        residual_scale = None
+        if family == 'normal':
+            residual_law = self.residual_shares.choose(rng)
+            signal_share = self.signal_share
+            # τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
+            predictor_sd = math.sqrt(self.signal_share)
+            residual_scale = math.sqrt(1 - self.signal_share)
         split = self._drawSplit(blocks, rng)
         lkj_eta = self._drawCorrelations(blocks, rng)
         scales = {}
@@ -196,11 +202,10 @@ class Glm(Fields):
             # a block without covariate columns adds nothing to var(η), so no budget reaches it
             budget = split[block.name] / block.variance if block.variance > 0 else 0.0
             scales[block.name] = predictor_sd * math.sqrt(budget)
-        residual_scale = math.sqrt(1 - self.signal_share) if normal else None
         return PriorContext(
             sd_family=sd_family,
             residual_law=residual_law,
-            signal_share=self.signal_share if normal else None,
+            signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
             scales=scales,
