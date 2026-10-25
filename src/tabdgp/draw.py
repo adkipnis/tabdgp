@@ -142,9 +142,10 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     # the grouping before the graph, which draws each node's unit among its factors
     grouping = assign(resolved, rng)
     planned = plan(resolved, rng)  # the covariates' columns, then y's under the scm form
-    graph = connect(resolved, grouping, planned, rng)
-    nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
+    # y's planned column is the outcome's, the rest the graph's and the covariates'
     covariate_metadata = {name: column for name, column in planned.items() if name != 'y'}
+    graph = connect(resolved, grouping, covariate_metadata, rng)
+    nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
     covariate_columns = _applyColumns(nodes, covariate_metadata, graph, grouping, rng)
     latent = _broadcastLatent(nodes, graph, grouping)
     covariates = Covariates(
@@ -153,7 +154,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
         grouping=grouping,
         score=nodes.get('y'),  # (n,), y is at the row; None under 'none'
     )
-    outcome = _drawOutcome(resolved.outcome_form, covariates, planned, rng)
+    outcome = _drawOutcome(resolved.outcome_form, covariates, planned.get('y'), rng)
     columns = covariates.columns
     metadata = covariates.metadata
     if outcome is not None:
@@ -207,7 +208,7 @@ def _broadcastLatent(
 def _drawOutcome(
     form: OutcomeForm | Model,
     covariates: Covariates,
-    planned: dict[str, Column],
+    y_column: Column | None,
     rng: np.random.Generator,
 ) -> Outcome | None:
     """The form's outcome from the covariates and the score, None under 'none'."""
@@ -216,8 +217,8 @@ def _drawOutcome(
             return None
         case 'scm':
             # y's column rank-matched to the score, the last draw
-            y = apply(covariates.score, planned['y'], rng)  # (n,)
-            metadata = {'y': planned['y']}
+            y = apply(covariates.score, y_column, rng)  # (n,)
+            metadata = {'y': y_column}
             return ScmOutcome(columns={'y': y}, metadata=metadata, score=covariates.score)
         case _:
             return run(form, covariates, rng)

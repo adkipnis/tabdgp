@@ -2,7 +2,7 @@
 
 pipeline:
 ---------
-the resolved hyperprior, the grouping and the observed columns
+the resolved hyperprior, the grouping and the covariates' columns
 -> each node's unit                                                            _sampleUnits
 -> names and units in topological order, the factors first, y last if drawn    _orderNodes
 -> edges: Cauchy node terms and a block bonus                                  _sampleEdges
@@ -169,10 +169,9 @@ def _orderNodes(
     """
     factors = list(grouping.metadata)
     latent_nodes = resolved.latent_nodes
-    covariates = [name for name in columns if name != 'y']
     # the observed nodes take the plan's names in a random order:
     # a column's position is independent of its place in the graph
-    permuted = rng.permutation(covariates)  # (d,)
+    permuted = rng.permutation(list(columns))  # (d,)
     observed = permuted.tolist()
     latent_unit = _sampleUnits(resolved, len(factors), latent_nodes, rng)  # (latent_nodes,)
     # sorted, so that z0, z1, … follow the order
@@ -187,7 +186,7 @@ def _orderNodes(
     units = grouping.traceChain('row')
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
-    # every form but none turns y's node into y, whether or not the plan holds y's column
+    # every form but none turns y's node into y
     if resolved.outcome_form != 'none':
         names.append('y')
         unit.append('row')

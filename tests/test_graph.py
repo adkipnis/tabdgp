@@ -322,8 +322,6 @@ def test_units_out_of_order_fail(change: dict) -> None:
 # skipping g and z, the prefixes of grouping factors and latent nodes
 OBSERVED = list('abcdefhijk')
 FLAT = groupingOf([])
-# the outcome as plan mints it, after the covariates
-Y = Column(type='continuous', marginal='normal', role='outcome')
 
 
 def _connect(
@@ -333,15 +331,13 @@ def _connect(
     with_y: bool = False,
     **overrides: object,
 ) -> Graph:
-    """A graph over a plan of continuous columns, with y planned under the scm form,
+    """A graph over a plan of continuous columns, with y under the scm form,
     else without y unless the overrides name another form.
     """
     rng = np.random.default_rng(seed)
     form = {'outcome_form': 'scm' if with_y else 'none'}
     resolved = Hyperprior(**form | overrides).resolveDataset(rng)
     columns = columnsOf(OBSERVED[:observed_nodes])
-    if with_y:
-        columns['y'] = Y
     return connect(resolved, grouping, columns, rng)
 
 
@@ -691,7 +687,6 @@ def test_y_is_last_and_at_the_row_with_no_children_under_every_grouping(
     resolved = hyperprior.resolveDataset(rng)
     grouping = assign(resolved, rng)
     columns = columnsOf(OBSERVED[:5])
-    columns['y'] = Y
     graph = connect(resolved, grouping, columns, rng)
     assert graph.names[-1] == 'y'
     assert graph.unit[-1] == 'row'
