@@ -59,7 +59,7 @@ class Dataset:
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored over its groups if group-level
     outcome: Outcome | None  # the form's columns and truth, None under 'none'
-    hyperparameters: Hyperprior  # resolved, except the fields each column, node or factor draws
+    hyperparameters: Hyperprior  # resolved but for what each column, node, factor or model draws
     seed: int  # the corpus
     index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version
