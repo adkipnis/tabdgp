@@ -11,7 +11,7 @@ from tabdgp.field import (
 )
 from tabdgp.hyperprior import Hyperprior
 from tabdgp.outcome import Covariates, Outcome
-from tabdgp.prior import Glm
+from tabdgp.prior import Glm, Glmm
 
 __all__ = [
     'Beta',
@@ -19,6 +19,7 @@ __all__ = [
     'Dataset',
     'Dirichlet',
     'Glm',
+    'Glmm',
     'Hyperprior',
     'LogUniform',
     'LogUniformInt',
