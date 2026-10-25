@@ -208,9 +208,9 @@ class Covariates:
         categorical = isinstance(dtype, pd.CategoricalDtype)
         if values.nunique() == 2:
             return Column(type='binary', levels=2)
+        if categorical and dtype.ordered:
+            return Column(type='ordered', levels=values.nunique())
         if categorical or pd.api.types.is_string_dtype(values):
-            if categorical and dtype.ordered:
-                return Column(type='ordered', levels=values.nunique())
             return Column(type='categorical', levels=values.nunique())
         if pd.api.types.is_integer_dtype(dtype):
             if (values < 0).any():
