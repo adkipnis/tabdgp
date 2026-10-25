@@ -555,7 +555,7 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     assert (outcome.metadata['y'].type, outcome.metadata['y'].role) == (column_type, 'outcome')
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
-    assert list(outcome.context.scales) == ['fixed']
+    assert list(outcome.context.split) == ['fixed']
     assert (outcome.sigma_eps is None) == (family != 'normal')
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
@@ -664,7 +664,7 @@ def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> Non
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], ['x0', 'x1'])
     outcome = run(Glmm(), covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
-    assert list(outcome.context.scales) == ['fixed', 'g0', 'g1']
+    assert list(outcome.context.split) == ['fixed', 'g0', 'g1']
     assert list(outcome.random_terms) == ['g0', 'g1']
     for factor, groups in [('g0', 3), ('g1', 2)]:
         terms = outcome.random_terms[factor]

@@ -88,24 +88,30 @@ class Block:
 
 @pydantic_dataclass(frozen=True)
 class PriorContext:
-    """The resolved hyperparameters a GLM's or GLMM's parameters were drawn with.
+    """The stated prior a GLM's or GLMM's parameters are drawn from, resolved per dataset:
+    what a fitter would state, in the families' own scale parameters.
 
-    - Families: the family of each factor's random-effect sds and the residual sd's.
-    - Signal: the signal share r and the predictor sd τ.
-    - Split: each block's share φ of var(eta).
-    - Scales: each block's prior scale, the intercept's and the residual's.
-    - Correlation: each factor's LKJ shape, if its effects are correlated.
+    - Fixed effects: their family, the intercept's location and scale and each slope's.
+    - Random effects: each factor's scale, the family of its sds
+      and its LKJ shape, if its effects are correlated.
+    - Residual: the family and scale of σ_ε, for a response family with one.
+    - Budget: the signal share r, the predictor sd τ and each block's share φ of var(eta),
+      which set the scales.
     """
 
+    beta_family: str
+    intercept_location: float  # μ_0
+    intercept_scale: float  # σ_0
+    slope_locations: list[float]  # μ_j, one per slope
+    slope_scales: list[float]  # σ_j, one per slope
+    random_scales: dict[str, float]  # s_α by factor
     sd_alpha_family: str | None  # None on a GLM
+    lkj_eta: dict[str, int | None]  # the LKJ shape by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
+    residual_scale: float | None  # s_ε, None unless the family has a residual
     signal_share: float | None  # r, None unless the family is Normal
     predictor_sd: float  # τ
     split: dict[str, float]  # φ by block name
-    scales: dict[str, float]  # by block name
-    intercept_scale: float  # σ_0
-    residual_scale: float | None  # s_ε, None unless the family is Normal
-    lkj_eta: dict[str, int | None]  # the LKJ shape by factor, None if its effects are independent
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
@@ -186,10 +192,11 @@ class Glm(Config):
         On a resolved Glm, for the response family chosen.
         """
         context = self._drawContext(family, blocks, rng)
-        fixed, *factors = blocks
-        intercept = rng.normal(0, context.intercept_scale, size=1)  # (1,)
-        slopes = rng.normal(0, context.scales[fixed.name], size=fixed.width - 1)  # (d − 1,)
-        beta = np.concatenate([intercept, slopes])  # (d,)
+        _, *factors = blocks
+        locations = np.array([context.intercept_location, *context.slope_locations])  # (d,)
+        scales = np.array([context.intercept_scale, *context.slope_scales])  # (d,)
+        standard = self._drawStandard(context.beta_family, rng, len(scales))  # (d,)
+        beta = locations + scales * standard  # (d,)
         sigma_eps = None
         if context.residual_scale is not None:
             sigma_eps = self._drawSd(context.sigma_eps_family, context.residual_scale, rng)
@@ -207,6 +214,7 @@ class Glm(Config):
     def _drawContext(
         self, family: str, blocks: list[Block], rng: np.random.Generator
     ) -> PriorContext:
+        beta_family = self.beta_family_shares.choose(rng)
         sigma_eps_family = None
         signal_share = None
         predictor_sd = self.predictor_sd
@@ -220,22 +228,49 @@ class Glm(Config):
         sd_alpha_family = self._drawSdAlphaFamily(rng)
         split = self._drawSplit(blocks, rng)
         lkj_eta = self._drawCorrelations(blocks, rng)
-        scales = {}
-        for block in blocks:
-            # a block without covariate columns adds nothing to var(eta), so no budget reaches it
-            budget = split[block.name] / block.variance if block.variance > 0 else 0.0
-            scales[block.name] = predictor_sd * math.sqrt(budget)
+        fixed, *factors = blocks
+        budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed, what Xβ adds to var(eta)
+        slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
+        random_scales = {}
+        for block in factors:
+            # s_α² tr E[z z'] = τ² φ_k, the intercept's E[z²] = 1 always in the trace
+            random_scales[block.name] = predictor_sd * math.sqrt(split[block.name] / block.variance)
         return PriorContext(
+            beta_family=beta_family,
+            intercept_location=self.intercept_location,
+            intercept_scale=self.intercept_scale,
+            slope_locations=slope_locations,
+            slope_scales=slope_scales,
+            random_scales=random_scales,
             sd_alpha_family=sd_alpha_family,
+            lkj_eta=lkj_eta,
             sigma_eps_family=sigma_eps_family,
+            residual_scale=residual_scale,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
-            scales=scales,
-            intercept_scale=self.intercept_scale,
-            residual_scale=residual_scale,
-            lkj_eta=lkj_eta,
         )
+
+    def _drawSlopes(
+        self, fixed: Block, budget: float, rng: np.random.Generator
+    ) -> tuple[list[float], list[float]]:
+        """Each slope's location and scale, spending the fixed block's budget exactly:
+        σ_j = σ_β w_j and μ_j = δ_j σ_j, with σ_β solved from σ_β² Σ_j w_j² (1 + δ_j²) var_j = budget,
+        since E[β_j²] = σ_j² (1 + δ_j²) whatever the family's tails.
+        """
+        slopes = fixed.width - 1
+        located = rng.random(slopes) < self.location_share  # (d − 1,)
+        offsets = rng.normal(0, self.location_scale, slopes)  # (d − 1,) δ_j of a located slope
+        delta = np.where(located, offsets, 0.0)  # (d − 1,)
+        log_weights = rng.normal(0, self.scale_spread, slopes)  # (d − 1,)
+        weights = np.exp(log_weights)  # (d − 1,) w_j
+        variances = np.array(fixed.variances[1:])  # (d − 1,)
+        spent = float((weights**2 * (1 + delta**2) * variances).sum())  # at σ_β = 1
+        # a block without a varying column adds nothing to var(eta), so no budget reaches it
+        sigma_beta = math.sqrt(budget / spent) if spent > 0 else 0.0
+        slope_scales = sigma_beta * weights  # (d − 1,)
+        slope_locations = delta * slope_scales  # (d − 1,)
+        return slope_locations.tolist(), slope_scales.tolist()
 
     def _drawSdAlphaFamily(self, rng: np.random.Generator) -> str | None:
         return None  # a GLM has no random effects
@@ -249,21 +284,28 @@ class Glm(Config):
         return {}  # a GLM has no random effects
 
     @staticmethod
-    def _drawSd(
-        family: str, scale: float, rng: np.random.Generator, size: int | None = None
-    ) -> float | np.ndarray:
-        """Draws from the sd family F at its scale, one value or size of them, as numpy does:
-        the scale times |X|, X F's standard law.
+    def _drawStandard(family: str, rng: np.random.Generator, size: int | None) -> np.ndarray:
+        """Draws a family's standard law, which a location and a scale then place:
+        one law serves a symmetric family and its half version.
         """
-        match family:
-            case 'half_normal':
-                standard = rng.standard_normal(size)
-            case 'half_student_t':
-                standard = rng.standard_t(3, size)
-            case 'half_cauchy':
-                standard = rng.standard_cauchy(size)
+        match family.removeprefix('half_'):
+            case 'normal':
+                return rng.standard_normal(size)
+            case 'student_t':
+                return rng.standard_t(3, size)
+            case 'cauchy':
+                return rng.standard_cauchy(size)
             case 'exponential':
-                standard = rng.standard_exponential(size)
+                return rng.standard_exponential(size)
+
+    @classmethod
+    def _drawSd(
+        cls, family: str, scale: float, rng: np.random.Generator, size: int | None = None
+    ) -> float | np.ndarray:
+        """Draws from an sd family at its scale, one value or size of them, as numpy does:
+        the scale times |X|, X the family's standard law.
+        """
+        standard = cls._drawStandard(family, rng, size)
         return scale * abs(standard)
 
     def _drawRandomEffects(
@@ -273,7 +315,7 @@ class Glm(Config):
         corr_alpha = {}
         alpha = {}
         for block in factors:
-            scale = context.scales[block.name]
+            scale = context.random_scales[block.name]
             sd = self._drawSd(context.sd_alpha_family, scale, rng, size=block.width)  # (q,)
             corr = np.eye(block.width)  # (q, q)
             lkj_eta = context.lkj_eta[block.name]

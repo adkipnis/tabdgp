@@ -260,7 +260,7 @@ def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_truth(
         roles = [column.role for column in dataset.metadata.values()]
         assert roles.count('grouping_factor') == dataset.hyperparameters.factors
         assert len(outcome.fixed_terms) == 1 + dataset.hyperparameters.design_columns
-        assert list(outcome.context.scales) == ['fixed']
+        assert list(outcome.context.split) == ['fixed']
 
 
 def test_grouped_with_glmm_returns_y_last_with_a_glmm_outcome_of_one_block_per_factor() -> None:
@@ -278,7 +278,7 @@ def test_grouped_with_glmm_returns_y_last_with_a_glmm_outcome_of_one_block_per_f
             name for name, column in dataset.metadata.items() if column.role == 'grouping_factor'
         ]
         assert list(outcome.random_terms) == factors
-        assert list(outcome.context.scales) == ['fixed', *factors]
+        assert list(outcome.context.split) == ['fixed', *factors]
         for factor in factors:
             q = len(outcome.random_terms[factor])
             assert q <= min(6, len(outcome.fixed_terms))
