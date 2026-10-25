@@ -196,6 +196,14 @@ Both have a family, a link and fixed effects, the GLMM adds random effects per g
 and both can add a deviation.
 _Avoid_: mode, kind, outcome type (its column type)
 
+**Response family**:
+The distribution of y given the linear predictor, with its canonical link.
+Normal, Bernoulli and Poisson by default.
+Student-t, negative binomial, latent-noise Bernoulli, Gamma and beta at share zero, each with a
+shape of its own.
+A study that draws one makes the dataset misspecified for a fitter of the base family.
+_Avoid_: likelihood (the fitter's), distribution unqualified, marginal (a covariate's)
+
 **Covariates**:
 What a form reads: the observed columns (the grouping factors and the covariates), their
 metadata, how the rows are grouped, and the score.
@@ -232,11 +240,14 @@ A table without an SCM has no deviation.
 _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it), noise
 
 **Prior context**:
-The resolved hyperparameters of a GLM's or GLMM's priors, stored with the dataset.
-It holds the scales of the fixed effects, the random-effect standard deviations and the
-residual.
-It also holds the families chosen for the standard deviations and the residual, the shape of
-the correlation prior, and the signal share and split that set the scales.
+The prior of a GLM's or GLMM's parameters, resolved per dataset and stored with it: what a
+fitter would state.
+It holds the family of the fixed effects, the location and scale of the intercept and of each
+slope, the family and scale of each factor's random-effect standard deviations, the family and
+scale of the residual, and the shape of each correlation prior.
+A slope's location is zero for most slopes and a hypothesis for the rest.
+It also holds the signal share and the split that set the scales.
+It draws the parameters on its own, so a truth can be resampled under a fixed prior.
 _Avoid_: hyperparameters unqualified (the hyperprior's), prior unqualified (the fitter's)
 
 **Random effect**:
