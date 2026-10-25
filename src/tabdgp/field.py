@@ -116,7 +116,8 @@ class Beta:
         out = rng.beta(self.a, self.b)
         return float(out)
 
-    def support(self) -> tuple[float, float]:
+    @staticmethod
+    def support() -> tuple[float, float]:
         return 0.0, 1.0
 
 
