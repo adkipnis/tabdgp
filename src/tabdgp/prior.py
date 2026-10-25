@@ -118,14 +118,15 @@ class Glm(Fields):
     SHARES: ClassVar[tuple[str, ...]] = ('family_shares', 'sd_family_shares', 'residual_shares')
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()  # the fields each factor resolves on its own
 
-    family_shares: Simplex = {'normal': 1 / 3, 'bernoulli': 1 / 3, 'poisson': 1 / 3}
-    sd_family_shares: Simplex = {
+    # ruff cannot trace Fields to BaseModel, so it reads a shares default as a class attribute
+    family_shares: Simplex = {'normal': 1 / 3, 'bernoulli': 1 / 3, 'poisson': 1 / 3}  # noqa: RUF012
+    sd_family_shares: Simplex = {  # noqa: RUF012
         'half_normal': 0.25,
         'half_student_t': 0.25,  # ν = 3
         'half_cauchy': 0.25,
         'exponential': 0.25,
     }  # F, the family of the residual scale σ_ε
-    residual_shares: Simplex = {'normal': 1.0}  # the Normal family's residual law
+    residual_shares: Simplex = {'normal': 1.0}  # the Normal family's residual law  # noqa: RUF012
     intercept_scale: NonNegative = LogUniform(0.1, 10)  # σ_0
     signal_share: Share = Beta(2, 2)  # r
     predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal

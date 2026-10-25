@@ -61,7 +61,6 @@ ignore = ["RUF015"]  # suggests next() on a generator, which the conventions rul
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_readme.py" = ["S102"]  # runs the README's quickstart
-"src/tabdgp/prior.py" = ["RUF012"]  # Glm's shares defaults, fields ruff cannot trace to BaseModel
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
