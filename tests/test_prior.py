@@ -11,20 +11,25 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from tabdgp.field import Beta, Dirichlet, Distribution, LogUniform, UniformInt
+from tabdgp.field import Beta, Dirichlet, Distribution, LogUniform, Uniform, UniformInt
 from tabdgp.prior import Block, Glm, Glmm
 from tests.fixtures.build import point
 
+SD_FAMILY_SHARES = {
+    'half_normal': 0.25,
+    'half_student_t': 0.25,
+    'half_cauchy': 0.25,
+    'exponential': 0.25,
+}
 DEFAULTS = {
     'family_shares': {'normal': 1 / 3, 'bernoulli': 1 / 3, 'poisson': 1 / 3},
-    'sd_family_shares': {
-        'half_normal': 0.25,
-        'half_student_t': 0.25,
-        'half_cauchy': 0.25,
-        'exponential': 0.25,
-    },
-    'residual_shares': {'normal': 1.0},
+    'beta_family_shares': {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02},
+    'sigma_eps_family_shares': SD_FAMILY_SHARES,
+    'intercept_location': Uniform(-3, 3),
     'intercept_scale': LogUniform(0.1, 10),
+    'location_share': 0.1,
+    'location_scale': 2.0,
+    'scale_spread': 0.0,
     'signal_share': Beta(2, 2),
     'predictor_sd': LogUniform(0.25, 4),
     'deviation_scale': 0.0,
@@ -41,7 +46,8 @@ def test_a_block_is_as_wide_as_its_variances_and_has_at_least_one() -> None:
 
 
 def test_the_fields_take_their_defaults_and_an_override() -> None:
-    """ADR 0006's envelope as the comment on #46 amended it: what a GLM corpus draws by default.
+    """ADR 0006's envelope as its amendments shaped it: what a GLM corpus draws by default,
+    the fixed effects' families and locations what brms users state.
     An override names a shares field's categories in any order and keeps the default's.
     """
     defaults = {field: getattr(Glm(), field) for field in Glm.model_fields}
@@ -52,6 +58,7 @@ def test_the_fields_take_their_defaults_and_an_override() -> None:
 
 
 GLMM_DEFAULTS = DEFAULTS | {
+    'sd_alpha_family_shares': SD_FAMILY_SHARES,
     'fixed_share': Beta(1, 1),
     'split_alpha': 1.0,
     'random_effects': UniformInt(1, 6),
@@ -61,8 +68,9 @@ GLMM_DEFAULTS = DEFAULTS | {
 
 
 def test_a_glmm_adds_its_fields_to_a_glms_with_their_defaults() -> None:
-    """ADR 0006's envelope as the comment on #46 amended it: what metabeta trains on.
-    The fixed block's share has its own Beta, and the factors split the rest.
+    """ADR 0006's envelope as its amendments shaped it: what metabeta trains on.
+    The fixed block's share has its own Beta, and the factors split the rest;
+    the random-effect sds have a family of their own, apart from the residual's.
     """
     defaults = {field: getattr(Glmm(), field) for field in Glmm.model_fields}
     assert defaults == GLMM_DEFAULTS
@@ -93,7 +101,7 @@ def test_resolve_gives_every_field_a_point_and_the_shares_fields_shares_that_cho
     A shares field overridden by a Dirichlet must still choose one category per dataset.
     """
     uniform = Dirichlet({'half_normal': 1, 'half_student_t': 1, 'half_cauchy': 1, 'exponential': 1})
-    resolved = Glm(sd_family_shares=uniform).resolveDataset(np.random.default_rng(0))
+    resolved = Glm(sigma_eps_family_shares=uniform).resolveDataset(np.random.default_rng(0))
     for field in Glm.model_fields:
         assert not isinstance(getattr(resolved, field), Distribution)
     for field in Glm.SHARES:
@@ -150,11 +158,13 @@ def test_the_joint_draws_identities_hold(
     Only the Normal family has a residual scale, and its y then has unit variance at the scales.
     r sets nothing under the other families, so the context records none there.
     An intercept-only design has no slope for σ_β to scale.
+    A GLM has no random effects, so no family for their sds.
     """
     glm = Glm(signal_share=0.36, predictor_sd=2.0, intercept_scale=1.5)
     blocks = [Block(name='fixed', variances=variances)]
     context, _ = glm.drawParameters(family, blocks, np.random.default_rng(0))
     assert (context.signal_share, context.intercept_scale) == (signal_share, 1.5)
+    assert context.sd_alpha_family is None
     assert context.predictor_sd == pytest.approx(predictor_sd)
     assert context.split == {'fixed': 1.0}
     assert context.scales == {'fixed': pytest.approx(scale)}
@@ -264,7 +274,8 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     The KS bound is the 1 % critical value at the number of draws.
     """
     glmm = Glmm(
-        sd_family_shares=point('sd_family_shares', sd_family, Glm),
+        sigma_eps_family_shares=point('sigma_eps_family_shares', sd_family, Glm),
+        sd_alpha_family_shares=point('sd_alpha_family_shares', sd_family, Glmm),
         signal_share=0.36,  # τ = 0.6, s_ε = 0.8
         intercept_scale=1.5,
         fixed_share=0.5,
@@ -377,20 +388,26 @@ FACTOR_BLOCKS = [
 ]
 
 
-@pytest.mark.parametrize(('family', 'residual_law'), [('normal', 'normal'), ('poisson', None)])
+@pytest.mark.parametrize(
+    ('family', 'sigma_eps_family'), [('normal', 'exponential'), ('poisson', None)]
+)
 def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_chosen_families(
-    family: str, residual_law: str | None
+    family: str, sigma_eps_family: str | None
 ) -> None:
     """metabeta reads the context by block name and conditions on the families chosen.
-    A family without a residual has no residual law.
+    The random-effect sds and the residual sd each have their own family, as brms states them,
+    and a family without a residual has no residual family.
     Each factor's parameters are sized by its block: q sds, a q × q correlation, a row per group.
     """
-    glmm = Glmm(sd_family_shares=point('sd_family_shares', 'half_cauchy', Glm))
+    glmm = Glmm(
+        sd_alpha_family_shares=point('sd_alpha_family_shares', 'half_cauchy', Glmm),
+        sigma_eps_family_shares=point('sigma_eps_family_shares', 'exponential', Glm),
+    )
     resolved = glmm.resolveDataset(np.random.default_rng(0))
     context, parameters = resolved.drawParameters(family, FACTOR_BLOCKS, np.random.default_rng(0))
     assert list(context.split) == list(context.scales) == ['fixed', 'g0', 'g1']
     assert list(context.lkj_eta) == list(parameters.alpha) == ['g0', 'g1']
-    assert (context.sd_family, context.residual_law) == ('half_cauchy', residual_law)
+    assert (context.sd_alpha_family, context.sigma_eps_family) == ('half_cauchy', sigma_eps_family)
     for block in FACTOR_BLOCKS[1:]:
         q = block.width
         assert parameters.sd_alpha[block.name].shape == (q,)

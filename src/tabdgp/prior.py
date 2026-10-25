@@ -52,8 +52,10 @@ from tabdgp.field import (
     NonNegative,
     Positive,
     PositiveCount,
+    Real,
     Share,
     Simplex,
+    Uniform,
     UniformInt,
 )
 
@@ -88,15 +90,15 @@ class Block:
 class PriorContext:
     """The resolved hyperparameters a GLM's or GLMM's parameters were drawn with.
 
-    - Families: the sd family F (and the residual family for Gaussian models).
+    - Families: the family of each factor's random-effect sds and the residual sd's.
     - Signal: the signal share r and the predictor sd τ.
     - Split: each block's share φ of var(eta).
     - Scales: each block's prior scale, the intercept's and the residual's.
     - Correlation: each factor's LKJ shape, if its effects are correlated.
     """
 
-    sd_family: str
-    residual_law: str | None  # None unless the family is Normal
+    sd_alpha_family: str | None  # None on a GLM
+    sigma_eps_family: str | None  # None unless the family has a residual
     signal_share: float | None  # r, None unless the family is Normal
     predictor_sd: float  # τ
     split: dict[str, float]  # φ by block name
@@ -121,33 +123,48 @@ class Parameters:
 # the config
 # =====================================================================================
 
+# the sd families, uniform: what a random-effect sd and the residual sd are drawn from
+SD_FAMILY_SHARES = {
+    'half_normal': 0.25,
+    'half_student_t': 0.25,  # ν = 3
+    'half_cauchy': 0.25,
+    'exponential': 0.25,
+}
+
 
 class Glm(Config):
     """The prior of a generalized linear model (GLM) over the design matrix.
 
     - Families: y's response family, with its canonical link,
-      and the family F the residual sd σ_ε is drawn from.
+      the family of the fixed effects β and the family the residual sd σ_ε is drawn from.
+    - Locations: the intercept's, on the link scale, and each slope's,
+      zero for most slopes and a multiple of the slope's scale for the rest.
     - Scales: the predictor sd τ is the sd of eta without the intercept.
       Under the Normal family τ² = r, the signal share r being the share of y's variance
       that eta explains, so that y has unit variance at the scales.
-      σ_ε is drawn from F at s_ε, so E[σ_ε²] = s_ε² E[X²], X F's standard law.
+      Each slope's scale is the block's times a log-normal weight, at spread 0 the block's.
+      A scale is its family's scale parameter, so a draw's variance is the family's at it:
+      E[σ_ε²] = s_ε² E[X²], X the standard law of σ_ε's family.
     - Deviation: the score added to eta at λ · sd(Xβ + Σ_k Z_k α_k),
       the population sd over the rows.
     """
 
-    SHARES: ClassVar[tuple[str, ...]] = ('family_shares', 'sd_family_shares', 'residual_shares')
+    SHARES: ClassVar[tuple[str, ...]] = (
+        'family_shares',
+        'beta_family_shares',
+        'sigma_eps_family_shares',
+    )
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()  # the fields each factor resolves on its own
 
     # ruff cannot trace Config to BaseModel, so it reads a shares default as a class attribute
     family_shares: Simplex = {'normal': 1 / 3, 'bernoulli': 1 / 3, 'poisson': 1 / 3}  # noqa: RUF012
-    sd_family_shares: Simplex = {  # noqa: RUF012
-        'half_normal': 0.25,
-        'half_student_t': 0.25,  # ν = 3
-        'half_cauchy': 0.25,
-        'exponential': 0.25,
-    }  # F, the family σ_ε and a GLMM's σ_α are drawn from
-    residual_shares: Simplex = {'normal': 1.0}  # the Normal family's residual law  # noqa: RUF012
+    beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
+    sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # the family σ_ε is drawn from
+    intercept_location: Real = Uniform(-3, 3)  # μ_0, on the link scale
     intercept_scale: NonNegative = LogUniform(0.1, 10)  # σ_0
+    location_share: Share = 0.1  # the probability that a slope has a location
+    location_scale: NonNegative = 2.0  # a located slope's location, in its own scale, is N(0, this)
+    scale_spread: NonNegative = 0.0  # the sd of each slope's log scale around the block's
     signal_share: Share = Beta(2, 2)  # r
     predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal
     deviation_scale: NonNegative = 0.0  # λ
@@ -175,7 +192,7 @@ class Glm(Config):
         beta = np.concatenate([intercept, slopes])  # (d,)
         sigma_eps = None
         if context.residual_scale is not None:
-            sigma_eps = self._drawSd(context.sd_family, context.residual_scale, rng)
+            sigma_eps = self._drawSd(context.sigma_eps_family, context.residual_scale, rng)
         sd_alpha, corr_alpha, alpha = self._drawRandomEffects(context, factors, rng)
         # the parameters are float32, the precision of the columns they are recorded with
         parameters = Parameters(
@@ -190,17 +207,17 @@ class Glm(Config):
     def _drawContext(
         self, family: str, blocks: list[Block], rng: np.random.Generator
     ) -> PriorContext:
-        sd_family = self.sd_family_shares.choose(rng)
-        residual_law = None
+        sigma_eps_family = None
         signal_share = None
         predictor_sd = self.predictor_sd
         residual_scale = None
         if family == 'normal':
-            residual_law = self.residual_shares.choose(rng)
+            sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
             # τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             residual_scale = math.sqrt(1 - self.signal_share)
+        sd_alpha_family = self._drawSdAlphaFamily(rng)
         split = self._drawSplit(blocks, rng)
         lkj_eta = self._drawCorrelations(blocks, rng)
         scales = {}
@@ -209,8 +226,8 @@ class Glm(Config):
             budget = split[block.name] / block.variance if block.variance > 0 else 0.0
             scales[block.name] = predictor_sd * math.sqrt(budget)
         return PriorContext(
-            sd_family=sd_family,
-            residual_law=residual_law,
+            sd_alpha_family=sd_alpha_family,
+            sigma_eps_family=sigma_eps_family,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
@@ -219,6 +236,9 @@ class Glm(Config):
             residual_scale=residual_scale,
             lkj_eta=lkj_eta,
         )
+
+    def _drawSdAlphaFamily(self, rng: np.random.Generator) -> str | None:
+        return None  # a GLM has no random effects
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
@@ -254,7 +274,7 @@ class Glm(Config):
         alpha = {}
         for block in factors:
             scale = context.scales[block.name]
-            sd = self._drawSd(context.sd_family, scale, rng, size=block.width)  # (q,)
+            sd = self._drawSd(context.sd_alpha_family, scale, rng, size=block.width)  # (q,)
             corr = np.eye(block.width)  # (q, q)
             lkj_eta = context.lkj_eta[block.name]
             if lkj_eta is not None:
@@ -300,15 +320,23 @@ class Glmm(Glm):
       up to its own budget q_k, in design columns.
     - Correlation: a factor's effects are correlated with probability correlated_share,
       by an LKJ prior, and independent otherwise.
+    - Families: the random-effect sds σ_α have a family of their own, apart from σ_ε's.
     """
 
+    SHARES: ClassVar[tuple[str, ...]] = (*Glm.SHARES, 'sd_alpha_family_shares')
     PER_FACTOR: ClassVar[tuple[str, ...]] = ('random_effects', 'lkj_eta')
 
+    sd_alpha_family_shares: Simplex = (
+        SD_FAMILY_SHARES  # the family each factor's σ_α are drawn from
+    )
     fixed_share: Share = Beta(1, 1)  # φ_fixed
     split_alpha: Positive = 1.0  # the Dirichlet's concentration over the factors' blocks
     random_effects: PositiveCount = UniformInt(1, 6)  # q_k per factor, truncated at d
     correlated_share: Share = 0.55
     lkj_eta: PositiveCount = UniformInt(1, 4)  # the LKJ shape per correlated factor
+
+    def _drawSdAlphaFamily(self, rng: np.random.Generator) -> str | None:
+        return self.sd_alpha_family_shares.choose(rng)
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         fixed, *factors = blocks

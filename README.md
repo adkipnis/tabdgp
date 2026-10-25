@@ -65,10 +65,10 @@ x1 binary      per row [1 0 0]
 x2 continuous  per row [ 0.77 -0.05 -1.55]
 x3 binary      per row [1 0 0]
 x4 binary      per row [1 0 0]
-y  continuous  per row [ 1.13 -0.47  1.34]
-family: normal
+y  count       per row [6 1 2]
+family: poisson
 fixed: intercept + x0 + x1 + x2 + x3 + x4
-random per g0: intercept
+random per g0: intercept + x0 + x1 + x2 + x3 + x4
 random per g1: intercept
 random per g2: intercept + x0 + x1 + x3
 ```
@@ -97,11 +97,11 @@ for term, beta in zip(outcome.fixed_terms, outcome.beta):
 ```
 
 ```text
-family: poisson
-intercept  1.96
-age       -0.27
-female     2.86
-books     -1.39
+family: normal
+intercept  0.47
+age       -0.02
+female     0.01
+books      0.03
 ```
 
 ## Planned

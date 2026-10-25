@@ -324,7 +324,7 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
     """
     glm = Glm(
         family_shares=point('family_shares', 'normal', Glm),
-        sd_family_shares=point('sd_family_shares', 'half_normal', Glm),
+        sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
     )
     hyperprior = Hyperprior.flat(rows=2000, outcome_form=glm)
@@ -360,7 +360,7 @@ def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_i
     """
     glmm = Glmm(
         family_shares=point('family_shares', 'normal', Glm),
-        sd_family_shares=point('sd_family_shares', 'half_normal', Glm),
+        sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
         correlated_share=1.0,
         deviation_scale=deviation_scale,
