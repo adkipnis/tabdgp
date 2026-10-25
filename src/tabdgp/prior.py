@@ -25,7 +25,7 @@ the (optional) overrides
 from __future__ import annotations
 
 import math
-from typing import Annotated, ClassVar
+from typing import ClassVar
 
 import numpy as np
 from pydantic import ConfigDict, NonNegativeFloat, PositiveInt
@@ -34,7 +34,6 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp.field import (
     Beta,
     Fields,
-    Integer,
     LogUniform,
     NonNegative,
     Positive,
@@ -42,7 +41,6 @@ from tabdgp.field import (
     Share,
     Simplex,
     UniformInt,
-    within,
 )
 
 # =====================================================================================
@@ -276,7 +274,7 @@ class Glmm(Glm):
     split_alpha: Positive = 1.0  # the Dirichlet's concentration over the factors' blocks
     random_effects: PositiveCount = UniformInt(1, 6)  # q_k per factor, truncated at d
     correlated_share: Share = 0.55
-    lkj_eta: Annotated[Integer, within(gt=0)] = UniformInt(1, 4)  # η per correlated factor
+    lkj_eta: PositiveCount = UniformInt(1, 4)  # η per correlated factor
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         fixed, *factors = blocks
