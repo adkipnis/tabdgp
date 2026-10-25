@@ -100,7 +100,7 @@ class LogUniformInt(_Interval):
     def draw(
         self, rng: np.random.Generator, low: int | None = None, high: int | None = None
     ) -> int:
-        # the floor of a log-uniform on [bottom, top + 1) gives each integer k the mass log(1 + 1/k);
+        # the floor of a log-uniform on [bottom, top + 1) gives each integer k a mass ∝ log(1 + 1/k)
         bottom, top = _truncate(self.support(), low, high)
         log_bottom, log_top_p1 = math.log(bottom), math.log(top + 1)
         log_out = rng.uniform(log_bottom, log_top_p1)
@@ -114,7 +114,8 @@ class Beta:
     b: PositiveFloat
 
     def draw(self, rng: np.random.Generator) -> float:
-        return float(rng.beta(self.a, self.b))
+        out = rng.beta(self.a, self.b)
+        return float(out)
 
     def support(self) -> tuple[float, float]:
         return 0.0, 1.0
@@ -138,8 +139,8 @@ class Dirichlet:
         return list(self.alpha.values())
 
     def draw(self, rng: np.random.Generator) -> Shares:
-        shares = rng.dirichlet(self.values).tolist()
-        return Shares(zip(self.alpha, shares))
+        out = rng.dirichlet(self.values)
+        return Shares(zip(self.alpha, out.tolist()))
 
 
 # every distribution a field can take
@@ -207,6 +208,7 @@ class Fields(BaseModel):
     @classmethod
     def _orderShares(cls, value: Any, info: ValidationInfo) -> Any:
         """Checks the categories named by an override and puts them in default order."""
+        # a subclass names its shares fields, so the validator sees every field and skips the rest
         if info.field_name not in cls.SHARES:
             return value
         categories = cls.categories(info.field_name)
