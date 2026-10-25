@@ -1,23 +1,37 @@
-"""prior.py defines the prior of a GLM or GLMM: its config, its scales' joint draw, its parameters.
+"""prior.py defines how we draw the parameters of a GLM or GLMM outcome.
 
-The scales are drawn jointly per dataset.
-The predictor sd τ sets the sd of η without the intercept, and the split φ shares var(η) among
-the blocks of coefficients: the fixed block takes φ_fixed, and a GLMM's factors split the rest.
-Each block's scale divides its share by the variance its term adds to η at scale 1,
-so that a block of dummies realizes the share a block of z-scored columns does.
-Given the scales, each parameter is drawn from its stated family exactly:
-nothing is clipped, rerolled or rescaled.
-A factor's random effects are drawn per group, correlated by an LKJ prior or independent.
-The draw reads a block's size, never its columns.
+A generalized linear model (GLM) links an outcome y to the linear predictor eta = Xβ
+of a design matrix X by the canonical link of a likelihood family (e.g. Normal, Bernoulli).
+A generalized linear mixed model (GLMM) adds random effects per grouping factor k,
+eta = Xβ + Σ_k Z_k α_k, so each group gets its own additional intercept (and optionally slopes).
+This module samples and returns the ground truth (parameters, hyperparameters).
+
+Optionally, the linear predictor can be misspecified in a controlled way:
+We add the structural causal model's (SCM) value for y
+(standardized and scaled by λ > 0 times the sd of eta).
+This way, y's value can be nonlinear in its causes and depend on unobserved latents.
+β and α stay the truth, so a fitted GLMM is wrong by exactly the added term.
+
+Parameters are drawn from priors, whose scales are drawn from fixed hyperpriors.
+Independent prior scales would saturate many datasets (e.g. R² near 1),
+but capping them would degrade the prior. Instead, the scales are drawn jointly per dataset:
+- **Predictor sd τ:** the sd of eta without the intercept.
+- **Split φ:** each term's signal, its share of var(eta):
+  φ_fixed for Xβ, the rest split among Z_k α_k.
+- **Prior scales:** set so that each term adds its share of var(eta).
+
+This adapts the R2D2M2 prior (Aguilar and Bürkner, 2023),
+without its Dirichlet over all effects
+(which rarely lets a random intercept carry most of var(eta)).
 
 pipeline:
 ---------
 the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point for each field drawn once per dataset              Glm.resolveDataset
-   (a factor resolves its budget and its η later)
+   (a factor resolves its budget and its LKJ shape later)
 -> given y's family and the blocks, the families chosen,
-   r, τ, φ, each block's scale and each factor's η            _drawContext
+   r, τ, φ, each block's scale and each factor's LKJ shape    _drawContext
 -> β and σ_ε from their families at those scales              Glm.drawParameters
 -> each factor's σ_α, Ω and α per group                       _drawRandomEffects
 """
@@ -50,13 +64,13 @@ from tabdgp.field import (
 
 @pydantic_dataclass(frozen=True)
 class Block:
-    """A block of η's coefficients drawn at one scale:
-    the fixed effects, or a factor's random effects, one set per group.
+    """A block of eta's coefficients drawn at the same scale:
+    fixed effects or a factor's random effects (one set per group).
     """
 
     name: str  # 'fixed', or the factor's
     width: PositiveInt  # its coefficients per group, the intercept included
-    variance: NonNegativeFloat  # what its term adds to var(η) at scale 1: tr cov X if fixed
+    variance: NonNegativeFloat  # what its term adds to var(eta) at scale 1: tr cov X if fixed
     groups: PositiveInt = 1  # m, the fixed effects' one set for all rows
 
 
@@ -64,12 +78,11 @@ class Block:
 class PriorContext:
     """The resolved hyperparameters a GLM's or GLMM's parameters were drawn with.
 
-    - Families: F, the sd family chosen, and the Normal family's residual law.
-    - Signal: the signal share r and the predictor sd τ, the sd of η without the intercept.
-    - Split: each block's share φ of var(η), and its scale, σ_β for the fixed block.
-    - Residual: σ_ε is drawn from F at the residual scale s_ε, under the Normal family only.
-    - Correlation: a factor's random effects are correlated by an LKJ prior of shape η,
-      or independent.
+    - Families: the sd family F (and the residual family for Gaussian models).
+    - Signal: the signal share r and the predictor sd τ.
+    - Split: each block's share φ of var(eta).
+    - Scales: each block's prior scale, the intercept's and the residual's.
+    - Correlation: each factor's LKJ shape, if its effects are correlated.
     """
 
     sd_family: str
@@ -80,20 +93,18 @@ class PriorContext:
     scales: dict[str, float]  # by block name
     intercept_scale: float  # σ_0
     residual_scale: float | None  # s_ε, None unless the family is Normal
-    lkj_eta: dict[str, int | None]  # η by factor, None if its effects are independent
+    lkj_eta: dict[str, int | None]  # the LKJ shape by factor, None if its effects are independent
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Parameters:
-    """A GLM's or GLMM's parameters on the standardized scale, as drawn.
-    Each factor's random effects have their sds, their correlation and one row per group.
-    """
+    """A GLM's or GLMM's parameters on the standardized scale. All arrays are float32."""
 
-    beta: np.ndarray  # (d,) float32, the intercept first
-    sigma_eps: float | None  # None unless the family is Normal
-    sd_alpha: dict[str, np.ndarray]  # (q,) float32 by factor, none for a GLM
-    corr_alpha: dict[str, np.ndarray]  # (q, q) float32 by factor
-    alpha: dict[str, np.ndarray]  # (m, q) float32 by factor
+    beta: np.ndarray  # (d,) intercept first
+    sigma_eps: float | None  # None unless the likelihood family is Normal
+    sd_alpha: dict[str, np.ndarray]  # (q,) by factor
+    corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
+    alpha: dict[str, np.ndarray]  # (m, q) by factor
 
 
 # =====================================================================================
@@ -106,11 +117,11 @@ class Glm(Config):
 
     - Families: y's response family, with its canonical link,
       and the family F the residual sd σ_ε is drawn from.
-    - Scales: the predictor sd τ is the sd of η without the intercept.
+    - Scales: the predictor sd τ is the sd of eta without the intercept.
       Under the Normal family τ² = r, the signal share r being the share of y's variance
-      that η explains, so that y has unit variance at the scales.
+      that eta explains, so that y has unit variance at the scales.
       σ_ε is drawn from F at s_ε, so E[σ_ε²] = s_ε² E[X²], X F's standard law.
-    - Deviation: the score added to η at λ · sd(Xβ + Σ_k Z_k α_k),
+    - Deviation: the score added to eta at λ · sd(Xβ + Σ_k Z_k α_k),
       the population sd over the rows.
     """
 
@@ -184,7 +195,7 @@ class Glm(Config):
         lkj_eta = self._drawCorrelations(blocks, rng)
         scales = {}
         for block in blocks:
-            # a block without covariate columns adds nothing to var(η), so no budget reaches it
+            # a block without covariate columns adds nothing to var(eta), so no budget reaches it
             budget = split[block.name] / block.variance if block.variance > 0 else 0.0
             scales[block.name] = predictor_sd * math.sqrt(budget)
         return PriorContext(
@@ -200,7 +211,7 @@ class Glm(Config):
         )
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
-        return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(η)
+        return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
 
     def _drawCorrelations(
         self, blocks: list[Block], rng: np.random.Generator
@@ -235,9 +246,9 @@ class Glm(Config):
             scale = context.scales[block.name]
             sd = self._drawSd(context.sd_family, scale, rng, size=block.width)  # (q,)
             corr = np.eye(block.width)  # (q, q)
-            eta = context.lkj_eta[block.name]
-            if eta is not None:
-                corr = self._drawLkj(block.width, eta, rng)  # (q, q)
+            lkj_eta = context.lkj_eta[block.name]
+            if lkj_eta is not None:
+                corr = self._drawLkj(block.width, lkj_eta, rng)  # (q, q)
             standard = rng.standard_normal((block.groups, block.width))  # (m, q)
             # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
             effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
@@ -247,15 +258,15 @@ class Glm(Config):
         return sd_alpha, corr_alpha, alpha
 
     @staticmethod
-    def _drawLkj(q: int, eta: int, rng: np.random.Generator) -> np.ndarray:
-        """Draws a correlation matrix from the LKJ prior at shape η by the C-vine
+    def _drawLkj(q: int, lkj_eta: int, rng: np.random.Generator) -> np.ndarray:
+        """Draws a correlation matrix from the LKJ prior at shape lkj_eta by the C-vine
         of Lewandowski, Kurowicka and Joe (2009, section 3.2).
         Each partial correlation is a Beta on (−1, 1),
         turned into a correlation by the recursion over the variables before it.
         """
         partial = np.zeros((q, q))  # (q, q)
         corr = np.eye(q)  # (q, q)
-        concentration = eta + (q - 1) / 2  # the paper's β
+        concentration = lkj_eta + (q - 1) / 2  # the paper's β
         for k in range(q - 1):
             concentration -= 1 / 2
             for i in range(k + 1, q):
@@ -273,12 +284,12 @@ class Glm(Config):
 class Glmm(Glm):
     """The prior of a generalized linear mixed model (GLMM): a GLM with random effects.
 
-    - Split: the fixed block takes the share φ_fixed of var(η),
+    - Split: the fixed block takes the share φ_fixed of var(eta),
       and the factors' blocks split the rest by a Dirichlet.
     - Random effects: each factor has an intercept and slopes on covariate columns,
       up to its own budget q_k, in design columns.
     - Correlation: a factor's effects are correlated with probability correlated_share,
-      by an LKJ prior of shape η, and independent otherwise.
+      by an LKJ prior, and independent otherwise.
     """
 
     PER_FACTOR: ClassVar[tuple[str, ...]] = ('random_effects', 'lkj_eta')
@@ -287,11 +298,11 @@ class Glmm(Glm):
     split_alpha: Positive = 1.0  # the Dirichlet's concentration over the factors' blocks
     random_effects: PositiveCount = UniformInt(1, 6)  # q_k per factor, truncated at d
     correlated_share: Share = 0.55
-    lkj_eta: PositiveCount = UniformInt(1, 4)  # η per correlated factor
+    lkj_eta: PositiveCount = UniformInt(1, 4)  # the LKJ shape per correlated factor
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         fixed, *factors = blocks
-        # a fixed block without covariate columns adds nothing to var(η), so the factors take all
+        # a fixed block without covariate columns adds nothing to var(eta), so the factors take all
         fixed_share = self.fixed_share if fixed.variance > 0 else 0.0
         split = {fixed.name: fixed_share}
         shares = rng.dirichlet([self.split_alpha] * len(factors))  # (f,)
