@@ -241,6 +241,10 @@ class Covariates:
         names = list(factors)
         for i, name in enumerate(names):
             superior = factors[name].nests_in
+            if superior is not None and superior not in factors:
+                raise ValueError(
+                    f'the factor {name} nests in {superior}, which is no grouping factor'
+                )
             if superior is not None and not cls._nests(codes[name], codes[superior]):
                 raise ValueError(f'the factor {name} has a group across two groups of {superior}')
             for other in names[i + 1 :]:
