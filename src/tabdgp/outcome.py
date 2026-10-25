@@ -74,7 +74,7 @@ class Covariates:
         _checkOneLength([*self.columns.values(), self.score], 'the covariates')
         _checkNames(self.columns, self.metadata)
         if 'y' in self.columns:
-            raise ValueError("a covariate cannot be named 'y', the outcome's name")
+            raise ValueError("a covariate cannot be named 'y', the outcome's name: rename it")
 
     @property
     def rows(self) -> int:
@@ -133,7 +133,10 @@ class Covariates:
             if values.isna().any():
                 raise ValueError(f'the column {name} has a missing value')
             if values.nunique() < 2:
-                raise ValueError(f'the column {name} takes one value only')
+                raise ValueError(
+                    f'the column {name} takes one value only, '
+                    "so no fit tells its effect from the intercept's: drop it"
+                )
 
     @classmethod
     def _inferMetadata(cls, table: pd.DataFrame, factors: list[str]) -> dict[str, Column]:
