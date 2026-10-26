@@ -735,7 +735,7 @@ def test_every_override_is_honored(
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
     if form == GLM_OVERRIDE:
-        assert dataset.outcome.context.intercept_scale == 0.5
+        assert dataset.outcome.context.beta_scales[0] == 0.5
         assert dataset.outcome.deviation_scale == 0.3
     if form == GLMM_OVERRIDE:
         assert list(dataset.outcome.random_terms) == factor_names

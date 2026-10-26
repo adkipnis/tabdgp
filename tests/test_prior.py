@@ -225,7 +225,7 @@ IDENTITIES = [
 
 
 @pytest.mark.parametrize(
-    ('family', 'variances', 'signal_share', 'predictor_sd', 'scale', 'residual_scale'), IDENTITIES
+    ('family', 'variances', 'signal_share', 'predictor_sd', 'scale', 'sigma_eps_scale'), IDENTITIES
 )
 def test_the_joint_draws_identities_hold(
     family: str,
@@ -233,7 +233,7 @@ def test_the_joint_draws_identities_hold(
     signal_share: float | None,
     predictor_sd: float,
     scale: float,
-    residual_scale: float | None,
+    sigma_eps_scale: float | None,
 ) -> None:
     """ADR 0006's scales as the comment on #46 amended them: σ_β = τ √(φ_fixed / tr cov X),
     with φ_fixed = 1 for a GLM, so the fixed block realizes var(Xβ) = τ² on any coding.
@@ -255,14 +255,13 @@ def test_the_joint_draws_identities_hold(
     blocks = [Block(name='fixed', variances=variances)]
     context = glm.drawContext(family, blocks, np.random.default_rng(0))
     slopes = len(variances) - 1
-    assert (context.signal_share, context.intercept_scale) == (signal_share, 1.5)
-    assert context.intercept_location == -2.0
-    assert (context.sigma_alpha_family, context.random_scales) == (None, {})
+    assert context.signal_share == signal_share
+    assert (context.sigma_alpha_family, context.sigma_alpha_scales) == (None, {})
     assert context.predictor_sd == pytest.approx(predictor_sd)
     assert context.split == {'fixed': 1.0}
-    assert context.slope_scales == pytest.approx([scale] * slopes)
-    assert context.slope_locations == [0.0] * slopes
-    assert context.residual_scale == pytest.approx(residual_scale)
+    assert context.beta_scales == pytest.approx([1.5] + [scale] * slopes)
+    assert context.beta_locations == [-2.0] + [0.0] * slopes
+    assert context.sigma_eps_scale == pytest.approx(sigma_eps_scale)
 
 
 def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
@@ -283,18 +282,19 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
     ]
     context = glmm.drawContext('normal', blocks, np.random.default_rng(0))
     assert context.split == {'fixed': 0.64, 'g0': pytest.approx(0.36)}
-    assert context.slope_scales == pytest.approx([0.32] * 3)
-    assert context.random_scales == {'g0': pytest.approx(0.18)}
+    assert context.beta_scales[1:] == pytest.approx([0.32] * 3)
+    assert context.sigma_alpha_scales == {'g0': pytest.approx([0.18] * 2)}
 
 
 def _spent(context: PriorContext, block: Block) -> float:
     """What a block's term adds to var(η) in expectation at the context's scales and locations:
-    E[β_j²] var_j = (σ_j² + μ_j²) var_j per slope, s_α² per unit of a factor's E[z²].
+    E[β_j²] var_j = (σ_j² + μ_j²) var_j per slope, s_α,j² E[z_j²] per random effect.
     """
     if block.name == 'fixed':
-        slopes = zip(context.slope_locations, context.slope_scales, block.variances[1:])
+        slopes = zip(context.beta_locations[1:], context.beta_scales[1:], block.variances[1:])
         return sum((scale**2 + location**2) * variance for location, scale, variance in slopes)
-    return context.random_scales[block.name] ** 2 * block.variance
+    effects = zip(context.sigma_alpha_scales[block.name], block.variances)
+    return sum(scale**2 * variance for scale, variance in effects)
 
 
 @pytest.mark.parametrize(
@@ -345,8 +345,8 @@ def test_located_and_spread_slopes_spend_the_fixed_blocks_budget_exactly() -> No
     for seed in range(5):
         context = glm.drawContext('poisson', [fixed], np.random.default_rng(seed))
         assert _spent(context, fixed) == pytest.approx(4.0)
-        assert len(set(context.slope_scales)) == 4
-        assert all(location != 0 for location in context.slope_locations)
+        assert len(set(context.beta_scales[1:])) == 4
+        assert all(location != 0 for location in context.beta_locations[1:])
 
 
 def _halfNormalCdf(x: float) -> float:
@@ -454,7 +454,7 @@ def test_a_slope_is_located_with_location_share_and_its_relative_location_is_nor
     for _ in range(DRAWS):
         resolved = Glm().resolveDataset(rng)
         context = resolved.drawContext('poisson', [fixed], rng)
-        for location, scale in zip(context.slope_locations, context.slope_scales):
+        for location, scale in zip(context.beta_locations[1:], context.beta_scales[1:]):
             relative.append(location / scale)
     located = [delta / 2 for delta in relative if delta != 0]
     three_sds = 3 * math.sqrt(0.1 * 0.9 / len(relative))
@@ -502,7 +502,9 @@ def test_each_fixed_effect_follows_the_beta_family_at_its_recorded_location_and_
         parameters = context.drawParameters(rng)
         assert context.beta_family == beta_family
         intercepts.append((parameters.beta[0] - 1.0) / 0.5)
-        standardized = (parameters.beta[1:] - context.slope_locations) / context.slope_scales
+        locations = np.array(context.beta_locations[1:])  # (d − 1,)
+        scales = np.array(context.beta_scales[1:])  # (d − 1,)
+        standardized = (parameters.beta[1:] - locations) / scales
         slopes.extend(standardized)
     assert _ksDistance(intercepts, cdf) < 1.63 / math.sqrt(DRAWS)
     assert _ksDistance(slopes, cdf) < 1.63 / math.sqrt(len(slopes))
@@ -610,7 +612,7 @@ def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_ch
     context = resolved.drawContext(family, FACTOR_BLOCKS, np.random.default_rng(0))
     parameters = context.drawParameters(np.random.default_rng(0))
     assert list(context.split) == ['fixed', 'g0', 'g1']
-    assert list(context.random_scales) == list(context.lkj_eta) == ['g0', 'g1']
+    assert list(context.sigma_alpha_scales) == list(context.lkj_eta) == ['g0', 'g1']
     assert list(parameters.alpha) == ['g0', 'g1']
     assert (context.sigma_alpha_family, context.sigma_eps_family) == (
         'half_cauchy',

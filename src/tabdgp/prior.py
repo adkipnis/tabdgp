@@ -101,24 +101,19 @@ class PriorContext:
     """The prior from which model parameters are drawn:
 
     - Fixed effects: family, locations, scales
-    - Random effects: sd family, scales (per factor), LKJ shape
+    - Random effects: sd family, scales (per random effect), LKJ shape
     - Residual: family, scale (for Normal and Student-t outcomes)
     - Budget: signal share r, predictor sd τ, each block's share φ of var(eta)
     """
 
     beta_family: str
-    # why not join locations resp. scales for intercept and scale (beta_locations, beta_scales)
-    intercept_location: float  # μ_0
-    intercept_scale: float  # σ_0
-    slope_locations: list[float]  # μ_j, one per slope
-    slope_scales: list[float]  # σ_j, one per slope
-    random_scales: dict[
-        str, float
-    ]  # s_α by factor (should also be separate per random effect, like beta_scales; rename to alpha_scales?)
+    beta_locations: list[float]  # μ, (d,) intercept first
+    beta_scales: list[float]  # σ, (d,) intercept first
     sigma_alpha_family: str | None  # None on a GLM
+    sigma_alpha_scales: dict[str, list[float]]  # s_α, (q,) by factor
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
-    residual_scale: float | None  # s_ε, None unless the family has a residual
+    sigma_eps_scale: float | None  # s_ε, None unless the family has a residual
     # ν, φ, σ_c, Gamma shape or beta precision (None for Normal, Bernoulli and Poisson)
     shape: float | None
     signal_share: float | None  # r, None unless the family is Normal or Student-t
@@ -129,13 +124,13 @@ class PriorContext:
     def drawParameters(self, rng: np.random.Generator) -> Parameters:
         """Draws each parameter from its prior, with no caps or rescaling."""
         _, *factors = self.blocks
-        locations = np.array([self.intercept_location, *self.slope_locations])  # (d,)
-        scales = np.array([self.intercept_scale, *self.slope_scales])  # (d,)
+        locations = np.array(self.beta_locations)  # (d,)
+        scales = np.array(self.beta_scales)  # (d,)
         standard = self._drawStandard(self.beta_family, rng, len(scales))  # (d,)
         beta = locations + scales * standard  # (d,)
         sigma_eps = None
-        if self.residual_scale is not None:
-            sigma_eps = self._drawSd(self.sigma_eps_family, self.residual_scale, rng)
+        if self.sigma_eps_scale is not None:
+            sigma_eps = self._drawSd(self.sigma_eps_family, self.sigma_eps_scale, rng)
         sigma_alpha, corr_alpha, alpha = self._drawRandomEffects(factors, rng)
         # float32, like the columns
         return Parameters(
@@ -164,7 +159,11 @@ class PriorContext:
 
     @classmethod
     def _drawSd(
-        cls, family: str, scale: float, rng: np.random.Generator, size: int | None = None
+        cls,
+        family: str,
+        scale: float | np.ndarray,
+        rng: np.random.Generator,
+        size: int | None = None,
     ) -> float | np.ndarray:
         """Draws from an sd family at its scale: scale · |X|, X the family's standard law."""
         standard = cls._drawStandard(family, rng, size)
@@ -177,7 +176,7 @@ class PriorContext:
         corr_alpha = {}
         alpha = {}
         for block in factors:
-            scale = self.random_scales[block.name]
+            scale = np.array(self.sigma_alpha_scales[block.name])  # (q,)
             sd = self._drawSd(self.sigma_alpha_family, scale, rng, size=block.width)  # (q,)
             corr = np.eye(block.width)  # (q, q)
             lkj_eta = self.lkj_eta[block.name]
@@ -303,7 +302,7 @@ class Glm(Config):
         sigma_eps_family = None
         signal_share = None
         predictor_sd = self.predictor_sd
-        residual_scale = None
+        sigma_eps_scale = None
         shape = None
         if family in self.PER_FAMILY:
             shape = self.resolveField(self.PER_FAMILY[family], rng)
@@ -312,28 +311,27 @@ class Glm(Config):
             signal_share = self.signal_share
             # τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
-            residual_scale = math.sqrt(1 - self.signal_share)
+            sigma_eps_scale = math.sqrt(1 - self.signal_share)
         sigma_alpha_family = self._drawSigmaAlphaFamily(rng)
         split = self._drawSplit(blocks, rng)
         lkj_eta = self._drawCorrelations(blocks, rng)
         fixed, *factors = blocks
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed, what Xβ adds to var(eta)
         slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
-        random_scales = {}
+        sigma_alpha_scales = {}
         for block in factors:
-            # s_α² tr E[z z'] = τ² φ_k, tr ≥ 1 by the intercept
-            random_scales[block.name] = predictor_sd * math.sqrt(split[block.name] / block.variance)
+            # s_α² tr E[z z'] = τ² φ_k, tr ≥ 1 by the intercept; one scale for all its effects
+            scale = predictor_sd * math.sqrt(split[block.name] / block.variance)
+            sigma_alpha_scales[block.name] = [scale] * block.width
         return PriorContext(
             beta_family=beta_family,
-            intercept_location=self.intercept_location,
-            intercept_scale=self.intercept_scale,
-            slope_locations=slope_locations,
-            slope_scales=slope_scales,
-            random_scales=random_scales,
+            beta_locations=[self.intercept_location, *slope_locations],
+            beta_scales=[self.intercept_scale, *slope_scales],
             sigma_alpha_family=sigma_alpha_family,
+            sigma_alpha_scales=sigma_alpha_scales,
             lkj_eta=lkj_eta,
             sigma_eps_family=sigma_eps_family,
-            residual_scale=residual_scale,
+            sigma_eps_scale=sigma_eps_scale,
             shape=shape,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
