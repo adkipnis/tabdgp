@@ -83,7 +83,7 @@ class Parameters:
 
     beta: np.ndarray  # (d,) intercept first
     sigma_eps: float | None  # None unless the family is Normal or Student-t
-    shape: float | None  # the family's second parameter, None for Normal, Bernoulli and Poisson
+    shape: float | None  # the family's second parameter (None for Normal, Bernoulli and Poisson)
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -100,23 +100,25 @@ class PriorContext:
     """
 
     beta_family: str
-    beta_locations: list[float]  # μ, (d,) intercept first
-    beta_scales: list[float]  # σ, (d,) intercept first
+    beta_locations: list[float]  # μ, (d,) intercept first # TODO: should be mu_beta, not mu
+    beta_scales: list[float]  # σ, (d,) intercept first # TODO: should sigma_beta, not sigma
     sigma_alpha_family: str | None  # None on a GLM
-    sigma_alpha_scales: dict[str, list[float]]  # s_α, (q,) by factor
+    sigma_alpha_scales: dict[
+        str, list[float]
+    ]  # s_α, (q,) by factor # TODO: should be sigma_alpha, not s_alpha
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
-    sigma_eps_scale: float | None  # s_ε, None unless the family has a residual
-    # ν, φ, σ_c, Gamma shape or beta precision (None for Normal, Bernoulli and Poisson)
-    shape: float | None
-    signal_share: float | None  # r, None unless the family is Normal or Student-t
-    predictor_sd: float  # τ
-    split: dict[str, float]  # φ by block name
-    blocks: list[Block]  # fixed, then the factors'
+    sigma_eps_scale: (
+        float | None
+    )  # s_ε, None unless the family has a residual # TODO should be sigma_eps, not s_eps
+    shape: float | None  # TODO: likelihood_shape or lik_shape
+    signal_share: float | None  # r # TODO: define here
+    predictor_sd: float  # τ # TODO: define here
+    split: dict[str, float]  # φ by block name # TODO: define here
+    blocks: list[Block]
 
     def drawParameters(self, rng: np.random.Generator) -> Parameters:
         """Draws each parameter from its prior, with no caps or rescaling."""
-        _, *factors = self.blocks
         locations = np.array(self.beta_locations)  # (d,)
         scales = np.array(self.beta_scales)  # (d,)
         standard = self._drawStandard(self.beta_family, rng, len(scales))  # (d,)
@@ -124,7 +126,7 @@ class PriorContext:
         sigma_eps = None
         if self.sigma_eps_scale is not None:
             sigma_eps = self._drawSd(self.sigma_eps_family, self.sigma_eps_scale, rng)
-        sigma_alpha, corr_alpha, alpha = self._drawRandomEffects(factors, rng)
+        sigma_alpha, corr_alpha, alpha = self._drawRandomEffects(rng)
         # float32, like the columns
         return Parameters(
             beta=beta.astype(np.float32),
@@ -158,17 +160,20 @@ class PriorContext:
         rng: np.random.Generator,
         size: int | None = None,
     ) -> float | np.ndarray:
-        """Draws from an sd family at its scale: scale · |X|, X the family's standard law."""
+        """Draws from an sd family at its scale: scale · |X|, X the family's standard distribution."""
         standard = cls._drawStandard(family, rng, size)
-        return scale * abs(standard)
+        return scale * abs(standard)  # abs() for half-normal and half-student
 
     def _drawRandomEffects(
-        self, factors: list[Block], rng: np.random.Generator
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
+        self, rng: np.random.Generator
+    ) -> tuple[
+        dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]
+    ]:  # TODO: use dict of dicts instead
+        # α ~ N(0, diag(σ) Ω diag(σ)) per group
         sigma_alpha = {}
         corr_alpha = {}
         alpha = {}
-        for block in factors:
+        for block in self.blocks[1:]:
             scale = np.array(self.sigma_alpha_scales[block.name])  # (q,)
             sd = self._drawSd(self.sigma_alpha_family, scale, rng, size=block.width)  # (q,)
             corr = np.eye(block.width)  # (q, q)
@@ -176,7 +181,6 @@ class PriorContext:
             if lkj_eta is not None:
                 corr = self._drawLkj(block.width, lkj_eta, rng)  # (q, q)
             standard = rng.standard_normal((block.groups, block.width))  # (m, q)
-            # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
             effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
             alpha[block.name] = effects.astype(np.float32)
             sigma_alpha[block.name] = sd.astype(np.float32)
@@ -186,20 +190,20 @@ class PriorContext:
     @staticmethod
     def _drawLkj(q: int, lkj_eta: int, rng: np.random.Generator) -> np.ndarray:
         """Draws a correlation matrix from LKJ(lkj_eta)
-        by the C-vine of Lewandowski, Kurowicka and Joe (2009, section 3.2).
-        Each partial correlation is a Beta on (−1, 1), turned into a correlation by recursion.
+        using the C-vine according to Lewandowski, Kurowicka and Joe (2009).
         """
         partial = np.zeros((q, q))  # (q, q)
         corr = np.eye(q)  # (q, q)
-        concentration = lkj_eta + (q - 1) / 2  # the paper's β
+        concentration = lkj_eta + (q - 1) / 2
         for k in range(q - 1):
             concentration -= 1 / 2
             for i in range(k + 1, q):
-                share = rng.beta(concentration, concentration)  # on (0, 1)
-                partial[k, i] = 2 * share - 1  # on (−1, 1)
+                partial[k, i] = 2 * rng.beta(concentration, concentration) - 1  # beta on (-1, 1)
                 p = partial[k, i]
+                # TODO: intuitively explain this step (why is it necessary?)
                 for j in reversed(range(k)):
-                    shrink = math.sqrt((1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2))
+                    prod = (1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2)
+                    shrink = math.sqrt(prod)
                     p = p * shrink + partial[j, i] * partial[j, k]
                 corr[k, i] = p
                 corr[i, k] = p
