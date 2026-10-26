@@ -107,10 +107,12 @@ class PriorContext:
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
-    family_shape: float | None  # the second parameter (None for Normal, Bernoulli and Poisson)
-    signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
-    predictor_sd: float  # τ, the sd of eta without the intercept
-    split: dict[str, float]  # φ, each block's share of τ², by block name
+    family_shape: float | None
+    signal_share: (
+        float | None
+    )  # r, the share of var(y) that eta explains (Normal and Student-t only)
+    predictor_sd: float  # τ, the sd of eta (without the intercept)
+    split: dict[str, float]  # φ, each block's share of τ²
     blocks: list[Block]
 
     def drawParameters(self, rng: np.random.Generator) -> Parameters:
@@ -123,7 +125,6 @@ class PriorContext:
         if self.sigma_eps_scale is not None:
             sigma_eps = self._drawSd(self.sigma_eps_family, self.sigma_eps_scale, rng)
         random_effects = self._drawRandomEffects(rng)
-        # float32, like the columns
         return Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
@@ -189,14 +190,10 @@ class PriorContext:
             concentration -= 1 / 2
             for i in range(k + 1, q):
                 share = rng.beta(concentration, concentration)
-                partial[k, i] = 2 * share - 1  # beta on (-1, 1)
+                partial[k, i] = 2 * share - 1  # expand support to (-1, 1)
                 p = partial[k, i]
-                # the Beta draws are partial correlations, which are free on (−1, 1),
-                # while freely drawn correlations need not form a valid matrix.
-                # p is k's and i's correlation given the variables before k.
-                # each step drops variable j from that condition, the last first.
-                # p shrinks by what j leaves unexplained in k and i,
-                # then gains the correlation that runs through j.
+                # to make the correlation matrix non-singular
+                # p shrinks by what each previous variable leaves "unexplained"
                 for j in reversed(range(k)):
                     prod = (1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2)
                     shrink = math.sqrt(prod)
@@ -221,6 +218,7 @@ SD_FAMILY_SHARES = {
 
 class Glm(Config):
     """The prior of a generalized linear model (GLM).
+    # TODO: more succinct (like above)
 
     - Families: of y (with its canonical link), of β and of σ_ε.
     - Locations: the intercept's (on the link scale) and each slope's (mostly zero).
