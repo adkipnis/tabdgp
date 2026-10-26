@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect; 2026-10-26, #56: the scales vary per coefficient by default, β's and σ_α's alike; 2026-10-26, #56: `shape` is `family_shape`, as an unqualified family is y's; 2026-10-26, #56: the prior's locations are ν and its scales τ (ν_β and τ_β, τ_α, τ_ε), τ unsubscripted the predictor sd they split, and the Student-t's degrees of freedom df
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect; 2026-10-26, #56: the scales vary per coefficient by default, β's and σ_α's alike; 2026-10-26, #56: `shape` is `family_shape`, as an unqualified family is y's; 2026-10-26, #56: the prior context is the `Prior`, drawn by `Glm.drawPrior`; 2026-10-26, #56: the prior's locations are ν and its scales τ (ν_β and τ_β, τ_α, τ_ε), τ unsubscripted the predictor sd they split, and the Student-t's degrees of freedom df
 ---
 
 # 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
@@ -14,8 +14,8 @@ the grouped preset's defaults (reached as `outcome_form='glmm'` on `grouped()`, 
 parameters are drawn from the stated prior families exactly, with the scales of a dataset's
 blocks drawn jointly so that the fit is spread instead of capped; nothing is clipped,
 rerolled or rescaled after the draw; the dataset returns the estimands on both scales and
-the prior context they were drawn with.** The words are `CONTEXT.md`'s: form, deviation, prior
-context, random effect, design matrix.
+the prior they were drawn with.** The words are `CONTEXT.md`'s: form, deviation, prior,
+random effect, design matrix.
 
 The witnesses: under metabeta's envelope drawn independently per block, 61 % of Normal
 datasets have R² > 0.9, 60 % of logit datasets have some |η| > 10 and 16 % of log-link
@@ -88,7 +88,7 @@ blocks at q = 2 and 3 of 18 above.
   either may import this coder once it exists.
 - **What the dataset returns**, on `Dataset.outcome` (`GlmmOutcome`; the scm form returns a
   container of its own since ADR 0007): family, link, the
-  fixed and random term names per factor, the prior context (τ_β, τ_0, τ_α per factor, τ_ε, F,
+  fixed and random term names per factor, the prior (τ_β, τ_0, τ_α per factor, τ_ε, F,
   η, r, τ, φ), the parameters on the standardized scale as drawn (`beta` (d,), per factor
   `sigma_alpha` (q_k,), `corr_alpha` (q_k, q_k), `alpha` (m_k, q_k), `sigma_eps`, the deviation
   (n,) and λ), the coding statistics (each continuous column's mean and sd) and the raw-scale
@@ -141,9 +141,9 @@ blocks at q = 2 and 3 of 18 above.
   mixed ADR 0003's consequence "log s log-uniform per block" becomes "jointly, so that the
   fit is spread"; the families, η and the envelope's range stand. Root ADR 0005's "until the
   node exists, `metabeta.mixed` draws its own parameters" closes: the family sampling, the
-  prior context and the random-term draw come from here, and metabeta keeps the family token
+  prior and the random-term draw come from here, and metabeta keeps the family token
   in its network, its log-densities and its API.
-- The IMH correction's prior density reads the dataset's prior context; a corpus of one family
+- The IMH correction's prior density reads the dataset's prior; a corpus of one family
   is an override in metabeta's curriculum loop.
 - `prior` gains the prior fields as `Glm`'s and `Glmm`'s (ADR 0007); `prior` and `outcome` are
   new modules; `Dataset` gains `outcome`. The proofs stay on `grouped()`; the glmm form's
@@ -155,7 +155,7 @@ blocks at q = 2 and 3 of 18 above.
 one sd family shared by σ_α and σ_ε. Grilled on 2026-10-25 against brms's `priors.R`, the
 practice survey's `priors.csv` (Tier P, 1,428 models) and metabeta-v2's `hypersample`, the
 decision is: **the glmm form's prior takes the shape a brms user states, families, locations
-and scales per block or per coefficient, drawn from the same joint budget; the prior context
+and scales per block or per coefficient, drawn from the same joint budget; the prior
 is that stated prior and draws its own parameters; metabeta-v2's contaminated likelihoods
 become families of `family_shares` at share zero, so the residual seam goes.** The defaults
 below are what the fourth fingerprint pins after ticket A; nothing the proofs certify moves.
@@ -190,13 +190,13 @@ below are what the fourth fingerprint pins after ticket A; nothing the proofs ce
 - **σ_α and σ_ε apart.** `sigma_alpha_family_shares` on `Glmm` and `sigma_eps_family_shares`
   on `Glm`, each uniform over the four families, drawn independently: brms sets `sd` and
   `sigma` apart, and 24 of the survey's 132 stated pairs differ. F goes as a symbol.
-- **The context draws its own parameters.** `Glm.drawContext(family, blocks, rng)` returns
-  the `PriorContext`, the stated prior, each hyperparameter named by its parameter:
+- **The prior draws its own parameters.** `Glm.drawPrior(family, blocks, rng)` returns
+  the `Prior`, the stated prior, each hyperparameter named by its parameter:
   `beta_family`, `beta_locations` and `beta_scales` (d,), the intercept's first,
   `sigma_alpha_family` (None on a GLM) and `sigma_alpha_scales` (q_k,) per factor, `lkj_eta`,
   `sigma_eps_family` and `sigma_eps_scale` (None unless the family has a residual), `family_shape`,
   `signal_share`, `predictor_sd`, `split` and the
-  `blocks` it was set from; `PriorContext.drawParameters(rng)` returns the `Parameters`
+  `blocks` it was set from; `Prior.drawParameters(rng)` returns the `Parameters`
   without a config, so a user resamples truths under a fixed prior. `Block` carries
   `variances`, one per coefficient, the intercept's 0 first, its width their count.
 - **Contaminated families, not residual laws.** metabeta-v2's likelihood misspecification

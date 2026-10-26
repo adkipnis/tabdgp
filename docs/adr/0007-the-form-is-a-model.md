@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-23
+amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`
 ---
 
 # 0007 — The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
@@ -16,7 +17,7 @@ their own in `prior` with a shared skeleton, named by `outcome_form = 'glm'` and
 every form gets the outcome node's score from the SCM; `Dataset.outcome` holds the form's
 container, `None` only when no outcome is drawn; and any table can come in through
 `Covariates.fromPandas`.** The words are `CONTEXT.md`'s: form, model, score, deviation,
-prior context, dataset.
+prior, dataset.
 
 ## Decisions
 
@@ -39,12 +40,12 @@ prior context, dataset.
   scale should go to zero. A user's model is checked at draw time only, on what it returns.
 - **A model resolves its own fields.** `Glm`'s fields are points or distributions of the
   kinds `Hyperprior` uses, resolved inside the call with the generator it is handed, as a
-  column resolves its own fields; the per-dataset values are its prior context. The field
+  column resolves its own fields; the per-dataset values are its prior. The field
   kinds and the resolution machinery (`resolveField`, the share ordering, `categories`) move
   from `hyperprior` into a module of their own, `field`, as a base class both configs inherit.
   ADR 0006's tokens, the standard deviations' family and the residual law, are shares fields
   of `Glm` with point defaults, chosen once per dataset by `Shares.choose` where `prior` reads
-  them, the chosen names recorded in the prior context. The marginal alias `Family` becomes
+  them, the chosen names recorded in the prior. The marginal alias `Family` becomes
   `Marginal`, the glossary's word, so that "family" means the response family throughout.
 - **One score for every form.** `draw` always propagates y's node through the SCM, as the scm
   form does today, and hands the z-scored value, the score, to the model in `Covariates`
@@ -56,7 +57,7 @@ prior context, dataset.
 - **The container.** `Outcome` holds the columns a form writes and their `Column` metadata,
   `y` today, a survival form's `time` and `event` later; `draw` merges them into the dataset's
   columns without copying. Subclasses add the truth: `ScmOutcome` the score; `GlmOutcome`
-  ADR 0006's parameters on both scales and the prior context; `GlmmOutcome(GlmOutcome)` the
+  ADR 0006's parameters on both scales and the prior; `GlmmOutcome(GlmOutcome)` the
   per-factor fields. `Dataset.outcome` is `None` only under `'none'`. A user's model may
   return the bare `Outcome`; TabDGP checks the shapes and dtypes of what comes back.
 - **Any table in.** `Covariates` is public. `Covariates.fromPandas(table, factors)` builds it
