@@ -1,33 +1,29 @@
 """prior.py defines how we draw the parameters of a GLM or GLMM outcome.
 
 A generalized linear model (GLM) links an outcome y to the linear predictor eta = Xβ
-of a design matrix X by the canonical link of a likelihood family (e.g. Normal, Bernoulli).
-A generalized linear mixed model (GLMM) adds random effects per grouping factor k,
+with design matrix X. The link function differs per likelihood family (e.g. Normal, Bernoulli).
+A generalized linear mixed model (GLMM) adds random effects for each grouping factor k,
 eta = Xβ + Σ_k Z_k α_k, so each group gets its own additional intercept (and optionally slopes).
-This module samples and returns the ground truth (parameters, hyperparameters).
+This module samples priors and parameters for these models.
 
-Optionally, the linear predictor can be misspecified in a controlled way:
-We add the structural causal model's (SCM) value for y
-(standardized and scaled by λ > 0 times the sd of eta).
-This way, y's value can be nonlinear in its causes and depend on unobserved latents.
-β and α stay the truth, so a fitted GLMM is wrong by exactly the added term.
+The priors are specified by their family (e.g. Normal, Student-t)
+and hyperparameters (e.g. location, scale). Each model parameter is assigned its own prior;
+the family is shared per parameter type (e.g. fixed effects),
+but each dimension gets its own hyperpameter.
 
-Parameters are drawn from priors, whose scales are drawn from fixed hyperpriors.
 Independent prior scales would saturate many datasets (e.g. R² near 1),
 but capping them would degrade the prior. Instead, the scales are drawn jointly per dataset:
 - **Predictor sd τ:** the sd of eta without the intercept.
 - **Split φ:** each term's signal, its share of var(eta):
   φ_fixed for Xβ, the rest split among Z_k α_k.
 - **Prior scales:** set so that each term adds its share of var(eta).
-
 This adapts the R2D2M2 prior (Aguilar and Bürkner, 2023),
 without its Dirichlet over all effects (which rarely lets a random intercept
 carry the signal in eta, which is observed in real datasets with strong grouping).
 
-The prior takes the shape a brms user states: a family for β (Normal, Student-t or Cauchy),
-a location and a scale per coefficient, a family for the random-effect sds and one for the
-residual sd, each scale the family's own scale parameter. The prior context records that
-prior and draws the parameters from it, so a truth can be resampled under a fixed prior.
+Optionally, the linear predictor can be misspecified in a controlled way:
+We add the structural causal model's (SCM) value for y
+(standardized and scaled by λ > 0 times the sd of eta).
 
 pipeline:
 ---------
@@ -75,15 +71,11 @@ from tabdgp.field import (
 
 @pydantic_dataclass(frozen=True)
 class Block:
-    """A block of eta's coefficients drawn under one budget:
-    fixed effects or a factor's random effects (one set per group).
-    """
+    """A block of eta's coefficients: fixed effects or a factor's random effects (per factor)."""
 
-    name: str  # 'fixed', or the factor's
-    # what each coefficient adds to var(eta) at scale 1, the intercept first:
-    # a fixed effect its column's variance (the intercept's 0), a random effect its E[z²]
+    name: str  # 'fixed', or the factor's name
     variances: Annotated[list[NonNegativeFloat], Field(min_length=1)]
-    groups: PositiveInt = 1  # m, the fixed effects' one set for all rows
+    groups: PositiveInt = 1  # m
 
     @property
     def width(self) -> int:
@@ -97,10 +89,12 @@ class Block:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Parameters:
-    """A GLM's or GLMM's parameters on the standardized scale. All arrays are float32."""
+    """A model's parameters (on the standardized scale). All arrays are float32."""
 
     beta: np.ndarray  # (d,) intercept first
-    sigma_eps: float | None  # None unless the family is Normal or Student-t
+    sigma_eps: (
+        float | None
+    )  # None unless the family is Normal or Student-t # TODO: either rename to sd_eps or better yet, join with shape
     shape: float | None  # the family's second parameter, None for Normal, Bernoulli and Poisson
     sd_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
@@ -109,24 +103,23 @@ class Parameters:
 
 @pydantic_dataclass(frozen=True)
 class PriorContext:
-    """The stated prior a GLM's or GLMM's parameters are drawn from, resolved per dataset:
-    what a fitter would state, in the families' own scale parameters.
-    It draws the parameters itself, so a truth can be resampled under a fixed prior.
+    """The prior from which model parameters are drawn:
 
-    - Fixed effects: their family, the intercept's location and scale and each slope's.
-    - Random effects: each factor's scale, the family of its sds
-      and its LKJ shape, if its effects are correlated.
-    - Residual: the family and scale of σ_ε, for a response family with one.
-    - Budget: the signal share r, the predictor sd τ, each block's share φ of var(eta)
-      and the blocks, which set the scales.
+    - Fixed effects: family, locations, scales
+    - Random effects: sd family, scales (per factor), LKJ shape.
+    - Residual: family, scale (for Gaussian and Student-t-outcomes)
+    - Budget: signal share r, predictor sd τ, each block's share φ of var(eta)
     """
 
     beta_family: str
+    # why not join locations resp. scales for intercept and scale (beta_locations, beta_scales)
     intercept_location: float  # μ_0
     intercept_scale: float  # σ_0
     slope_locations: list[float]  # μ_j, one per slope
     slope_scales: list[float]  # σ_j, one per slope
-    random_scales: dict[str, float]  # s_α by factor
+    random_scales: dict[
+        str, float
+    ]  # s_α by factor (should also be separate per random effect, like beta_scales; rename to alpha_scales?)
     sd_alpha_family: str | None  # None on a GLM
     lkj_eta: dict[str, int | None]  # the LKJ shape by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
