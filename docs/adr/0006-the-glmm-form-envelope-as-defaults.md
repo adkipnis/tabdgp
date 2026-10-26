@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`
 ---
 
 # 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
@@ -90,7 +90,7 @@ blocks at q = 2 and 3 of 18 above.
   container of its own since ADR 0007): family, link, the
   fixed and random term names per factor, the prior context (σ_β, σ_0, s_α per factor, s_ε, F,
   η, r, τ, φ), the parameters on the standardized scale as drawn (`beta` (d,), per factor
-  `sd_alpha` (q_k,), `corr_alpha` (q_k, q_k), `alpha` (m_k, q_k), `sigma_eps`, the deviation
+  `sigma_alpha` (q_k,), `corr_alpha` (q_k, q_k), `alpha` (m_k, q_k), `sigma_eps`, the deviation
   (n,) and λ), the coding statistics (each continuous column's mean and sd) and the raw-scale
   parameters, analytic from these (β_raw,j = β_j / sd_j, the intercepts absorbing
   Σ β_j · mean_j / sd_j and the random ones each slope's α_j · mean_j / sd_j, so that
@@ -185,13 +185,13 @@ below are what the fourth fingerprint pins after ticket A; nothing the proofs ce
   block case metasurv's ADR 0008 trains on; `Glmm(scale_spread=Uniform(0, 2))` is its
   planned ablation, in one override. The random blocks keep one scale per factor, brms's
   one prior for class `sd`.
-- **σ_α and σ_ε apart.** `sd_alpha_family_shares` on `Glmm` and `sigma_eps_family_shares`
+- **σ_α and σ_ε apart.** `sigma_alpha_family_shares` on `Glmm` and `sigma_eps_family_shares`
   on `Glm`, each uniform over the four families, drawn independently: brms sets `sd` and
   `sigma` apart, and 24 of the survey's 132 stated pairs differ. F goes as a symbol.
 - **The context draws its own parameters.** `Glm.drawContext(family, blocks, rng)` returns
   the `PriorContext`, the stated prior: `beta_family`, `intercept_location` and
   `intercept_scale`, `slope_locations` and `slope_scales` (d − 1,), `random_scales` per
-  factor, `sd_alpha_family` (None on a GLM), `sigma_eps_family` (None unless the family has
+  factor, `sigma_alpha_family` (None on a GLM), `sigma_eps_family` (None unless the family has
   a residual), `residual_scale`, `lkj_eta`, `signal_share`, `predictor_sd`, `split` and the
   `blocks` it was set from; `PriorContext.drawParameters(rng)` returns the `Parameters`
   without a config, so a user resamples truths under a fixed prior. `Block` carries

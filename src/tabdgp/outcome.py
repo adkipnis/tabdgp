@@ -398,7 +398,7 @@ class GlmmOutcome(GlmOutcome):
     """
 
     random_terms: dict[str, list[str]]  # by factor, the intercept first
-    sd_alpha: dict[str, np.ndarray]  # (q,) float32 by factor
+    sigma_alpha: dict[str, np.ndarray]  # (q,) float32 by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) float32 by factor
     alpha: dict[str, np.ndarray]  # (m, q) float32 by factor, a row per group
 
@@ -406,15 +406,15 @@ class GlmmOutcome(GlmOutcome):
         super().__post_init__()
         # check that every field has each factor, sized by the factor's q terms
         factors = list(self.random_terms)
-        for field in ['sd_alpha', 'corr_alpha', 'alpha']:
+        for field in ['sigma_alpha', 'corr_alpha', 'alpha']:
             named = list(getattr(self, field))
             if named != factors:
                 raise ValueError(f'{field} has the factors {named}, not {factors}')
         for factor, terms in self.random_terms.items():
             q = len(terms)
-            sd_shape = self.sd_alpha[factor].shape
+            sd_shape = self.sigma_alpha[factor].shape
             if sd_shape != (q,):
-                raise ValueError(f'sd_alpha of {factor} has the shape {sd_shape}, not ({q},)')
+                raise ValueError(f'sigma_alpha of {factor} has the shape {sd_shape}, not ({q},)')
             corr_shape = self.corr_alpha[factor].shape
             if corr_shape != (q, q):
                 raise ValueError(
@@ -433,7 +433,7 @@ class GlmmOutcome(GlmOutcome):
         return raw
 
     @property
-    def sd_alpha_raw(self) -> dict[str, np.ndarray]:
+    def sigma_alpha_raw(self) -> dict[str, np.ndarray]:
         sds = {}
         for factor, covariance in self._transformCovariances().items():
             sds[factor] = np.sqrt(np.diag(covariance))  # (q,)
@@ -451,7 +451,7 @@ class GlmmOutcome(GlmOutcome):
         """Each factor's Σ on the raw columns, A Σ A' for the raw map A of its terms."""
         covariances = {}
         for factor, terms in self.random_terms.items():
-            sd = self.sd_alpha[factor]
+            sd = self.sigma_alpha[factor]
             covariance = self.corr_alpha[factor] * np.outer(sd, sd)  # (q, q)
             raw_map = self._buildRawMap(terms)  # (q, q)
             covariances[factor] = raw_map @ covariance @ raw_map.T  # (q, q)
@@ -701,7 +701,7 @@ def _drawGlmm(
     return GlmmOutcome(
         **truth,
         random_terms=random_terms,
-        sd_alpha=parameters.sd_alpha,
+        sigma_alpha=parameters.sigma_alpha,
         corr_alpha=parameters.corr_alpha,
         alpha=parameters.alpha,
     )

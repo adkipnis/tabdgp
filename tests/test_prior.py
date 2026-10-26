@@ -115,7 +115,7 @@ def test_a_shape_that_is_negative_cannot_be_written_and_only_a_latent_scale_may_
 
 
 GLMM_DEFAULTS = DEFAULTS | {
-    'sd_alpha_family_shares': SD_FAMILY_SHARES,
+    'sigma_alpha_family_shares': SD_FAMILY_SHARES,
     'fixed_share': Beta(1, 1),
     'split_alpha': 1.0,
     'random_effects': UniformInt(1, 6),
@@ -257,7 +257,7 @@ def test_the_joint_draws_identities_hold(
     slopes = len(variances) - 1
     assert (context.signal_share, context.intercept_scale) == (signal_share, 1.5)
     assert context.intercept_location == -2.0
-    assert (context.sd_alpha_family, context.random_scales) == (None, {})
+    assert (context.sigma_alpha_family, context.random_scales) == (None, {})
     assert context.predictor_sd == pytest.approx(predictor_sd)
     assert context.split == {'fixed': 1.0}
     assert context.slope_scales == pytest.approx([scale] * slopes)
@@ -407,7 +407,7 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     glmm = Glmm(
         beta_family_shares=point('beta_family_shares', 'normal', Glm),
         sigma_eps_family_shares=point('sigma_eps_family_shares', sd_family, Glm),
-        sd_alpha_family_shares=point('sd_alpha_family_shares', sd_family, Glmm),
+        sigma_alpha_family_shares=point('sigma_alpha_family_shares', sd_family, Glmm),
         signal_share=0.36,  # τ = 0.6, s_ε = 0.8
         intercept_location=0.0,
         intercept_scale=1.5,
@@ -429,10 +429,10 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     for _ in range(DRAWS):
         parameters = glmm.drawContext('normal', blocks, rng).drawParameters(rng)
         residual_sds.append(parameters.sigma_eps / 0.8)
-        random_sds.extend(parameters.sd_alpha['g0'])
+        random_sds.extend(parameters.sigma_alpha['g0'])
         intercepts.append(parameters.beta[0])
         slopes.extend(parameters.beta[1:])
-        standardized = parameters.alpha['g0'] / parameters.sd_alpha['g0']  # (m, q)
+        standardized = parameters.alpha['g0'] / parameters.sigma_alpha['g0']  # (m, q)
         random_effects.extend(standardized.ravel())
     assert _ksDistance(residual_sds, cdf) < 1.63 / math.sqrt(DRAWS)
     assert _ksDistance(random_sds, cdf) < 1.63 / math.sqrt(len(random_sds))
@@ -603,7 +603,7 @@ def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_ch
     Each factor's parameters are sized by its block: q sds, a q × q correlation, a row per group.
     """
     glmm = Glmm(
-        sd_alpha_family_shares=point('sd_alpha_family_shares', 'half_cauchy', Glmm),
+        sigma_alpha_family_shares=point('sigma_alpha_family_shares', 'half_cauchy', Glmm),
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'exponential', Glm),
     )
     resolved = glmm.resolveDataset(np.random.default_rng(0))
@@ -612,10 +612,13 @@ def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_ch
     assert list(context.split) == ['fixed', 'g0', 'g1']
     assert list(context.random_scales) == list(context.lkj_eta) == ['g0', 'g1']
     assert list(parameters.alpha) == ['g0', 'g1']
-    assert (context.sd_alpha_family, context.sigma_eps_family) == ('half_cauchy', sigma_eps_family)
+    assert (context.sigma_alpha_family, context.sigma_eps_family) == (
+        'half_cauchy',
+        sigma_eps_family,
+    )
     for block in FACTOR_BLOCKS[1:]:
         q = block.width
-        assert parameters.sd_alpha[block.name].shape == (q,)
+        assert parameters.sigma_alpha[block.name].shape == (q,)
         assert parameters.corr_alpha[block.name].shape == (q, q)
         assert parameters.alpha[block.name].shape == (block.groups, q)
 
@@ -635,7 +638,7 @@ def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_context_draws
     assert first.beta.tobytes() == second.beta.tobytes()
     assert first.sigma_eps == second.sigma_eps
     for name in ['g0', 'g1']:
-        assert first.sd_alpha[name].tobytes() == second.sd_alpha[name].tobytes()
+        assert first.sigma_alpha[name].tobytes() == second.sigma_alpha[name].tobytes()
         assert first.corr_alpha[name].tobytes() == second.corr_alpha[name].tobytes()
         assert first.alpha[name].tobytes() == second.alpha[name].tobytes()
 

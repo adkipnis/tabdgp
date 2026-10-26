@@ -732,8 +732,8 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
     random_raw = (raw * outcome.alpha_raw['g0'][codes]).sum(axis=1)  # (n,)
     random_standardized = (standardized * outcome.alpha['g0'][codes]).sum(axis=1)  # (n,)
     np.testing.assert_allclose(random_raw, random_standardized, rtol=1e-6, atol=1e-6)
-    sigma = _covariance(outcome.sd_alpha['g0'], outcome.corr_alpha['g0'])  # (q, q)
-    sigma_raw = _covariance(outcome.sd_alpha_raw['g0'], outcome.corr_alpha_raw['g0'])  # (q, q)
+    sigma = _covariance(outcome.sigma_alpha['g0'], outcome.corr_alpha['g0'])  # (q, q)
+    sigma_raw = _covariance(outcome.sigma_alpha_raw['g0'], outcome.corr_alpha_raw['g0'])  # (q, q)
     variance_raw = ((raw @ sigma_raw) * raw).sum(axis=1)  # (n,)
     variance_standardized = ((standardized @ sigma) * standardized).sum(axis=1)  # (n,)
     np.testing.assert_allclose(variance_raw, variance_standardized, rtol=1e-6, atol=1e-6)
@@ -746,7 +746,14 @@ def test_the_truths_arrays_are_float32_on_both_scales() -> None:
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
     outcome = run(Glmm(), covariates, np.random.default_rng(0))
     arrays = {'beta': outcome.beta, 'beta_raw': outcome.beta_raw, 'deviation': outcome.deviation}
-    for field in ['sd_alpha', 'corr_alpha', 'alpha', 'sd_alpha_raw', 'corr_alpha_raw', 'alpha_raw']:
+    for field in [
+        'sigma_alpha',
+        'corr_alpha',
+        'alpha',
+        'sigma_alpha_raw',
+        'corr_alpha_raw',
+        'alpha_raw',
+    ]:
         arrays[field] = getattr(outcome, field)['g0']
     for field, array in arrays.items():
         assert array.dtype == np.float32, field
@@ -857,11 +864,11 @@ def test_run_refuses_a_glmm_on_covariates_without_a_factor_naming_the_model() ->
 
 
 MISSHAPEN_RANDOM = [
-    pytest.param({'sd_alpha': {'g0': np.ones(1)}}, 'sd_alpha', id='sds one term short'),
+    pytest.param({'sigma_alpha': {'g0': np.ones(1)}}, 'sigma_alpha', id='sds one term short'),
     pytest.param({'corr_alpha': {'g0': np.eye(3)}}, 'corr_alpha', id='a correlation one too wide'),
     pytest.param({'alpha': {'g0': np.zeros((2, 1))}}, 'alpha', id='effects one term short'),
     pytest.param({'alpha': {'g0': np.zeros(2)}}, 'alpha', id='effects as one row'),
-    pytest.param({'sd_alpha': {}}, 'sd_alpha', id='sds without the factor'),
+    pytest.param({'sigma_alpha': {}}, 'sigma_alpha', id='sds without the factor'),
 ]
 
 

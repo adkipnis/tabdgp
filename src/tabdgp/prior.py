@@ -91,7 +91,7 @@ class Parameters:
         float | None
     )  # None unless the family is Normal or Student-t # TODO: either rename to sd_eps or better yet, join with shape
     shape: float | None  # the family's second parameter, None for Normal, Bernoulli and Poisson
-    sd_alpha: dict[str, np.ndarray]  # (q,) by factor
+    sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
 
@@ -115,7 +115,7 @@ class PriorContext:
     random_scales: dict[
         str, float
     ]  # s_α by factor (should also be separate per random effect, like beta_scales; rename to alpha_scales?)
-    sd_alpha_family: str | None  # None on a GLM
+    sigma_alpha_family: str | None  # None on a GLM
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     residual_scale: float | None  # s_ε, None unless the family has a residual
@@ -136,13 +136,13 @@ class PriorContext:
         sigma_eps = None
         if self.residual_scale is not None:
             sigma_eps = self._drawSd(self.sigma_eps_family, self.residual_scale, rng)
-        sd_alpha, corr_alpha, alpha = self._drawRandomEffects(factors, rng)
+        sigma_alpha, corr_alpha, alpha = self._drawRandomEffects(factors, rng)
         # float32, like the columns
         return Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
             shape=self.shape,
-            sd_alpha=sd_alpha,
+            sigma_alpha=sigma_alpha,
             corr_alpha=corr_alpha,
             alpha=alpha,
         )
@@ -173,12 +173,12 @@ class PriorContext:
     def _drawRandomEffects(
         self, factors: list[Block], rng: np.random.Generator
     ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
-        sd_alpha = {}
+        sigma_alpha = {}
         corr_alpha = {}
         alpha = {}
         for block in factors:
             scale = self.random_scales[block.name]
-            sd = self._drawSd(self.sd_alpha_family, scale, rng, size=block.width)  # (q,)
+            sd = self._drawSd(self.sigma_alpha_family, scale, rng, size=block.width)  # (q,)
             corr = np.eye(block.width)  # (q, q)
             lkj_eta = self.lkj_eta[block.name]
             if lkj_eta is not None:
@@ -187,9 +187,9 @@ class PriorContext:
             # α ~ N(0, diag(σ) Ω diag(σ)) per group: Ω's Cholesky factor correlates, σ scales
             effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
             alpha[block.name] = effects.astype(np.float32)
-            sd_alpha[block.name] = sd.astype(np.float32)
+            sigma_alpha[block.name] = sd.astype(np.float32)
             corr_alpha[block.name] = corr.astype(np.float32)
-        return sd_alpha, corr_alpha, alpha
+        return sigma_alpha, corr_alpha, alpha
 
     @staticmethod
     def _drawLkj(q: int, lkj_eta: int, rng: np.random.Generator) -> np.ndarray:
@@ -313,7 +313,7 @@ class Glm(Config):
             # τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             residual_scale = math.sqrt(1 - self.signal_share)
-        sd_alpha_family = self._drawSdAlphaFamily(rng)
+        sigma_alpha_family = self._drawSigmaAlphaFamily(rng)
         split = self._drawSplit(blocks, rng)
         lkj_eta = self._drawCorrelations(blocks, rng)
         fixed, *factors = blocks
@@ -330,7 +330,7 @@ class Glm(Config):
             slope_locations=slope_locations,
             slope_scales=slope_scales,
             random_scales=random_scales,
-            sd_alpha_family=sd_alpha_family,
+            sigma_alpha_family=sigma_alpha_family,
             lkj_eta=lkj_eta,
             sigma_eps_family=sigma_eps_family,
             residual_scale=residual_scale,
@@ -341,7 +341,7 @@ class Glm(Config):
             blocks=blocks,
         )
 
-    def _drawSdAlphaFamily(self, rng: np.random.Generator) -> str | None:
+    def _drawSigmaAlphaFamily(self, rng: np.random.Generator) -> str | None:
         return None  # a GLM has no random effects
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
@@ -383,18 +383,18 @@ class Glmm(Glm):
     - Families: σ_α has its own, apart from σ_ε's.
     """
 
-    SHARES: ClassVar[tuple[str, ...]] = (*Glm.SHARES, 'sd_alpha_family_shares')
+    SHARES: ClassVar[tuple[str, ...]] = (*Glm.SHARES, 'sigma_alpha_family_shares')
     PER_FACTOR: ClassVar[tuple[str, ...]] = ('random_effects', 'lkj_eta')
 
-    sd_alpha_family_shares: Simplex = SD_FAMILY_SHARES  # σ_α's family
+    sigma_alpha_family_shares: Simplex = SD_FAMILY_SHARES  # σ_α's family
     fixed_share: Share = Beta(1, 1)  # φ_fixed
     split_alpha: Positive = 1.0  # the Dirichlet's concentration over the factors' blocks
     random_effects: PositiveCount = UniformInt(1, 6)  # q_k per factor, truncated at d
     correlated_share: Share = 0.55
     lkj_eta: PositiveCount = UniformInt(1, 4)  # the LKJ shape per correlated factor
 
-    def _drawSdAlphaFamily(self, rng: np.random.Generator) -> str | None:
-        return self.sd_alpha_family_shares.choose(rng)
+    def _drawSigmaAlphaFamily(self, rng: np.random.Generator) -> str | None:
+        return self.sigma_alpha_family_shares.choose(rng)
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         fixed, *factors = blocks
