@@ -100,21 +100,17 @@ class PriorContext:
     """
 
     beta_family: str
-    beta_locations: list[float]  # μ, (d,) intercept first # TODO: should be mu_beta, not mu
-    beta_scales: list[float]  # σ, (d,) intercept first # TODO: should sigma_beta, not sigma
+    beta_locations: list[float]  # μ_β, (d,) intercept first
+    beta_scales: list[float]  # σ_β, (d,) intercept first
     sigma_alpha_family: str | None  # None on a GLM
-    sigma_alpha_scales: dict[
-        str, list[float]
-    ]  # s_α, (q,) by factor # TODO: should be sigma_alpha, not s_alpha
+    sigma_alpha_scales: dict[str, list[float]]  # s_α, σ_α's prior scale, (q,) by factor
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
-    sigma_eps_scale: (
-        float | None
-    )  # s_ε, None unless the family has a residual # TODO should be sigma_eps, not s_eps
+    sigma_eps_scale: float | None  # s_ε, σ_ε's prior scale, None unless the family has a residual
     shape: float | None  # TODO: likelihood_shape or lik_shape
-    signal_share: float | None  # r # TODO: define here
-    predictor_sd: float  # τ # TODO: define here
-    split: dict[str, float]  # φ by block name # TODO: define here
+    signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
+    predictor_sd: float  # τ, the sd of eta without the intercept
+    split: dict[str, float]  # φ, each block's share of τ², by block name
     blocks: list[Block]
 
     def drawParameters(self, rng: np.random.Generator) -> Parameters:
@@ -126,15 +122,15 @@ class PriorContext:
         sigma_eps = None
         if self.sigma_eps_scale is not None:
             sigma_eps = self._drawSd(self.sigma_eps_family, self.sigma_eps_scale, rng)
-        sigma_alpha, corr_alpha, alpha = self._drawRandomEffects(rng)
+        random_effects = self._drawRandomEffects(rng)
         # float32, like the columns
         return Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
             shape=self.shape,
-            sigma_alpha=sigma_alpha,
-            corr_alpha=corr_alpha,
-            alpha=alpha,
+            sigma_alpha=random_effects['sigma_alpha'],
+            corr_alpha=random_effects['corr_alpha'],
+            alpha=random_effects['alpha'],
         )
 
     @staticmethod
@@ -162,18 +158,12 @@ class PriorContext:
     ) -> float | np.ndarray:
         """Draws from an sd family at its scale: scale · |X|, X the family's standard distribution."""
         standard = cls._drawStandard(family, rng, size)
-        return scale * abs(standard)  # abs() for half-normal and half-student
+        return scale * abs(standard)  # abs() for half-normal, half-student and half-cauchy
 
-    def _drawRandomEffects(
-        self, rng: np.random.Generator
-    ) -> tuple[
-        dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]
-    ]:  # TODO: use dict of dicts instead
+    def _drawRandomEffects(self, rng: np.random.Generator) -> dict[str, dict[str, np.ndarray]]:
         # α ~ N(0, diag(σ) Ω diag(σ)) per group
-        sigma_alpha = {}
-        corr_alpha = {}
-        alpha = {}
-        for block in self.blocks[1:]:
+        random_effects = {'sigma_alpha': {}, 'corr_alpha': {}, 'alpha': {}}  # Parameters' fields
+        for block in self.blocks[1:]:  # the factors, after the fixed block
             scale = np.array(self.sigma_alpha_scales[block.name])  # (q,)
             sd = self._drawSd(self.sigma_alpha_family, scale, rng, size=block.width)  # (q,)
             corr = np.eye(block.width)  # (q, q)
@@ -182,10 +172,10 @@ class PriorContext:
                 corr = self._drawLkj(block.width, lkj_eta, rng)  # (q, q)
             standard = rng.standard_normal((block.groups, block.width))  # (m, q)
             effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
-            alpha[block.name] = effects.astype(np.float32)
-            sigma_alpha[block.name] = sd.astype(np.float32)
-            corr_alpha[block.name] = corr.astype(np.float32)
-        return sigma_alpha, corr_alpha, alpha
+            random_effects['sigma_alpha'][block.name] = sd.astype(np.float32)
+            random_effects['corr_alpha'][block.name] = corr.astype(np.float32)
+            random_effects['alpha'][block.name] = effects.astype(np.float32)
+        return random_effects
 
     @staticmethod
     def _drawLkj(q: int, lkj_eta: int, rng: np.random.Generator) -> np.ndarray:
@@ -198,9 +188,15 @@ class PriorContext:
         for k in range(q - 1):
             concentration -= 1 / 2
             for i in range(k + 1, q):
-                partial[k, i] = 2 * rng.beta(concentration, concentration) - 1  # beta on (-1, 1)
+                share = rng.beta(concentration, concentration)
+                partial[k, i] = 2 * share - 1  # beta on (-1, 1)
                 p = partial[k, i]
-                # TODO: intuitively explain this step (why is it necessary?)
+                # the Beta draws are partial correlations, which are free on (−1, 1),
+                # while freely drawn correlations need not form a valid matrix.
+                # p is k's and i's correlation given the variables before k.
+                # each step drops variable j from that condition, the last first.
+                # p shrinks by what j leaves unexplained in k and i,
+                # then gains the correlation that runs through j.
                 for j in reversed(range(k)):
                     prod = (1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2)
                     shrink = math.sqrt(prod)
