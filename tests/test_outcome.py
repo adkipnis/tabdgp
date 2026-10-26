@@ -652,8 +652,8 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
     assert list(outcome.context.split) == ['fixed']
     assert (outcome.sigma_eps is None) == (family not in ['normal', 'student_t'])
-    assert outcome.shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
-    assert outcome.context.shape == outcome.shape
+    assert outcome.family_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert outcome.context.family_shape == outcome.family_shape
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
@@ -944,5 +944,5 @@ def test_run_on_a_glmm_records_the_shape_beside_the_random_effects(
     outcome = run(glmm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
     assert (outcome.family, outcome.link, outcome.metadata['y'].type) == (family, link, column_type)
-    assert outcome.shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert outcome.family_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
     assert list(outcome.alpha) == ['g0']

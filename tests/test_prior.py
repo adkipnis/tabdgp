@@ -755,14 +755,14 @@ def test_the_context_records_the_chosen_familys_shape_from_its_own_field(
     shapes = []
     for seed in range(20):
         context = resolved.drawContext(family, blocks, np.random.default_rng(seed))
-        shapes.append(context.shape)
+        shapes.append(context.family_shape)
     assert low <= min(shapes) < max(shapes) <= high
     field = CONTAMINATED[family]
     pointed = Glm(**{field: 4.0}).resolveDataset(np.random.default_rng(0))
-    assert pointed.drawContext(family, blocks, np.random.default_rng(0)).shape == 4.0
+    assert pointed.drawContext(family, blocks, np.random.default_rng(0)).family_shape == 4.0
     others = {other: 4.0 for other in CONTAMINATED.values() if other != field}
     free = Glm(**others).resolveDataset(np.random.default_rng(0))
-    assert low <= free.drawContext(family, blocks, np.random.default_rng(0)).shape <= high
+    assert low <= free.drawContext(family, blocks, np.random.default_rng(0)).family_shape <= high
 
 
 @pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson'])
@@ -779,7 +779,7 @@ def test_a_base_family_has_no_shape_and_consumes_no_draw_for_one(family: str) ->
     fixed_rng = np.random.default_rng(1)
     free_context = free.drawContext(family, blocks, free_rng)
     fixed_context = fixed.drawContext(family, blocks, fixed_rng)
-    assert free_context.shape is None
+    assert free_context.family_shape is None
     assert free_context == fixed_context
     assert free_rng.random() == fixed_rng.random()
 
@@ -795,5 +795,5 @@ def test_the_parameters_record_the_contexts_shape_and_a_residual_only_where_the_
     resolved = Glm().resolveDataset(np.random.default_rng(0))
     context = resolved.drawContext(family, blocks, np.random.default_rng(0))
     parameters = context.drawParameters(np.random.default_rng(1))
-    assert parameters.shape == context.shape
+    assert parameters.family_shape == context.family_shape
     assert (parameters.sigma_eps is not None) == (family in ['normal', 'student_t'])

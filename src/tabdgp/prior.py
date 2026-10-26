@@ -83,7 +83,7 @@ class Parameters:
 
     beta: np.ndarray  # (d,) intercept first
     sigma_eps: float | None  # None unless the family is Normal or Student-t
-    shape: float | None  # the family's second parameter (None for Normal, Bernoulli and Poisson)
+    family_shape: float | None  # the second parameter (None for Normal, Bernoulli and Poisson)
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -107,7 +107,7 @@ class PriorContext:
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # s_ε, σ_ε's prior scale, None unless the family has a residual
-    shape: float | None  # TODO: likelihood_shape or lik_shape
+    family_shape: float | None  # the second parameter (None for Normal, Bernoulli and Poisson)
     signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
     predictor_sd: float  # τ, the sd of eta without the intercept
     split: dict[str, float]  # φ, each block's share of τ², by block name
@@ -127,7 +127,7 @@ class PriorContext:
         return Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
-            shape=self.shape,
+            family_shape=self.family_shape,
             sigma_alpha=random_effects['sigma_alpha'],
             corr_alpha=random_effects['corr_alpha'],
             alpha=random_effects['alpha'],
@@ -298,9 +298,9 @@ class Glm(Config):
         signal_share = None
         predictor_sd = self.predictor_sd
         sigma_eps_scale = None
-        shape = None
+        family_shape = None
         if family in self.PER_FAMILY:
-            shape = self.resolveField(self.PER_FAMILY[family], rng)
+            family_shape = self.resolveField(self.PER_FAMILY[family], rng)
         if family in ['normal', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
@@ -323,7 +323,7 @@ class Glm(Config):
             lkj_eta=lkj_eta,
             sigma_eps_family=sigma_eps_family,
             sigma_eps_scale=sigma_eps_scale,
-            shape=shape,
+            family_shape=family_shape,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
