@@ -76,20 +76,13 @@ class Block:
     def width(self) -> int:
         return len(self.variances)
 
-    @property
-    def variance(self) -> float:
-        """What the block's term adds to var(eta) at scale 1."""
-        return sum(self.variances)
-
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Parameters:
     """A model's parameters (on the standardized scale). All arrays are float32."""
 
     beta: np.ndarray  # (d,) intercept first
-    sigma_eps: (
-        float | None
-    )  # None unless the family is Normal or Student-t # TODO: either rename to sd_eps or better yet, join with shape
+    sigma_eps: float | None  # None unless the family is Normal or Student-t
     shape: float | None  # the family's second parameter, None for Normal, Bernoulli and Poisson
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
@@ -320,12 +313,7 @@ class Glm(Config):
         fixed, *factors = blocks
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed, what Xβ adds to var(eta)
         slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
-        sigma_alpha_scales = {}
-        for block in factors:
-            budget = predictor_sd**2 * split[block.name]  # τ² φ_k, what Z_k α_k adds to var(eta)
-            variances = np.array(block.variances)  # (q,) E[z_j²], the intercept's 1 first
-            scales = self._drawScales(variances, budget, rng)  # (q,)
-            sigma_alpha_scales[block.name] = scales.tolist()
+        sigma_alpha_scales = self._drawSigmaAlphaScales(factors, predictor_sd, split, rng)
         return PriorContext(
             beta_family=beta_family,
             beta_locations=[self.intercept_location, *slope_locations],
@@ -375,17 +363,33 @@ class Glm(Config):
     ) -> np.ndarray:
         """Draws a block's scales s w_j, one per coefficient,
         from what each coefficient adds to var(eta) at scale 1.
-        In a block that varies, the weights w_j are log-normal at scale_spread, else 1.
-        The block's scale s is solved from its budget, s² Σ_j w_j² variances_j.
+        With probability varying_scale_share the block varies,
+        its weights w_j log-normal at scale_spread, else each w_j is 1.
+        The block's scale s solves s² Σ_j w_j² variances_j = budget.
         """
         weights = np.ones(len(variances))  # (d − 1,) or (q,)
         if rng.random() < self.varying_scale_share:
-            log_weights = rng.normal(0, self.scale_spread, len(variances))
+            log_weights = rng.normal(0, self.scale_spread, len(variances))  # (d − 1,) or (q,)
             weights = np.exp(log_weights)  # (d − 1,) or (q,)
         spent = float((weights**2 * variances).sum())  # at s = 1
-        # without a varying column, nothing spends the budget
+        # without a column that adds to var(eta), nothing spends the budget
         scale = math.sqrt(budget / spent) if spent > 0 else 0.0
         return scale * weights  # (d − 1,) or (q,)
+
+    def _drawSigmaAlphaScales(
+        self,
+        factors: list[Block],
+        predictor_sd: float,
+        split: dict[str, float],
+        rng: np.random.Generator,
+    ) -> dict[str, list[float]]:
+        sigma_alpha_scales = {}
+        for block in factors:
+            budget = predictor_sd**2 * split[block.name]  # τ² φ_k, what Z_k α_k adds to var(eta)
+            variances = np.array(block.variances)  # (q,) E[z_j²], the intercept's 1 first
+            scales = self._drawScales(variances, budget, rng)  # (q,)
+            sigma_alpha_scales[block.name] = scales.tolist()
+        return sigma_alpha_scales
 
 
 class Glmm(Glm):
@@ -413,7 +417,7 @@ class Glmm(Glm):
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         fixed, *factors = blocks
         # without covariate columns, Xβ adds nothing to var(eta), so the factors take all
-        fixed_share = self.fixed_share if fixed.variance > 0 else 0.0
+        fixed_share = self.fixed_share if sum(fixed.variances) > 0 else 0.0
         split = {fixed.name: fixed_share}
         shares = rng.dirichlet([self.split_alpha] * len(factors))  # (f,)
         for block, share in zip(factors, shares):
