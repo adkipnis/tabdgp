@@ -239,9 +239,10 @@ If the outcome node has a latent group-level parent, the deviation is endogenous
 A table without an SCM has no deviation.
 _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it), noise
 
-**Prior context**:
+**Prior**:
 The prior of a GLM's or GLMM's parameters, resolved per dataset and stored with it: what a
-fitter would state.
+well-specified fitter would state.
+A fitter may state another.
 It holds the family of the fixed effects, the location and scale of the intercept and of each
 slope, the family of each factor's random-effect standard deviations and the scale of each, the
 family and scale of the residual, and the shape of each correlation prior.
@@ -249,7 +250,7 @@ By default, the slopes have a scale each in about half the datasets and share on
 A slope's location is zero for most slopes and a hypothesis for the rest.
 It also holds the signal share and the split that set the scales.
 It draws the parameters on its own, so a truth can be resampled under a fixed prior.
-_Avoid_: hyperparameters unqualified (the hyperprior's), prior unqualified (the fitter's)
+_Avoid_: prior context, hyperparameters unqualified (the hyperprior's)
 
 **Random effect**:
 A parameter α of the outcome per group of a grouping factor: an intercept or a slope.
