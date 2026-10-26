@@ -30,7 +30,6 @@ pipeline:
 the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point per field drawn once per dataset                   Glm.resolveDataset
-   (later: each factor's q_k and LKJ shape, the family's shape)
 -> the prior for y's family over the blocks                   Glm.drawPrior
 -> β and σ_ε                                                  Prior.drawParameters
 -> each factor's σ_α, Ω and α per group                       Prior._drawRandomEffects
@@ -208,7 +207,7 @@ class Prior:
 # the families of σ_α and σ_ε, uniform
 SD_FAMILY_SHARES = {
     'half_normal': 0.25,
-    'half_student_t': 0.25,  # df = 3
+    'half_student_t': 0.25,  # with df = 3
     'half_cauchy': 0.25,
     'exponential': 0.25,
 }
@@ -216,13 +215,13 @@ SD_FAMILY_SHARES = {
 
 class Glm(Config):
     """The hyperprior of a generalized linear model (GLM),
-    from which drawPrior draws the prior of its parameters:
+    from which the prior and conversely the model parameters are drawn:
 
-    - Families: of y (with its canonical link), of β and of σ_ε
-    - Locations: the intercept's (on the link scale) and some slopes'
-    - Budget: τ², the variance of eta without the intercept (r for Normal and Student-t)
-    - Scales: shared or per coefficient within a block, spending the block's budget
-    - Shape: of a family at share zero, resolved for the chosen family only
+    - Families: of y, of β and of σ_ε
+    - Locations: of intercept and slopes
+    - Scales: shared or per coefficient within a block
+    - Shape: # TODO: clarify
+    - Budget: τ², the variance of eta without the intercept
     - Deviation: the score added to eta, scaled by λ · sd(Xβ + Σ_k Z_k α_k)
     """
 
@@ -231,8 +230,7 @@ class Glm(Config):
         'beta_family_shares',
         'sigma_eps_family_shares',
     )
-    PER_FACTOR: ClassVar[tuple[str, ...]] = ()  # the fields each factor resolves on its own
-    # resolved for the chosen family only, so a family at share zero costs no draw
+    PER_FACTOR: ClassVar[tuple[str, ...]] = ()
     PER_FAMILY: ClassVar[dict[str, str]] = {
         'student_t': 'residual_df',
         'negative_binomial': 'dispersion',
@@ -241,12 +239,11 @@ class Glm(Config):
         'beta': 'beta_precision',
     }
 
-    # ruff cannot trace Config to BaseModel, so it reads a shares default as a class attribute
     family_shares: Simplex = {  # noqa: RUF012
         'normal': 1 / 3,
         'bernoulli': 1 / 3,
         'poisson': 1 / 3,
-        # the contaminated families (each with a shape), drawn only by override
+        # useful for misspecification tests
         'student_t': 0.0,
         'negative_binomial': 0.0,
         'latent_bernoulli': 0.0,
@@ -255,21 +252,23 @@ class Glm(Config):
     }
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # σ_ε's family
-    intercept_location: Real = Uniform(-3, 3)  # ν_0, on the link scale
+    intercept_location: Real = Uniform(-3, 3)  # ν_0 on the link scale
     intercept_scale: NonNegative = LogUniform(0.1, 10)  # τ_0
     location_share: Share = 0.1  # the probability that a slope has a location
-    location_scale: NonNegative = 2.0  # a located slope's location, in its own scale, is N(0, this)
+    location_scale: NonNegative = 2.0  # TODO: clarify
     varying_scale_share: Share = 0.5  # the probability that a block's scales vary per coefficient
     scale_spread: NonNegative = Uniform(0, 2)  # the sd of a log weight in a varying block
     signal_share: Share = Beta(2, 2)  # r
-    predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal or Student-t
+    predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ (unless the family is Normal or Student-t)
+    # for misspecification
     deviation_scale: NonNegative = 0.0  # λ
     residual_df: Positive = LogUniform(3, 10)  # of the Student-t family
     dispersion: Positive = LogUniform(1, 10)  # φ of the negative binomial, variance μ + μ² / φ
     latent_scale: NonNegative = LogUniform(0.5, 2)  # σ_c of the latent-noise Bernoulli
     gamma_shape: Positive = LogUniform(1, 10)
-    beta_precision: Positive = LogUniform(2, 50)  # of the beta family, not of β
+    beta_precision: Positive = LogUniform(2, 50)
 
+    # TODO: rewrite more cleanly, this is hard to read
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
         """Resolves each field drawn once per dataset, in declaration order."""
         points = {}
@@ -280,8 +279,9 @@ class Glm(Config):
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
 
+    # TODO: tidy up in coherent sections
     def drawPrior(self, family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
-        """Draws the prior for y's family over the blocks, on a resolved Glm."""
+        """Draws the prior for y's family over the blocks after the GLM is resolved."""
         beta_family = self.beta_family_shares.choose(rng)
         sigma_eps_family = None
         signal_share = None
@@ -330,6 +330,7 @@ class Glm(Config):
     ) -> dict[str, int | None]:
         return {}  # a GLM has no random effects
 
+    # TODO: redo the docstrings like we did for Prior
     def _drawSlopes(
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[list[float], list[float]]:
@@ -347,6 +348,7 @@ class Glm(Config):
         slope_locations = delta * slope_scales  # (d − 1,)
         return slope_locations.tolist(), slope_scales.tolist()
 
+    # TODO: see above
     def _drawScales(
         self, variances: np.ndarray, budget: float, rng: np.random.Generator
     ) -> np.ndarray:
@@ -365,6 +367,7 @@ class Glm(Config):
         scale = math.sqrt(budget / spent) if spent > 0 else 0.0
         return scale * weights  # (d − 1,) or (q,)
 
+    # TODO: this method has no business being in in GLM
     def _drawSigmaAlphaScales(
         self,
         factors: list[Block],
