@@ -245,6 +245,7 @@ fitter would state.
 It holds the family of the fixed effects, the location and scale of the intercept and of each
 slope, the family of each factor's random-effect standard deviations and the scale of each, the
 family and scale of the residual, and the shape of each correlation prior.
+By default, the slopes have a scale each in about half the datasets and share one in the rest, and so do each factor's random effects.
 A slope's location is zero for most slopes and a hypothesis for the rest.
 It also holds the signal share and the split that set the scales.
 It draws the parameters on its own, so a truth can be resampled under a fixed prior.
