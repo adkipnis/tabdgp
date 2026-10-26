@@ -46,7 +46,8 @@ DEFAULTS = {
     'intercept_scale': LogUniform(0.1, 10),
     'location_share': 0.1,
     'location_scale': 2.0,
-    'scale_spread': 0.0,
+    'varying_scale_share': 0.5,
+    'scale_spread': Uniform(0, 2),
     'signal_share': Beta(2, 2),
     'predictor_sd': LogUniform(0.25, 4),
     'deviation_scale': 0.0,
@@ -241,7 +242,8 @@ def test_the_joint_draws_identities_hold(
     unit variance at the scales. r sets nothing under the other families, so the context
     records none there.
     An intercept-only design has no slope for σ_β to scale.
-    At spread 0 and without a located slope, every slope has the block's scale and location 0;
+    In the block case and without a located slope, every slope has the block's scale and
+    location 0;
     the intercept's location is the field's, on the link scale.
     A GLM has no random effects, so no family or scale for them.
     """
@@ -251,6 +253,7 @@ def test_the_joint_draws_identities_hold(
         intercept_location=-2.0,
         intercept_scale=1.5,
         location_share=0.0,
+        varying_scale_share=0.0,
     )
     blocks = [Block(name='fixed', variances=variances)]
     context = glm.drawContext(family, blocks, np.random.default_rng(0))
@@ -275,6 +278,7 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
         intercept_location=0.0,
         intercept_scale=1.0,
         location_share=0.0,
+        varying_scale_share=0.0,
     )
     blocks = [
         Block(name='fixed', variances=THREE_QUARTERS),
@@ -327,26 +331,64 @@ def test_the_blocks_of_a_glmm_share_all_of_var_eta(fixed: Block) -> None:
         assert _spent(context, block) == pytest.approx(4.0 * context.split[block.name])
 
 
-def test_located_and_spread_slopes_spend_the_fixed_blocks_budget_exactly() -> None:
-    """ADR 0006's amendment: σ_j = σ_β w_j and μ_j = δ_j σ_j, with σ_β solved from
-    σ_β² Σ_j w_j² (1 + δ_j²) var_j = τ² φ_fixed, so a location or a spread moves the scales
-    around but never what the block adds to var(η) in expectation, and the constant column
-    costs nothing. With every slope located and a spread of 1, no two scales agree.
+# the fixed block and two factors' blocks, in the factors' order
+FACTOR_BLOCKS = [
+    Block(name='fixed', variances=[0.0, 0.75, 0.75, 0.75, 0.75]),
+    Block(name='g0', variances=[1.0, 0.5, 0.5], groups=4),
+    Block(name='g1', variances=[1.0, 0.5], groups=12),
+]
+# the distinct scales of the fixed block's four slopes, then of each factor's effects
+VARYING = [
+    pytest.param(0.0, [1, 1, 1], id='at share 0 each block shares one scale'),
+    pytest.param(1.0, [4, 3, 2], id='at share 1 each coefficient has its own'),
+]
+
+
+@pytest.mark.parametrize(('varying_scale_share', 'distinct'), VARYING)
+def test_each_blocks_scales_vary_at_varying_scale_share_1_and_share_one_at_0(
+    varying_scale_share: float, distinct: list[int]
+) -> None:
+    """ADR 0006's amendment of 2026-10-26: a block's scales vary per coefficient
+    with probability varying_scale_share, β's slopes and each factor's effects alike,
+    a random intercept's among them; otherwise the block shares one scale.
     """
-    glm = Glm(
+    glmm = Glmm(
+        varying_scale_share=varying_scale_share,
+        scale_spread=1.0,
+        predictor_sd=2.0,
+        intercept_location=0.0,
+        intercept_scale=1.0,
+        location_share=0.0,
+        fixed_share=0.5,
+    )
+    context = glmm.drawContext('poisson', FACTOR_BLOCKS, np.random.default_rng(0))
+    scales = [context.beta_scales[1:], *context.sigma_alpha_scales.values()]
+    assert [len(set(block_scales)) for block_scales in scales] == distinct
+
+
+def test_located_and_varying_scales_spend_each_blocks_budget_exactly() -> None:
+    """ADR 0006's amendments: σ_j = σ_β w_j and μ_j = δ_j σ_j over the slopes,
+    s_k,j = s_k w_k,j over a factor's effects, each block's scale solved from its budget,
+    σ_β² Σ_j w_j² (1 + δ_j²) var_j = τ² φ_fixed and s_k² Σ_j w_k,j² E[z_j²] = τ² φ_k.
+    So a location or a weight moves the scales around but never what a block adds to var(η)
+    in expectation, and the constant column costs nothing.
+    """
+    glmm = Glmm(
         intercept_location=0.0,
         intercept_scale=1.0,
         predictor_sd=2.0,
         location_share=1.0,
         location_scale=2.0,
+        varying_scale_share=1.0,
         scale_spread=1.0,
+        fixed_share=0.5,
     )
-    fixed = Block(name='fixed', variances=[0.0, 0.5, 1.0, 2.0, 0.0])
+    blocks = [Block(name='fixed', variances=[0.0, 0.5, 1.0, 2.0, 0.0]), *FACTOR_BLOCKS[1:]]
     for seed in range(5):
-        context = glm.drawContext('poisson', [fixed], np.random.default_rng(seed))
-        assert _spent(context, fixed) == pytest.approx(4.0)
-        assert len(set(context.beta_scales[1:])) == 4
+        context = glmm.drawContext('poisson', blocks, np.random.default_rng(seed))
         assert all(location != 0 for location in context.beta_locations[1:])
+        for block in blocks:
+            assert _spent(context, block) == pytest.approx(4.0 * context.split[block.name])
 
 
 def _halfNormalCdf(x: float) -> float:
@@ -414,13 +456,14 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
         location_share=0.0,
         fixed_share=0.5,
         correlated_share=0.0,
+        varying_scale_share=0.0,
     )
     # each block's share 0.5 over its variance 0.18 gives σ_β = s_α = 0.6 · √(0.5 / 0.18) = 1
     blocks = [
         Block(name='fixed', variances=[0.0, 0.09, 0.09]),
         Block(name='g0', variances=[0.09, 0.09], groups=5),
     ]
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(1)  # seed 0's half-Cauchy σ_α miss the 1 % bound by chance
     residual_sds = []
     random_sds = []
     intercepts = []
@@ -510,6 +553,59 @@ def test_each_fixed_effect_follows_the_beta_family_at_its_recorded_location_and_
     assert _ksDistance(slopes, cdf) < 1.63 / math.sqrt(len(slopes))
 
 
+def test_the_log_ratio_of_two_scales_in_a_block_is_normal_at_root_2_scale_spread() -> None:
+    """In a block that varies, each coefficient's log weight is N(0, scale_spread),
+    so the log-ratio of two of its scales is N(0, 2 scale_spread²), whatever the block's scale.
+    A random intercept's scale is weighted like a slope's.
+    """
+    glmm = Glmm(
+        varying_scale_share=1.0,
+        scale_spread=0.5,
+        predictor_sd=2.0,
+        intercept_location=0.0,
+        intercept_scale=1.0,
+        fixed_share=0.5,
+    )
+    ratio_sd = math.sqrt(2) * 0.5
+    rng = np.random.default_rng(0)
+    slopes = []
+    effects = []
+    for _ in range(DRAWS):
+        context = glmm.drawContext('poisson', FACTOR_BLOCKS, rng)
+        first, second = context.beta_scales[1:3]
+        slopes.append(math.log(first / second))
+        intercept, slope = context.sigma_alpha_scales['g0'][:2]
+        effects.append(math.log(intercept / slope))
+    for log_ratios in [slopes, effects]:
+        standardized = np.array(log_ratios) / ratio_sd  # (s,)
+        assert _ksDistance(standardized, _standardNormalCdf) < 1.63 / math.sqrt(DRAWS)
+
+
+def _varies(scales: list[float]) -> bool:
+    return len(set(scales)) > 1
+
+
+def test_each_block_varies_with_varying_scale_share_over_many_draws() -> None:
+    """By default a block's scales vary with probability 0.5 (ADR 0006's amendment of 2026-10-26),
+    the fixed block and each factor on their own, so two blocks vary together in a quarter.
+    A varying block's scales differ, since scale_spread resolves above 0.
+    """
+    rng = np.random.default_rng(0)
+    fixed = []
+    first = []
+    second = []
+    for _ in range(DRAWS):
+        resolved = Glmm().resolveDataset(rng)
+        context = resolved.drawContext('poisson', FACTOR_BLOCKS, rng)
+        fixed.append(_varies(context.beta_scales[1:]))
+        first.append(_varies(context.sigma_alpha_scales['g0']))
+        second.append(_varies(context.sigma_alpha_scales['g1']))
+    both = np.logical_and(fixed, first)  # (s,)
+    for varying, share in [(fixed, 0.5), (first, 0.5), (second, 0.5), (both, 0.25)]:
+        three_sds = 3 * math.sqrt(share * (1 - share) / DRAWS)
+        assert np.mean(varying) == pytest.approx(share, abs=three_sds)
+
+
 def test_the_split_follows_fixed_share_and_the_dirichlet_over_many_draws() -> None:
     """φ_fixed is fixed_share's Beta(1, 1), the registry's near-uniform witness (#47),
     and two factors split the rest by a Dirichlet at split_alpha = 1, so either share is uniform.
@@ -582,14 +678,6 @@ def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width
     parameters = context.drawParameters(np.random.default_rng(1))
     assert context.lkj_eta == {'g0': None}
     assert np.array_equal(parameters.corr_alpha['g0'], np.eye(width))
-
-
-# the fixed block and two factors' blocks, in the factors' order
-FACTOR_BLOCKS = [
-    Block(name='fixed', variances=[0.0, 0.75, 0.75, 0.75, 0.75]),
-    Block(name='g0', variances=[1.0, 0.5, 0.5], groups=4),
-    Block(name='g1', variances=[1.0, 0.5], groups=12),
-]
 
 
 @pytest.mark.parametrize(

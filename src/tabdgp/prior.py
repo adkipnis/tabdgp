@@ -234,7 +234,8 @@ class Glm(Config):
     - Scales: τ is the sd of eta without the intercept.
       For Normal and Student-t outcomes τ² = r, the share of y's variance eta explains,
       so y has unit variance (ν / (ν − 2) for Student-t).
-      Each slope's scale is the block's times a log-normal weight (the block's at spread 0).
+      Each slope's or random effect's scale is its block's,
+      times a log-normal weight if the block varies.
       Each scale is its family's scale parameter, e.g. E[σ_ε²] = s_ε² E[X²],
       X the standard law of σ_ε's family.
     - Shape: the second parameter of a family at share zero, resolved for the chosen one only.
@@ -274,7 +275,8 @@ class Glm(Config):
     intercept_scale: NonNegative = LogUniform(0.1, 10)  # σ_0
     location_share: Share = 0.1  # the probability that a slope has a location
     location_scale: NonNegative = 2.0  # a located slope's location, in its own scale, is N(0, this)
-    scale_spread: NonNegative = 0.0  # the sd of each slope's log scale around the block's
+    varying_scale_share: Share = 0.5  # the probability that a block's scales vary per coefficient
+    scale_spread: NonNegative = Uniform(0, 2)  # the sd of a log weight in a varying block
     signal_share: Share = Beta(2, 2)  # r
     predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal or Student-t
     deviation_scale: NonNegative = 0.0  # λ
@@ -320,9 +322,10 @@ class Glm(Config):
         slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
         sigma_alpha_scales = {}
         for block in factors:
-            # s_α² tr E[z z'] = τ² φ_k, tr ≥ 1 by the intercept; one scale for all its effects
-            scale = predictor_sd * math.sqrt(split[block.name] / block.variance)
-            sigma_alpha_scales[block.name] = [scale] * block.width
+            budget = predictor_sd**2 * split[block.name]  # τ² φ_k, what Z_k α_k adds to var(eta)
+            variances = np.array(block.variances)  # (q,) E[z_j²], the intercept's 1 first
+            scales = self._drawScales(variances, budget, rng)  # (q,)
+            sigma_alpha_scales[block.name] = scales.tolist()
         return PriorContext(
             beta_family=beta_family,
             beta_locations=[self.intercept_location, *slope_locations],
@@ -353,23 +356,36 @@ class Glm(Config):
     def _drawSlopes(
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[list[float], list[float]]:
-        """Draws each slope's location μ_j = δ_j σ_j and scale σ_j = σ_β w_j,
-        with σ_β solved from the budget σ_β² Σ_j w_j² (1 + δ_j²) var_j,
+        """Draws each slope's location μ_j = δ_j σ_j and scale σ_j,
+        the scales spending the budget Σ_j σ_j² (1 + δ_j²) var_j,
         what Xβ adds to var(eta) for a Normal β (a heavier-tailed β adds more).
         """
         slopes = fixed.width - 1
         located = rng.random(slopes) < self.location_share  # (d − 1,)
         offsets = rng.normal(0, self.location_scale, slopes)  # (d − 1,) δ_j of a located slope
         delta = np.where(located, offsets, 0.0)  # (d − 1,)
-        log_weights = rng.normal(0, self.scale_spread, slopes)  # (d − 1,)
-        weights = np.exp(log_weights)  # (d − 1,) w_j
-        variances = np.array(fixed.variances[1:])  # (d − 1,)
-        spent = float((weights**2 * (1 + delta**2) * variances).sum())  # at σ_β = 1
-        # without a varying column, nothing spends the budget
-        sigma_beta = math.sqrt(budget / spent) if spent > 0 else 0.0
-        slope_scales = sigma_beta * weights  # (d − 1,)
+        column_variances = np.array(fixed.variances[1:])  # (d − 1,) var_j
+        variances = (1 + delta**2) * column_variances  # (d − 1,) E[β_j²] var_j at σ_j = 1
+        slope_scales = self._drawScales(variances, budget, rng)  # (d − 1,)
         slope_locations = delta * slope_scales  # (d − 1,)
         return slope_locations.tolist(), slope_scales.tolist()
+
+    def _drawScales(
+        self, variances: np.ndarray, budget: float, rng: np.random.Generator
+    ) -> np.ndarray:
+        """Draws a block's scales s w_j, one per coefficient,
+        from what each coefficient adds to var(eta) at scale 1.
+        In a block that varies, the weights w_j are log-normal at scale_spread, else 1.
+        The block's scale s is solved from its budget, s² Σ_j w_j² variances_j.
+        """
+        weights = np.ones(len(variances))  # (d − 1,) or (q,)
+        if rng.random() < self.varying_scale_share:
+            log_weights = rng.normal(0, self.scale_spread, len(variances))
+            weights = np.exp(log_weights)  # (d − 1,) or (q,)
+        spent = float((weights**2 * variances).sum())  # at s = 1
+        # without a varying column, nothing spends the budget
+        scale = math.sqrt(budget / spent) if spent > 0 else 0.0
+        return scale * weights  # (d − 1,) or (q,)
 
 
 class Glmm(Glm):
