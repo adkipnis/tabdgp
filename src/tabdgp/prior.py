@@ -108,9 +108,7 @@ class PriorContext:
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
     family_shape: float | None
-    signal_share: (
-        float | None
-    )  # r, the share of var(y) that eta explains (Normal and Student-t only)
+    signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)
     split: dict[str, float]  # φ, each block's share of τ²
     blocks: list[Block]
@@ -192,7 +190,7 @@ class PriorContext:
                 share = rng.beta(concentration, concentration)
                 partial[k, i] = 2 * share - 1  # expand support to (-1, 1)
                 p = partial[k, i]
-                # to make the correlation matrix non-singular
+                # to make the correlation matrix positive definite
                 # p shrinks by what each previous variable leaves "unexplained"
                 for j in reversed(range(k)):
                     prod = (1 - partial[j, i] ** 2) * (1 - partial[j, k] ** 2)
@@ -217,20 +215,15 @@ SD_FAMILY_SHARES = {
 
 
 class Glm(Config):
-    """The prior of a generalized linear model (GLM).
-    # TODO: more succinct (like above)
+    """The hyperprior of a generalized linear model (GLM),
+    from which drawContext draws the prior of its parameters:
 
-    - Families: of y (with its canonical link), of β and of σ_ε.
-    - Locations: the intercept's (on the link scale) and each slope's (mostly zero).
-    - Scales: τ is the sd of eta without the intercept.
-      For Normal and Student-t outcomes τ² = r, the share of y's variance eta explains,
-      so y has unit variance (df / (df − 2) for Student-t).
-      Each slope's or random effect's scale is its block's,
-      times a log-normal weight if the block varies.
-      Each scale is its family's scale parameter, e.g. E[σ_ε²] = τ_ε² E[X²],
-      X the standard law of σ_ε's family.
-    - Shape: the second parameter of a family at share zero, resolved for the chosen one only.
-    - Deviation: the score added to eta, scaled by λ · sd(Xβ + Σ_k Z_k α_k) over the rows.
+    - Families: of y (with its canonical link), of β and of σ_ε
+    - Locations: the intercept's (on the link scale) and some slopes'
+    - Budget: τ², the variance of eta without the intercept (r for Normal and Student-t)
+    - Scales: shared or per coefficient within a block, spending the block's budget
+    - Shape: of a family at share zero, resolved for the chosen family only
+    - Deviation: the score added to eta, scaled by λ · sd(Xβ + Σ_k Z_k α_k)
     """
 
     SHARES: ClassVar[tuple[str, ...]] = (
@@ -391,12 +384,12 @@ class Glm(Config):
 
 
 class Glmm(Glm):
-    """The prior of a generalized linear mixed model (GLMM): a GLM with random effects.
+    """The hyperprior of a generalized linear mixed model (GLMM), a GLM with random effects:
 
-    - Split: φ_fixed of var(eta) for Xβ, the rest split among the factors by a Dirichlet.
-    - Random effects: per factor, an intercept and slopes, up to q_k design columns.
-    - Correlation: LKJ with probability correlated_share, independent otherwise.
-    - Families: σ_α has its own, apart from σ_ε's.
+    - Split: φ_fixed of τ² for Xβ, the rest split among the factors by a Dirichlet
+    - Random effects: per factor, an intercept and slopes, up to q_k design columns
+    - Correlation: LKJ with probability correlated_share, independent otherwise
+    - Families: σ_α has its own, apart from σ_ε's
     """
 
     SHARES: ClassVar[tuple[str, ...]] = (*Glm.SHARES, 'sigma_alpha_family_shares')
