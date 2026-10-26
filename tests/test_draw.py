@@ -260,7 +260,7 @@ def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_truth(
         roles = [column.role for column in dataset.metadata.values()]
         assert roles.count('grouping_factor') == dataset.hyperparameters.factors
         assert len(outcome.fixed_terms) == 1 + dataset.hyperparameters.design_columns
-        assert list(outcome.context.split) == ['fixed']
+        assert list(outcome.prior.split) == ['fixed']
 
 
 def test_grouped_with_glmm_returns_y_last_with_a_glmm_outcome_of_one_block_per_factor() -> None:
@@ -278,7 +278,7 @@ def test_grouped_with_glmm_returns_y_last_with_a_glmm_outcome_of_one_block_per_f
             name for name, column in dataset.metadata.items() if column.role == 'grouping_factor'
         ]
         assert list(outcome.random_terms) == factors
-        assert list(outcome.context.split) == ['fixed', *factors]
+        assert list(outcome.prior.split) == ['fixed', *factors]
         for factor in factors:
             q = len(outcome.random_terms[factor])
             assert q <= min(6, len(outcome.fixed_terms))
@@ -378,7 +378,7 @@ def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_th
     None
 ):
     """The white-box misspecified corpus differs from metabeta's only by the deviation:
-    λ enters after the parameter draw, so under one key β, α and the context do not move.
+    λ enters after the parameter draw, so under one key β, α and the prior do not move.
     The score is z-scored over the rows, so the deviation's sd is λ times the linear part's.
     """
     for index in range(10):
@@ -386,7 +386,7 @@ def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_th
         deviated = draw(0, index, Hyperprior.grouped(outcome_form=Glmm(deviation_scale=0.3)))
         outcome = deviated.outcome
         assert outcome.deviation_scale == 0.3
-        assert outcome.context == plain.outcome.context
+        assert outcome.prior == plain.outcome.prior
         assert outcome.beta.tobytes() == plain.outcome.beta.tobytes()
         assert outcome.random_terms == plain.outcome.random_terms
         for factor in outcome.random_terms:
@@ -648,7 +648,7 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     return column is not None and column.levels is not None and column.levels > min(groups)
 
 
-GLM_OVERRIDE = Glm(intercept_scale=0.5, deviation_scale=0.3)  # τ_0 in the context, λ beside it
+GLM_OVERRIDE = Glm(intercept_scale=0.5, deviation_scale=0.3)  # τ_0 in the prior, λ beside it
 GLMM_OVERRIDE = Glmm(random_effects=1)  # every factor's intercept alone
 
 
@@ -686,7 +686,7 @@ def test_every_override_is_honored(
     The fields without a visible size are honored through hyperparameters, which must hold
     every point override as given, a field drawn per node through the graph, one drawn per
     factor through the factor's column, the scm form's through y's column, a GLM's through
-    its outcome's context and a GLMM's through each factor's random terms. A point groups
+    its outcome's prior and a GLMM's through each factor's random terms. A point groups
     cannot nest, so a chain draws its groups from a range below the point.
     """
     # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
@@ -735,7 +735,7 @@ def test_every_override_is_honored(
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
     if form == GLM_OVERRIDE:
-        assert dataset.outcome.context.beta_scales[0] == 0.5
+        assert dataset.outcome.prior.beta_scales[0] == 0.5
         assert dataset.outcome.deviation_scale == 0.3
     if form == GLMM_OVERRIDE:
         assert list(dataset.outcome.random_terms) == factor_names

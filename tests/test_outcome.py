@@ -638,7 +638,7 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
 ) -> None:
     """A Glm is TabDGP's own model: run codes the covariates, draws the prior and writes y.
     On grouped covariates it is the pooled truth: the factors' codes are no term,
-    and the context has the one block fixed.
+    and the prior has the one block fixed.
     Only the Normal and Student-t families have a σ_ε, only the contaminated families have a
     shape, and the deviation is zero at λ = 0.
     """
@@ -650,10 +650,10 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     assert (outcome.metadata['y'].type, outcome.metadata['y'].role) == (column_type, 'outcome')
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
-    assert list(outcome.context.split) == ['fixed']
+    assert list(outcome.prior.split) == ['fixed']
     assert (outcome.sigma_eps is None) == (family not in ['normal', 'student_t'])
     assert outcome.family_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
-    assert outcome.context.family_shape == outcome.family_shape
+    assert outcome.prior.family_shape == outcome.family_shape
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
@@ -763,12 +763,12 @@ def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> Non
     """A Glmm draws one block of random effects per grouping factor, crossed or nested alike.
     Each factor's terms are design terms led by its intercept,
     and its effects have one row per group; GlmmOutcome checks their q itself.
-    The context names the blocks fixed, then the factors in order.
+    The prior names the blocks fixed, then the factors in order.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], ['x0', 'x1'])
     outcome = run(Glmm(), covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
-    assert list(outcome.context.split) == ['fixed', 'g0', 'g1']
+    assert list(outcome.prior.split) == ['fixed', 'g0', 'g1']
     assert list(outcome.random_terms) == ['g0', 'g1']
     for factor, groups in [('g0', 3), ('g1', 2)]:
         terms = outcome.random_terms[factor]

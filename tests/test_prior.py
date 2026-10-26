@@ -12,7 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from tabdgp.field import Beta, Dirichlet, Distribution, LogUniform, Uniform, UniformInt
-from tabdgp.prior import Block, Glm, Glmm, PriorContext
+from tabdgp.prior import Block, Glm, Glmm, Prior
 from tests.fixtures.build import point
 
 SD_FAMILY_SHARES = {
@@ -239,7 +239,7 @@ def test_the_joint_draws_identities_hold(
     """ADR 0006's scales as the comment on #46 amended them: τ_β = τ √(φ_fixed / tr cov X),
     with φ_fixed = 1 for a GLM, so the fixed block realizes var(Xβ) = τ² on any coding.
     Only the Normal and Student-t families have a residual scale, and the Normal's y then has
-    unit variance at the scales. r sets nothing under the other families, so the context
+    unit variance at the scales. r sets nothing under the other families, so the prior
     records none there.
     An intercept-only design has no slope for τ_β to scale.
     In the block case and without a located slope, every slope has the block's scale and
@@ -256,15 +256,15 @@ def test_the_joint_draws_identities_hold(
         varying_scale_share=0.0,
     )
     blocks = [Block(name='fixed', variances=variances)]
-    context = glm.drawContext(family, blocks, np.random.default_rng(0))
+    prior = glm.drawPrior(family, blocks, np.random.default_rng(0))
     slopes = len(variances) - 1
-    assert context.signal_share == signal_share
-    assert (context.sigma_alpha_family, context.sigma_alpha_scales) == (None, {})
-    assert context.predictor_sd == pytest.approx(predictor_sd)
-    assert context.split == {'fixed': 1.0}
-    assert context.beta_scales == pytest.approx([1.5] + [scale] * slopes)
-    assert context.beta_locations == [-2.0] + [0.0] * slopes
-    assert context.sigma_eps_scale == pytest.approx(sigma_eps_scale)
+    assert prior.signal_share == signal_share
+    assert (prior.sigma_alpha_family, prior.sigma_alpha_scales) == (None, {})
+    assert prior.predictor_sd == pytest.approx(predictor_sd)
+    assert prior.split == {'fixed': 1.0}
+    assert prior.beta_scales == pytest.approx([1.5] + [scale] * slopes)
+    assert prior.beta_locations == [-2.0] + [0.0] * slopes
+    assert prior.sigma_eps_scale == pytest.approx(sigma_eps_scale)
 
 
 def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
@@ -284,20 +284,20 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
         Block(name='fixed', variances=THREE_QUARTERS),
         Block(name='g0', variances=[1.0, 3.0], groups=3),
     ]
-    context = glmm.drawContext('normal', blocks, np.random.default_rng(0))
-    assert context.split == {'fixed': 0.64, 'g0': pytest.approx(0.36)}
-    assert context.beta_scales[1:] == pytest.approx([0.32] * 3)
-    assert context.sigma_alpha_scales == {'g0': pytest.approx([0.18] * 2)}
+    prior = glmm.drawPrior('normal', blocks, np.random.default_rng(0))
+    assert prior.split == {'fixed': 0.64, 'g0': pytest.approx(0.36)}
+    assert prior.beta_scales[1:] == pytest.approx([0.32] * 3)
+    assert prior.sigma_alpha_scales == {'g0': pytest.approx([0.18] * 2)}
 
 
-def _spent(context: PriorContext, block: Block) -> float:
-    """What a block's term adds to var(η) in expectation at the context's scales and locations:
+def _spent(prior: Prior, block: Block) -> float:
+    """What a block's term adds to var(η) in expectation at the prior's scales and locations:
     E[β_j²] var_j = (τ_j² + ν_j²) var_j per slope, τ_α,j² E[z_j²] per random effect.
     """
     if block.name == 'fixed':
-        slopes = zip(context.beta_locations[1:], context.beta_scales[1:], block.variances[1:])
+        slopes = zip(prior.beta_locations[1:], prior.beta_scales[1:], block.variances[1:])
         return sum((scale**2 + location**2) * variance for location, scale, variance in slopes)
-    effects = zip(context.sigma_alpha_scales[block.name], block.variances)
+    effects = zip(prior.sigma_alpha_scales[block.name], block.variances)
     return sum(scale**2 * variance for scale, variance in effects)
 
 
@@ -324,11 +324,11 @@ def test_the_blocks_of_a_glmm_share_all_of_var_eta(fixed: Block) -> None:
         Block(name='g1', variances=[1.0], groups=20),
     ]
     resolved = glmm.resolveDataset(np.random.default_rng(0))
-    context = resolved.drawContext('poisson', blocks, np.random.default_rng(1))
-    assert list(context.split) == ['fixed', 'g0', 'g1']
-    assert sum(context.split.values()) == pytest.approx(1)
+    prior = resolved.drawPrior('poisson', blocks, np.random.default_rng(1))
+    assert list(prior.split) == ['fixed', 'g0', 'g1']
+    assert sum(prior.split.values()) == pytest.approx(1)
     for block in blocks:
-        assert _spent(context, block) == pytest.approx(4.0 * context.split[block.name])
+        assert _spent(prior, block) == pytest.approx(4.0 * prior.split[block.name])
 
 
 # the fixed block and two factors' blocks, in the factors' order
@@ -361,8 +361,8 @@ def test_each_blocks_scales_vary_at_varying_scale_share_1_and_share_one_at_0(
         location_share=0.0,
         fixed_share=0.5,
     )
-    context = glmm.drawContext('poisson', FACTOR_BLOCKS, np.random.default_rng(0))
-    scales = [context.beta_scales[1:], *context.sigma_alpha_scales.values()]
+    prior = glmm.drawPrior('poisson', FACTOR_BLOCKS, np.random.default_rng(0))
+    scales = [prior.beta_scales[1:], *prior.sigma_alpha_scales.values()]
     assert [len(set(block_scales)) for block_scales in scales] == distinct
 
 
@@ -385,10 +385,10 @@ def test_located_and_varying_scales_spend_each_blocks_budget_exactly() -> None:
     )
     blocks = [Block(name='fixed', variances=[0.0, 0.5, 1.0, 2.0, 0.0]), *FACTOR_BLOCKS[1:]]
     for seed in range(5):
-        context = glmm.drawContext('poisson', blocks, np.random.default_rng(seed))
-        assert all(location != 0 for location in context.beta_locations[1:])
+        prior = glmm.drawPrior('poisson', blocks, np.random.default_rng(seed))
+        assert all(location != 0 for location in prior.beta_locations[1:])
         for block in blocks:
-            assert _spent(context, block) == pytest.approx(4.0 * context.split[block.name])
+            assert _spent(prior, block) == pytest.approx(4.0 * prior.split[block.name])
 
 
 def _halfNormalCdf(x: float) -> float:
@@ -440,7 +440,7 @@ DRAWS = 2000
 def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     sd_family: str, cdf: Callable[[float], float]
 ) -> None:
-    """Given the context, each parameter is drawn from its stated family exactly (ADR 0006),
+    """Given the prior, each parameter is drawn from its stated family exactly (ADR 0006),
     nothing clipped or rescaled, so metabeta's posterior conditions on the true prior.
     σ_ε / τ_ε and each σ_α / τ_α follow F's standard law, the intercept N(0, τ_0),
     each slope N(0, τ_β) and each random effect N(0, σ_α) given its σ_α.
@@ -470,7 +470,7 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     slopes = []
     random_effects = []
     for _ in range(DRAWS):
-        parameters = glmm.drawContext('normal', blocks, rng).drawParameters(rng)
+        parameters = glmm.drawPrior('normal', blocks, rng).drawParameters(rng)
         residual_sds.append(parameters.sigma_eps / 0.8)
         random_sds.extend(parameters.sigma_alpha['g0'])
         intercepts.append(parameters.beta[0])
@@ -496,8 +496,8 @@ def test_a_slope_is_located_with_location_share_and_its_relative_location_is_nor
     relative = []
     for _ in range(DRAWS):
         resolved = Glm().resolveDataset(rng)
-        context = resolved.drawContext('poisson', [fixed], rng)
-        for location, scale in zip(context.beta_locations[1:], context.beta_scales[1:]):
+        prior = resolved.drawPrior('poisson', [fixed], rng)
+        for location, scale in zip(prior.beta_locations[1:], prior.beta_scales[1:]):
             relative.append(location / scale)
     located = [delta / 2 for delta in relative if delta != 0]
     three_sds = 3 * math.sqrt(0.1 * 0.9 / len(relative))
@@ -524,7 +524,7 @@ BETA_FAMILIES = [
 def test_each_fixed_effect_follows_the_beta_family_at_its_recorded_location_and_scale(
     beta_family: str, cdf: Callable[[float], float]
 ) -> None:
-    """The intercept and each slope are drawn from the β family the context names,
+    """The intercept and each slope are drawn from the β family the prior names,
     at the location and scale it records for them, so (β_j − ν_j) / τ_j follows the family's
     standard law, Student-t at df = 3, whatever the locations and the spread.
     """
@@ -541,12 +541,12 @@ def test_each_fixed_effect_follows_the_beta_family_at_its_recorded_location_and_
     intercepts = []
     slopes = []
     for _ in range(DRAWS):
-        context = glm.drawContext('bernoulli', [fixed], rng)
-        parameters = context.drawParameters(rng)
-        assert context.beta_family == beta_family
+        prior = glm.drawPrior('bernoulli', [fixed], rng)
+        parameters = prior.drawParameters(rng)
+        assert prior.beta_family == beta_family
         intercepts.append((parameters.beta[0] - 1.0) / 0.5)
-        locations = np.array(context.beta_locations[1:])  # (d − 1,)
-        scales = np.array(context.beta_scales[1:])  # (d − 1,)
+        locations = np.array(prior.beta_locations[1:])  # (d − 1,)
+        scales = np.array(prior.beta_scales[1:])  # (d − 1,)
         standardized = (parameters.beta[1:] - locations) / scales
         slopes.extend(standardized)
     assert _ksDistance(intercepts, cdf) < 1.63 / math.sqrt(DRAWS)
@@ -571,10 +571,10 @@ def test_the_log_ratio_of_two_scales_in_a_block_is_normal_at_root_2_scale_spread
     slopes = []
     effects = []
     for _ in range(DRAWS):
-        context = glmm.drawContext('poisson', FACTOR_BLOCKS, rng)
-        first, second = context.beta_scales[1:3]
+        prior = glmm.drawPrior('poisson', FACTOR_BLOCKS, rng)
+        first, second = prior.beta_scales[1:3]
         slopes.append(math.log(first / second))
-        intercept, slope = context.sigma_alpha_scales['g0'][:2]
+        intercept, slope = prior.sigma_alpha_scales['g0'][:2]
         effects.append(math.log(intercept / slope))
     for log_ratios in [slopes, effects]:
         standardized = np.array(log_ratios) / ratio_sd  # (s,)
@@ -596,10 +596,10 @@ def test_each_block_varies_with_varying_scale_share_over_many_draws() -> None:
     second = []
     for _ in range(DRAWS):
         resolved = Glmm().resolveDataset(rng)
-        context = resolved.drawContext('poisson', FACTOR_BLOCKS, rng)
-        fixed.append(_varies(context.beta_scales[1:]))
-        first.append(_varies(context.sigma_alpha_scales['g0']))
-        second.append(_varies(context.sigma_alpha_scales['g1']))
+        prior = resolved.drawPrior('poisson', FACTOR_BLOCKS, rng)
+        fixed.append(_varies(prior.beta_scales[1:]))
+        first.append(_varies(prior.sigma_alpha_scales['g0']))
+        second.append(_varies(prior.sigma_alpha_scales['g1']))
     both = np.logical_and(fixed, first)  # (s,)
     for varying, share in [(fixed, 0.5), (first, 0.5), (second, 0.5), (both, 0.25)]:
         three_sds = 3 * math.sqrt(share * (1 - share) / DRAWS)
@@ -620,9 +620,9 @@ def test_the_split_follows_fixed_share_and_the_dirichlet_over_many_draws() -> No
     first = []
     for _ in range(DRAWS):
         resolved = Glmm().resolveDataset(rng)
-        context = resolved.drawContext('bernoulli', blocks, rng)
-        fixed.append(context.split['fixed'])
-        first.append(context.split['g0'] / (1 - context.split['fixed']))
+        prior = resolved.drawPrior('bernoulli', blocks, rng)
+        fixed.append(prior.split['fixed'])
+        first.append(prior.split['g0'] / (1 - prior.split['fixed']))
     assert _ksDistance(fixed, _uniformCdf) < 1.63 / math.sqrt(DRAWS)
     assert _ksDistance(first, _uniformCdf) < 1.63 / math.sqrt(DRAWS)
 
@@ -643,14 +643,14 @@ def test_the_lkj_marginal_variance_is_1_over_2_eta_plus_q_minus_1_over_draws_sym
     rng = np.random.default_rng(1)
     draws = []
     for _ in range(DRAWS):
-        context = glmm.drawContext('bernoulli', blocks, rng)
-        parameters = context.drawParameters(rng)
+        prior = glmm.drawPrior('bernoulli', blocks, rng)
+        parameters = prior.drawParameters(rng)
         corr = parameters.corr_alpha['g0']  # (q, q)
         assert np.array_equal(corr, corr.T)
         assert np.diag(corr).tolist() == [1.0] * 4
         assert np.linalg.eigvalsh(corr).min() > 0
         draws.append(corr)
-    assert context.lkj_eta == {'g0': 2}
+    assert prior.lkj_eta == {'g0': 2}
     rows, columns = np.triu_indices(4, k=1)
     entries = np.stack(draws)[:, rows, columns]  # (s, 6)
     np.testing.assert_allclose(entries.var(axis=0), 1 / 7, rtol=0.1)
@@ -666,7 +666,7 @@ UNCORRELATED = [
 @pytest.mark.parametrize(('correlated_share', 'width'), UNCORRELATED)
 def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width: int) -> None:
     """A factor's effects are independent with probability 1 − correlated_share,
-    and always at q_k = 1 (ADR 0006): Ω is the identity and the context records no η.
+    and always at q_k = 1 (ADR 0006): Ω is the identity and the prior records no η.
     """
     glmm = Glmm(correlated_share=correlated_share, lkj_eta=2)
     resolved = glmm.resolveDataset(np.random.default_rng(0))
@@ -674,9 +674,9 @@ def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width
         Block(name='fixed', variances=[0.0, 0.5, 0.5]),
         Block(name='g0', variances=[1.0] * width, groups=5),
     ]
-    context = resolved.drawContext('poisson', blocks, np.random.default_rng(1))
-    parameters = context.drawParameters(np.random.default_rng(1))
-    assert context.lkj_eta == {'g0': None}
+    prior = resolved.drawPrior('poisson', blocks, np.random.default_rng(1))
+    parameters = prior.drawParameters(np.random.default_rng(1))
+    assert prior.lkj_eta == {'g0': None}
     assert np.array_equal(parameters.corr_alpha['g0'], np.eye(width))
 
 
@@ -684,10 +684,10 @@ def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width
     ('family', 'sigma_eps_family'),
     [('normal', 'exponential'), ('student_t', 'exponential'), ('poisson', None), ('gamma', None)],
 )
-def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_chosen_families(
+def test_the_prior_names_the_blocks_fixed_then_the_factors_in_order_and_the_chosen_families(
     family: str, sigma_eps_family: str | None
 ) -> None:
-    """metabeta reads the context by block name and conditions on the families chosen.
+    """metabeta reads the prior by block name and conditions on the families chosen.
     The random-effect sds and the residual sd each have their own family, as brms states them,
     and a family without a residual has no residual family.
     Each factor's parameters are sized by its block: q sds, a q × q correlation, a row per group.
@@ -697,12 +697,12 @@ def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_ch
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'exponential', Glm),
     )
     resolved = glmm.resolveDataset(np.random.default_rng(0))
-    context = resolved.drawContext(family, FACTOR_BLOCKS, np.random.default_rng(0))
-    parameters = context.drawParameters(np.random.default_rng(0))
-    assert list(context.split) == ['fixed', 'g0', 'g1']
-    assert list(context.sigma_alpha_scales) == list(context.lkj_eta) == ['g0', 'g1']
+    prior = resolved.drawPrior(family, FACTOR_BLOCKS, np.random.default_rng(0))
+    parameters = prior.drawParameters(np.random.default_rng(0))
+    assert list(prior.split) == ['fixed', 'g0', 'g1']
+    assert list(prior.sigma_alpha_scales) == list(prior.lkj_eta) == ['g0', 'g1']
     assert list(parameters.alpha) == ['g0', 'g1']
-    assert (context.sigma_alpha_family, context.sigma_eps_family) == (
+    assert (prior.sigma_alpha_family, prior.sigma_eps_family) == (
         'half_cauchy',
         sigma_eps_family,
     )
@@ -713,18 +713,18 @@ def test_the_context_names_the_blocks_fixed_then_the_factors_in_order_and_the_ch
         assert parameters.alpha[block.name].shape == (block.groups, q)
 
 
-def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_context_draws_alone() -> None:
+def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_prior_draws_alone() -> None:
     """A dataset is a pure function of its key, its parameters included.
-    The context is the stated prior and keeps the blocks it was set over,
+    The prior keeps the blocks it was set over,
     so it draws its parameters without the config, and a truth is resampled under a fixed prior.
     """
     resolved = Glmm(correlated_share=1.0).resolveDataset(np.random.default_rng(0))
-    first_context = resolved.drawContext('normal', FACTOR_BLOCKS, np.random.default_rng(7))
-    second_context = resolved.drawContext('normal', FACTOR_BLOCKS, np.random.default_rng(7))
-    assert first_context == second_context
-    assert first_context.blocks == FACTOR_BLOCKS
-    first = first_context.drawParameters(np.random.default_rng(8))
-    second = first_context.drawParameters(np.random.default_rng(8))
+    first_prior = resolved.drawPrior('normal', FACTOR_BLOCKS, np.random.default_rng(7))
+    second_prior = resolved.drawPrior('normal', FACTOR_BLOCKS, np.random.default_rng(7))
+    assert first_prior == second_prior
+    assert first_prior.blocks == FACTOR_BLOCKS
+    first = first_prior.drawParameters(np.random.default_rng(8))
+    second = first_prior.drawParameters(np.random.default_rng(8))
     assert first.beta.tobytes() == second.beta.tobytes()
     assert first.sigma_eps == second.sigma_eps
     for name in ['g0', 'g1']:
@@ -744,25 +744,25 @@ SHAPE_SUPPORTS = [
 
 
 @pytest.mark.parametrize(('family', 'low', 'high'), SHAPE_SUPPORTS)
-def test_the_context_records_the_chosen_familys_shape_from_its_own_field(
+def test_the_prior_records_the_chosen_familys_shape_from_its_own_field(
     family: str, low: float, high: float
 ) -> None:
-    """A fitter of the family conditions on its second parameter, so the context holds it,
+    """A fitter of the family conditions on its second parameter, so the prior holds it,
     drawn from the field of the chosen family and from no other: a point is taken as given.
     """
     blocks = [Block(name='fixed', variances=[0.0, 1.0])]
     resolved = Glm().resolveDataset(np.random.default_rng(0))
     shapes = []
     for seed in range(20):
-        context = resolved.drawContext(family, blocks, np.random.default_rng(seed))
-        shapes.append(context.family_shape)
+        prior = resolved.drawPrior(family, blocks, np.random.default_rng(seed))
+        shapes.append(prior.family_shape)
     assert low <= min(shapes) < max(shapes) <= high
     field = CONTAMINATED[family]
     pointed = Glm(**{field: 4.0}).resolveDataset(np.random.default_rng(0))
-    assert pointed.drawContext(family, blocks, np.random.default_rng(0)).family_shape == 4.0
+    assert pointed.drawPrior(family, blocks, np.random.default_rng(0)).family_shape == 4.0
     others = {other: 4.0 for other in CONTAMINATED.values() if other != field}
     free = Glm(**others).resolveDataset(np.random.default_rng(0))
-    assert low <= free.drawContext(family, blocks, np.random.default_rng(0)).family_shape <= high
+    assert low <= free.drawPrior(family, blocks, np.random.default_rng(0)).family_shape <= high
 
 
 @pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson'])
@@ -777,23 +777,23 @@ def test_a_base_family_has_no_shape_and_consumes_no_draw_for_one(family: str) ->
     )
     free_rng = np.random.default_rng(1)
     fixed_rng = np.random.default_rng(1)
-    free_context = free.drawContext(family, blocks, free_rng)
-    fixed_context = fixed.drawContext(family, blocks, fixed_rng)
-    assert free_context.family_shape is None
-    assert free_context == fixed_context
+    free_prior = free.drawPrior(family, blocks, free_rng)
+    fixed_prior = fixed.drawPrior(family, blocks, fixed_rng)
+    assert free_prior.family_shape is None
+    assert free_prior == fixed_prior
     assert free_rng.random() == fixed_rng.random()
 
 
 @pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson', *CONTAMINATED])
-def test_the_parameters_record_the_contexts_shape_and_a_residual_only_where_the_family_has_one(
+def test_the_parameters_record_the_priors_shape_and_a_residual_only_where_the_family_has_one(
     family: str,
 ) -> None:
     """The shape is the truth's second parameter beside β, fixed when a truth is resampled
-    under the context; only the Normal and Student-t families have a σ_ε.
+    under the prior; only the Normal and Student-t families have a σ_ε.
     """
     blocks = [Block(name='fixed', variances=[0.0, 1.0])]
     resolved = Glm().resolveDataset(np.random.default_rng(0))
-    context = resolved.drawContext(family, blocks, np.random.default_rng(0))
-    parameters = context.drawParameters(np.random.default_rng(1))
-    assert parameters.family_shape == context.family_shape
+    prior = resolved.drawPrior(family, blocks, np.random.default_rng(0))
+    parameters = prior.drawParameters(np.random.default_rng(1))
+    assert parameters.family_shape == prior.family_shape
     assert (parameters.sigma_eps is not None) == (family in ['normal', 'student_t'])

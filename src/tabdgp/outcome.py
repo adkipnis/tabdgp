@@ -15,8 +15,8 @@ the covariates at the rows, their metadata, the grouping and the score  Covariat
    a GLMM's, a GLM's without factors:
    -> the design matrix, the intercept first                            codeDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
-   -> the stated prior over the blocks, then its parameters             Glm.drawContext,
-                                                                        PriorContext.drawParameters
+   -> the stated prior over the blocks, then its parameters             Glm.drawPrior,
+                                                                        Prior.drawParameters
    -> η = Xβ + Σ_k Z_k α_k, plus the deviation λ · sd(Xβ + Σ_k Z_k α_k) · score,
       then y from the family through its link                           _drawGlmm
    a study's:
@@ -34,7 +34,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping
 from tabdgp.hyperprior import Model
-from tabdgp.prior import Block, Glm, Glmm, PriorContext
+from tabdgp.prior import Block, Glm, Glmm, Prior
 
 # =====================================================================================
 # the checks
@@ -349,7 +349,7 @@ class GlmOutcome(Outcome):
     family: str  # a category of Glm's family_shares
     link: str  # the family's canonical link
     fixed_terms: list[str]  # the design's names
-    context: PriorContext
+    prior: Prior
     beta: np.ndarray  # (d,) float32
     sigma_eps: float | None  # None unless the family is Normal or Student-t
     family_shape: float | None  # the second parameter, None for Normal, Bernoulli and Poisson
@@ -664,8 +664,8 @@ def _drawGlmm(
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
         resolved, design, covariates.grouping, factors, rng
     )
-    context = resolved.drawContext(name, [fixed, *random_blocks], rng)
-    parameters = context.drawParameters(rng)
+    prior = resolved.drawPrior(name, [fixed, *random_blocks], rng)
+    parameters = prior.drawParameters(rng)
     # η in float64 from the float32 parameters, which are so its exact truth
     eta = design.matrix @ parameters.beta  # (n,)
     for factor, z in random_columns.items():
@@ -687,7 +687,7 @@ def _drawGlmm(
         'family': name,
         'link': family.LINK,
         'fixed_terms': design.names,
-        'context': context,
+        'prior': prior,
         'beta': parameters.beta,
         'sigma_eps': parameters.sigma_eps,
         'family_shape': parameters.family_shape,

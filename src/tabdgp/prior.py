@@ -31,9 +31,9 @@ the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point per field drawn once per dataset                   Glm.resolveDataset
    (later: each factor's q_k and LKJ shape, the family's shape)
--> the prior for y's family over the blocks                   Glm.drawContext
--> β and σ_ε                                                  PriorContext.drawParameters
--> each factor's σ_α, Ω and α per group                       PriorContext._drawRandomEffects
+-> the prior for y's family over the blocks                   Glm.drawPrior
+-> β and σ_ε                                                  Prior.drawParameters
+-> each factor's σ_α, Ω and α per group                       Prior._drawRandomEffects
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class Parameters:
 
 
 @pydantic_dataclass(frozen=True)
-class PriorContext:
+class Prior:
     """The prior from which model parameters are drawn:
 
     - Fixed effects: family, locations, scales
@@ -216,7 +216,7 @@ SD_FAMILY_SHARES = {
 
 class Glm(Config):
     """The hyperprior of a generalized linear model (GLM),
-    from which drawContext draws the prior of its parameters:
+    from which drawPrior draws the prior of its parameters:
 
     - Families: of y (with its canonical link), of β and of σ_ε
     - Locations: the intercept's (on the link scale) and some slopes'
@@ -280,9 +280,7 @@ class Glm(Config):
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
 
-    def drawContext(
-        self, family: str, blocks: list[Block], rng: np.random.Generator
-    ) -> PriorContext:
+    def drawPrior(self, family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior for y's family over the blocks, on a resolved Glm."""
         beta_family = self.beta_family_shares.choose(rng)
         sigma_eps_family = None
@@ -305,7 +303,7 @@ class Glm(Config):
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed, what Xβ adds to var(eta)
         slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
         sigma_alpha_scales = self._drawSigmaAlphaScales(factors, predictor_sd, split, rng)
-        return PriorContext(
+        return Prior(
             beta_family=beta_family,
             beta_locations=[self.intercept_location, *slope_locations],
             beta_scales=[self.intercept_scale, *slope_scales],
