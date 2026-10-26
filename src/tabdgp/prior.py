@@ -83,7 +83,7 @@ class Parameters:
 
     beta: np.ndarray  # (d,) intercept first
     sigma_eps: float | None  # None unless the family is Normal or Student-t
-    family_shape: float | None  # the second parameter (None for Normal, Bernoulli and Poisson)
+    family_shape: float | None  # the optional second likelihood parameter
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -100,13 +100,13 @@ class PriorContext:
     """
 
     beta_family: str
-    beta_locations: list[float]  # μ_β, (d,) intercept first
-    beta_scales: list[float]  # σ_β, (d,) intercept first
+    beta_locations: list[float]  # ν_β, (d,) intercept first
+    beta_scales: list[float]  # τ_β, (d,) intercept first
     sigma_alpha_family: str | None  # None on a GLM
-    sigma_alpha_scales: dict[str, list[float]]  # s_α, σ_α's prior scale, (q,) by factor
+    sigma_alpha_scales: dict[str, list[float]]  # τ_α, σ_α's prior scale, (q,) by factor
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
-    sigma_eps_scale: float | None  # s_ε, σ_ε's prior scale, None unless the family has a residual
+    sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
     family_shape: float | None  # the second parameter (None for Normal, Bernoulli and Poisson)
     signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
     predictor_sd: float  # τ, the sd of eta without the intercept
@@ -213,7 +213,7 @@ class PriorContext:
 # the families of σ_α and σ_ε, uniform
 SD_FAMILY_SHARES = {
     'half_normal': 0.25,
-    'half_student_t': 0.25,  # ν = 3
+    'half_student_t': 0.25,  # df = 3
     'half_cauchy': 0.25,
     'exponential': 0.25,
 }
@@ -226,10 +226,10 @@ class Glm(Config):
     - Locations: the intercept's (on the link scale) and each slope's (mostly zero).
     - Scales: τ is the sd of eta without the intercept.
       For Normal and Student-t outcomes τ² = r, the share of y's variance eta explains,
-      so y has unit variance (ν / (ν − 2) for Student-t).
+      so y has unit variance (df / (df − 2) for Student-t).
       Each slope's or random effect's scale is its block's,
       times a log-normal weight if the block varies.
-      Each scale is its family's scale parameter, e.g. E[σ_ε²] = s_ε² E[X²],
+      Each scale is its family's scale parameter, e.g. E[σ_ε²] = τ_ε² E[X²],
       X the standard law of σ_ε's family.
     - Shape: the second parameter of a family at share zero, resolved for the chosen one only.
     - Deviation: the score added to eta, scaled by λ · sd(Xβ + Σ_k Z_k α_k) over the rows.
@@ -264,8 +264,8 @@ class Glm(Config):
     }
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # σ_ε's family
-    intercept_location: Real = Uniform(-3, 3)  # μ_0, on the link scale
-    intercept_scale: NonNegative = LogUniform(0.1, 10)  # σ_0
+    intercept_location: Real = Uniform(-3, 3)  # ν_0, on the link scale
+    intercept_scale: NonNegative = LogUniform(0.1, 10)  # τ_0
     location_share: Share = 0.1  # the probability that a slope has a location
     location_scale: NonNegative = 2.0  # a located slope's location, in its own scale, is N(0, this)
     varying_scale_share: Share = 0.5  # the probability that a block's scales vary per coefficient
@@ -273,7 +273,7 @@ class Glm(Config):
     signal_share: Share = Beta(2, 2)  # r
     predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ, unless the family is Normal or Student-t
     deviation_scale: NonNegative = 0.0  # λ
-    residual_df: Positive = LogUniform(3, 10)  # ν of the Student-t family
+    residual_df: Positive = LogUniform(3, 10)  # of the Student-t family
     dispersion: Positive = LogUniform(1, 10)  # φ of the negative binomial, variance μ + μ² / φ
     latent_scale: NonNegative = LogUniform(0.5, 2)  # σ_c of the latent-noise Bernoulli
     gamma_shape: Positive = LogUniform(1, 10)
@@ -304,7 +304,7 @@ class Glm(Config):
         if family in ['normal', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
-            # τ² = r and s_ε² = 1 − r, so that y has unit variance at the scales
+            # τ² = r and τ_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             sigma_eps_scale = math.sqrt(1 - self.signal_share)
         sigma_alpha_family = self._drawSigmaAlphaFamily(rng)
@@ -344,8 +344,8 @@ class Glm(Config):
     def _drawSlopes(
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[list[float], list[float]]:
-        """Draws each slope's location μ_j = δ_j σ_j and scale σ_j,
-        the scales spending the budget Σ_j σ_j² (1 + δ_j²) var_j,
+        """Draws each slope's location ν_j = δ_j τ_j and scale τ_j,
+        the scales spending the budget Σ_j τ_j² (1 + δ_j²) var_j,
         what Xβ adds to var(eta) for a Normal β (a heavier-tailed β adds more).
         """
         slopes = fixed.width - 1
@@ -353,7 +353,7 @@ class Glm(Config):
         offsets = rng.normal(0, self.location_scale, slopes)  # (d − 1,) δ_j of a located slope
         delta = np.where(located, offsets, 0.0)  # (d − 1,)
         column_variances = np.array(fixed.variances[1:])  # (d − 1,) var_j
-        variances = (1 + delta**2) * column_variances  # (d − 1,) E[β_j²] var_j at σ_j = 1
+        variances = (1 + delta**2) * column_variances  # (d − 1,) E[β_j²] var_j at τ_j = 1
         slope_scales = self._drawScales(variances, budget, rng)  # (d − 1,)
         slope_locations = delta * slope_scales  # (d − 1,)
         return slope_locations.tolist(), slope_scales.tolist()

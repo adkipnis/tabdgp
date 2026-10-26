@@ -530,7 +530,7 @@ LAWS = [
     pytest.param(Normal, 1.5, None, 1.5, 1.0, id='normal: the identity'),
     pytest.param(Bernoulli, math.log(3), None, 0.75, 0.75 * 0.25, id='bernoulli: the logit'),
     pytest.param(Poisson, math.log(4), None, 4.0, 4.0, id='poisson: the log'),
-    pytest.param(StudentT, 1.5, 10.0, 1.5, 10 / 8, id='student_t: ν / (ν − 2) at σ_ε = 1'),
+    pytest.param(StudentT, 1.5, 10.0, 1.5, 10 / 8, id='student_t: df / (df − 2) at σ_ε = 1'),
     pytest.param(
         NegativeBinomial,
         math.log(4),

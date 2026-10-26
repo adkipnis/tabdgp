@@ -502,7 +502,7 @@ def test_from_pandas_reads_a_datasets_table_with_its_metadata_into_its_columns_a
 
 def test_to_design_is_the_coding_the_glm_used() -> None:
     """The truth refers to the design matrix a user fits on, which toDesign returns.
-    At r = 1, s_ε and so σ_ε are 0, and y is η = Xβ in float32, exactly.
+    At r = 1, τ_ε and so σ_ε are 0, and y is η = Xβ in float32, exactly.
     On grouped covariates the factors are no term.
     """
     glm = Glm(family_shares=point('family_shares', 'normal', Glm), signal_share=1.0)
@@ -648,7 +648,7 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     return column is not None and column.levels is not None and column.levels > min(groups)
 
 
-GLM_OVERRIDE = Glm(intercept_scale=0.5, deviation_scale=0.3)  # σ_0 in the context, λ beside it
+GLM_OVERRIDE = Glm(intercept_scale=0.5, deviation_scale=0.3)  # τ_0 in the context, λ beside it
 GLMM_OVERRIDE = Glmm(random_effects=1)  # every factor's intercept alone
 
 

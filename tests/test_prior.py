@@ -51,7 +51,7 @@ DEFAULTS = {
     'signal_share': Beta(2, 2),
     'predictor_sd': LogUniform(0.25, 4),
     'deviation_scale': 0.0,
-    'residual_df': LogUniform(3, 10),  # ν
+    'residual_df': LogUniform(3, 10),  # df
     'dispersion': LogUniform(1, 10),  # φ
     'latent_scale': LogUniform(0.5, 2),  # σ_c
     'gamma_shape': LogUniform(1, 10),
@@ -103,7 +103,7 @@ def test_the_contaminated_families_are_the_last_categories_each_with_a_shape_fie
 def test_a_shape_that_is_negative_cannot_be_written_and_only_a_latent_scale_may_be_zero(
     field: str,
 ) -> None:
-    """ν, φ, the Gamma shape and the beta precision are positive, where numpy fails at 0;
+    """df, φ, the Gamma shape and the beta precision are positive, where numpy fails at 0;
     σ_c = 0 is the plain Bernoulli.
     """
     with pytest.raises(ValidationError, match=field):
@@ -198,7 +198,7 @@ IDENTITIES = [
         0.6,
         0.4,
         0.8,
-        id='normal: τ² = r, σ_β = τ / 1.5, s_ε = √(1 − r)',
+        id='normal: τ² = r, τ_β = τ / 1.5, τ_ε = √(1 − r)',
     ),
     pytest.param(
         'student_t',
@@ -207,21 +207,21 @@ IDENTITIES = [
         0.6,
         0.4,
         0.8,
-        id='student_t: drawn like the Normal, τ² = r, s_ε = √(1 − r)',
+        id='student_t: drawn like the Normal, τ² = r, τ_ε = √(1 − r)',
     ),
     pytest.param(
-        'bernoulli', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='bernoulli: τ as drawn, no r or s_ε'
+        'bernoulli', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='bernoulli: τ as drawn, no r or τ_ε'
     ),
     pytest.param(
-        'poisson', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='poisson: τ as drawn, no r or s_ε'
+        'poisson', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='poisson: τ as drawn, no r or τ_ε'
     ),
     *[
         pytest.param(
-            family, THREE_QUARTERS, None, 2.0, 4 / 3, None, id=f'{family}: τ as drawn, no r or s_ε'
+            family, THREE_QUARTERS, None, 2.0, 4 / 3, None, id=f'{family}: τ as drawn, no r or τ_ε'
         )
         for family in ['negative_binomial', 'latent_bernoulli', 'gamma', 'beta']
     ],
-    pytest.param('poisson', [0.0], None, 2.0, 0.0, None, id='no covariate column: σ_β = 0'),
+    pytest.param('poisson', [0.0], None, 2.0, 0.0, None, id='no covariate column: τ_β = 0'),
 ]
 
 
@@ -236,12 +236,12 @@ def test_the_joint_draws_identities_hold(
     scale: float,
     sigma_eps_scale: float | None,
 ) -> None:
-    """ADR 0006's scales as the comment on #46 amended them: σ_β = τ √(φ_fixed / tr cov X),
+    """ADR 0006's scales as the comment on #46 amended them: τ_β = τ √(φ_fixed / tr cov X),
     with φ_fixed = 1 for a GLM, so the fixed block realizes var(Xβ) = τ² on any coding.
     Only the Normal and Student-t families have a residual scale, and the Normal's y then has
     unit variance at the scales. r sets nothing under the other families, so the context
     records none there.
-    An intercept-only design has no slope for σ_β to scale.
+    An intercept-only design has no slope for τ_β to scale.
     In the block case and without a located slope, every slope has the block's scale and
     location 0;
     the intercept's location is the field's, on the link scale.
@@ -268,9 +268,9 @@ def test_the_joint_draws_identities_hold(
 
 
 def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
-    """The comment on #46: σ_β = τ √(φ_fixed / tr cov X) and s_α,k = τ √(φ_k / tr E[z_k z_k']).
+    """The comment on #46: τ_β = τ √(φ_fixed / tr cov X) and τ_α,k = τ √(φ_k / tr E[z_k z_k']).
     One factor takes all of 1 − φ_fixed, so every scale is known:
-    τ = √0.36 = 0.6, σ_β = 0.6 · √(0.64 / 2.25) = 0.32 and s_α = 0.6 · √(0.36 / 4) = 0.18.
+    τ = √0.36 = 0.6, τ_β = 0.6 · √(0.64 / 2.25) = 0.32 and τ_α = 0.6 · √(0.36 / 4) = 0.18.
     """
     glmm = Glmm(
         signal_share=0.36,
@@ -292,7 +292,7 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
 
 def _spent(context: PriorContext, block: Block) -> float:
     """What a block's term adds to var(η) in expectation at the context's scales and locations:
-    E[β_j²] var_j = (σ_j² + μ_j²) var_j per slope, s_α,j² E[z_j²] per random effect.
+    E[β_j²] var_j = (τ_j² + ν_j²) var_j per slope, τ_α,j² E[z_j²] per random effect.
     """
     if block.name == 'fixed':
         slopes = zip(context.beta_locations[1:], context.beta_scales[1:], block.variances[1:])
@@ -367,9 +367,9 @@ def test_each_blocks_scales_vary_at_varying_scale_share_1_and_share_one_at_0(
 
 
 def test_located_and_varying_scales_spend_each_blocks_budget_exactly() -> None:
-    """ADR 0006's amendments: σ_j = σ_β w_j and μ_j = δ_j σ_j over the slopes,
-    s_k,j = s_k w_k,j over a factor's effects, each block's scale solved from its budget,
-    σ_β² Σ_j w_j² (1 + δ_j²) var_j = τ² φ_fixed and s_k² Σ_j w_k,j² E[z_j²] = τ² φ_k.
+    """ADR 0006's amendments: τ_j = s_β w_j and ν_j = δ_j τ_j over the slopes,
+    τ_k,j = s_k w_k,j over a factor's effects, each block's scale solved from its budget,
+    s_β² Σ_j w_j² (1 + δ_j²) var_j = τ² φ_fixed and s_k² Σ_j w_k,j² E[z_j²] = τ² φ_k.
     So a location or a weight moves the scales around but never what a block adds to var(η)
     in expectation, and the constant column costs nothing.
     """
@@ -396,7 +396,7 @@ def _halfNormalCdf(x: float) -> float:
 
 
 def _halfStudentT3Cdf(x: float) -> float:
-    # twice Student's t CDF at ν = 3 minus 1, in closed form
+    # twice Student's t CDF at df = 3 minus 1, in closed form
     t = x / math.sqrt(3)
     return 2 / math.pi * (t / (1 + t**2) + math.atan(t))
 
@@ -442,15 +442,15 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
 ) -> None:
     """Given the context, each parameter is drawn from its stated family exactly (ADR 0006),
     nothing clipped or rescaled, so metabeta's posterior conditions on the true prior.
-    σ_ε / s_ε and each σ_α / s_α follow F's standard law, the intercept N(0, σ_0),
-    each slope N(0, σ_β) and each random effect N(0, σ_α) given its σ_α.
+    σ_ε / τ_ε and each σ_α / τ_α follow F's standard law, the intercept N(0, τ_0),
+    each slope N(0, τ_β) and each random effect N(0, σ_α) given its σ_α.
     The KS bound is the 1 % critical value at the number of draws.
     """
     glmm = Glmm(
         beta_family_shares=point('beta_family_shares', 'normal', Glm),
         sigma_eps_family_shares=point('sigma_eps_family_shares', sd_family, Glm),
         sigma_alpha_family_shares=point('sigma_alpha_family_shares', sd_family, Glmm),
-        signal_share=0.36,  # τ = 0.6, s_ε = 0.8
+        signal_share=0.36,  # τ = 0.6, τ_ε = 0.8
         intercept_location=0.0,
         intercept_scale=1.5,
         location_share=0.0,
@@ -458,7 +458,7 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
         correlated_share=0.0,
         varying_scale_share=0.0,
     )
-    # each block's share 0.5 over its variance 0.18 gives σ_β = s_α = 0.6 · √(0.5 / 0.18) = 1
+    # each block's share 0.5 over its variance 0.18 gives τ_β = τ_α = 0.6 · √(0.5 / 0.18) = 1
     blocks = [
         Block(name='fixed', variances=[0.0, 0.09, 0.09]),
         Block(name='g0', variances=[0.09, 0.09], groups=5),
@@ -489,7 +489,7 @@ def test_a_slope_is_located_with_location_share_and_its_relative_location_is_nor
     None
 ):
     """The survey's stated hypotheses are rare and sit a few scales out, so by default
-    each slope has a location with probability 0.1, and then μ_j / σ_j ~ N(0, 2).
+    each slope has a location with probability 0.1, and then ν_j / τ_j ~ N(0, 2).
     """
     fixed = Block(name='fixed', variances=[0.0, 1.0, 1.0, 1.0, 1.0, 1.0])
     rng = np.random.default_rng(1)  # seed 0's first 10,000 slopes land 3.8 sd above 0.1
@@ -525,8 +525,8 @@ def test_each_fixed_effect_follows_the_beta_family_at_its_recorded_location_and_
     beta_family: str, cdf: Callable[[float], float]
 ) -> None:
     """The intercept and each slope are drawn from the β family the context names,
-    at the location and scale it records for them, so (β_j − μ_j) / σ_j follows the family's
-    standard law, Student-t at ν = 3, whatever the locations and the spread.
+    at the location and scale it records for them, so (β_j − ν_j) / τ_j follows the family's
+    standard law, Student-t at df = 3, whatever the locations and the spread.
     """
     glm = Glm(
         beta_family_shares=point('beta_family_shares', beta_family, Glm),
@@ -735,7 +735,7 @@ def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_context_draws
 
 # the support of each contaminated family's default shape field
 SHAPE_SUPPORTS = [
-    pytest.param('student_t', 3, 10, id='ν'),
+    pytest.param('student_t', 3, 10, id='df'),
     pytest.param('negative_binomial', 1, 10, id='φ'),
     pytest.param('latent_bernoulli', 0.5, 2, id='σ_c'),
     pytest.param('gamma', 1, 10, id='the Gamma shape'),

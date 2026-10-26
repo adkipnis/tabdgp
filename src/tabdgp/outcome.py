@@ -526,7 +526,7 @@ class Poisson:
 
 
 class StudentT:
-    """y = η + σ_ε t_ν, the identity link, the shape ν."""
+    """y = η + σ_ε t_df, the identity link, the shape df."""
 
     LINK = 'identity'
     COLUMN = Column(type='continuous', role='outcome')
