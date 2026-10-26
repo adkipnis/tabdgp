@@ -243,8 +243,8 @@ _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it),
 The prior of a GLM's or GLMM's parameters, resolved per dataset and stored with it: what a
 fitter would state.
 It holds the family of the fixed effects, the location and scale of the intercept and of each
-slope, the family and scale of each factor's random-effect standard deviations, the family and
-scale of the residual, and the shape of each correlation prior.
+slope, the family of each factor's random-effect standard deviations and the scale of each, the
+family and scale of the residual, and the shape of each correlation prior.
 A slope's location is zero for most slopes and a hypothesis for the rest.
 It also holds the signal share and the split that set the scales.
 It draws the parameters on its own, so a truth can be resampled under a fixed prior.
