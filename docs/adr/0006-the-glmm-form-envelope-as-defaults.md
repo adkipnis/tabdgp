@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect; 2026-10-26, #56: the scales vary per coefficient by default, β's and σ_α's alike
 ---
 
 # 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
@@ -181,9 +181,10 @@ below are what the fourth fingerprint pins after ticket A; nothing the proofs ce
 - **A scale per slope, as an override.** σ_j = σ_β w_j with log w_j ~ N(0, `scale_spread`)
   and σ_β solved from the budget, σ_β² Σ_j w_j² (1 + δ_j²) var_j = τ² φ_fixed, so a constant
   design column is harmless and no column's variance divides anything (R2D2M2's Dirichlet
-  split, σ_j² ∝ φ_j / var_j, gives a rare dummy a huge scale). The default spread is 0, the
+  split, σ_j² ∝ φ_j / var_j, gives a rare dummy a huge scale). The default spread was 0 (until the
+  amendment of 2026-10-26), the
   block case metasurv's ADR 0008 trains on; `Glmm(scale_spread=Uniform(0, 2))` is its
-  planned ablation, in one override. The default draws one scale per random block, brms's
+  planned ablation, in one override. The default drew one scale per random block (until 2026-10-26), brms's
   one prior for class `sd`; the context states one per random effect, as brms's `coef` can
   (the survey's rehrig_2020 and trouve_2018 give the intercept's sd a prior of its own).
 - **σ_α and σ_ε apart.** `sigma_alpha_family_shares` on `Glmm` and `sigma_eps_family_shares`
@@ -244,3 +245,40 @@ below are what the fourth fingerprint pins after ticket A; nothing the proofs ce
   mixed ADR 0001; mixed ADR 0003 names two tokens and the intercept's drawn family with a
   location; `envelope.md`'s prior table follows. metabeta's default corpus gains the β
   family token and the location axes, nothing else.
+
+## Amendment 2026-10-26: the scales vary per coefficient by default
+
+#56's read of `prior` gave the context a scale per random effect, since a brms user can state
+one (`class = sd, coef = …`; the survey's rehrig_2020 and trouve_2018 give the intercept's sd a
+prior apart from the slopes'). Alex's rule for the default followed: an amortized model must
+amortize over the priors a user may state, with the common one a special case of them. The
+decision is: **each block's prior scales vary per coefficient by default. With probability
+`varying_scale_share` (0.5) a block draws a log-normal weight per coefficient at `scale_spread`
+(`Uniform(0, 2)`, resolved once per dataset); otherwise its coefficients share one scale. The
+block's budget solves its scale exactly either way.**
+
+- **One rule for both blocks.** β: σ_j = σ_β w_j over the slopes, as before; the intercept keeps
+  σ_0. σ_α: s_k,j = s_k w_k,j over all of factor k's random effects, the intercept's among them,
+  with s_k² Σ_j w_k,j² E[z_j²] = τ² φ_k. The fixed block and each factor gate on their own.
+- **The block case** (one scale per block, what most users state) is the gate's other branch,
+  and a whole corpus under `varying_scale_share=0`.
+- **The defaults are guesses.** The share is 0.5. The spread is the value this ADR planned for
+  β's ablation; the survey's two witnesses state intercept-to-slope sd scales 2.5 and 5 apart,
+  log-ratios of 0.9 and 1.6, and the log-ratio of two weights has sd √2 · spread.
+- **The families stay per block:** one for β, one per factor for σ_α.
+
+### Considered options
+
+- **A continuous spread without a gate:** equal scales only in the limit, so the case most
+  users state has no mass of its own.
+- **β left at the block case,** metasurv's ADR 0008's training draw: an amortized model that
+  never sees per-slope scales cannot condition on them. A block-case corpus stays one override.
+- **A family per random effect** (rehrig_2020 states two): rare, deferred.
+
+### Consequences
+
+- `scale_spread`'s default moves from 0 to `Uniform(0, 2)` and `varying_scale_share` is new; the
+  glmm and glm draws move (the README's quickstart boxes with them), the scm and none forms'
+  stand.
+- metasurv's ADR 0008 and metabeta's `envelope.md` record that the default corpus varies per
+  coefficient; a block-draw prototype passes `varying_scale_share=0`.
