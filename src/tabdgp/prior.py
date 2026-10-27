@@ -6,8 +6,8 @@ A generalized linear mixed model (GLMM) adds random effects for each grouping fa
 eta = Xβ + Σ_k Z_k α_k, so each group gets its own additional intercept (and optionally slopes).
 This module samples priors and parameters for these models.
 
-We draw at three levels, the prior from the hyperprior and the parameters from the prior:
-- **Hyperprior (Glm, Glmm):** a default per field, which an override replaces.
+We draw at three levels, hyperprior -> prior -> parameters:
+- **Hyperprior (Glm, Glmm):** a default per field (which an override replaces).
 - **Prior:** the stated model and priors (including y's family and shape),
   which a fitter may take as true or replace with its own.
 - **Parameters:** what a fitter estimates (e.g. β, σ_α).
@@ -360,8 +360,7 @@ class Glm(Config):
         delta = np.where(located, offsets, 0.0)
         column_variances = np.array(fixed.variances[1:])  # var_j
         # a slope adds β_j² * var_j to var(eta); E[β_j²] = τ_j² * (1 + δ_j²) at a Normal β
-        # heavier tails overshoot the budget (Student-t(3) triples the variance, Cauchy has none),
-        # since τ_j stays the family's scale parameter (as for σ_α and σ_ε)
+        # heavier tails overshoot the budget (Student-t triples the variance, Cauchy has none),
         variances = (1 + delta**2) * column_variances  # at τ_j = 1
         slope_scales = self._drawScales(variances, budget, rng)
         slope_locations = delta * slope_scales
