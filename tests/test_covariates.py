@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from tabdgp.column import Column
 from tabdgp.covariates import Covariates
-from tests.fixtures.build import Y, columnsOf, groupingOf
+from tests.fixtures.build import columnsOf, groupingOf
 
 # four rows in two groups of g0, one continuous covariate x0 and the score
 GROUPING = groupingOf([[0, 0, 1, 1]])
@@ -50,14 +50,7 @@ UNFIT = [
         'metadata',
         id='metadata without a column',
     ),
-    pytest.param(
-        {
-            'columns': FIELDS['columns'] | {'y': np.zeros(4, dtype=np.float32)},
-            'metadata': FIELDS['metadata'] | {'y': Y},
-        },
-        "'y'.*rename it",
-        id='a column named y',
-    ),
+    pytest.param(_withColumn('y'), "'y'.*rename it", id='a column named y'),
     pytest.param(
         _withColumn('intercept'),
         "'intercept'.*rename it",
@@ -79,6 +72,16 @@ def test_covariates_refuse_arrays_of_two_lengths_a_name_without_metadata_and_a_r
     """
     with pytest.raises(ValidationError, match=match):
         Covariates(**FIELDS | change)
+
+
+def test_covariates_without_a_column_count_their_rows_by_the_score() -> None:
+    """A flat draw without covariates has only the score,
+    and an intercept-only GLM on it still needs n.
+    """
+    covariates = Covariates(
+        columns={}, metadata={}, grouping=groupingOf([]), score=np.zeros(5, dtype=np.float32)
+    )
+    assert covariates.rows == 5
 
 
 # eight rows: classes coded as integers nested in two schools named after them,
@@ -143,6 +146,25 @@ def test_from_pandas_reads_types_levels_codes_and_nesting_from_a_data_frame() ->
     assert list(covariates.grouping.metadata) == factors
 
 
+# a pupil per row lies within the four classes and the four shifts, which cross
+TIES = [
+    pytest.param(['class', 'shift', 'pupil'], 'class', id='class named first'),
+    pytest.param(['shift', 'class', 'pupil'], 'shift', id='shift named first'),
+]
+
+
+@pytest.mark.parametrize(('factors', 'superior'), TIES)
+def test_from_pandas_nests_a_factor_in_the_first_named_of_two_superiors_with_as_many_groups(
+    factors: list[str], superior: str
+) -> None:
+    """The codes cannot tell which of two crossed factors of four groups is a pupil's superior,
+    so the order the factors are named in decides.
+    """
+    table = TABLE.assign(pupil=range(8), shift=[0, 1, 2, 3] * 2)
+    covariates = Covariates.fromPandas(table, factors)
+    assert covariates.metadata['pupil'].nests_in == superior
+
+
 def test_from_pandas_gives_no_score() -> None:
     """A table has no SCM, so a GLM or GLMM drawn on it has no deviation."""
     assert Covariates.fromPandas(TABLE, ['class']).score is None
@@ -182,7 +204,10 @@ UNREADABLE = [
         id='a factor grouping the rows as another does',
     ),
     pytest.param(
-        'x_int', [0, -1, 5, 1, 0, 3, 4, 2], 'x_int', id='an integer column with a negative value'
+        'x_int',
+        [0, -1, 5, 1, 0, 3, 4, 2],
+        'x_int.*read it as continuous',
+        id='an integer column with a negative value',
     ),
     pytest.param(
         'x_float', pd.date_range('2026-01-01', periods=8), 'x_float', id='a datetime column'
@@ -191,15 +216,15 @@ UNREADABLE = [
 
 
 @pytest.mark.parametrize(('name', 'values', 'match'), UNREADABLE)
-def test_from_pandas_refuses_a_missing_value_a_constant_column_an_identical_partition_a_negative_integer_or_another_dtype_naming_the_column(
+def test_from_pandas_refuses_a_column_it_cannot_read_naming_it(
     name: str, values: list, match: str
 ) -> None:
     """The coder never meets a missing value or a constant column, a z-score of 0 over 0.
     Two factors that group the rows alike are one factor under two names.
     A negative integer may be a code for a missing value, so it is no count,
     and a dtype outside the five states no column type.
-    A real table meets the constant column most (an empty interaction cell, a fixed setting),
-    so its refusal says what to do.
+    A real table meets the constant column most (an empty interaction cell, a fixed setting)
+    and the negative code for a missing value too, so both refusals say what to do.
     """
     table = TABLE.assign(**{name: values})
     with pytest.raises(ValueError, match=match):
