@@ -353,7 +353,7 @@ class Glm(Config):
         offsets = rng.normal(0, self.location_scale, d - 1)  # δ_j of a located slope
         delta = np.where(located, offsets, 0.0)
         column_variances = np.array(fixed.variances[1:])  # var_j
-        # a slope adds β_j² * var_j to var(eta), and E[β_j²] = τ_j² * (1 + δ_j²) at a Normal β
+        # a slope adds β_j² * var_j to var(eta); E[β_j²] = τ_j² * (1 + δ_j²) at a Normal β
         variances = (1 + delta**2) * column_variances  # at τ_j = 1
         slope_scales = self._drawScales(variances, budget, rng)
         slope_locations = delta * slope_scales
@@ -407,12 +407,13 @@ class Glmm(Glm):
             factors, prior.predictor_sd, prior.split, rng
         )
         lkj_eta = self._drawCorrAlphaPrior(factors, rng)
-        return dataclasses.replace(
+        prior = dataclasses.replace(
             prior,
             sigma_alpha_family=sigma_alpha_family,
             sigma_alpha_scales=sigma_alpha_scales,
             lkj_eta=lkj_eta,
         )
+        return prior
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         fixed, *factors = blocks
