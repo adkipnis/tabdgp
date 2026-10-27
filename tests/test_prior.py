@@ -1,5 +1,5 @@
-"""The prior module's seams: a Glm built with overrides and resolved to points,
-and its draw of the scales and the parameters over named blocks.
+"""The prior module's seams at its three levels: a Glm or Glmm built with overrides
+and resolved to points, the prior it draws over named blocks, and the parameters that prior draws.
 """
 
 from __future__ import annotations
@@ -89,9 +89,7 @@ def test_the_fields_take_their_defaults_and_an_override() -> None:
     assert (glm.y_family_shares['poisson'], glm.signal_share) == (1.0, 0.5)
 
 
-def test_the_contaminated_families_are_the_last_categories_each_with_a_shape_field_to_override() -> (
-    None
-):
+def test_the_contaminated_families_come_last_each_with_a_shape_field_to_override() -> None:
     """A study that draws a contaminated family overrides y_family_shares like deviation_scale.
     The base three keep their places, so a share of zero never moves the choice among them,
     and each shape field takes a point or a distribution of its own.
@@ -197,8 +195,16 @@ def test_resolve_leaves_the_fields_each_factor_or_family_draws_as_given() -> Non
     assert as_distributions.random() == as_points.random()
 
 
-# r = 0.36 and τ = 2 give √r = 0.6 and √(1 − r) = 0.8; tr cov X = 2.25 gives √ 1.5
+# r = 0.36 gives √r = 0.6 and √(1 − r) = 0.8, and tr cov X = 3 × 0.75 = 2.25 gives τ_β = τ / 1.5
 THREE_QUARTERS = [0.0, 0.75, 0.75, 0.75]
+WITHOUT_RESIDUAL = [
+    'bernoulli',
+    'poisson',
+    'negative_binomial',
+    'latent_bernoulli',
+    'gamma',
+    'beta',
+]
 IDENTITIES = [
     pytest.param(
         'normal',
@@ -218,17 +224,11 @@ IDENTITIES = [
         0.8,
         id='student_t: drawn like the Normal, τ² = r, τ_ε = √(1 − r)',
     ),
-    pytest.param(
-        'bernoulli', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='bernoulli: τ as drawn, no r or τ_ε'
-    ),
-    pytest.param(
-        'poisson', THREE_QUARTERS, None, 2.0, 4 / 3, None, id='poisson: τ as drawn, no r or τ_ε'
-    ),
     *[
         pytest.param(
             family, THREE_QUARTERS, None, 2.0, 4 / 3, None, id=f'{family}: τ as drawn, no r or τ_ε'
         )
-        for family in ['negative_binomial', 'latent_bernoulli', 'gamma', 'beta']
+        for family in WITHOUT_RESIDUAL
     ],
     pytest.param('poisson', [0.0], None, 2.0, 0.0, None, id='no covariate column: τ_β = 0'),
 ]
@@ -494,9 +494,7 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     assert _ksDistance(random_effects, _standardNormalCdf) < bound
 
 
-def test_a_slope_is_located_with_location_share_and_its_relative_location_is_normal_at_location_scale() -> (
-    None
-):
+def test_a_slope_is_located_at_location_share_and_its_delta_is_normal_at_location_scale() -> None:
     """The survey's stated hypotheses are rare and sit a few scales out, so by default
     each slope has a location with probability 0.1, and then ν_j / τ_j ~ N(0, 2).
     """
@@ -555,16 +553,43 @@ def test_each_fixed_effect_follows_the_beta_family_at_its_recorded_location_and_
         assert prior.beta_family == beta_family
         intercepts.append((parameters.beta[0] - 1.0) / 0.5)
         locations = np.array(prior.beta_locations[1:])  # (d − 1,)
-        scales = np.array(prior.beta_scales[1:])  # (d − 1,)
+        scales = np.array(prior.beta_scales[1:])
         standardized = (parameters.beta[1:] - locations) / scales
         slopes.extend(standardized)
     assert _ksDistance(intercepts, cdf) < 1.63 / math.sqrt(DRAWS)
     assert _ksDistance(slopes, cdf) < 1.63 / math.sqrt(len(slopes))
 
 
+def _drawPriorAtBetaFamily(beta_family: str) -> Prior:
+    """A GLM's prior at one β family, its slopes located and their scales varying."""
+    glm = Glm(
+        beta_family_shares=point('beta_family_shares', beta_family, Glm),
+        predictor_sd=2.0,
+        location_share=1.0,
+        varying_scale_share=1.0,
+    )
+    resolved = glm.resolveDataset(np.random.default_rng(0))
+    blocks = [Block(name='fixed', variances=[0.0, 0.5, 1.0, 2.0])]
+    return _drawPriorAt(resolved, 'poisson', blocks, np.random.default_rng(1))
+
+
+@pytest.mark.parametrize('beta_family', ['student_t', 'cauchy'])
+def test_a_heavier_tailed_beta_family_keeps_the_normals_locations_and_scales(
+    beta_family: str,
+) -> None:
+    """τ_j stays the β family's scale parameter, so a heavier tail overshoots the budget
+    (Student-t triples the variance, Cauchy has none) instead of shrinking the scales to meet it.
+    """
+    normal = _drawPriorAtBetaFamily('normal')
+    heavier = _drawPriorAtBetaFamily(beta_family)
+    assert heavier.beta_family == beta_family
+    assert heavier.beta_locations == normal.beta_locations
+    assert heavier.beta_scales == normal.beta_scales
+
+
 def test_the_log_ratio_of_two_scales_in_a_block_is_normal_at_root_2_scale_spread() -> None:
     """In a block that varies, each coefficient's log weight is N(0, scale_spread),
-    so the log-ratio of two of its scales is N(0, 2 scale_spread²), whatever the block's scale.
+    so the log-ratio of two of its scales is N(0, √2 scale_spread), whatever the block's scale.
     A random intercept's scale is weighted like a slope's.
     """
     glmm = Glmm(
@@ -636,9 +661,7 @@ def test_the_split_follows_fixed_share_and_the_dirichlet_over_many_draws() -> No
     assert _ksDistance(first, _uniformCdf) < 1.63 / math.sqrt(DRAWS)
 
 
-def test_the_lkj_marginal_variance_is_1_over_2_eta_plus_q_minus_1_over_draws_symmetric_unit_diagonal_positive_definite() -> (
-    None
-):
+def test_an_lkj_draw_is_a_correlation_matrix_at_its_analytic_marginal_variance() -> None:
     """Ω comes from the C-vine of Lewandowski, Kurowicka and Joe (2009, section 3.2) in numpy,
     pinned by its analytic marginal: each off-diagonal entry has variance 1 / (2η + q − 1),
     1/7 at q = 4 and η = 2, and mean 0.
@@ -742,23 +765,13 @@ def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_prior_draws_a
         assert first.alpha[name].tobytes() == second.alpha[name].tobytes()
 
 
-# the support of each contaminated family's default shape field
-SHAPE_SUPPORTS = [
-    pytest.param('student_t', 3, 10, id='df'),
-    pytest.param('negative_binomial', 1, 10, id='φ'),
-    pytest.param('latent_bernoulli', 0.5, 2, id='σ_c'),
-    pytest.param('gamma', 1, 10, id='the Gamma shape'),
-    pytest.param('beta', 2, 50, id='the beta precision'),
-]
-
-
-@pytest.mark.parametrize(('family', 'low', 'high'), SHAPE_SUPPORTS)
-def test_the_prior_records_the_chosen_familys_shape_from_its_own_field(
-    family: str, low: float, high: float
-) -> None:
+@pytest.mark.parametrize('family', CONTAMINATED)
+def test_the_prior_records_the_chosen_familys_shape_from_its_own_field(family: str) -> None:
     """A fitter of the family conditions on its second parameter, so the prior holds it,
     drawn from the field of the chosen family and from no other: a point is taken as given.
     """
+    support = DEFAULTS[CONTAMINATED[family]]
+    low, high = support.low, support.high
     blocks = [Block(name='fixed', variances=[0.0, 1.0])]
     resolved = Glm().resolveDataset(np.random.default_rng(0))
     shapes = []
