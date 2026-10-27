@@ -124,7 +124,8 @@ harder to understand or change; it accrues one small edit at a time.
 - A pipeline that holds state (a cache, a run directory) is a class; a pipeline without state is
   module functions.
 - A data class holds its fields and the checks across them; the function that builds it is a
-  module function beside it, not a method of the class.
+  module function beside it, not a method of the class, unless it is an alternate constructor
+  from an outside format (`fromPandas`), which is a classmethod.
 - A base class holds a skeleton its subclasses inherit: fields, methods or checks. Classes that
   only an `isinstance` check groups are a union alias, not an empty base.
 
