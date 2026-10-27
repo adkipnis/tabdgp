@@ -30,7 +30,7 @@ pipeline:
 the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point per field drawn once per dataset                   Glm.resolveDataset
--> the prior for y's family over the blocks                   Glm.drawPrior
+-> y's family and its prior over the blocks                   Glm.drawPrior
 -> σ_α's family, each factor's LKJ shape and σ_α scales       Glmm.drawPrior
 -> β and σ_ε                                                  Prior.drawParameters
 -> each factor's σ_α, Ω and α per group                       Prior._drawRandomEffects
@@ -97,6 +97,7 @@ class Prior:
     - Fixed effects: family, locations, scales
     - Random effects: sd family, scales (per random effect), LKJ shape
     - Residual: family, scale (for Normal and Student-t outcomes)
+    - Response: y's family and shape
     - Budget: signal share r, predictor sd τ, each block's share φ of var(eta)
     """
 
@@ -108,6 +109,7 @@ class Prior:
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
+    y_family: str
     y_shape: float | None
     signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)
@@ -281,9 +283,10 @@ class Glm(Config):
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
 
-    def drawPrior(self, y_family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
-        """Draws the prior for y's family over the blocks after the GLM is resolved."""
-        # β's family, and optionally y's shape
+    def drawPrior(self, blocks: list[Block], rng: np.random.Generator) -> Prior:
+        """Draws y's family, then its prior over the blocks after the GLM is resolved."""
+        # y's family, β's family, and optionally y's shape
+        y_family = self.y_family_shares.choose(rng)
         beta_family = self.beta_family_shares.choose(rng)
         y_shape = None
         if y_family in self.PER_Y_FAMILY:
@@ -313,6 +316,7 @@ class Glm(Config):
             lkj_eta={},
             sigma_eps_family=sigma_eps_family,
             sigma_eps_scale=sigma_eps_scale,
+            y_family=y_family,
             y_shape=y_shape,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
@@ -382,9 +386,9 @@ class Glmm(Glm):
     correlated_share: Share = 0.55
     lkj_eta: PositiveCount = UniformInt(1, 4)  # the LKJ shape per correlated factor
 
-    def drawPrior(self, y_family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
+    def drawPrior(self, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws a GLM's prior, then σ_α's family, each factor's LKJ shape and its σ_α scales."""
-        prior = super().drawPrior(y_family, blocks, rng)
+        prior = super().drawPrior(blocks, rng)
         _, *factors = blocks
         sigma_alpha_family = self.sigma_alpha_family_shares.choose(rng)
         lkj_eta = self._drawCorrelations(factors, rng)

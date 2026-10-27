@@ -15,7 +15,7 @@ the covariates at the rows, their metadata, the grouping and the score  Covariat
    a GLMM's, a GLM's without factors:
    -> the design matrix, the intercept first                            codeDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
-   -> the stated prior over the blocks, then its parameters             Glm.drawPrior,
+   -> y's family, the stated prior over the blocks, then the parameters Glm.drawPrior,
                                                                         Prior.drawParameters
    -> η = Xβ + Σ_k Z_k α_k, plus the deviation λ · sd(Xβ + Σ_k Z_k α_k) · score,
       then y from the family through its link                           _drawGlmm
@@ -657,14 +657,13 @@ def _drawGlmm(
     resolved = glm.resolveDataset(rng)
     rows = covariates.rows
     design = codeDesign(covariates.columns, covariates.metadata, rows)
-    name = resolved.y_family_shares.choose(rng)
-    family = Y_FAMILIES[name]
     # a fixed effect adds its column's variance to var(η) at scale 1, the intercept nothing
     fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist())
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
         resolved, design, covariates.grouping, factors, rng
     )
-    prior = resolved.drawPrior(name, [fixed, *random_blocks], rng)
+    prior = resolved.drawPrior([fixed, *random_blocks], rng)
+    family = Y_FAMILIES[prior.y_family]
     parameters = prior.drawParameters(rng)
     # η in float64 from the float32 parameters, which are so its exact truth
     eta = design.matrix @ parameters.beta  # (n,)
@@ -684,7 +683,7 @@ def _drawGlmm(
     truth = {
         'columns': {'y': y},
         'metadata': {'y': family.COLUMN},
-        'y_family': name,
+        'y_family': prior.y_family,
         'link': family.LINK,
         'fixed_terms': design.names,
         'prior': prior,

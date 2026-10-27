@@ -66,12 +66,12 @@ x1 binary      per row [1 0 0]
 x2 continuous  per row [ 0.77 -0.05 -1.55]
 x3 binary      per row [1 0 0]
 x4 binary      per row [1 0 0]
-y  continuous  per row [ 0.34  0.37 -0.03]
+y  continuous  per row [2.78 2.51 1.22]
 family: normal
 fixed: intercept + x0 + x1 + x2 + x3 + x4
 random per g0: intercept
-random per g1: intercept
-random per g2: intercept + x0 + x1 + x3
+random per g1: intercept + x0 + x2 + x3
+random per g2: intercept + x2
 ```
 
 An outcome `y` can also be sampled based on a model and the table's covariates.
@@ -98,11 +98,11 @@ for term, beta in zip(outcome.fixed_terms, outcome.beta):
 ```
 
 ```text
-family: poisson
-intercept  0.66
-age        0.28
-female    -1.27
-books     -0.26
+family: normal
+intercept  0.89
+age       -0.05
+female    -0.04
+books      0.35
 ```
 
 ## Planned
