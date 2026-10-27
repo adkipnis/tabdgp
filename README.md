@@ -66,7 +66,7 @@ x1 binary      per row [1 0 0]
 x2 continuous  per row [ 0.77 -0.05 -1.55]
 x3 binary      per row [1 0 0]
 x4 binary      per row [1 0 0]
-y  continuous  per row [2.78 2.51 1.22]
+y  continuous  per row [-9.45  1.28  0.73]
 family: normal
 fixed: intercept + x0 + x1 + x2 + x3 + x4
 random per g0: intercept
@@ -99,10 +99,10 @@ for term, beta in zip(outcome.fixed_terms, outcome.beta):
 
 ```text
 family: normal
-intercept  0.89
-age       -0.05
-female    -0.04
-books      0.35
+intercept  1.01
+age        0.09
+female     0.45
+books     -0.29
 ```
 
 ## Planned

@@ -285,9 +285,8 @@ class Glm(Config):
 
     def drawPrior(self, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws y's family, then its prior over the blocks after the GLM is resolved."""
-        # y's family, β's family, and optionally y's shape
+        # y's family, and optionally its shape
         y_family = self.y_family_shares.choose(rng)
-        beta_family = self.beta_family_shares.choose(rng)
         y_shape = None
         if y_family in self.PER_Y_FAMILY:
             y_shape = self.resolveField(self.PER_Y_FAMILY[y_family], rng)
@@ -306,6 +305,7 @@ class Glm(Config):
         split = self._drawSplit(blocks, rng)
         fixed = blocks[0]
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed (what Xβ adds to var(eta))
+        beta_family = self.beta_family_shares.choose(rng)
         beta_locations, beta_scales = self._drawBetaPrior(fixed, budget, rng)
         return Prior(
             beta_family=beta_family,
@@ -393,10 +393,10 @@ class Glmm(Glm):
         prior = super().drawPrior(blocks, rng)
         _, *factors = blocks
         sigma_alpha_family = self.sigma_alpha_family_shares.choose(rng)
-        lkj_eta = self._drawCorrelations(factors, rng)
         sigma_alpha_scales = self._drawSigmaAlphaScales(
             factors, prior.predictor_sd, prior.split, rng
         )
+        lkj_eta = self._drawCorrelations(factors, rng)
         return dataclasses.replace(
             prior,
             sigma_alpha_family=sigma_alpha_family,
