@@ -794,15 +794,10 @@ def test_a_base_family_has_no_shape_and_consumes_no_draw_for_one(family: str) ->
 
 
 @pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson', *CONTAMINATED])
-def test_the_parameters_record_the_priors_shape_and_a_residual_only_where_the_family_has_one(
-    family: str,
-) -> None:
-    """The shape is the truth's second parameter beside β, fixed when a truth is resampled
-    under the prior; only the Normal and Student-t families have a σ_ε.
-    """
+def test_the_parameters_hold_a_residual_only_where_the_family_has_one(family: str) -> None:
+    """Only the Normal and Student-t families have a σ_ε."""
     blocks = [Block(name='fixed', variances=[0.0, 1.0])]
     resolved = Glm().resolveDataset(np.random.default_rng(0))
     prior = _drawPriorAt(resolved, family, blocks, np.random.default_rng(0))
     parameters = prior.drawParameters(np.random.default_rng(1))
-    assert parameters.y_shape == prior.y_shape
     assert (parameters.sigma_eps is not None) == (family in ['normal', 'student_t'])

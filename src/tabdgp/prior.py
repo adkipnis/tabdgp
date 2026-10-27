@@ -86,11 +86,10 @@ class Block:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Parameters:
-    """A model's parameters (on the standardized scale). All arrays are float32."""
+    """The parameters a fitter estimates (on the standardized scale). All arrays are float32."""
 
     beta: np.ndarray  # (d,) intercept first
     sigma_eps: float | None  # None unless the family is Normal or Student-t
-    y_shape: float | None  # y's second parameter, None for Normal, Bernoulli and Poisson
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -103,7 +102,7 @@ class Prior:
     - Fixed effects: family, locations, scales
     - Random effects: sd family, scales (per random effect), LKJ shape
     - Residual: family, scale (for Normal and Student-t outcomes)
-    - Response: y's family and shape
+    - Response: y's family and its shape, which a fitter of that family fixes
     - Budget: signal share r, predictor sd τ, each block's share φ of var(eta)
     """
 
@@ -116,7 +115,7 @@ class Prior:
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
     y_family: str
-    y_shape: float | None
+    y_shape: float | None  # y's second parameter, None for Normal, Bernoulli and Poisson
     signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)
     split: dict[str, float]  # φ, each block's share of τ²
@@ -135,7 +134,6 @@ class Prior:
         return Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
-            y_shape=self.y_shape,
             sigma_alpha=random_effects['sigma_alpha'],
             corr_alpha=random_effects['corr_alpha'],
             alpha=random_effects['alpha'],

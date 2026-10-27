@@ -679,7 +679,7 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    y = family.draw(rng, eta, scale, parameters.y_shape)  # (n,)
+    y = family.draw(rng, eta, scale, prior.y_shape)  # (n,)
     truth = {
         'columns': {'y': y},
         'metadata': {'y': family.COLUMN},
@@ -689,7 +689,7 @@ def _drawGlmm(
         'prior': prior,
         'beta': parameters.beta,
         'sigma_eps': parameters.sigma_eps,
-        'y_shape': parameters.y_shape,
+        'y_shape': prior.y_shape,
         'deviation': deviation,
         'deviation_scale': resolved.deviation_scale,
         'means': design.means,
