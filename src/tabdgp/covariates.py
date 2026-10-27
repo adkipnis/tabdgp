@@ -17,6 +17,7 @@ a table, its grouping factors or metadata
 
 from __future__ import annotations
 
+from itertools import combinations
 from typing import Any
 
 import numpy as np
@@ -210,23 +211,7 @@ class Covariates:
             if column.role == 'grouping_factor':
                 factors[name] = column
                 codes[name] = cls._readCodes(table[name], column)
-        names = list(factors)
-        for i, name in enumerate(names):
-            superior = factors[name].nests_in
-            if superior is not None and superior not in factors:
-                raise ValueError(
-                    f'the factor {name} nests in {superior}, which is no grouping factor'
-                )
-            if superior is not None and not cls._nests(codes[name], codes[superior]):
-                raise ValueError(f'the factor {name} has a group across two groups of {superior}')
-            for other in names[i + 1 :]:
-                within = cls._nests(codes[name], codes[other])
-                around = cls._nests(codes[other], codes[name])
-                if within and around:
-                    raise ValueError(
-                        f'the factors {name} and {other} group the rows alike, '
-                        'one factor named twice'
-                    )
+        cls._checkNesting(factors, codes)
         return Grouping(metadata=factors, codes=codes)
 
     @classmethod
@@ -239,6 +224,28 @@ class Covariates:
                 f'its metadata {column.levels} levels'
             )
         return codes
+
+    @classmethod
+    def _checkNesting(cls, factors: dict[str, Column], codes: dict[str, np.ndarray]) -> None:
+        """Checks that each factor nests as declared and no two group the rows alike."""
+        for name, column in factors.items():
+            superior = column.nests_in
+            if superior is not None:
+                if superior not in factors:
+                    raise ValueError(
+                        f'the factor {name} nests in {superior}, which is no grouping factor'
+                    )
+                if not cls._nests(codes[name], codes[superior]):
+                    raise ValueError(
+                        f'the factor {name} has a group across two groups of {superior}'
+                    )
+        for name, other in combinations(factors, 2):
+            within = cls._nests(codes[name], codes[other])
+            around = cls._nests(codes[other], codes[name])
+            if within and around:
+                raise ValueError(
+                    f'the factors {name} and {other} group the rows alike, one factor named twice'
+                )
 
     @classmethod
     def _readValues(cls, values: pd.Series, column: Column) -> np.ndarray:
