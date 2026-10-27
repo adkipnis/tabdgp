@@ -16,7 +16,7 @@ the covariates, from a draw or a table
                                                                         Prior.drawParameters
    -> eta = Xβ + Σ_k Z_k α_k, plus the deviation λ * sd(Xβ + Σ_k Z_k α_k) * score
                                                                         _drawGlmm
-   -> y from its family through the link                                drawY
+   -> y from its family through the link                                draw
    a study's:
    -> its call, its result checked at the covariates' rows              _callModel
 """
@@ -30,7 +30,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp.column import Column, Grouping
 from tabdgp.covariates import Covariates, checkNames, checkOneLength
 from tabdgp.hyperprior import Model
-from tabdgp.likelihood import Y_COLUMNS, Y_LINKS, drawY
+from tabdgp.likelihood import COLUMNS, LINKS, draw
 from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 
 # =====================================================================================
@@ -260,11 +260,11 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    y = drawY(prior.y_family, eta, scale, prior.y_shape, rng)  # (n,)
+    y = draw(prior.y_family, eta, scale, prior.y_shape, rng)  # (n,)
     truth = {
         'columns': {'y': y},
-        'metadata': {'y': Y_COLUMNS[prior.y_family]},
-        'link': Y_LINKS[prior.y_family],
+        'metadata': {'y': COLUMNS[prior.y_family]},
+        'link': LINKS[prior.y_family],
         'fixed_terms': design.names,
         'prior': prior,
         'parameters': parameters,

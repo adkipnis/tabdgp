@@ -5,7 +5,7 @@ A draw never fails or warns at any eta, and y always fits its column's dtype.
 pipeline:
 ---------
 y's family, eta, the residual scale and y's shape
--> y in its column's dtype                           drawY
+-> y in its column's dtype                           draw
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from tabdgp.column import Column
 # the families' links and columns
 # =====================================================================================
 
-Y_LINKS = {
+LINKS = {
     'normal': 'identity',
     'bernoulli': 'logit',
     'poisson': 'log',
@@ -28,7 +28,7 @@ Y_LINKS = {
     'gamma': 'log',
     'beta': 'logit',
 }
-Y_COLUMNS = {
+COLUMNS = {
     'normal': Column(type='continuous', role='outcome'),
     'bernoulli': Column(type='binary', levels=2, role='outcome'),
     'poisson': Column(type='count', role='outcome'),
@@ -46,7 +46,7 @@ MEAN_EDGE = 2.0**-53  # keeps both of the beta's parameters positive, which nump
 # =====================================================================================
 
 
-def drawY(
+def draw(
     family: str,
     eta: np.ndarray,
     scale: np.ndarray | None,
@@ -96,7 +96,7 @@ def drawY(
             # inside float32's open interval (0, 1), which a fitter's beta likelihood needs
             below_one = 1 - 2.0**-24  # the largest float32 below 1
             y = np.clip(draws, np.finfo(np.float32).tiny, below_one)
-    return y.astype(Y_COLUMNS[family].dtype)
+    return y.astype(COLUMNS[family].dtype)
 
 
 def _invertLogit(eta: np.ndarray) -> np.ndarray:
@@ -111,7 +111,7 @@ def _drawBernoulli(eta: np.ndarray, rng: np.random.Generator) -> np.ndarray:
 
 
 def _exponentiate(eta: np.ndarray) -> np.ndarray:
-    """e^eta, cut at 700 below float64's overflow."""
+    """exp(eta), cut at 700 below float64's overflow."""
     return np.exp(np.minimum(eta, 700.0))
 
 

@@ -10,13 +10,13 @@ import warnings
 import numpy as np
 import pytest
 
-from tabdgp.likelihood import Y_COLUMNS, Y_LINKS, drawY
+from tabdgp.likelihood import COLUMNS, LINKS, draw
 from tabdgp.prior import Glm
 
 
 def test_the_families_are_exactly_the_categories_of_glms_family_shares() -> None:
     """A family with a share but no link or column would fail only when a dataset chose it."""
-    assert list(Y_LINKS) == list(Y_COLUMNS) == Glm.categories('y_family_shares')
+    assert list(LINKS) == list(COLUMNS) == Glm.categories('y_family_shares')
 
 
 FLOAT32 = np.finfo(np.float32)
@@ -52,8 +52,8 @@ def test_each_familys_draw_is_in_range_and_of_its_dtype_without_a_warning(
     scale = np.full(len(eta), 0.5)
     with warnings.catch_warnings():
         warnings.simplefilter('error')
-        y = drawY(y_family, eta, scale, shape, np.random.default_rng(0))
-    assert y.dtype == Y_COLUMNS[y_family].dtype == dtype
+        y = draw(y_family, eta, scale, shape, np.random.default_rng(0))
+    assert y.dtype == COLUMNS[y_family].dtype == dtype
     assert y.shape == eta.shape
     assert np.isfinite(y).all()
     assert low <= y.min() and y.max() <= high
@@ -113,7 +113,7 @@ def test_each_familys_draw_has_the_mean_and_variance_of_its_law_at_its_shape(
     and its own noise at the shape: the draw's moments are the law's, not numpy's by construction.
     """
     rows = 400_000
-    y = drawY(y_family, np.full(rows, eta), np.ones(rows), shape, np.random.default_rng(0))
+    y = draw(y_family, np.full(rows, eta), np.ones(rows), shape, np.random.default_rng(0))
     assert y.mean() == pytest.approx(mean, rel=0.02)
     assert y.var() == pytest.approx(variance, rel=0.05)
 
@@ -130,7 +130,7 @@ def test_a_negative_binomial_count_above_numpys_limit_saturates_as_the_poisson_d
     eta = np.array([0.0, 800.0])  # (n,)
     with warnings.catch_warnings():
         warnings.simplefilter('error')
-        y = drawY('negative_binomial', eta, np.ones(2), 1.0, np.random.default_rng(0))
+        y = draw('negative_binomial', eta, np.ones(2), 1.0, np.random.default_rng(0))
     assert y[0] < INT64_MAX
     assert y[1] == INT64_MAX
 
@@ -143,7 +143,7 @@ def test_a_poisson_rate_above_numpys_limit_draws_without_failing() -> None:
     eta = np.array([0.0, 43.0, 44.0, 800.0])  # (n,)
     with warnings.catch_warnings():
         warnings.simplefilter('error')
-        y = drawY('poisson', eta, np.ones(4), None, np.random.default_rng(0))
+        y = draw('poisson', eta, np.ones(4), None, np.random.default_rng(0))
     largest = np.iinfo(np.int64).max
     assert y.dtype == np.int64
     assert y[1] < largest
