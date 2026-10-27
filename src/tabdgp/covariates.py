@@ -1,23 +1,23 @@
 """covariates.py has utility functions to prepare covariates for a model-based outcome.
 
 The covariates are the observed columns, the grouping, and their metadata.
-If available, the SCM's z-scored node values are also included.
+If available, the SCM's z-scored outcome node values are also included.
 Alternatively, this module can also take a ready external tabular dataset.
 
 pipeline:
 ---------
-a table, its grouping factors and optionally metadata
--> every observed column, a value in each row        _checkValues
--> the metadata, either declared by Column          _validateMetadata
-   or inferred: from their codes and dtype                     _inferMetadata
--> the factors' codes, checked against their levels and nesting       _readGrouping
--> each covariate's values in its type's dtype    _readValues
--> the covariates                                    Covariates.fromPandas
+a table, its grouping factors or metadata
+-> every observed column, a value in each row               _checkValues
+-> the metadata, either declared by Column                  _validateMetadata
+   or inferred: from their codes and dtype                  _inferMetadata
+-> the factors' codes (checked against levels and nesting)  _readGrouping
+-> each covariate's values in its type's dtype              _readValues
+-> the covariates                                           Covariates.fromPandas
 """
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -30,6 +30,7 @@ from tabdgp.column import Column, Grouping
 # the checks
 # =====================================================================================
 
+
 def checkOneLength(arrays: list[np.ndarray | None], of: str) -> None:
     lengths: set[int] = {len(array) for array in arrays if array is not None}
     if len(lengths) > 1:
@@ -41,40 +42,35 @@ def checkNames(columns: dict[str, np.ndarray], metadata: dict[str, Column]) -> N
         raise ValueError(f'the columns {list(columns)} have metadata {list(metadata)}')
 
 
-# TODO: use some other name instead of `form`, form is semantically meaningless here
 # =====================================================================================
-# what a form reads
+# what a model reads
 # =====================================================================================
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Covariates:
-    """The observed columns a form reads: the grouping factors' codes and the covariates."""
+    """The observed columns a model reads: the grouping factors' codes and the covariates."""
 
     columns: dict[str, np.ndarray]  # (n,) each
     metadata: dict[str, Column]
     grouping: Grouping
     score: np.ndarray | None  # (n,) float32, None for a table without an SCM
-    METADATA: ClassVar[TypeAdapter] = TypeAdapter(dict[str, Column]) # TODO: is this really useful? can we simplify this or use it in-line only?
-    RESERVED: ClassVar[dict[str, str]] = {
-        'y': "the outcome's name",
-        'intercept': "the design matrix's first term",
-        'fixed': "the fixed effects' block",
-    }
 
     def __post_init__(self) -> None:
         # check that every array has one length, each column its metadata, and none a reserved name
         checkOneLength([*self.columns.values(), self.score], 'the covariates')
         checkNames(self.columns, self.metadata)
-        # TODO: rewrite this with match-case instead, RESERVED is not used anywhere else
-        for name, reason in self.RESERVED.items():
-            if name in self.columns:
-                raise ValueError(f'a column cannot be named {name!r}, {reason}: rename it')
+        for name in self.columns:
+            match name:
+                case 'y' | 'intercept' | 'fixed':
+                    raise ValueError(
+                        f'a column cannot be named {name!r}, a name the outcome uses: rename it'
+                    )
 
     @property
-    # TODO: smells like overengineering, where is this useful?
     def rows(self) -> int:
         """n, the number of observations."""
+        # a flat draw without covariates (an intercept-only GLM) has only the score
         for array in [*self.columns.values(), self.score]:
             if array is not None:
                 return len(array)
@@ -110,7 +106,7 @@ class Covariates:
         cls, table: pd.DataFrame, metadata: dict[str, Column | dict[str, Any]]
     ) -> dict[str, Column]:
         """The declared metadata as Columns (one per column)."""
-        declared = cls.METADATA.validate_python(metadata)
+        declared = TypeAdapter(dict[str, Column]).validate_python(metadata)
         if declared.keys() != set(table.columns):
             raise ValueError(
                 f'the table has the columns {list(table.columns)}, the metadata {list(declared)}'
@@ -132,12 +128,12 @@ class Covariates:
 
     @classmethod
     def _inferMetadata(cls, table: pd.DataFrame, factors: list[str]) -> dict[str, Column]:
-        """The metadata inferred from `factors` codes and dtype."""
-        codes = {}
-        levels = {}
+        """The metadata inferred from the factors' codes and dtypes."""
+        codes: dict[str, np.ndarray] = {}
+        levels: dict[str, int] = {}
         for name in factors:
             codes[name], levels[name] = cls._codeLevels(table[name])
-        metadata = {}
+        metadata: dict[str, Column] = {}
         for name in factors:
             nests_in = cls._findSuperior(name, codes, levels)
             metadata[name] = Column(
@@ -150,7 +146,7 @@ class Covariates:
 
     @staticmethod
     def _codeLevels(values: pd.Series) -> tuple[np.ndarray, int]:
-        """A column's codes and it's levels k."""
+        """A column's codes and its levels k."""
         if not isinstance(values.dtype, pd.CategoricalDtype):
             values = values.astype('category')  # the categories are the sorted values
         present = values.cat.remove_unused_categories()
@@ -167,6 +163,7 @@ class Covariates:
             fewer = levels[other] < levels[factor]
             if not fewer or not cls._nests(codes[factor], other_codes):
                 continue
+            # strictly more, so of two with as many groups the one named first stays
             if superior is None or levels[other] > levels[superior]:
                 superior = other
         return superior
@@ -182,6 +179,7 @@ class Covariates:
         dtype = values.dtype
         categorical = isinstance(dtype, pd.CategoricalDtype)
         k = values.nunique()
+        # two values make a column binary whatever its dtype, as mixedbench reads one
         if k == 2:
             return Column(type='binary', levels=2)
         if categorical and dtype.ordered:
@@ -205,9 +203,9 @@ class Covariates:
 
     @classmethod
     def _readGrouping(cls, table: pd.DataFrame, metadata: dict[str, Column]) -> Grouping:
-        """TODO: rewrite in the same voice and detail as the other docstrings"""
-        factors = {}
-        codes = {}
+        """The grouping (the factors' codes, checked against levels, nesting and each other)."""
+        factors: dict[str, Column] = {}
+        codes: dict[str, np.ndarray] = {}
         for name, column in metadata.items():
             if column.role == 'grouping_factor':
                 factors[name] = column
