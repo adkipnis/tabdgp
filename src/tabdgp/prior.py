@@ -289,8 +289,9 @@ class Glm(Config):
 
     def drawPrior(self, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior over the blocks after the GLM is resolved, a step per parameter."""
-        y_family, y_shape = self._drawResponsePrior(rng)
-        # σ_ε's family and scale, if y's family has a residual
+        y_family, y_shape = self._drawResponseSpec(rng)
+
+        # σ_ε's family and scale (if y's family has a residual)
         sigma_eps_family = None
         signal_share = None
         predictor_sd = self.predictor_sd
@@ -301,7 +302,8 @@ class Glm(Config):
             # τ² = r and τ_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             sigma_eps_scale = math.sqrt(1 - self.signal_share)
-        # the split of τ² between the blocks, and β's prior spending Xβ's share
+
+        # the split of τ² among blocks; the prior of β spends Xβ's share
         split = self._drawSplit(blocks, rng)
         fixed = blocks[0]
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed (what Xβ adds to var(eta))
@@ -323,8 +325,8 @@ class Glm(Config):
             blocks=blocks,
         )
 
-    def _drawResponsePrior(self, rng: np.random.Generator) -> tuple[str, float | None]:
-        """Draws y's family, and its shape if the family has one."""
+    def _drawResponseSpec(self, rng: np.random.Generator) -> tuple[str, float | None]:
+        """Draws y's family and optionally its shape."""
         y_family = self.y_family_shares.choose(rng)
         y_shape = None
         if y_family in self.PER_Y_FAMILY:
@@ -337,43 +339,42 @@ class Glm(Config):
     def _drawBetaPrior(
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[str, list[float], list[float]]:
-        """Draws β's family, then its locations and scales, the intercept's first:
+        """Draws β's family, then its locations and scales:
 
-        - Family: one for the intercept and the slopes
-        - Intercept: ν_0 and τ_0, its fields' points, adding nothing to var(eta)
-        - Slope location: ν_j = δ_j τ_j, δ_j nonzero for a located slope only
-        - Slope scale: τ_j, spending the budget Σ_j τ_j² (1 + δ_j²) var_j
-        - Budget: what Xβ adds to var(eta) at a Normal β, more at a heavier-tailed one
+        - Family: shared among the intercept and the slopes
+        - Intercept: ν_0 and τ_0 (its fields' points)
+        - Slope location: ν_j = δ_j * τ_j, δ_j nonzero for a located slope only
+        - Slope scale: τ_j, spending the budget Σ_j τ_j² * (1 + δ_j²) * var_j
+        - Budget: what Xβ adds to var(eta) at a Normal β (more at a heavier-tailed one)
         """
         beta_family = self.beta_family_shares.choose(rng)
-        slopes = fixed.width - 1
-        located = rng.random(slopes) < self.location_share  # (d − 1,)
-        offsets = rng.normal(0, self.location_scale, slopes)  # (d − 1,) δ_j of a located slope
-        delta = np.where(located, offsets, 0.0)  # (d − 1,)
-        column_variances = np.array(fixed.variances[1:])  # (d − 1,) var_j
-        variances = (1 + delta**2) * column_variances  # (d − 1,) E[β_j²] var_j at τ_j = 1
-        slope_scales = self._drawScales(variances, budget, rng)  # (d − 1,)
-        slope_locations = delta * slope_scales  # (d − 1,)
-        beta_locations = [self.intercept_location, *slope_locations.tolist()]  # (d,)
-        beta_scales = [self.intercept_scale, *slope_scales.tolist()]  # (d,)
+        num_slopes = fixed.width - 1
+        located = rng.random(num_slopes) < self.location_share  # (d − 1,)
+        offsets = rng.normal(0, self.location_scale, num_slopes)  # δ_j of a located slope
+        delta = np.where(located, offsets, 0.0)
+        column_variances = np.array(fixed.variances[1:])  # var_j
+        variances = (1 + delta**2) * column_variances  # TODO: why 
+        slope_scales = self._drawScales(variances, budget, rng)
+        slope_locations = delta * slope_scales
+        beta_locations = [self.intercept_location, *slope_locations.tolist()]  # (d -1,)
+        beta_scales = [self.intercept_scale, *slope_scales.tolist()]  # (d -1,)
         return beta_family, beta_locations, beta_scales
 
     def _drawScales(
         self, variances: np.ndarray, budget: float, rng: np.random.Generator
     ) -> np.ndarray:
-        """Draws a block's scales s w_j, so that its coefficients add the budget to var(eta):
+        """Draws a block's scales s * w_j, such that its coefficients add the budget to var(eta):
 
-        - Weights: w_j = 1, a scale the block shares
-        - Varying: w_j log-normal at scale_spread instead, with probability varying_scale_share
-        - Scale: s spends the budget, s² Σ_j w_j² variances_j = budget
+        - Constant: w_j = 1, when the block shares the same scale
+        - Varying: w_j log-normal at scale_spread (with probability `varying_scale_share`)
+        - Scale: s such that the `budget` = s² * Σ_j (w_j² * variances_j)
         - Variances: what each coefficient adds to var(eta) at scale 1
         """
         weights = np.ones(len(variances))  # (d − 1,) or (q,)
         if rng.random() < self.varying_scale_share:
-            log_weights = rng.normal(0, self.scale_spread, len(variances))  # (d − 1,) or (q,)
-            weights = np.exp(log_weights)  # (d − 1,) or (q,)
+            log_weights = rng.normal(0, self.scale_spread, len(variances))
+            weights = np.exp(log_weights)
         spent = float((weights**2 * variances).sum())  # at s = 1
-        # without a column that adds to var(eta), nothing spends the budget
         scale = math.sqrt(budget / spent) if spent > 0 else 0.0
         return scale * weights  # (d − 1,) or (q,)
 
