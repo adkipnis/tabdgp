@@ -186,12 +186,6 @@ class Covariates:
         if categorical or pd.api.types.is_string_dtype(values):
             return Column(type='categorical', levels=k)
         if pd.api.types.is_integer_dtype(dtype):
-            if (values < 0).any():
-                raise ValueError(
-                    f'the integer column {values.name} has a negative value, so it is no count: '
-                    'cast it to float if it is continuous, '
-                    'or drop the rows where a negative value marks a missing one'
-                )
             return Column(type='count')
         if pd.api.types.is_float_dtype(dtype):
             return Column(type='continuous')
@@ -260,5 +254,9 @@ class Covariates:
             return values.to_numpy(dtype=column.dtype)
         counts = values.to_numpy(dtype=column.dtype)  # (n,)
         if (counts < 0).any() or (counts != values.to_numpy()).any():
-            raise ValueError(f'the count column {values.name} holds a value that is no count')
+            raise ValueError(
+                f'the count column {values.name} holds a negative value or a fraction: '
+                'read it as continuous, '
+                'or drop the rows where a negative value marks a missing one'
+            )
         return counts
