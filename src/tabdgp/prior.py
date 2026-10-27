@@ -302,15 +302,15 @@ class Glm(Config):
             # τ² = r and τ_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             sigma_eps_scale = math.sqrt(1 - self.signal_share)
-        # the split of τ² between the blocks, and the slopes spending Xβ's share
+        # the split of τ² between the blocks, and β's prior spending Xβ's share
         split = self._drawSplit(blocks, rng)
         fixed = blocks[0]
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed (what Xβ adds to var(eta))
-        slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
+        beta_locations, beta_scales = self._drawBetaPrior(fixed, budget, rng)
         return Prior(
             beta_family=beta_family,
-            beta_locations=[self.intercept_location, *slope_locations],
-            beta_scales=[self.intercept_scale, *slope_scales],
+            beta_locations=beta_locations,
+            beta_scales=beta_scales,
             sigma_alpha_family=None,  # a GLM has no random effects
             sigma_alpha_scales={},
             lkj_eta={},
@@ -327,15 +327,14 @@ class Glm(Config):
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
 
-    # TODO: confusing name, we don't draw the slopes, we draw the their prior parameters
-    # also what's the reason to split the intercept priors from the slope? even if the intercept prior is not affected by the budget, it would be cleaner to move its lines here and rename the method, no?
-    def _drawSlopes(
+    def _drawBetaPrior(
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[list[float], list[float]]:
-        """Draws each slope's location and scale:
+        """Draws β's locations and scales, the intercept's first:
 
-        - Location: ν_j = δ_j τ_j, δ_j nonzero for a located slope only
-        - Scale: τ_j, spending the budget Σ_j τ_j² (1 + δ_j²) var_j
+        - Intercept: ν_0 and τ_0, its fields' points, adding nothing to var(eta)
+        - Slope location: ν_j = δ_j τ_j, δ_j nonzero for a located slope only
+        - Slope scale: τ_j, spending the budget Σ_j τ_j² (1 + δ_j²) var_j
         - Budget: what Xβ adds to var(eta) at a Normal β, more at a heavier-tailed one
         """
         slopes = fixed.width - 1
@@ -346,7 +345,9 @@ class Glm(Config):
         variances = (1 + delta**2) * column_variances  # (d − 1,) E[β_j²] var_j at τ_j = 1
         slope_scales = self._drawScales(variances, budget, rng)  # (d − 1,)
         slope_locations = delta * slope_scales  # (d − 1,)
-        return slope_locations.tolist(), slope_scales.tolist()
+        beta_locations = [self.intercept_location, *slope_locations.tolist()]  # (d,)
+        beta_scales = [self.intercept_scale, *slope_scales.tolist()]  # (d,)
+        return beta_locations, beta_scales
 
     # TODO: rewrite docstring more intuitively, this is confusing
     def _drawScales(
