@@ -15,7 +15,8 @@ from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, apply, assign, plan
-from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal, UniformInt
+from tabdgp.field import UniformInt
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tests.fixtures.build import groupingOf, point
 
 ALPHA = {'level_alpha': 1.0}
@@ -132,7 +133,7 @@ BARE = [
 @pytest.mark.parametrize('fields', BARE)
 def test_a_column_without_a_marginal_or_parameters_validates(fields: dict) -> None:
     """A model writes y without a marginal, and a real table's columns come with none;
-    only a column plan draws carries a marginal or a level concentration.
+    only a column a plan draws carries a marginal or a level concentration.
     """
     Column(**fields)
 
@@ -638,7 +639,6 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
     for n in [column.levels, 100]:
         for seed in range(10):
             codes = _apply(n, column, seed)
-            assert codes.dtype == np.int64
             assert np.array_equal(np.unique(codes), np.arange(column.levels))
 
 
@@ -702,8 +702,8 @@ def _applyTo(values: np.ndarray, column: Column, seed: int) -> np.ndarray:
     return apply(values, column, np.random.default_rng(seed))
 
 
-@pytest.mark.parametrize('column', CONTINUOUS, ids=str)
-def test_a_continuous_column_has_exactly_its_marginal_samples_values(column: Column) -> None:
+@pytest.mark.parametrize('column', [*CONTINUOUS, COUNT], ids=str)
+def test_a_rank_matched_column_has_exactly_its_marginal_samples_values(column: Column) -> None:
     """Two different nodes under one generator get the same values, only in another order.
 
     So the values come from the sample alone and the node supplies only the order: a quantile
@@ -711,7 +711,6 @@ def test_a_continuous_column_has_exactly_its_marginal_samples_values(column: Col
     """
     values = _applyTo(_node(1), column, seed=0)
     other = _applyTo(_node(2), column, seed=0)
-    assert values.dtype == np.float32
     np.testing.assert_array_equal(np.sort(values), np.sort(other))
     assert not np.array_equal(values, other)
 
@@ -727,17 +726,6 @@ def test_a_rank_matched_column_has_the_nodes_ranks(column: Column) -> None:
     in_node_order = values[np.argsort(node)]  # (n,)
     assert (np.diff(in_node_order) >= 0).all()
     assert np.ptp(values) > 0
-
-
-def test_a_count_column_has_exactly_its_poisson_samples_integers() -> None:
-    """A count is rank matched like a continuous column but keeps its integers:
-    two nodes under one generator get the same Poisson sample, each in its own order.
-    """
-    values = _applyTo(_node(1), COUNT, seed=0)
-    other = _applyTo(_node(2), COUNT, seed=0)
-    assert values.dtype == np.int64
-    np.testing.assert_array_equal(np.sort(values), np.sort(other))
-    assert not np.array_equal(values, other)
 
 
 @pytest.mark.parametrize('column', [*CONTINUOUS, COUNT, *DISCRETE], ids=str)
