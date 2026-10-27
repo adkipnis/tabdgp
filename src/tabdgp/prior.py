@@ -349,14 +349,15 @@ class Glm(Config):
         beta_scales = [self.intercept_scale, *slope_scales.tolist()]  # (d,)
         return beta_locations, beta_scales
 
-    # TODO: rewrite docstring more intuitively, this is confusing
     def _drawScales(
         self, variances: np.ndarray, budget: float, rng: np.random.Generator
     ) -> np.ndarray:
-        """Draws a block's scales s w_j from what each coefficient adds to var(eta) at scale 1:
+        """Draws a block's scales s w_j, so that its coefficients add the budget to var(eta):
 
-        - Weights: w_j log-normal at scale_spread with probability varying_scale_share, else 1
-        - Scale: s solves s² Σ_j w_j² variances_j = budget
+        - Weights: w_j = 1, a scale the block shares
+        - Varying: w_j log-normal at scale_spread instead, with probability varying_scale_share
+        - Scale: s spends the budget, s² Σ_j w_j² variances_j = budget
+        - Variances: what each coefficient adds to var(eta) at scale 1
         """
         weights = np.ones(len(variances))  # (d − 1,) or (q,)
         if rng.random() < self.varying_scale_share:
