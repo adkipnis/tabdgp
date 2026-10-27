@@ -396,6 +396,8 @@ class Glmm(Glm):
     fixed_share: Share = Beta(1, 1)  # φ_fixed
     split_alpha: Positive = 1.0  # the Dirichlet's concentration over the factors' blocks
     random_effects: PositiveCount = UniformInt(1, 6)  # q_k per factor, truncated at d
+    # the share of published GLMMs with random slopes that correlate them (a practice survey),
+    # counting those that do not say as uncorrelated
     correlated_share: Share = 0.55
     lkj_eta: PositiveCount = UniformInt(1, 4)  # the LKJ shape per correlated factor
 
