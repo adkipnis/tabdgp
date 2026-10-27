@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-23
-amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`
+amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms
 ---
 
 # 0007 — The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
@@ -57,8 +57,9 @@ prior, dataset.
 - **The container.** `Outcome` holds the columns a form writes and their `Column` metadata,
   `y` today, a survival form's `time` and `event` later; `draw` merges them into the dataset's
   columns without copying. Subclasses add the truth: `ScmOutcome` the score; `GlmOutcome`
-  ADR 0006's parameters on both scales and the prior; `GlmmOutcome(GlmOutcome)` the
-  per-factor fields. `Dataset.outcome` is `None` only under `'none'`. A user's model may
+  the prior and ADR 0006's parameters as drawn, with their raw-scale views;
+  `GlmmOutcome(GlmOutcome)` each factor's random terms. `Dataset.outcome` is `None` only
+  under `'none'`. A user's model may
   return the bare `Outcome`; TabDGP checks the shapes and dtypes of what comes back.
 - **Any table in.** `Covariates` is public. `Covariates.fromPandas(table, factors)` builds it
   from a DataFrame with categorical dtypes: types from dtypes, levels and codes from the
