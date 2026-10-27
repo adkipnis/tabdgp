@@ -145,7 +145,7 @@ _Avoid_: rng, random state, seed alone
 What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
 generating graph, the values of the latent nodes, the outcome, the resolved hyperparameters,
 and the key with the package versions.
-The outcome holds the columns its form wrote and the form's truth.
+The outcome holds the columns its form wrote and the form's ground truth.
 The hyperparameters leave out the fields that each column, node, grouping factor or model draws
 for itself.
 A dataset is never padded and never written to a file.
@@ -222,7 +222,7 @@ _Avoid_: X (the design matrix), features, inputs
 
 **Model**:
 A form given as a function of the covariates and a generator.
-It returns the columns it writes, their metadata and its truth.
+It returns the columns it writes, their metadata and its ground truth.
 The GLM and the GLMM are TabDGP's own models, and a study can pass its own (e.g. a Gaussian
 process, an MLP).
 _Avoid_: likelihood (one part of it), head, outcome function, target function
@@ -241,7 +241,7 @@ _Avoid_: latent outcome, y*, η (the linear predictor), f
 The score, scaled and added to the linear predictor of a GLM or GLMM.
 Its scale is zero by default.
 It makes the dataset misspecified for every GLMM, while the fixed and random effects stay the
-exact truth.
+exact ground truth.
 If the outcome node has a latent group-level parent, the deviation is endogenous.
 A table without an SCM has no deviation.
 _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it), noise
@@ -257,7 +257,7 @@ The shape is a point, which a fitter of that family states as known.
 By default, the slopes have a scale each in about half the datasets and share one in the rest, and so do each factor's random effects.
 A slope's location is zero for most slopes and a hypothesis for the rest.
 It also holds the signal share and the split that set the scales.
-It draws the parameters on its own, so a truth can be resampled under a fixed prior.
+It draws the parameters on its own, so a ground truth can be resampled under a fixed prior.
 _Avoid_: prior context, hyperparameters unqualified (the hyperprior's)
 
 **Parameters**:

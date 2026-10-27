@@ -112,7 +112,7 @@ def test_a_form_other_than_none_scm_glm_glmm_or_a_model_fails_at_construction(
 
 
 EXPANSIONS = [
-    pytest.param(Hyperprior.grouped, 'glm', Glm(), id='glm on grouped, the pooled truth'),
+    pytest.param(Hyperprior.grouped, 'glm', Glm(), id='glm on grouped, the pooled ground truth'),
     pytest.param(Hyperprior.flat, 'glm', Glm(), id='glm on flat, which needs no grouping'),
     pytest.param(Hyperprior.grouped, 'glmm', Glmm(), id="glmm on grouped, metabeta's one call"),
 ]

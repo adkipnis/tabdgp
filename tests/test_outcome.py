@@ -83,7 +83,7 @@ def test_an_outcome_refuses_two_lengths_a_dtype_other_than_its_types_a_name_with
 
 
 def test_a_scm_outcome_holds_its_score_as_given_and_refuses_one_of_another_length() -> None:
-    """The scm form's truth is the score it rank-matched onto y's marginal, at y's rows."""
+    """The scm form's ground truth is the score it rank-matched onto y's marginal, at y's rows."""
     score = np.zeros(4, dtype=np.float32)
     outcome = ScmOutcome(**WRITTEN, score=score)
     assert outcome.score is score
@@ -253,7 +253,7 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     family: str, link: str, column_type: str, covariates: Covariates
 ) -> None:
     """A Glm is TabDGP's own model: run codes the covariates, draws the prior and writes y.
-    On grouped covariates it is the pooled truth: the factors' codes are no term,
+    On grouped covariates it is the pooled ground truth: the factors' codes are no term,
     and the prior has the one block fixed.
     Only the Normal and Student-t families have a σ_ε, only the contaminated families have a
     shape, and the deviation is zero at λ = 0.
@@ -306,7 +306,7 @@ def _covariance(sd: np.ndarray, corr: np.ndarray) -> np.ndarray:
 def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_up_to_float32() -> (
     None
 ):
-    """A user fitting the raw columns (lme4 on a table) compares against the raw-scale truth:
+    """A user fitting the raw columns (lme4 on a table) compares against the raw-scale ground truth:
     a z-scored column's β over its sd, the intercept absorbing each one's β · mean / sd,
     a 0/1 column's β as drawn, and each group's random effects alike.
     Σ on the raw columns must give each row's random part the variance Σ gives it on the coded
@@ -363,8 +363,8 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
     np.testing.assert_allclose(variance_raw, variance_standardized, rtol=1e-6, atol=1e-6)
 
 
-def test_the_truths_arrays_are_float32_on_both_scales() -> None:
-    """The truth goes to torch with the columns, so it has their precision, float32,
+def test_the_ground_truths_arrays_are_float32_on_both_scales() -> None:
+    """The ground truth goes to torch with the columns, so it has their precision, float32,
     on the raw columns too.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])

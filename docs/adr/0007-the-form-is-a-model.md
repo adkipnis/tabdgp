@@ -1,17 +1,17 @@
 ---
 status: accepted
 date: 2026-10-23
-amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms
+amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms; 2026-10-27, #56: ground truth, not truth
 ---
 
 # 0007 — The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
 
 ADR 0005 made the outcome one node with two forms; ADR 0006 made the glmm form read
 columns and a grouping, never the graph, so that a real table's covariates can carry a
-resampled outcome with a known truth. #41 then decided that the outcome may be any explicit
+resampled outcome with a known ground truth. #41 then decided that the outcome may be any explicit
 function of the covariates a study specifies, the glmm form its first case. Grilled on
 2026-10-23, the decision is: **a form is a model, a callable that reads the covariates and a
-generator and returns the columns it writes with their truth; the generalized linear model
+generator and returns the columns it writes with their ground truth; the generalized linear model
 (GLM) and the generalized linear mixed model (GLMM) are TabDGP's own models, configs of
 their own in `prior` with a shared skeleton, named by `outcome_form = 'glm'` and `'glmm'`;
 every form gets the outcome node's score from the SCM; `Dataset.outcome` holds the form's
@@ -36,7 +36,7 @@ prior, dataset.
   effects cannot be written. The difference is the list of blocks `prior` draws over,
   `[fixed]` or `[fixed, one per factor]`, so nothing is written twice. `'glmm'` on a
   hyperprior whose `factors` may be 0 fails at construction; `'glm'` on a grouped table is
-  allowed, the pooled truth over grouped covariates, a dataset where a fitter's random-effect
+  allowed, the pooled ground truth over grouped covariates, a dataset where a fitter's random-effect
   scale should go to zero. A user's model is checked at draw time only, on what it returns.
 - **A model resolves its own fields.** `Glm`'s fields are points or distributions of the
   kinds `Hyperprior` uses, resolved inside the call with the generator it is handed, as a
@@ -56,7 +56,7 @@ prior, dataset.
   is zeros and λ is recorded as given.
 - **The container.** `Outcome` holds the columns a form writes and their `Column` metadata,
   `y` today, a survival form's `time` and `event` later; `draw` merges them into the dataset's
-  columns without copying. Subclasses add the truth: `ScmOutcome` the score; `GlmOutcome`
+  columns without copying. Subclasses add the ground truth: `ScmOutcome` the score; `GlmOutcome`
   the prior and ADR 0006's parameters as drawn, with their raw-scale views;
   `GlmmOutcome(GlmOutcome)` each factor's random terms. `Dataset.outcome` is `None` only
   under `'none'`. A user's model may

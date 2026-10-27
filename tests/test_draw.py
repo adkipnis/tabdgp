@@ -192,8 +192,9 @@ def test_outcome_none_gives_no_y() -> None:
 def test_the_scm_form_returns_a_scm_outcome_whose_y_is_the_datasets_and_whose_score_is_z_scored(
     preset: Callable[[], Hyperprior],
 ) -> None:
-    """The scm form's truth is y's node before rank matching, z-scored over the rows like every
-    row-unit node; the dataset and its outcome hold one y, not two copies.
+    """The scm form's ground truth is y's node before rank matching,
+    z-scored over the rows like every row-unit node;
+    the dataset and its outcome hold one y, not two copies.
     """
     for index in range(10):
         dataset = draw(0, index, preset())
@@ -243,10 +244,11 @@ def test_the_datasets_outcome_form_records_the_model() -> None:
 
 
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_truth(
+def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_ground_truth(
     preset: Callable[..., Hyperprior],
 ) -> None:
-    """A GLM corpus needs no grouping (flat), and on grouped covariates it is the pooled truth:
+    """A GLM corpus needs no grouping (flat),
+    and on grouped covariates it is the pooled ground truth:
     the factors' codes stay in the dataset but are no term, so a fitter's random-effect scale
     should go to zero. One term per design column besides the intercept.
     """
@@ -319,8 +321,9 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
 def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squares_on_the_coded_columns() -> (
     None
 ):
-    """The truth refers to the design matrix a user fits on: least squares on the coded columns
-    returns beta. At r = 0.9999 and a half-normal F, σ_ε is about 0.01.
+    """The ground truth refers to the design matrix a user fits on:
+    least squares on the coded columns returns beta.
+    At r = 0.9999 and a half-normal F, σ_ε is about 0.01.
     """
     glm = Glm(
         y_family_shares=point('y_family_shares', 'normal', Glm),
@@ -353,7 +356,7 @@ def _linearPart(dataset: Dataset) -> np.ndarray:
 def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_is_noise_at_sigma_eps(
     deviation_scale: float,
 ) -> None:
-    """The truth refers to the design matrix a user fits on:
+    """The ground truth refers to the design matrix a user fits on:
     η = Xβ + Σ_k Z_k α_k[codes_k] + the deviation, Z_k the design's columns of the factor's
     random terms, so what y leaves after them is the Normal noise, sd σ_ε, up to y's float32
     rounding. At r = 0.9999 and a half-normal F, σ_ε is about 0.01, too small to hide a wrong
@@ -431,7 +434,7 @@ def test_draw_outcome_on_from_pandas_is_deterministic_per_key_and_differs_betwee
 
 def test_a_resampled_glmm_outcome_has_as_many_groups_per_factor_as_the_table() -> None:
     """A random effect per group of each factor the table has, a row of alpha per school
-    and per class, so a study reads a group's truth at its code.
+    and per class, so a study reads a group's ground truth at its code.
     """
     for index in range(5):
         outcome = drawOutcome(0, index, TABLE_COVARIATES, Glmm())
@@ -506,7 +509,7 @@ def test_from_pandas_reads_a_datasets_table_with_its_metadata_into_its_columns_a
 
 
 def test_to_design_is_the_coding_the_glm_used() -> None:
-    """The truth refers to the design matrix a user fits on, which toDesign returns.
+    """The ground truth refers to the design matrix a user fits on, which toDesign returns.
     At r = 1, τ_ε and so σ_ε are 0, and y is η = Xβ in float32, exactly.
     On grouped covariates the factors are no term.
     """
@@ -538,9 +541,9 @@ def _restored(record: dict) -> np.ndarray:
 
 def test_to_dict_is_json_serializable_and_records_dtypes_and_a_users_model_by_name() -> None:
     """A dataset survives a trip through JSON:
-    each array comes back bit for bit from its dtype and values, the truth's float32 too,
+    each array comes back bit for bit from its dtype and values, the ground truth's float32 too,
     and each object and distribution keeps its class.
-    y is recorded once, among the dataset's columns: the outcome's record holds its truth.
+    y is recorded once, among the dataset's columns: the outcome's record holds its ground truth.
     A study's model, which JSON cannot hold, is recorded by its qualified name.
     """
     dataset = draw(0, 0, Hyperprior.grouped(outcome_form='glmm'))

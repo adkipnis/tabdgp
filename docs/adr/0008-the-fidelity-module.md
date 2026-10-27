@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-24
-amended: 2026-10-24, #58: the p-value counts the statistic among its null, (k + 1)/(B + 1); the ranks are scaled as (r − ½)/N; the band ends at observed values; sbi's c2st runs plain folds and accuracy on z-scores, so the recipe follows it, not copies it
+amended: 2026-10-24, #58: the p-value counts the statistic among its null, (k + 1)/(B + 1); the ranks are scaled as (r − ½)/N; the band ends at observed values; sbi's c2st runs plain folds and accuracy on z-scores, so the recipe follows it, not copies it; 2026-10-27, #56: ground truth, not truth
 ---
 
 # 0008 — The fidelity module: how generated and registry summaries are compared
@@ -22,9 +22,10 @@ two-sample test, containment test, null, pairing.
 ## Decisions
 
 - **Arrays in, comparisons out.** A sample is a float array `(s, p)`, s datasets by p summaries,
-  a missing summary NaN. How a dataset becomes a summary row (the fit's axes from the truth, the
-  measurement pass's statistics mirrored on generated tables) is the caller's, decided in item
-  3; the registry's files are read by the caller, so `src/` imports nothing downstream.
+  a missing summary NaN. How a dataset becomes a summary row (the fit's axes from the ground
+  truth, the measurement pass's statistics mirrored on generated tables) is the caller's,
+  decided in item 3; the registry's files are read by the caller, so `src/` imports nothing
+  downstream.
 - **The classifier.** scikit-learn's random forest at its defaults, 5 stratified folds, the
   accuracy averaged over folds, after `sbi.utils.metrics.c2st`, which runs plain folds and
   accuracy on z-scores; the forest and the folds are seeded from the module's generator. One

@@ -59,7 +59,7 @@ class Dataset:
     metadata: dict[str, Column]
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored over its groups if group-level
-    outcome: Outcome | None  # the form's columns and truth, None under 'none'
+    outcome: Outcome | None  # the form's columns and ground truth, None under 'none'
     hyperparameters: Hyperprior  # resolved but for what each column, node, factor or model draws
     seed: int  # the corpus
     index: int  # the dataset within its corpus
@@ -80,7 +80,7 @@ class Dataset:
         return pd.DataFrame(table)
 
     def toDesign(self) -> Design:
-        """The design matrix of the covariates, by the coder a GLM's or GLMM's truth refers to."""
+        """The design matrix of the covariates, by the coder a GLM's ground truth refers to."""
         return codeDesign(self.columns, self.metadata, self.hyperparameters.rows)
 
     def toDict(self) -> dict[str, Any]:

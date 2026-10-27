@@ -748,7 +748,8 @@ def test_the_prior_names_the_blocks_fixed_then_the_factors_in_order_and_the_chos
 def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_prior_draws_alone() -> None:
     """A dataset is a pure function of its key, its parameters included.
     The prior keeps the blocks it was set over,
-    so it draws its parameters without the config, and a truth is resampled under a fixed prior.
+    so it draws its parameters without the config,
+    and a ground truth is resampled under a fixed prior.
     """
     resolved = Glmm(correlated_share=1.0).resolveDataset(np.random.default_rng(0))
     first_prior = _drawPriorAt(resolved, 'normal', FACTOR_BLOCKS, np.random.default_rng(7))
