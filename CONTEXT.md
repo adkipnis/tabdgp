@@ -196,13 +196,20 @@ Both have a family, a link and fixed effects, the GLMM adds random effects per g
 and both can add a deviation.
 _Avoid_: mode, kind, outcome type (its column type)
 
+**Likelihood**:
+The distribution y is drawn from, given a function of the parameters and the covariates (the
+linear predictor in a GLM).
+Its response family and that family's shape define it.
+A fitter states a likelihood of its own, which may differ.
+_Avoid_: observation model, noise model, sampling distribution
+
 **Response family**:
-The distribution of y given the linear predictor, with its canonical link.
+The likelihood's family, with its canonical link.
 Normal, Bernoulli and Poisson by default.
 Student-t, negative binomial, latent-noise Bernoulli, Gamma and beta at share zero, each with a
 shape of its own.
 A study that draws one makes the dataset misspecified for a fitter of the base family.
-_Avoid_: likelihood (the fitter's), distribution unqualified, marginal (a covariate's)
+_Avoid_: distribution unqualified, marginal (a covariate's)
 
 **Covariates**:
 What a form reads: the observed columns (the grouping factors and the covariates), their
