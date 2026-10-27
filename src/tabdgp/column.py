@@ -74,7 +74,7 @@ class Column:
         if not agree:
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
 
-        # check that parameters hold exactly the fields this column drew
+        # check that parameters hold exactly the fields this column drew # TODO: rephrase, this is confusing/uninformative
         if self.role == 'grouping_factor':
             # an unbalanced factor draws the concentration of its sizes, a balanced one nothing
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
