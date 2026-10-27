@@ -31,12 +31,14 @@ the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point per field drawn once per dataset                   Glm.resolveDataset
 -> the prior for y's family over the blocks                   Glm.drawPrior
+-> σ_α's family, each factor's LKJ shape and σ_α scales       Glmm.drawPrior
 -> β and σ_ε                                                  Prior.drawParameters
 -> each factor's σ_α, Ω and α per group                       Prior._drawRandomEffects
 """
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import Annotated, ClassVar
 
@@ -297,22 +299,18 @@ class Glm(Config):
             # τ² = r and τ_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             sigma_eps_scale = math.sqrt(1 - self.signal_share)
-        # σ_α's family, the split of τ² between the blocks and each factor's correlation
-        sigma_alpha_family = self._drawSigmaAlphaFamily(rng)
+        # the split of τ² between the blocks, and the slopes spending Xβ's share
         split = self._drawSplit(blocks, rng)
-        lkj_eta = self._drawCorrelations(blocks, rng)
-        # the scales, each block spending its budget τ² φ
-        fixed, *factors = blocks
+        fixed = blocks[0]
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed, what Xβ adds to var(eta)
         slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
-        sigma_alpha_scales = self._drawSigmaAlphaScales(factors, predictor_sd, split, rng)
         return Prior(
             beta_family=beta_family,
             beta_locations=[self.intercept_location, *slope_locations],
             beta_scales=[self.intercept_scale, *slope_scales],
-            sigma_alpha_family=sigma_alpha_family,
-            sigma_alpha_scales=sigma_alpha_scales,
-            lkj_eta=lkj_eta,
+            sigma_alpha_family=None,  # a GLM has no random effects
+            sigma_alpha_scales={},
+            lkj_eta={},
             sigma_eps_family=sigma_eps_family,
             sigma_eps_scale=sigma_eps_scale,
             family_shape=family_shape,
@@ -322,16 +320,8 @@ class Glm(Config):
             blocks=blocks,
         )
 
-    def _drawSigmaAlphaFamily(self, rng: np.random.Generator) -> str | None:
-        return None  # a GLM has no random effects
-
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
-
-    def _drawCorrelations(
-        self, blocks: list[Block], rng: np.random.Generator
-    ) -> dict[str, int | None]:
-        return {}  # a GLM has no random effects
 
     def _drawSlopes(
         self, fixed: Block, budget: float, rng: np.random.Generator
@@ -369,15 +359,6 @@ class Glm(Config):
         scale = math.sqrt(budget / spent) if spent > 0 else 0.0
         return scale * weights  # (d − 1,) or (q,)
 
-    def _drawSigmaAlphaScales(
-        self,
-        factors: list[Block],
-        predictor_sd: float,
-        split: dict[str, float],
-        rng: np.random.Generator,
-    ) -> dict[str, list[float]]:
-        return {}  # a GLM has no random effects
-
 
 class Glmm(Glm):
     """The hyperprior of a generalized linear mixed model (GLMM), a GLM with random effects:
@@ -398,8 +379,21 @@ class Glmm(Glm):
     correlated_share: Share = 0.55
     lkj_eta: PositiveCount = UniformInt(1, 4)  # the LKJ shape per correlated factor
 
-    def _drawSigmaAlphaFamily(self, rng: np.random.Generator) -> str | None:
-        return self.sigma_alpha_family_shares.choose(rng)
+    def drawPrior(self, family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
+        """Draws a GLM's prior, then σ_α's family, each factor's LKJ shape and its σ_α scales."""
+        prior = super().drawPrior(family, blocks, rng)
+        _, *factors = blocks
+        sigma_alpha_family = self.sigma_alpha_family_shares.choose(rng)
+        lkj_eta = self._drawCorrelations(factors, rng)
+        sigma_alpha_scales = self._drawSigmaAlphaScales(
+            factors, prior.predictor_sd, prior.split, rng
+        )
+        return dataclasses.replace(
+            prior,
+            sigma_alpha_family=sigma_alpha_family,
+            sigma_alpha_scales=sigma_alpha_scales,
+            lkj_eta=lkj_eta,
+        )
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         fixed, *factors = blocks
@@ -412,9 +406,8 @@ class Glmm(Glm):
         return split
 
     def _drawCorrelations(
-        self, blocks: list[Block], rng: np.random.Generator
+        self, factors: list[Block], rng: np.random.Generator
     ) -> dict[str, int | None]:
-        _, *factors = blocks
         lkj_eta = {}
         for block in factors:
             lkj_eta[block.name] = None  # independent effects, Ω the identity
