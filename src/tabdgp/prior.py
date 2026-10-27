@@ -279,26 +279,29 @@ class Glm(Config):
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
 
-    # TODO: tidy up in coherent sections
     def drawPrior(self, family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior for y's family over the blocks after the GLM is resolved."""
+        # β's family, and y's shape if its family has one
         beta_family = self.beta_family_shares.choose(rng)
+        family_shape = None
+        if family in self.PER_FAMILY:
+            family_shape = self.resolveField(self.PER_FAMILY[family], rng)
+        # σ_ε's family and scale, if y's family has a residual
         sigma_eps_family = None
         signal_share = None
         predictor_sd = self.predictor_sd
         sigma_eps_scale = None
-        family_shape = None
-        if family in self.PER_FAMILY:
-            family_shape = self.resolveField(self.PER_FAMILY[family], rng)
         if family in ['normal', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
             # τ² = r and τ_ε² = 1 − r, so that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             sigma_eps_scale = math.sqrt(1 - self.signal_share)
+        # σ_α's family, the split of τ² between the blocks and each factor's correlation
         sigma_alpha_family = self._drawSigmaAlphaFamily(rng)
         split = self._drawSplit(blocks, rng)
         lkj_eta = self._drawCorrelations(blocks, rng)
+        # the scales, each block spending its budget τ² φ
         fixed, *factors = blocks
         budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed, what Xβ adds to var(eta)
         slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
