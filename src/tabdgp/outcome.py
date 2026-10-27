@@ -26,7 +26,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp.column import Column, Grouping
 from tabdgp.covariates import Covariates, checkNames, checkSameLength
 from tabdgp.hyperprior import Model
-from tabdgp.likelihood import COLUMNS, LINKS, draw
+from tabdgp.likelihood import COLUMNS, LINKS, draw # TODO: from tabdgp import likelihood, then use likelihood.draw down there
 from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 
 # =====================================================================================
@@ -45,8 +45,40 @@ class Design:
     sds: dict[str, float]  # per column population sd over the n rows
 
 
+def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows: int) -> Design:
+    """The design matrix of the covariates (in their order, after the intercept)."""
+    names = ['intercept']
+    # rows is n, which a table without a covariate cannot tell
+    coded = [np.ones(rows)]  # (n,) each
+    positions: dict[str, list[int]] = {}
+    means: dict[str, float] = {}
+    sds: dict[str, float] = {}
+    for name, column in metadata.items():
+        # a grouping factor and the outcome are left out by role
+        if column.role != 'covariate':
+            continue
+        start = len(names)
+        values = columns[name].astype(np.float64)  # (n,)
+        if column.type in ['continuous', 'count']:
+            means[name] = float(values.mean())
+            sds[name] = float(values.std())  # the population sd, over the n rows
+            names.append(name)
+            coded.append((values - means[name]) / sds[name])
+        elif column.type == 'binary':
+            names.append(name)
+            coded.append(values)
+        else:
+            # k − 1 dummies, the first level in the codes' order dropped
+            for level in range(1, column.levels):
+                names.append(f'{name}={level}')
+                coded.append((values == level).astype(np.float64))
+        positions[name] = list(range(start, len(names)))
+    matrix = np.stack(coded, axis=1)  # (n, d)
+    return Design(matrix=matrix, names=names, positions=positions, means=means, sds=sds)
+
+
 # =====================================================================================
-# the outcome and its truth
+# the outcome and its ground truth
 # =====================================================================================
 
 
@@ -238,13 +270,14 @@ def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outco
 def _drawGlmm(
     glm: Glm, covariates: Covariates, factors: list[str], rng: np.random.Generator
 ) -> GlmOutcome:
+    # TODO: rename glm: Glm to hyperprior: Glm|Glmm
     resolved = glm.resolveDataset(rng)
     rows = covariates.rows
 
     # the blocks: the fixed effects', then each factor's random effects'
     design = codeDesign(covariates.columns, covariates.metadata, rows)
     # a fixed effect adds its column's variance to var(eta) at scale 1 (the intercept nothing)
-    fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist())
+    fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist()) # TODO: this line is hard to read
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
         resolved, design, covariates.grouping, factors, rng
     )
@@ -253,13 +286,13 @@ def _drawGlmm(
     prior = resolved.drawPrior([fixed, *random_blocks], rng)
     parameters = prior.drawParameters(rng)
 
-    # eta = Xβ + Σ_k Z_k α_k in float64, so the float32 parameters are its exact truth
+    # eta = Xβ + Σ_k Z_k α_k in float64, so the float32 parameters are its exact truth # TODO: explain the float64 - float32 dynamic once in the header docstring, don't mention them otherwise
     eta = design.matrix @ parameters.beta  # (n,)
-    for factor, z in random_columns.items():
+    for factor, z in random_columns.items():  # this iterator is empty for GLMs
         alpha = covariates.grouping.broadcast(parameters.alpha[factor], factor, 'row')  # (n, q)
         eta = eta + (z * alpha).sum(axis=1)  # (n,)
 
-    # plus the deviation, the score at λ * sd(eta so far) (zeros without a score, as in a table)
+    # optionally add the deviation
     deviation = np.zeros(rows, dtype=np.float32)  # (n,)
     if covariates.score is not None:
         linear_sd = float(eta.std())  # the population sd over the n rows
@@ -290,37 +323,6 @@ def _drawGlmm(
     return GlmmOutcome(**fields, random_terms=random_terms)
 
 
-def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows: int) -> Design:
-    """The design matrix of the covariates (in their order, after the intercept)."""
-    names = ['intercept']
-    # rows is n, which a table without a covariate cannot tell
-    coded = [np.ones(rows)]  # (n,) each
-    positions: dict[str, list[int]] = {}
-    means: dict[str, float] = {}
-    sds: dict[str, float] = {}
-    for name, column in metadata.items():
-        # a grouping factor and the outcome are left out by role
-        if column.role != 'covariate':
-            continue
-        start = len(names)
-        values = columns[name].astype(np.float64)  # (n,)
-        if column.type in ['continuous', 'count']:
-            means[name] = float(values.mean())
-            sds[name] = float(values.std())  # the population sd, over the n rows
-            names.append(name)
-            coded.append((values - means[name]) / sds[name])
-        elif column.type == 'binary':
-            names.append(name)
-            coded.append(values)
-        else:
-            # k − 1 dummies, the first level in the codes' order dropped
-            for level in range(1, column.levels):
-                names.append(f'{name}={level}')
-                coded.append((values == level).astype(np.float64))
-        positions[name] = list(range(start, len(names)))
-    matrix = np.stack(coded, axis=1)  # (n, d)
-    return Design(matrix=matrix, names=names, positions=positions, means=means, sds=sds)
-
 
 def _buildRandomBlocks(
     resolved: Glm,
@@ -328,7 +330,7 @@ def _buildRandomBlocks(
     grouping: Grouping,
     factors: list[str],
     rng: np.random.Generator,
-) -> tuple[list[Block], dict[str, list[str]], dict[str, np.ndarray]]:
+) -> tuple[list[Block], dict[str, list[str]], dict[str, np.ndarray]]: # TODO: use dict of dicts instead of tuple
     """Each factor's block of random effects, its random terms and their columns of the design."""
     blocks: list[Block] = []
     random_terms: dict[str, list[str]] = {}
@@ -347,9 +349,9 @@ def _buildRandomBlocks(
 
 def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) -> list[int]:
     """A factor's random terms as sorted positions in the design."""
-    positions = [0]  # the intercept, always
+    positions = [0]  # the intercept
     names = list(design.positions)
-    # whole covariates in a random order, each if its columns still fit the budget
+    # whole covariates in a random order (each if its columns still fit the budget)
     for i in rng.permutation(len(names)):
         columns = design.positions[names[i]]
         if len(positions) + len(columns) <= budget:
