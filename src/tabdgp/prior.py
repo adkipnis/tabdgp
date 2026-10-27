@@ -283,7 +283,7 @@ class Glm(Config):
 
     def drawPrior(self, family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior for y's family over the blocks after the GLM is resolved."""
-        # β's family, and y's shape if its family has one
+        # β's family, and optionally y's shape
         beta_family = self.beta_family_shares.choose(rng)
         family_shape = None
         if family in self.PER_FAMILY:
@@ -302,7 +302,7 @@ class Glm(Config):
         # the split of τ² between the blocks, and the slopes spending Xβ's share
         split = self._drawSplit(blocks, rng)
         fixed = blocks[0]
-        budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed, what Xβ adds to var(eta)
+        budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed (what Xβ adds to var(eta))
         slope_locations, slope_scales = self._drawSlopes(fixed, budget, rng)
         return Prior(
             beta_family=beta_family,
@@ -323,6 +323,8 @@ class Glm(Config):
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
 
+    # TODO: confusing name, we don't draw the slopes, we draw the their prior parameters
+    # also what's the reason to split the intercept priors from the slope? even if the intercept prior is not affected by the budget, it would be cleaner to move its lines here and rename the method, no?
     def _drawSlopes(
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[list[float], list[float]]:
@@ -342,6 +344,7 @@ class Glm(Config):
         slope_locations = delta * slope_scales  # (d − 1,)
         return slope_locations.tolist(), slope_scales.tolist()
 
+    # TODO: rewrite docstring more intuitively, this is confusing
     def _drawScales(
         self, variances: np.ndarray, budget: float, rng: np.random.Generator
     ) -> np.ndarray:
