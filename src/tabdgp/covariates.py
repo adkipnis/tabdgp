@@ -32,7 +32,7 @@ from tabdgp.column import Column, Grouping
 # =====================================================================================
 
 
-def checkOneLength(arrays: list[np.ndarray | None], of: str) -> None:
+def checkSameLength(arrays: list[np.ndarray | None], of: str) -> None:
     lengths: set[int] = {len(array) for array in arrays if array is not None}
     if len(lengths) > 1:
         raise ValueError(f'the arrays of {of} have the lengths {sorted(lengths)}, not one')
@@ -59,7 +59,7 @@ class Covariates:
 
     def __post_init__(self) -> None:
         # check that every array has one length, each column its metadata, and none a reserved name
-        checkOneLength([*self.columns.values(), self.score], 'the covariates')
+        checkSameLength([*self.columns.values(), self.score], 'the covariates')
         checkNames(self.columns, self.metadata)
         for name in self.columns:
             match name:

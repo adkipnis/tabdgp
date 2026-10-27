@@ -14,8 +14,7 @@ the covariates (from an SCM draw or a provided table)
    -> eta = Xβ + Σ_k Z_k α_k, plus the deviation λ * sd(Xβ + Σ_k Z_k α_k) * score
                                                                         _drawGlmm
    -> y from its likelihood                                             likelihood.draw
-   a study's: # TODO rewrite this and the line below. this is unclear as is.
-   -> its call, its result checked at the covariates' rows              _callModel
+   (a study's own model is called instead, and its outcome checked against the covariates)
 """
 
 from __future__ import annotations
@@ -25,8 +24,8 @@ from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping
-from tabdgp.covariates import Covariates, checkNames, checkOneLength
-from tabdgp.hyperprior import Model # TODO: should we move this class here?
+from tabdgp.covariates import Covariates, checkNames, checkSameLength
+from tabdgp.hyperprior import Model
 from tabdgp.likelihood import COLUMNS, LINKS, draw
 from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 
@@ -34,7 +33,7 @@ from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 # the design matrix
 # =====================================================================================
 
-# TODO: does this belong here or to covariates.py?
+
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Design:
     """The design matrix: the covariates coded for a linear predictor, the intercept first."""
@@ -53,14 +52,14 @@ class Design:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Outcome:
-    """The columns a form writes and their metadata (a form's subclass adds its truth)."""
-    # TODO: we don't use the term `form` anymore, see likelihood.py
+    """The columns a model writes and their metadata (a model's subclass adds its truth)."""
 
     columns: dict[str, np.ndarray]  # (n,) each, in its type's dtype
     metadata: dict[str, Column]
 
     def __post_init__(self) -> None:
-        # check that each column has its metadata, the role outcome, the correct dtype, and the same length
+        # check that each column has its metadata, the role outcome, the correct dtype,
+        # and the same length
         checkNames(self.columns, self.metadata)
         for name, column in self.metadata.items():
             if column.role != 'outcome':
@@ -70,19 +69,18 @@ class Outcome:
                 raise ValueError(
                     f'the {column.type} column {name} is {dtype}, not {column.dtype.__name__}'
                 )
-        checkOneLength(list(self.columns.values()), 'the outcome') # TODO: consider renaming to checkSameLength
+        checkSameLength(list(self.columns.values()), 'the outcome')
 
 
-# TODO: what is this used for? this class doesn't do much on its own
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class ScmOutcome(Outcome):
-    """The scm form's y and its truth, the score it rank-matched onto y's marginal."""
+    """The SCM's y and its truth, the score it rank-matched onto y's marginal."""
 
     score: np.ndarray  # (n,) float32
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        checkOneLength([*self.columns.values(), self.score], 'the outcome')
+        checkSameLength([*self.columns.values(), self.score], 'the outcome')
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
@@ -92,7 +90,7 @@ class GlmOutcome(Outcome):
     - Ground Truth: the stated prior and the parameters drawn from it (on standardized scale).
     - Terms: the design's columns (intercept first), each with a beta-coefficient.
     - Deviation: the score's part of eta at the deviation scale λ (0 at λ = 0 or without a score).
-    - Coding: each z-scored column's mean and sd, which map beta onto the raw columns. # TODO: coding is usually used for categorical variables, use some other clear name instead
+    - Standardization: each z-scored column's mean and sd, which map beta onto the raw columns.
     """
 
     link: str  # the canonical link of y's family
@@ -110,7 +108,7 @@ class GlmOutcome(Outcome):
         beta_shape = self.parameters.beta.shape
         if beta_shape != (len(self.fixed_terms),):
             raise ValueError(f'beta has the shape {beta_shape}, not one per {self.fixed_terms}')
-        checkOneLength([*self.columns.values(), self.deviation], 'the outcome')
+        checkSameLength([*self.columns.values(), self.deviation], 'the outcome')
 
     @property
     def beta_raw(self) -> np.ndarray:
@@ -202,9 +200,10 @@ class GlmmOutcome(GlmOutcome):
 # =====================================================================================
 # the model's call
 # =====================================================================================
-# TODO: syntactic sugar? also should this not be at the end of the script?
+
+
 def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
-    """Draws the outcome of TabDGP's own model, or of a study's, from the covariates."""
+    """Draws the outcome of TabDGP's own model, or calls a study's and checks what it returns."""
     match model:
         case Glmm():
             # random effects for every grouping factor (a GLMM needs one)
@@ -218,42 +217,62 @@ def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outco
         case Glm():
             return _drawGlmm(model, covariates, [], rng)
         case _:
-            return _callModel(model, covariates, rng)
+            # a study's model is checked on what it returns, each failure naming the model
+            outcome = model(covariates, rng)
+            if not isinstance(outcome, Outcome):
+                raise TypeError(f'{model!r} returned a {type(outcome).__name__}, not an Outcome')
+            arrays = [*covariates.columns.values(), covariates.score, *outcome.columns.values()]
+            checkSameLength(arrays, f'{model!r} and its covariates')
+            # the dataset holds both, so a shared name would replace the covariate
+            shared = covariates.columns.keys() & outcome.columns.keys()
+            if shared:
+                raise ValueError(f'{model!r} wrote the covariates {sorted(shared)}')
+            return outcome
 
 
 # -------------------------------------------------------------------------------------
 # a GLMM, a GLM without factors: the covariates -> the design matrix -> the blocks -> eta -> y
 # -------------------------------------------------------------------------------------
 
-# TODO: this is ugly, bring more clarity and readability into this by code-blocking.
+
 def _drawGlmm(
     glm: Glm, covariates: Covariates, factors: list[str], rng: np.random.Generator
 ) -> GlmOutcome:
     resolved = glm.resolveDataset(rng)
     rows = covariates.rows
+
+    # the blocks: the fixed effects', then each factor's random effects'
     design = codeDesign(covariates.columns, covariates.metadata, rows)
     # a fixed effect adds its column's variance to var(eta) at scale 1 (the intercept nothing)
     fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist())
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
         resolved, design, covariates.grouping, factors, rng
     )
+
+    # the stated prior over the blocks, then the parameters drawn from it
     prior = resolved.drawPrior([fixed, *random_blocks], rng)
     parameters = prior.drawParameters(rng)
-    # eta in float64 from the float32 parameters (so they are its exact truth)
+
+    # eta = Xβ + Σ_k Z_k α_k in float64, so the float32 parameters are its exact truth
     eta = design.matrix @ parameters.beta  # (n,)
     for factor, z in random_columns.items():
         alpha = covariates.grouping.broadcast(parameters.alpha[factor], factor, 'row')  # (n, q)
         eta = eta + (z * alpha).sum(axis=1)  # (n,)
-    deviation = np.zeros(rows, dtype=np.float32)  # (n,) (a table has no score)
+
+    # plus the deviation, the score at λ * sd(eta so far) (zeros without a score, as in a table)
+    deviation = np.zeros(rows, dtype=np.float32)  # (n,)
     if covariates.score is not None:
-        # the score at λ * sd(eta so far) (the population sd over the n rows)
-        linear_sd = float(eta.std())
+        linear_sd = float(eta.std())  # the population sd over the n rows
         deviation = resolved.deviation_scale * linear_sd * covariates.score  # (n,) float32
     eta = eta + deviation  # (n,)
+
+    # y from its likelihood, with σ_ε at every row (if y's family has a residual)
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
     y = draw(prior.y_family, eta, scale, prior.y_shape, rng)  # (n,)
+
+    # the outcome, a GLMM's with its random terms
     fields = {
         'columns': {'y': y},
         'metadata': {'y': COLUMNS[prior.y_family]},
@@ -270,7 +289,7 @@ def _drawGlmm(
         return GlmOutcome(**fields)
     return GlmmOutcome(**fields, random_terms=random_terms)
 
-# TODO: again, maybe this should move to covariates.py? isn't it even redundant to some functions in there?
+
 def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows: int) -> Design:
     """The design matrix of the covariates (in their order, after the intercept)."""
     names = ['intercept']
@@ -336,22 +355,3 @@ def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) ->
         if len(positions) + len(columns) <= budget:
             positions.extend(columns)
     return sorted(positions)
-
-
-# -------------------------------------------------------------------------------------
-# a study's model: its call -> its result checked
-# -------------------------------------------------------------------------------------
-
-# TODO: what is this wrapper for? do we really need it? can it be merged with something else?
-def _callModel(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
-    """Calls a study's model and checks that it returned an Outcome at the covariates' rows."""
-    outcome = model(covariates, rng)
-    if not isinstance(outcome, Outcome):
-        raise TypeError(f'{model!r} returned a {type(outcome).__name__}, not an Outcome')
-    arrays = [*covariates.columns.values(), covariates.score, *outcome.columns.values()]
-    checkOneLength(arrays, f'{model!r} and its covariates')
-    # the dataset holds both, so a shared name would replace the covariate
-    shared = covariates.columns.keys() & outcome.columns.keys()
-    if shared:
-        raise ValueError(f'{model!r} wrote the covariates {sorted(shared)}')
-    return outcome
