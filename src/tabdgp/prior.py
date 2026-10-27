@@ -31,9 +31,9 @@ the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point per field drawn once per dataset                   Glm.resolveDataset
 -> the prior over the blocks, each parameter's in one step    Glm.drawPrior
-   -> y's family and its shape                                _drawResponsePrior
-   -> σ_ε's family and scale, if y's family has a residual
-   -> the split of τ² between the blocks                      _drawSplit
+   -> y's family and optionally its shape                     _drawResponseSpec
+   -> σ_ε's family and scale (if y's family has a residual)
+   -> the split of τ² among blocks                            _drawSplit
    -> β's family, locations and scales                        _drawBetaPrior
    a GLMM's, after a GLM's:                                   Glmm.drawPrior
    -> σ_α's family and each factor's scales                   _drawSigmaAlphaPrior
@@ -102,7 +102,7 @@ class Prior:
     - Fixed effects: family, locations, scales
     - Random effects: sd family, scales (per random effect), LKJ shape
     - Residual: family, scale (for Normal and Student-t outcomes)
-    - Response: y's family and its shape, which a fitter of that family fixes
+    - Response: y's family and its shape (which a fitter of that family fixes)
     - Budget: signal share r, predictor sd τ, each block's share φ of var(eta)
     """
 
@@ -124,9 +124,9 @@ class Prior:
     def drawParameters(self, rng: np.random.Generator) -> Parameters:
         """Draws each parameter from its prior, with no caps or rescaling."""
         locations = np.array(self.beta_locations)  # (d,)
-        scales = np.array(self.beta_scales)  # (d,)
-        standard = self._drawStandard(self.beta_family, rng, len(scales))  # (d,)
-        beta = locations + scales * standard  # (d,)
+        scales = np.array(self.beta_scales)
+        standard = self._drawStandard(self.beta_family, rng, len(scales))
+        beta = locations + scales * standard
         sigma_eps = None
         if self.sigma_eps_scale is not None:
             sigma_eps = self._drawSd(self.sigma_eps_family, self.sigma_eps_scale, rng)
@@ -143,7 +143,7 @@ class Prior:
     def _drawStandard(
         family: str, rng: np.random.Generator, size: int | None
     ) -> float | np.ndarray:
-        """Draws from a family at location 0 and scale 1, a half family as its full one."""
+        """Draws from a family at location 0 and scale 1 (a half family as its full one)."""
         match family.removeprefix('half_'):
             case 'normal':
                 return rng.standard_normal(size)
@@ -162,7 +162,7 @@ class Prior:
         rng: np.random.Generator,
         size: int | None = None,
     ) -> float | np.ndarray:
-        """Draws from an sd family at its scale: scale · |X|, X the family's standard distribution."""
+        """Draws from an sd family at its scale: scale * |X| (X from the family at scale 1)."""
         standard = cls._drawStandard(family, rng, size)
         return scale * abs(standard)  # abs() for half-normal, half-student and half-cauchy
 
@@ -171,13 +171,13 @@ class Prior:
         random_effects = {'sigma_alpha': {}, 'corr_alpha': {}, 'alpha': {}}  # Parameters' fields
         for block in self.blocks[1:]:  # the factors, after the fixed block
             scale = np.array(self.sigma_alpha_scales[block.name])  # (q,)
-            sd = self._drawSd(self.sigma_alpha_family, scale, rng, size=block.width)  # (q,)
+            sd = self._drawSd(self.sigma_alpha_family, scale, rng, size=block.width)
             corr = np.eye(block.width)  # (q, q)
             lkj_eta = self.lkj_eta[block.name]
             if lkj_eta is not None:
-                corr = self._drawLkj(block.width, lkj_eta, rng)  # (q, q)
+                corr = self._drawLkj(block.width, lkj_eta, rng)
             standard = rng.standard_normal((block.groups, block.width))  # (m, q)
-            effects = standard @ np.linalg.cholesky(corr).T * sd  # (m, q)
+            effects = standard @ np.linalg.cholesky(corr).T * sd
             random_effects['sigma_alpha'][block.name] = sd.astype(np.float32)
             random_effects['corr_alpha'][block.name] = corr.astype(np.float32)
             random_effects['alpha'][block.name] = effects.astype(np.float32)
@@ -189,7 +189,7 @@ class Prior:
         using the C-vine according to Lewandowski, Kurowicka and Joe (2009).
         """
         partial = np.zeros((q, q))  # (q, q)
-        corr = np.eye(q)  # (q, q)
+        corr = np.eye(q)
         concentration = lkj_eta + (q - 1) / 2
         for k in range(q - 1):
             concentration -= 1 / 2
@@ -230,7 +230,7 @@ class Glm(Config):
     - Scales: shared or per coefficient within a block
     - Shape: y's second parameter (e.g. Student-t's df)
     - Budget: τ², the variance of eta without the intercept
-    - Deviation, outside the prior: the score added to eta, scaled by λ · sd(Xβ + Σ_k Z_k α_k)
+    - Deviation (outside the prior): the score added to eta, scaled by λ * sd(Xβ + Σ_k Z_k α_k)
     """
 
     SHARES: ClassVar[tuple[str, ...]] = (
@@ -299,14 +299,14 @@ class Glm(Config):
         if y_family in ['normal', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
-            # τ² = r and τ_ε² = 1 − r, so that y has unit variance at the scales
+            # τ² = r and τ_ε² = 1 − r, such that y has unit variance at the scales
             predictor_sd = math.sqrt(self.signal_share)
             sigma_eps_scale = math.sqrt(1 - self.signal_share)
 
         # the split of τ² among blocks; the prior of β spends Xβ's share
         split = self._drawSplit(blocks, rng)
         fixed = blocks[0]
-        budget = predictor_sd**2 * split[fixed.name]  # τ² φ_fixed (what Xβ adds to var(eta))
+        budget = predictor_sd**2 * split[fixed.name]  # τ² * φ_fixed (what Xβ adds to var(eta))
         beta_family, beta_locations, beta_scales = self._drawBetaPrior(fixed, budget, rng)
         return Prior(
             beta_family=beta_family,
@@ -348,16 +348,17 @@ class Glm(Config):
         - Budget: what Xβ adds to var(eta) at a Normal β (more at a heavier-tailed one)
         """
         beta_family = self.beta_family_shares.choose(rng)
-        num_slopes = fixed.width - 1
-        located = rng.random(num_slopes) < self.location_share  # (d − 1,)
-        offsets = rng.normal(0, self.location_scale, num_slopes)  # δ_j of a located slope
+        d = fixed.width
+        located = rng.random(d - 1) < self.location_share  # (d − 1,)
+        offsets = rng.normal(0, self.location_scale, d - 1)  # δ_j of a located slope
         delta = np.where(located, offsets, 0.0)
         column_variances = np.array(fixed.variances[1:])  # var_j
-        variances = (1 + delta**2) * column_variances  # TODO: why 
+        # a slope adds β_j² * var_j to var(eta), and E[β_j²] = τ_j² * (1 + δ_j²) at a Normal β
+        variances = (1 + delta**2) * column_variances  # at τ_j = 1
         slope_scales = self._drawScales(variances, budget, rng)
         slope_locations = delta * slope_scales
-        beta_locations = [self.intercept_location, *slope_locations.tolist()]  # (d -1,)
-        beta_scales = [self.intercept_scale, *slope_scales.tolist()]  # (d -1,)
+        beta_locations = [self.intercept_location, *slope_locations.tolist()]  # (d,)
+        beta_scales = [self.intercept_scale, *slope_scales.tolist()]  # (d,)
         return beta_family, beta_locations, beta_scales
 
     def _drawScales(
@@ -366,7 +367,7 @@ class Glm(Config):
         """Draws a block's scales s * w_j, such that its coefficients add the budget to var(eta):
 
         - Constant: w_j = 1, when the block shares the same scale
-        - Varying: w_j log-normal at scale_spread (with probability `varying_scale_share`)
+        - Varying: w_j log-normal at `scale_spread` (with probability `varying_scale_share`)
         - Scale: s such that the `budget` = s² * Σ_j (w_j² * variances_j)
         - Variances: what each coefficient adds to var(eta) at scale 1
         """
@@ -384,7 +385,7 @@ class Glmm(Glm):
 
     - Split: φ_fixed of τ² for Xβ, the rest split among the factors by a Dirichlet
     - Random effects: per factor, an intercept and slopes, up to q_k design columns
-    - Correlation: LKJ with probability correlated_share, independent otherwise
+    - Correlation: LKJ with probability `correlated_share` (independent otherwise)
     - Families: σ_α has its own, apart from σ_ε's
     """
 
@@ -430,13 +431,13 @@ class Glmm(Glm):
         split: dict[str, float],
         rng: np.random.Generator,
     ) -> tuple[str, dict[str, list[float]]]:
-        """Draws σ_α's family, one for every factor, then each factor's scales from its budget."""
+        """Draws σ_α's family (shared among factors), then each factor's scales from its budget."""
         sigma_alpha_family = self.sigma_alpha_family_shares.choose(rng)
         sigma_alpha_scales = {}
         for block in factors:
-            budget = predictor_sd**2 * split[block.name]  # τ² φ_k, what Z_k α_k adds to var(eta)
+            budget = predictor_sd**2 * split[block.name]  # τ² * φ_k (what Z_k α_k adds to var(eta))
             variances = np.array(block.variances)  # (q,) E[z_j²], the intercept's 1 first
-            scales = self._drawScales(variances, budget, rng)  # (q,)
+            scales = self._drawScales(variances, budget, rng)
             sigma_alpha_scales[block.name] = scales.tolist()
         return sigma_alpha_family, sigma_alpha_scales
 
