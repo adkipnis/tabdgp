@@ -42,8 +42,8 @@ class Column:
     levels: int | None = None  # k
     role: Role = 'covariate'
     nests_in: str | None = None  # the superior grouping factor of a nested one
-    marginal: Marginal | None = None  # for continuous and count columns
-    parameters: dict[str, float] = Field(default_factory=dict)  # the fields it drew, by name
+    marginal: Marginal | None = None  # a continuous or count column's family, if a plan drew it
+    parameters: dict[str, float] = Field(default_factory=dict)  # its drawn values, by field name
 
     def __post_init__(self) -> None:
         # a grouping factor's codes label its groups, unordered at any m
@@ -74,7 +74,8 @@ class Column:
         if not agree:
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
 
-        # check that parameters hold exactly the fields this column drew # TODO: rephrase, this is confusing/uninformative
+        # parameters hold exactly the values this column drew from the hyperprior, by field name
+        # (a factor's size_alpha, a marginal's fields or a coded column's level_alpha)
         if self.role == 'grouping_factor':
             # an unbalanced factor draws the concentration of its sizes, a balanced one nothing
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
