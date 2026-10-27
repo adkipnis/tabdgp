@@ -14,8 +14,9 @@ the covariates, from a draw or a table
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
    -> y's family, the stated prior over the blocks, then the parameters Glm.drawPrior,
                                                                         Prior.drawParameters
-   -> η = Xβ + Σ_k Z_k α_k, plus the deviation λ · sd(Xβ + Σ_k Z_k α_k) · score,
-      then y from the family through its link                           _drawGlmm
+   -> eta = Xβ + Σ_k Z_k α_k, plus the deviation λ * sd(Xβ + Σ_k Z_k α_k) * score
+                                                                        _drawGlmm
+   -> y from its family through the link                                drawY
    a study's:
    -> its call, its result checked at the covariates' rows              _callModel
 """
@@ -44,8 +45,8 @@ class Design:
     matrix: np.ndarray  # (n, d) float64
     names: list[str]  # the terms: 'intercept', then each covariate's
     positions: dict[str, list[int]]  # each covariate's columns of the matrix
-    means: dict[str, float]  # each continuous column's, before z-scoring
-    sds: dict[str, float]  # each continuous column's population sd over the n rows
+    means: dict[str, float]  # each z-scored column's (continuous or count), before z-scoring
+    sds: dict[str, float]  # each z-scored column's population sd over the n rows
 
 
 # =====================================================================================
@@ -93,9 +94,9 @@ class GlmOutcome(Outcome):
 
     - Truth: the stated prior and the parameters drawn from it, on the standardized scale.
     - Terms: the design's columns, the intercept first, each with one coefficient in beta.
-    - Deviation: the score's part of η at the deviation scale λ,
-      zero at λ = 0 or without a score.
-    - Coding: each continuous column's mean and sd, which map beta onto the raw columns.
+    - Deviation: the score's part of eta at the deviation scale λ
+      (zero at λ = 0 or without a score).
+    - Coding: each z-scored column's mean and sd, which map beta onto the raw columns.
     """
 
     link: str  # the family's canonical link
@@ -117,18 +118,18 @@ class GlmOutcome(Outcome):
 
     @property
     def beta_raw(self) -> np.ndarray:
-        """beta on the raw columns, which gives the same η as beta on the design matrix."""
+        """beta on the raw columns, which gives the same eta as beta on the design matrix."""
         return self._buildRawMap(self.fixed_terms) @ self.parameters.beta  # (d,)
 
     def _buildRawMap(self, terms: list[str]) -> np.ndarray:
         """The matrix A that takes a block's coefficients, the intercept first,
         from the design matrix to the raw columns.
-        A 0/1 column is coded as it is, so its row is the identity's.
+        A column coded as it is (binary, a dummy) keeps the identity's row.
         """
         raw_map = np.eye(len(terms), dtype=np.float32)  # (q, q)
         for j, term in enumerate(terms):
             if term in self.sds:
-                # β (x − mean) / sd = (β / sd) x − β mean / sd
+                # β * (x − mean) / sd = (β / sd) * x − β * mean / sd
                 raw_map[j, j] = 1 / self.sds[term]
                 raw_map[0, j] = -self.means[term] / self.sds[term]
         return raw_map
@@ -141,7 +142,7 @@ class GlmmOutcome(GlmOutcome):
     - Random terms: a factor's intercept and slopes, terms of the design,
       each with one random effect per group.
     - Covariance: a group's random effects are N(0, Σ), with Σ = diag(sd) corr diag(sd).
-    - Raw scale: the random intercept absorbs each slope's α · mean / sd, like the fixed one,
+    - Raw scale: the random intercept absorbs each slope's α * mean / sd, like the fixed one,
       so Σ's intercept row and column change on the raw columns, not only its diagonal.
     """
 
@@ -172,7 +173,7 @@ class GlmmOutcome(GlmOutcome):
 
     @property
     def alpha_raw(self) -> dict[str, np.ndarray]:
-        """alpha on the raw columns, which gives the same η as alpha on the design matrix."""
+        """alpha on the raw columns, which gives the same eta as alpha on the design matrix."""
         raw = {}
         for factor, terms in self.random_terms.items():
             raw[factor] = self.parameters.alpha[factor] @ self._buildRawMap(terms).T  # (m, q)
@@ -213,7 +214,7 @@ def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outco
     """Draws the outcome of TabDGP's own model, or of a study's, from the covariates."""
     match model:
         case Glmm():
-            # random effects for every grouping factor, of which a GLMM needs one
+            # random effects for every grouping factor (a GLMM needs one)
             factors = list(covariates.grouping.metadata)
             if not factors:
                 raise ValueError(
@@ -228,7 +229,7 @@ def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outco
 
 
 # -------------------------------------------------------------------------------------
-# a GLMM, a GLM without factors: the covariates -> the design matrix -> the blocks -> η -> y
+# a GLMM, a GLM without factors: the covariates -> the design matrix -> the blocks -> eta -> y
 # -------------------------------------------------------------------------------------
 
 
@@ -238,21 +239,21 @@ def _drawGlmm(
     resolved = glm.resolveDataset(rng)
     rows = covariates.rows
     design = codeDesign(covariates.columns, covariates.metadata, rows)
-    # a fixed effect adds its column's variance to var(η) at scale 1, the intercept nothing
+    # a fixed effect adds its column's variance to var(eta) at scale 1 (the intercept nothing)
     fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist())
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
         resolved, design, covariates.grouping, factors, rng
     )
     prior = resolved.drawPrior([fixed, *random_blocks], rng)
     parameters = prior.drawParameters(rng)
-    # η in float64 from the float32 parameters, which are so its exact truth
+    # eta in float64 from the float32 parameters (so they are its exact truth)
     eta = design.matrix @ parameters.beta  # (n,)
     for factor, z in random_columns.items():
         alpha = covariates.grouping.broadcast(parameters.alpha[factor], factor, 'row')  # (n, q)
         eta = eta + (z * alpha).sum(axis=1)  # (n,)
-    deviation = np.zeros(rows, dtype=np.float32)  # (n,), a table's, which has no score
+    deviation = np.zeros(rows, dtype=np.float32)  # (n,) (a table has no score)
     if covariates.score is not None:
-        # the score at λ times η's sd so far, the population sd over the n rows
+        # the score at λ * sd(eta so far) (the population sd over the n rows)
         linear_sd = float(eta.std())
         deviation = resolved.deviation_scale * linear_sd * covariates.score  # (n,) float32
     eta = eta + deviation  # (n,)
@@ -325,7 +326,7 @@ def _buildRandomBlocks(
         budget = resolved.resolveField('random_effects', rng, high=len(design.names))
         positions = _chooseRandomTerms(design, budget, rng)
         z = design.matrix[:, positions]  # (n, q)
-        # a random effect adds E[z²] to var(η) at scale 1, the intercept 1
+        # a random effect adds E[z²] to var(eta) at scale 1 (the intercept 1)
         groups = grouping.metadata[factor].levels
         blocks.append(Block(name=factor, variances=(z**2).mean(axis=0).tolist(), groups=groups))
         random_terms[factor] = [design.names[i] for i in positions]
@@ -338,9 +339,9 @@ def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) ->
     the intercept, then whole covariates in a random order, each while it fits the budget.
     """
     positions = [0]
-    covariates = list(design.positions)
-    for i in rng.permutation(len(covariates)):
-        columns = design.positions[covariates[i]]
+    names = list(design.positions)
+    for i in rng.permutation(len(names)):
+        columns = design.positions[names[i]]
         if len(positions) + len(columns) <= budget:
             positions.extend(columns)
     return sorted(positions)
