@@ -82,7 +82,7 @@ class Parameters:
 
     beta: np.ndarray  # (d,) intercept first
     sigma_eps: float | None  # None unless the family is Normal or Student-t
-    family_shape: float | None  # the optional second likelihood parameter
+    family_shape: float | None  # y's second parameter, None for Normal, Bernoulli and Poisson
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -215,12 +215,12 @@ SD_FAMILY_SHARES = {
 
 class Glm(Config):
     """The hyperprior of a generalized linear model (GLM),
-    from which the prior and conversely the model parameters are drawn:
+    from which the prior and in turn the model parameters are drawn:
 
     - Families: of y, of β and of σ_ε
     - Locations: of intercept and slopes
     - Scales: shared or per coefficient within a block
-    - Shape: # TODO: clarify
+    - Shape: y's second parameter (e.g. Student-t's df)
     - Budget: τ², the variance of eta without the intercept
     - Deviation: the score added to eta, scaled by λ · sd(Xβ + Σ_k Z_k α_k)
     """
@@ -255,7 +255,7 @@ class Glm(Config):
     intercept_location: Real = Uniform(-3, 3)  # ν_0 on the link scale
     intercept_scale: NonNegative = LogUniform(0.1, 10)  # τ_0
     location_share: Share = 0.1  # the probability that a slope has a location
-    location_scale: NonNegative = 2.0  # TODO: clarify
+    location_scale: NonNegative = 2.0  # the sd of a located slope's δ_j = ν_j / τ_j
     varying_scale_share: Share = 0.5  # the probability that a block's scales vary per coefficient
     scale_spread: NonNegative = Uniform(0, 2)  # the sd of a log weight in a varying block
     signal_share: Share = Beta(2, 2)  # r
