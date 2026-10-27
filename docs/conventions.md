@@ -92,6 +92,8 @@ harder to understand or change; it accrues one small edit at a time.
 - Import a library's names when they are unmistakable (`BaseModel`), rename one that shadows a
   standard-library name (`dataclass as pydantic_dataclass`), and alias a module only by its
   community's convention (`np`, `pd`).
+- A module that names nothing by its caller (`likelihood.draw`) is imported whole,
+  `from <package> import <module>`, so each call says whose it is.
 - Modern typing: `X | Y`, built-in generics, `from __future__ import annotations`.
   `Literal[...]` for an argument with a fixed set of options, a type alias once it repeats.
 - Config models are Pydantic: a check a type can state is its constraint (`PositiveFloat`,
