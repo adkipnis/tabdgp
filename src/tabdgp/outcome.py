@@ -2,11 +2,12 @@
 
 A GLM codes the covariates as the design matrix and draws y from its likelihood.
 A GLMM adds random effects per grouping factor on some of the design's columns.
+The ground truth is float32, and eta is computed from its values in float64, so they drew y exactly.
 
 pipeline:
 ---------
 the covariates (from an SCM draw or a provided table)
--> a model's outcome: its columns, their metadata and its truth:        run
+-> a model's outcome: its columns, their metadata and its ground truth: run
    -> the design matrix (intercept first)                               codeDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
    -> y's family, the stated prior over the blocks, then the parameters Glm.drawPrior,
@@ -23,10 +24,10 @@ import numpy as np
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from tabdgp import likelihood
 from tabdgp.column import Column, Grouping
 from tabdgp.covariates import Covariates, checkNames, checkSameLength
 from tabdgp.hyperprior import Model
-from tabdgp.likelihood import COLUMNS, LINKS, draw # TODO: from tabdgp import likelihood, then use likelihood.draw down there
 from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 
 # =====================================================================================
@@ -38,7 +39,7 @@ from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 class Design:
     """The design matrix: the covariates coded for a linear predictor, the intercept first."""
 
-    matrix: np.ndarray  # (n, d) float64
+    matrix: np.ndarray  # (n, d)
     names: list[str]  # the terms: 'intercept', then each covariate's
     positions: dict[str, list[int]]  # each covariate's columns of the matrix
     means: dict[str, float]  # per column (continuous or count)
@@ -84,7 +85,7 @@ def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Outcome:
-    """The columns a model writes and their metadata (a model's subclass adds its truth)."""
+    """The columns a model writes and their metadata (a model's subclass adds its ground truth)."""
 
     columns: dict[str, np.ndarray]  # (n,) each, in its type's dtype
     metadata: dict[str, Column]
@@ -106,9 +107,9 @@ class Outcome:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class ScmOutcome(Outcome):
-    """The SCM's y and its truth, the score it rank-matched onto y's marginal."""
+    """The SCM's y and its ground truth, the score it rank-matched onto y's marginal."""
 
-    score: np.ndarray  # (n,) float32
+    score: np.ndarray  # (n,)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -129,7 +130,7 @@ class GlmOutcome(Outcome):
     fixed_terms: list[str]  # the design's names
     prior: Prior
     parameters: Parameters
-    deviation: np.ndarray  # (n,) float32
+    deviation: np.ndarray  # (n,)
     deviation_scale: float  # λ
     means: dict[str, float]  # of the design
     sds: dict[str, float]  # of the design
@@ -161,7 +162,7 @@ class GlmOutcome(Outcome):
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class GlmmOutcome(GlmOutcome):
-    """A GLMM's y and its truth: a GLM's, and each grouping factor's random effects.
+    """A GLMM's y and its ground truth: a GLM's, and each grouping factor's random effects.
 
     - Random terms: a factor's intercept and slopes, terms of the design,
       each with one random effect per group.
@@ -268,27 +269,25 @@ def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outco
 
 
 def _drawGlmm(
-    glm: Glm, covariates: Covariates, factors: list[str], rng: np.random.Generator
+    hyperprior: Glm | Glmm, covariates: Covariates, factors: list[str], rng: np.random.Generator
 ) -> GlmOutcome:
-    # TODO: rename glm: Glm to hyperprior: Glm|Glmm
-    resolved = glm.resolveDataset(rng)
+    resolved = hyperprior.resolveDataset(rng)
     rows = covariates.rows
 
     # the blocks: the fixed effects', then each factor's random effects'
     design = codeDesign(covariates.columns, covariates.metadata, rows)
     # a fixed effect adds its column's variance to var(eta) at scale 1 (the intercept nothing)
-    fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist()) # TODO: this line is hard to read
-    random_blocks, random_terms, random_columns = _buildRandomBlocks(
-        resolved, design, covariates.grouping, factors, rng
-    )
+    fixed_variances = design.matrix.var(axis=0)  # (d,)
+    fixed = Block(name='fixed', variances=fixed_variances.tolist())
+    random = _buildRandomBlocks(resolved, design, covariates.grouping, factors, rng)
 
     # the stated prior over the blocks, then the parameters drawn from it
-    prior = resolved.drawPrior([fixed, *random_blocks], rng)
+    prior = resolved.drawPrior([fixed, *random['blocks'].values()], rng)
     parameters = prior.drawParameters(rng)
 
-    # eta = Xβ + Σ_k Z_k α_k in float64, so the float32 parameters are its exact truth # TODO: explain the float64 - float32 dynamic once in the header docstring, don't mention them otherwise
+    # eta = Xβ + Σ_k Z_k α_k
     eta = design.matrix @ parameters.beta  # (n,)
-    for factor, z in random_columns.items():  # this iterator is empty for GLMs
+    for factor, z in random['columns'].items():  # this iterator is empty for GLMs
         alpha = covariates.grouping.broadcast(parameters.alpha[factor], factor, 'row')  # (n, q)
         eta = eta + (z * alpha).sum(axis=1)  # (n,)
 
@@ -296,20 +295,20 @@ def _drawGlmm(
     deviation = np.zeros(rows, dtype=np.float32)  # (n,)
     if covariates.score is not None:
         linear_sd = float(eta.std())  # the population sd over the n rows
-        deviation = resolved.deviation_scale * linear_sd * covariates.score  # (n,) float32
+        deviation = resolved.deviation_scale * linear_sd * covariates.score  # (n,)
     eta = eta + deviation  # (n,)
 
     # y from its likelihood, with σ_ε at every row (if y's family has a residual)
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    y = draw(prior.y_family, eta, scale, prior.y_shape, rng)  # (n,)
+    y = likelihood.draw(prior.y_family, eta, scale, prior.y_shape, rng)  # (n,)
 
     # the outcome, a GLMM's with its random terms
     fields = {
         'columns': {'y': y},
-        'metadata': {'y': COLUMNS[prior.y_family]},
-        'link': LINKS[prior.y_family],
+        'metadata': {'y': likelihood.COLUMNS[prior.y_family]},
+        'link': likelihood.LINKS[prior.y_family],
         'fixed_terms': design.names,
         'prior': prior,
         'parameters': parameters,
@@ -320,8 +319,7 @@ def _drawGlmm(
     }
     if not factors:
         return GlmOutcome(**fields)
-    return GlmmOutcome(**fields, random_terms=random_terms)
-
+    return GlmmOutcome(**fields, random_terms=random['terms'])
 
 
 def _buildRandomBlocks(
@@ -330,9 +328,9 @@ def _buildRandomBlocks(
     grouping: Grouping,
     factors: list[str],
     rng: np.random.Generator,
-) -> tuple[list[Block], dict[str, list[str]], dict[str, np.ndarray]]: # TODO: use dict of dicts instead of tuple
-    """Each factor's block of random effects, its random terms and their columns of the design."""
-    blocks: list[Block] = []
+) -> dict[str, dict]:
+    """The random effects' blocks, terms and columns of the design, each by factor."""
+    blocks: dict[str, Block] = {}
     random_terms: dict[str, list[str]] = {}
     random_columns: dict[str, np.ndarray] = {}
     for factor in factors:
@@ -341,10 +339,11 @@ def _buildRandomBlocks(
         z = design.matrix[:, positions]  # (n, q)
         groups = grouping.metadata[factor].levels
         # a random effect adds E[z²] to var(eta) at scale 1 (the intercept 1)
-        blocks.append(Block(name=factor, variances=(z**2).mean(axis=0).tolist(), groups=groups))
+        variances = (z**2).mean(axis=0)  # (q,)
+        blocks[factor] = Block(name=factor, variances=variances.tolist(), groups=groups)
         random_terms[factor] = [design.names[i] for i in positions]
         random_columns[factor] = z
-    return blocks, random_terms, random_columns
+    return {'blocks': blocks, 'terms': random_terms, 'columns': random_columns}
 
 
 def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) -> list[int]:
