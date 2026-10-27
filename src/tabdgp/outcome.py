@@ -1,22 +1,20 @@
-"""outcome.py defines the outcome with its truth, and TabDGP's own models, the GLM and GLMM.
+"""outcome.py defines the outcome y, and the GLM and GLMM models thereof.
 
-A model reads the covariates and writes its columns, with its truth.
 A GLM codes the covariates as the design matrix and draws y from its likelihood.
 A GLMM adds random effects per grouping factor on some of the design's columns.
 
 pipeline:
 ---------
-the covariates, from a draw or a table
--> a model's outcome: its columns, their metadata and its truth         run
-   a GLMM's, a GLM's without factors:
-   -> the design matrix, the intercept first                            codeDesign
+the covariates (from an SCM draw or a provided table)
+-> a model's outcome: its columns, their metadata and its truth:        run
+   -> the design matrix (intercept first)                               codeDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
    -> y's family, the stated prior over the blocks, then the parameters Glm.drawPrior,
                                                                         Prior.drawParameters
    -> eta = Xβ + Σ_k Z_k α_k, plus the deviation λ * sd(Xβ + Σ_k Z_k α_k) * score
                                                                         _drawGlmm
    -> y from its likelihood                                             likelihood.draw
-   a study's:
+   a study's: # TODO rewrite this and the line below. this is unclear as is.
    -> its call, its result checked at the covariates' rows              _callModel
 """
 
@@ -28,7 +26,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping
 from tabdgp.covariates import Covariates, checkNames, checkOneLength
-from tabdgp.hyperprior import Model
+from tabdgp.hyperprior import Model # TODO: should we move this class here?
 from tabdgp.likelihood import COLUMNS, LINKS, draw
 from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 
@@ -36,7 +34,7 @@ from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 # the design matrix
 # =====================================================================================
 
-
+# TODO: does this belong here or to covariates.py?
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Design:
     """The design matrix: the covariates coded for a linear predictor, the intercept first."""
@@ -44,8 +42,8 @@ class Design:
     matrix: np.ndarray  # (n, d) float64
     names: list[str]  # the terms: 'intercept', then each covariate's
     positions: dict[str, list[int]]  # each covariate's columns of the matrix
-    means: dict[str, float]  # each z-scored column's (continuous or count), before z-scoring
-    sds: dict[str, float]  # each z-scored column's population sd over the n rows
+    means: dict[str, float]  # per column (continuous or count)
+    sds: dict[str, float]  # per column population sd over the n rows
 
 
 # =====================================================================================
@@ -55,13 +53,14 @@ class Design:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Outcome:
-    """The columns a form writes (y today) and their metadata (a form's subclass adds its truth)."""
+    """The columns a form writes and their metadata (a form's subclass adds its truth)."""
+    # TODO: we don't use the term `form` anymore, see likelihood.py
 
     columns: dict[str, np.ndarray]  # (n,) each, in its type's dtype
     metadata: dict[str, Column]
 
     def __post_init__(self) -> None:
-        # check that each column has its metadata, the role outcome, its type's dtype and one length
+        # check that each column has its metadata, the role outcome, the correct dtype, and the same length
         checkNames(self.columns, self.metadata)
         for name, column in self.metadata.items():
             if column.role != 'outcome':
@@ -71,9 +70,10 @@ class Outcome:
                 raise ValueError(
                     f'the {column.type} column {name} is {dtype}, not {column.dtype.__name__}'
                 )
-        checkOneLength(list(self.columns.values()), 'the outcome')
+        checkOneLength(list(self.columns.values()), 'the outcome') # TODO: consider renaming to checkSameLength
 
 
+# TODO: what is this used for? this class doesn't do much on its own
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class ScmOutcome(Outcome):
     """The scm form's y and its truth, the score it rank-matched onto y's marginal."""
@@ -87,13 +87,12 @@ class ScmOutcome(Outcome):
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class GlmOutcome(Outcome):
-    """A GLM's y and its truth, on the standardized scale as drawn and on the raw columns.
+    """A GLM's y and its ground truth, both on the standardized scale and on the raw columns.
 
-    - Truth: the stated prior and the parameters drawn from it, on the standardized scale.
-    - Terms: the design's columns, the intercept first, each with one coefficient in beta.
-    - Deviation: the score's part of eta at the deviation scale λ
-      (zero at λ = 0 or without a score).
-    - Coding: each z-scored column's mean and sd, which map beta onto the raw columns.
+    - Ground Truth: the stated prior and the parameters drawn from it (on standardized scale).
+    - Terms: the design's columns (intercept first), each with a beta-coefficient.
+    - Deviation: the score's part of eta at the deviation scale λ (0 at λ = 0 or without a score).
+    - Coding: each z-scored column's mean and sd, which map beta onto the raw columns. # TODO: coding is usually used for categorical variables, use some other clear name instead
     """
 
     link: str  # the canonical link of y's family
@@ -102,8 +101,8 @@ class GlmOutcome(Outcome):
     parameters: Parameters
     deviation: np.ndarray  # (n,) float32
     deviation_scale: float  # λ
-    means: dict[str, float]  # the design's
-    sds: dict[str, float]  # the design's
+    means: dict[str, float]  # of the design
+    sds: dict[str, float]  # of the design
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -203,8 +202,7 @@ class GlmmOutcome(GlmOutcome):
 # =====================================================================================
 # the model's call
 # =====================================================================================
-
-
+# TODO: syntactic sugar? also should this not be at the end of the script?
 def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """Draws the outcome of TabDGP's own model, or of a study's, from the covariates."""
     match model:
@@ -227,7 +225,7 @@ def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outco
 # a GLMM, a GLM without factors: the covariates -> the design matrix -> the blocks -> eta -> y
 # -------------------------------------------------------------------------------------
 
-
+# TODO: this is ugly, bring more clarity and readability into this by code-blocking.
 def _drawGlmm(
     glm: Glm, covariates: Covariates, factors: list[str], rng: np.random.Generator
 ) -> GlmOutcome:
@@ -272,7 +270,7 @@ def _drawGlmm(
         return GlmOutcome(**fields)
     return GlmmOutcome(**fields, random_terms=random_terms)
 
-
+# TODO: again, maybe this should move to covariates.py? isn't it even redundant to some functions in there?
 def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows: int) -> Design:
     """The design matrix of the covariates (in their order, after the intercept)."""
     names = ['intercept']
@@ -329,7 +327,7 @@ def _buildRandomBlocks(
 
 
 def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) -> list[int]:
-    """A factor's random terms, as sorted positions in the design."""
+    """A factor's random terms as sorted positions in the design."""
     positions = [0]  # the intercept, always
     names = list(design.positions)
     # whole covariates in a random order, each if its columns still fit the budget
@@ -344,7 +342,7 @@ def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) ->
 # a study's model: its call -> its result checked
 # -------------------------------------------------------------------------------------
 
-
+# TODO: what is this wrapper for? do we really need it? can it be merged with something else?
 def _callModel(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """Calls a study's model and checks that it returned an Outcome at the covariates' rows."""
     outcome = model(covariates, rng)
