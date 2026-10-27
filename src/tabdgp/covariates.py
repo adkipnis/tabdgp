@@ -9,12 +9,13 @@ and checked against its values.
 pipeline:
 ---------
 a table, and its grouping factors or its declared metadata
+-> every observed column, a value in each row and two distinct        _checkValues
 -> the metadata, declared as a Column per column of the table         _validateMetadata
    or inferred: the factors' from their codes, a factor's superior
    from the data, each covariate's from its dtype                     _inferMetadata
 -> the factors' codes, checked against their levels and nesting       _readGrouping
 -> each covariate's values in its type's dtype, checked against it    _readValues
--> the covariates, without a score                                     Covariates.fromPandas
+-> the covariates, without a score                                    Covariates.fromPandas
 """
 
 from __future__ import annotations
@@ -77,7 +78,7 @@ class Covariates:
 
     @property
     def rows(self) -> int:
-        """n, the length of every array, the score's in a table without a column."""
+        """n, the length of every array, the score's if there is no column."""
         for array in [*self.columns.values(), self.score]:
             if array is not None:
                 return len(array)
@@ -93,7 +94,8 @@ class Covariates:
         """The covariates of a table, each column read by its metadata and checked against it.
         The metadata is declared, a Column per column, or inferred from the dtypes,
         with the grouping factors named in factors.
-        The outcome, which only a declaration names, is left out; a table has no SCM, so no score.
+        The outcome, which only a declaration names, is left out.
+        A table has no SCM, so it has no score.
         """
         if (factors is None) == (metadata is None):
             raise ValueError('name the grouping factors to infer the metadata, or declare it')
@@ -173,7 +175,8 @@ class Covariates:
         cls, factor: str, codes: dict[str, np.ndarray], levels: dict[str, int]
     ) -> str | None:
         """The factor's immediate superior, wherever it is named:
-        of the factors with fewer groups that each hold whole groups of it, the one with the most.
+        of the factors with fewer groups that each hold whole groups of it, the one with the most,
+        and of two with as many, the one named first.
         """
         superior = None
         for other, other_codes in codes.items():
@@ -188,7 +191,7 @@ class Covariates:
     def _nests(subordinate: np.ndarray, superior: np.ndarray) -> bool:
         """Whether each group of the subordinate factor lies within one group of the superior."""
         # the distinct pairs of a group and its superior group, one per group if it nests
-        pairs = np.unique(np.stack([subordinate, superior], axis=1), axis=0)  # (pairs, 2)
+        pairs = np.unique(np.stack([subordinate, superior], axis=1), axis=0)  # (u, 2)
         return len(pairs) == np.unique(subordinate).size
 
     @staticmethod
@@ -198,12 +201,13 @@ class Covariates:
         """
         dtype = values.dtype
         categorical = isinstance(dtype, pd.CategoricalDtype)
-        if values.nunique() == 2:
+        k = values.nunique()
+        if k == 2:
             return Column(type='binary', levels=2)
         if categorical and dtype.ordered:
-            return Column(type='ordered', levels=values.nunique())
+            return Column(type='ordered', levels=k)
         if categorical or pd.api.types.is_string_dtype(values):
-            return Column(type='categorical', levels=values.nunique())
+            return Column(type='categorical', levels=k)
         if pd.api.types.is_integer_dtype(dtype):
             if (values < 0).any():
                 raise ValueError(
@@ -240,12 +244,12 @@ class Covariates:
             if superior is not None and not cls._nests(codes[name], codes[superior]):
                 raise ValueError(f'the factor {name} has a group across two groups of {superior}')
             for other in names[i + 1 :]:
-                alike = cls._nests(codes[name], codes[other]) and cls._nests(
-                    codes[other], codes[name]
-                )
-                if alike:
+                within = cls._nests(codes[name], codes[other])
+                around = cls._nests(codes[other], codes[name])
+                if within and around:
                     raise ValueError(
-                        f'the factors {name} and {other} group the rows alike, one factor named twice'
+                        f'the factors {name} and {other} group the rows alike, '
+                        'one factor named twice'
                     )
         return Grouping(metadata=factors, codes=codes)
 
@@ -255,7 +259,8 @@ class Covariates:
         codes, k = cls._codeLevels(values)
         if k != column.levels:
             raise ValueError(
-                f'the column {values.name} has {k} distinct values, its metadata {column.levels} levels'
+                f'the column {values.name} has {k} distinct values, '
+                f'its metadata {column.levels} levels'
             )
         return codes
 
