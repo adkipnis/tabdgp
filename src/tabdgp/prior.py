@@ -369,7 +369,6 @@ class Glm(Config):
         scale = math.sqrt(budget / spent) if spent > 0 else 0.0
         return scale * weights  # (d − 1,) or (q,)
 
-    # TODO: this method has no business being in in GLM
     def _drawSigmaAlphaScales(
         self,
         factors: list[Block],
@@ -377,13 +376,7 @@ class Glm(Config):
         split: dict[str, float],
         rng: np.random.Generator,
     ) -> dict[str, list[float]]:
-        sigma_alpha_scales = {}
-        for block in factors:
-            budget = predictor_sd**2 * split[block.name]  # τ² φ_k, what Z_k α_k adds to var(eta)
-            variances = np.array(block.variances)  # (q,) E[z_j²], the intercept's 1 first
-            scales = self._drawScales(variances, budget, rng)  # (q,)
-            sigma_alpha_scales[block.name] = scales.tolist()
-        return sigma_alpha_scales
+        return {}  # a GLM has no random effects
 
 
 class Glmm(Glm):
@@ -429,3 +422,18 @@ class Glmm(Glm):
             if block.width > 1 and rng.random() < self.correlated_share:
                 lkj_eta[block.name] = self.resolveField('lkj_eta', rng)
         return lkj_eta
+
+    def _drawSigmaAlphaScales(
+        self,
+        factors: list[Block],
+        predictor_sd: float,
+        split: dict[str, float],
+        rng: np.random.Generator,
+    ) -> dict[str, list[float]]:
+        sigma_alpha_scales = {}
+        for block in factors:
+            budget = predictor_sd**2 * split[block.name]  # τ² φ_k, what Z_k α_k adds to var(eta)
+            variances = np.array(block.variances)  # (q,) E[z_j²], the intercept's 1 first
+            scales = self._drawScales(variances, budget, rng)  # (q,)
+            sigma_alpha_scales[block.name] = scales.tolist()
+        return sigma_alpha_scales
