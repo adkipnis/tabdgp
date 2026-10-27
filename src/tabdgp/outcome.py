@@ -1,14 +1,13 @@
-"""outcome.py defines what a form returns, and TabDGP's own models, the GLM and GLMM.
+"""outcome.py defines the outcome with its truth, and TabDGP's own models, the GLM and GLMM.
 
-A form reads the covariates and writes its columns, with its truth.
-A GLM codes the covariates as the design matrix and draws y from its family through the link.
+A model reads the covariates and writes its columns, with its truth.
+A GLM codes the covariates as the design matrix and draws y from its likelihood.
 A GLMM adds random effects per grouping factor on some of the design's columns.
 
 pipeline:
 ---------
 the covariates, from a draw or a table
--> the columns a form writes, their metadata and its truth              Outcome
--> a model's outcome                                                    run
+-> a model's outcome: its columns, their metadata and its truth         run
    a GLMM's, a GLM's without factors:
    -> the design matrix, the intercept first                            codeDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
@@ -16,7 +15,7 @@ the covariates, from a draw or a table
                                                                         Prior.drawParameters
    -> eta = Xβ + Σ_k Z_k α_k, plus the deviation λ * sd(Xβ + Σ_k Z_k α_k) * score
                                                                         _drawGlmm
-   -> y from its family through the link                                draw
+   -> y from its likelihood                                             likelihood.draw
    a study's:
    -> its call, its result checked at the covariates' rows              _callModel
 """
@@ -50,15 +49,13 @@ class Design:
 
 
 # =====================================================================================
-# what a form returns
+# the outcome and its truth
 # =====================================================================================
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Outcome:
-    """The columns a form writes (y today) and their metadata.
-    A form's own subclass adds its truth.
-    """
+    """The columns a form writes (y today) and their metadata (a form's subclass adds its truth)."""
 
     columns: dict[str, np.ndarray]  # (n,) each, in its type's dtype
     metadata: dict[str, Column]
@@ -99,7 +96,7 @@ class GlmOutcome(Outcome):
     - Coding: each z-scored column's mean and sd, which map beta onto the raw columns.
     """
 
-    link: str  # the family's canonical link
+    link: str  # the canonical link of y's family
     fixed_terms: list[str]  # the design's names
     prior: Prior
     parameters: Parameters
@@ -122,10 +119,8 @@ class GlmOutcome(Outcome):
         return self._buildRawMap(self.fixed_terms) @ self.parameters.beta  # (d,)
 
     def _buildRawMap(self, terms: list[str]) -> np.ndarray:
-        """The matrix A that takes a block's coefficients, the intercept first,
-        from the design matrix to the raw columns.
-        A column coded as it is (binary, a dummy) keeps the identity's row.
-        """
+        """The matrix A that maps a block's coefficients (intercept first) onto the raw columns."""
+        # a column coded as it is (binary, a dummy) keeps the identity's row
         raw_map = np.eye(len(terms), dtype=np.float32)  # (q, q)
         for j, term in enumerate(terms):
             if term in self.sds:
@@ -174,35 +169,35 @@ class GlmmOutcome(GlmOutcome):
     @property
     def alpha_raw(self) -> dict[str, np.ndarray]:
         """alpha on the raw columns, which gives the same eta as alpha on the design matrix."""
-        raw = {}
+        raw: dict[str, np.ndarray] = {}
         for factor, terms in self.random_terms.items():
             raw[factor] = self.parameters.alpha[factor] @ self._buildRawMap(terms).T  # (m, q)
         return raw
 
     @property
     def sigma_alpha_raw(self) -> dict[str, np.ndarray]:
-        sds = {}
+        sds: dict[str, np.ndarray] = {}
         for factor, covariance in self._transformCovariances().items():
             sds[factor] = np.sqrt(np.diag(covariance))  # (q,)
         return sds
 
-    @property
-    def corr_alpha_raw(self) -> dict[str, np.ndarray]:
-        corrs = {}
-        for factor, covariance in self._transformCovariances().items():
-            sd = np.sqrt(np.diag(covariance))  # (q,)
-            corrs[factor] = covariance / np.outer(sd, sd)  # (q, q)
-        return corrs
-
     def _transformCovariances(self) -> dict[str, np.ndarray]:
         """Each factor's Σ on the raw columns, A Σ A' for the raw map A of its terms."""
-        covariances = {}
+        covariances: dict[str, np.ndarray] = {}
         for factor, terms in self.random_terms.items():
             sd = self.parameters.sigma_alpha[factor]
             covariance = self.parameters.corr_alpha[factor] * np.outer(sd, sd)  # (q, q)
             raw_map = self._buildRawMap(terms)  # (q, q)
             covariances[factor] = raw_map @ covariance @ raw_map.T  # (q, q)
         return covariances
+
+    @property
+    def corr_alpha_raw(self) -> dict[str, np.ndarray]:
+        corrs: dict[str, np.ndarray] = {}
+        for factor, covariance in self._transformCovariances().items():
+            sd = np.sqrt(np.diag(covariance))  # (q,)
+            corrs[factor] = covariance / np.outer(sd, sd)  # (q, q)
+        return corrs
 
 
 # =====================================================================================
@@ -261,7 +256,7 @@ def _drawGlmm(
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
     y = draw(prior.y_family, eta, scale, prior.y_shape, rng)  # (n,)
-    truth = {
+    fields = {
         'columns': {'y': y},
         'metadata': {'y': COLUMNS[prior.y_family]},
         'link': LINKS[prior.y_family],
@@ -274,21 +269,20 @@ def _drawGlmm(
         'sds': design.sds,
     }
     if not factors:
-        return GlmOutcome(**truth)
-    return GlmmOutcome(**truth, random_terms=random_terms)
+        return GlmOutcome(**fields)
+    return GlmmOutcome(**fields, random_terms=random_terms)
 
 
 def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows: int) -> Design:
-    """The design matrix of the covariates, in their order after the intercept.
-    A grouping factor and the outcome are left out by role.
-    rows is n, which a table without a covariate cannot tell.
-    """
+    """The design matrix of the covariates (in their order, after the intercept)."""
     names = ['intercept']
+    # rows is n, which a table without a covariate cannot tell
     coded = [np.ones(rows)]  # (n,) each
-    positions = {}
-    means = {}
-    sds = {}
+    positions: dict[str, list[int]] = {}
+    means: dict[str, float] = {}
+    sds: dict[str, float] = {}
     for name, column in metadata.items():
+        # a grouping factor and the outcome are left out by role
         if column.role != 'covariate':
             continue
         start = len(names)
@@ -319,15 +313,15 @@ def _buildRandomBlocks(
     rng: np.random.Generator,
 ) -> tuple[list[Block], dict[str, list[str]], dict[str, np.ndarray]]:
     """Each factor's block of random effects, its random terms and their columns of the design."""
-    blocks = []
-    random_terms = {}
-    random_columns = {}
+    blocks: list[Block] = []
+    random_terms: dict[str, list[str]] = {}
+    random_columns: dict[str, np.ndarray] = {}
     for factor in factors:
         budget = resolved.resolveField('random_effects', rng, high=len(design.names))
         positions = _chooseRandomTerms(design, budget, rng)
         z = design.matrix[:, positions]  # (n, q)
-        # a random effect adds E[z²] to var(eta) at scale 1 (the intercept 1)
         groups = grouping.metadata[factor].levels
+        # a random effect adds E[z²] to var(eta) at scale 1 (the intercept 1)
         blocks.append(Block(name=factor, variances=(z**2).mean(axis=0).tolist(), groups=groups))
         random_terms[factor] = [design.names[i] for i in positions]
         random_columns[factor] = z
@@ -335,11 +329,10 @@ def _buildRandomBlocks(
 
 
 def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) -> list[int]:
-    """A factor's random terms, as positions in the design:
-    the intercept, then whole covariates in a random order, each while it fits the budget.
-    """
-    positions = [0]
+    """A factor's random terms, as sorted positions in the design."""
+    positions = [0]  # the intercept, always
     names = list(design.positions)
+    # whole covariates in a random order, each if its columns still fit the budget
     for i in rng.permutation(len(names)):
         columns = design.positions[names[i]]
         if len(positions) + len(columns) <= budget:
@@ -353,9 +346,7 @@ def _chooseRandomTerms(design: Design, budget: int, rng: np.random.Generator) ->
 
 
 def _callModel(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
-    """Calls a study's model on the covariates and the generator.
-    What it returns must be an Outcome at the covariates' rows; a failure names the model.
-    """
+    """Calls a study's model and checks that it returned an Outcome at the covariates' rows."""
     outcome = model(covariates, rng)
     if not isinstance(outcome, Outcome):
         raise TypeError(f'{model!r} returned a {type(outcome).__name__}, not an Outcome')
