@@ -1,14 +1,11 @@
-"""family.py defines y's families: each one's link, its column and how it draws y from eta.
+"""family.py defines y's response families, which draw y from eta through their canonical links.
 
-Each family draws through its canonical link,
-at a residual scale per row that only the Normal and Student-t families have (None otherwise)
-and a shape, y's second parameter, that only the contaminated families have.
-The draw never fails or warns at any eta, and y stays inside what its column's dtype holds.
+A draw never fails or warns at any eta, and y always fits its column's dtype.
 
 pipeline:
 ---------
-y's family, eta, the residual scale per row and y's shape
--> y in its column's dtype                                   drawY
+y's family, eta, the residual scale and y's shape
+-> y in its column's dtype                           drawY
 """
 
 from __future__ import annotations
