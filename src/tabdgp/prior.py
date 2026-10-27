@@ -333,13 +333,14 @@ class Glm(Config):
     ) -> dict[str, int | None]:
         return {}  # a GLM has no random effects
 
-    # TODO: redo the docstrings like we did for Prior
     def _drawSlopes(
         self, fixed: Block, budget: float, rng: np.random.Generator
     ) -> tuple[list[float], list[float]]:
-        """Draws each slope's location ν_j = δ_j τ_j and scale τ_j,
-        the scales spending the budget Σ_j τ_j² (1 + δ_j²) var_j,
-        what Xβ adds to var(eta) for a Normal β (a heavier-tailed β adds more).
+        """Draws each slope's location and scale:
+
+        - Location: ν_j = δ_j τ_j, δ_j nonzero for a located slope only
+        - Scale: τ_j, spending the budget Σ_j τ_j² (1 + δ_j²) var_j
+        - Budget: what Xβ adds to var(eta) at a Normal β, more at a heavier-tailed one
         """
         slopes = fixed.width - 1
         located = rng.random(slopes) < self.location_share  # (d − 1,)
@@ -351,15 +352,13 @@ class Glm(Config):
         slope_locations = delta * slope_scales  # (d − 1,)
         return slope_locations.tolist(), slope_scales.tolist()
 
-    # TODO: see above
     def _drawScales(
         self, variances: np.ndarray, budget: float, rng: np.random.Generator
     ) -> np.ndarray:
-        """Draws a block's scales s w_j, one per coefficient,
-        from what each coefficient adds to var(eta) at scale 1.
-        With probability varying_scale_share the block varies,
-        its weights w_j log-normal at scale_spread, else each w_j is 1.
-        The block's scale s solves s² Σ_j w_j² variances_j = budget.
+        """Draws a block's scales s w_j from what each coefficient adds to var(eta) at scale 1:
+
+        - Weights: w_j log-normal at scale_spread with probability varying_scale_share, else 1
+        - Scale: s solves s² Σ_j w_j² variances_j = budget
         """
         weights = np.ones(len(variances))  # (d − 1,) or (q,)
         if rng.random() < self.varying_scale_share:
