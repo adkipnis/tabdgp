@@ -1,4 +1,4 @@
-"""family.py defines y's response families, which draw y from eta through their canonical links.
+"""likelihood.py defines y's likelihood, which draws y from eta through its family's canonical link.
 
 A draw never fails or warns at any eta, and y always fits its column's dtype.
 
@@ -47,14 +47,14 @@ MEAN_EDGE = 2.0**-53  # keeps both of the beta's parameters positive, which nump
 
 
 def drawY(
-    y_family: str,
+    family: str,
     eta: np.ndarray,
     scale: np.ndarray | None,
-    y_shape: float | None,
+    shape: float | None,
     rng: np.random.Generator,
 ) -> np.ndarray:
     """Draws y from eta through the family's canonical link, in its column's dtype."""
-    match y_family:
+    match family:
         case 'normal':
             # y ~ N(eta, σ_ε)
             noise = rng.standard_normal(len(eta))  # (n,)
@@ -68,23 +68,23 @@ def drawY(
             y = _drawCounts(rate, rng)
         case 'student_t':
             # y = eta + σ_ε * t_df, the shape df
-            noise = rng.standard_t(y_shape, len(eta))  # (n,)
+            noise = rng.standard_t(shape, len(eta))  # (n,)
             y = eta + scale * noise  # (n,)
         case 'negative_binomial':
             # y ~ Poisson(λ) with λ ~ Gamma(φ, mean e^eta), the shape φ:
             # the mean is μ = e^eta and the variance μ * (1 + μ / φ), the Poisson's at φ → ∞
             mean = _exponentiate(eta)  # (n,)
             # two steps, which saturate where numpy's negative_binomial raises (above the limit)
-            rate = rng.gamma(y_shape, mean / y_shape)  # (n,)
+            rate = rng.gamma(shape, mean / shape)  # (n,)
             y = _drawCounts(rate, rng)
         case 'latent_bernoulli':
             # y ~ Bernoulli(expit(eta + σ_c * ε)) with ε standard normal, the shape σ_c
-            latent = eta + y_shape * rng.standard_normal(len(eta))  # (n,)
+            latent = eta + shape * rng.standard_normal(len(eta))  # (n,)
             y = _drawBernoulli(latent, rng)
         case 'gamma':
             # y ~ Gamma(k, mean e^eta), the shape k: the variance is μ² / k
             mean = _exponentiate(eta)  # (n,)
-            draws = rng.gamma(y_shape, mean / y_shape)  # (n,)
+            draws = rng.gamma(shape, mean / shape)  # (n,)
             # inside float32's positive range, which a fitter's Gamma likelihood needs
             limits = np.finfo(np.float32)
             y = np.clip(draws, limits.tiny, limits.max)
@@ -92,11 +92,11 @@ def drawY(
             # y ~ Beta(μ * φ, (1 − μ) * φ), the shape φ, the precision:
             # the mean is μ = expit(eta) and the variance μ * (1 − μ) / (φ + 1)
             mean = np.clip(_invertLogit(eta), MEAN_EDGE, 1 - MEAN_EDGE)  # (n,)
-            draws = rng.beta(mean * y_shape, (1 - mean) * y_shape)  # (n,)
+            draws = rng.beta(mean * shape, (1 - mean) * shape)  # (n,)
             # inside float32's open interval (0, 1), which a fitter's beta likelihood needs
             below_one = 1 - 2.0**-24  # the largest float32 below 1
             y = np.clip(draws, np.finfo(np.float32).tiny, below_one)
-    return y.astype(Y_COLUMNS[y_family].dtype)
+    return y.astype(Y_COLUMNS[family].dtype)
 
 
 def _drawBernoulli(eta: np.ndarray, rng: np.random.Generator) -> np.ndarray:

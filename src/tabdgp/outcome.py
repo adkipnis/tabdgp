@@ -29,8 +29,8 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping
 from tabdgp.covariates import Covariates, checkNames, checkOneLength
-from tabdgp.family import Y_COLUMNS, Y_LINKS, drawY
 from tabdgp.hyperprior import Model
+from tabdgp.likelihood import Y_COLUMNS, Y_LINKS, drawY
 from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 
 # =====================================================================================

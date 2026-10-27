@@ -1,4 +1,4 @@
-"""The family module's seams: each family's draw in range and in its column's dtype at any eta,
+"""The likelihood module's seams: each family's draw in range and in its column's dtype at any eta,
 with the mean and variance of its law.
 """
 
@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import pytest
 
-from tabdgp.family import Y_COLUMNS, Y_LINKS, drawY
+from tabdgp.likelihood import Y_COLUMNS, Y_LINKS, drawY
 from tabdgp.prior import Glm
 
 
