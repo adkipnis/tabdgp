@@ -83,7 +83,7 @@ def test_an_outcome_refuses_two_lengths_a_dtype_other_than_its_types_a_name_with
 
 
 def test_a_scm_outcome_holds_its_score_as_given_and_refuses_one_of_another_length() -> None:
-    """The scm form's ground truth is the score it rank-matched onto y's marginal, at y's rows."""
+    """The SCM's ground truth is the score it rank-matched onto y's marginal, at y's rows."""
     score = np.zeros(4, dtype=np.float32)
     outcome = ScmOutcome(**WRITTEN, score=score)
     assert outcome.score is score
@@ -178,6 +178,7 @@ def test_the_coder_codes_a_binary_0_1_a_categoricals_k_minus_1_dummies_dropping_
     """Treatment coding against the first level in the codes' order, as R's default contrasts do,
     an ordered column like a categorical; a count is z-scored like any continuous column.
     Only the z-scored columns have a mean and an sd to record.
+    Each covariate's positions are its columns of the matrix, which a random slope takes whole.
     """
     columns = {
         'b': np.array([0, 1, 1, 0]),
@@ -203,6 +204,7 @@ def test_the_coder_codes_a_binary_0_1_a_categoricals_k_minus_1_dummies_dropping_
         ]
     )  # (n, d)
     assert design.names == ['intercept', 'b', 'c=1', 'c=2', 'o=1', 'o=2', 'n']
+    assert design.positions == {'b': [1], 'c': [2, 3], 'o': [4, 5], 'n': [6]}
     np.testing.assert_allclose(design.matrix, expected)
     assert design.means == {'n': 2.0}
     assert design.sds == {'n': pytest.approx(root2)}
@@ -446,7 +448,7 @@ BUDGETS = [
 def test_the_random_slopes_fit_the_budget_and_q_is_1_when_nothing_fits(
     names: list[str], random_effects: int, terms: list[str]
 ) -> None:
-    """ADR 0006: the intercept always, then whole covariates, each taken while it fits
+    """ADR 0006: the intercept always, then whole covariates, each taken if it still fits
     what remains of the budget q_k, so a factor with no room keeps its intercept alone.
     Whatever order the covariates are drawn in, these budgets admit one set of terms.
     """
