@@ -35,10 +35,11 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping, apply, assign, plan
+from tabdgp.covariates import Covariates
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior, Model, OutcomeForm
 from tabdgp.mechanism import propagate
-from tabdgp.outcome import Covariates, Design, Outcome, ScmOutcome, codeDesign, run
+from tabdgp.outcome import Design, Outcome, ScmOutcome, codeDesign, run
 
 VERSION = version('tabdgp')
 NUMPY_VERSION = version('numpy')

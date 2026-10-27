@@ -18,10 +18,10 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from tabdgp.column import Column
+from tabdgp.covariates import Covariates
 from tabdgp.draw import Dataset, draw, drawOutcome
 from tabdgp.hyperprior import Hyperprior, UniformInt
 from tabdgp.outcome import (
-    Covariates,
     GlmmOutcome,
     GlmOutcome,
     Outcome,

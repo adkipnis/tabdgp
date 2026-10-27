@@ -9,10 +9,10 @@ from __future__ import annotations
 import numpy as np
 
 from tabdgp.column import Column, Grouping
+from tabdgp.covariates import Covariates
 from tabdgp.field import Config
 from tabdgp.graph import Graph
 from tabdgp.hyperprior import Hyperprior
-from tabdgp.outcome import Covariates
 
 # a model writes its columns without a marginal or parameters
 Y = Column(type='continuous', role='outcome')

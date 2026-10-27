@@ -1,5 +1,6 @@
 """TabDGP, a data-generating process for grouped and flat tables."""
 
+from tabdgp.covariates import Covariates
 from tabdgp.draw import Dataset, draw, drawOutcome
 from tabdgp.field import (
     Beta,
@@ -10,7 +11,7 @@ from tabdgp.field import (
     UniformInt,
 )
 from tabdgp.hyperprior import Hyperprior
-from tabdgp.outcome import Covariates, Outcome
+from tabdgp.outcome import Outcome
 from tabdgp.prior import Glm, Glmm
 
 __all__ = [
