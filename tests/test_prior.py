@@ -30,7 +30,7 @@ CONTAMINATED = {
     'beta': 'beta_precision',
 }
 DEFAULTS = {
-    'family_shares': {
+    'y_family_shares': {
         'normal': 1 / 3,
         'bernoulli': 1 / 3,
         'poisson': 1 / 3,
@@ -75,25 +75,25 @@ def test_the_fields_take_their_defaults_and_an_override() -> None:
     """
     defaults = {field: getattr(Glm(), field) for field in Glm.model_fields}
     assert defaults == DEFAULTS
-    glm = Glm(family_shares=point('family_shares', 'poisson', Glm), signal_share=0.5)
-    assert list(glm.family_shares) == ['normal', 'bernoulli', 'poisson', *CONTAMINATED]
-    assert (glm.family_shares['poisson'], glm.signal_share) == (1.0, 0.5)
+    glm = Glm(y_family_shares=point('y_family_shares', 'poisson', Glm), signal_share=0.5)
+    assert list(glm.y_family_shares) == ['normal', 'bernoulli', 'poisson', *CONTAMINATED]
+    assert (glm.y_family_shares['poisson'], glm.signal_share) == (1.0, 0.5)
 
 
 def test_the_contaminated_families_are_the_last_categories_each_with_a_shape_field_to_override() -> (
     None
 ):
-    """A study that draws a contaminated family overrides family_shares like deviation_scale.
+    """A study that draws a contaminated family overrides y_family_shares like deviation_scale.
     The base three keep their places, so a share of zero never moves the choice among them,
     and each shape field takes a point or a distribution of its own.
     """
-    assert Glm.categories('family_shares')[3:] == list(CONTAMINATED)
+    assert Glm.categories('y_family_shares')[3:] == list(CONTAMINATED)
     glm = Glm(
-        family_shares=point('family_shares', 'student_t', Glm),
+        y_family_shares=point('y_family_shares', 'student_t', Glm),
         residual_df=4.0,
         beta_precision=Uniform(5, 6),
     )
-    assert (glm.family_shares['student_t'], glm.residual_df) == (1.0, 4.0)
+    assert (glm.y_family_shares['student_t'], glm.residual_df) == (1.0, 4.0)
     assert glm.beta_precision == Uniform(5, 6)
 
 
@@ -755,14 +755,14 @@ def test_the_prior_records_the_chosen_familys_shape_from_its_own_field(
     shapes = []
     for seed in range(20):
         prior = resolved.drawPrior(family, blocks, np.random.default_rng(seed))
-        shapes.append(prior.family_shape)
+        shapes.append(prior.y_shape)
     assert low <= min(shapes) < max(shapes) <= high
     field = CONTAMINATED[family]
     pointed = Glm(**{field: 4.0}).resolveDataset(np.random.default_rng(0))
-    assert pointed.drawPrior(family, blocks, np.random.default_rng(0)).family_shape == 4.0
+    assert pointed.drawPrior(family, blocks, np.random.default_rng(0)).y_shape == 4.0
     others = {other: 4.0 for other in CONTAMINATED.values() if other != field}
     free = Glm(**others).resolveDataset(np.random.default_rng(0))
-    assert low <= free.drawPrior(family, blocks, np.random.default_rng(0)).family_shape <= high
+    assert low <= free.drawPrior(family, blocks, np.random.default_rng(0)).y_shape <= high
 
 
 @pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson'])
@@ -779,7 +779,7 @@ def test_a_base_family_has_no_shape_and_consumes_no_draw_for_one(family: str) ->
     fixed_rng = np.random.default_rng(1)
     free_prior = free.drawPrior(family, blocks, free_rng)
     fixed_prior = fixed.drawPrior(family, blocks, fixed_rng)
-    assert free_prior.family_shape is None
+    assert free_prior.y_shape is None
     assert free_prior == fixed_prior
     assert free_rng.random() == fixed_rng.random()
 
@@ -795,5 +795,5 @@ def test_the_parameters_record_the_priors_shape_and_a_residual_only_where_the_fa
     resolved = Glm().resolveDataset(np.random.default_rng(0))
     prior = resolved.drawPrior(family, blocks, np.random.default_rng(0))
     parameters = prior.drawParameters(np.random.default_rng(1))
-    assert parameters.family_shape == prior.family_shape
+    assert parameters.y_shape == prior.y_shape
     assert (parameters.sigma_eps is not None) == (family in ['normal', 'student_t'])

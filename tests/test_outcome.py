@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from tabdgp.column import Column
 from tabdgp.outcome import (
-    FAMILIES,
+    Y_FAMILIES,
     Bernoulli,
     Beta,
     Covariates,
@@ -470,7 +470,7 @@ def test_the_coder_leaves_out_a_grouping_factor_and_y_by_role() -> None:
 
 def test_the_families_are_exactly_the_categories_of_glms_family_shares() -> None:
     """A family with a share but no class would fail only when a dataset chose it."""
-    assert list(FAMILIES) == Glm.categories('family_shares')
+    assert list(Y_FAMILIES) == Glm.categories('y_family_shares')
 
 
 FLOAT32 = np.finfo(np.float32)
@@ -642,18 +642,18 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     Only the Normal and Student-t families have a σ_ε, only the contaminated families have a
     shape, and the deviation is zero at λ = 0.
     """
-    glm = Glm(family_shares=point('family_shares', family, Glm), **SHAPES)
+    glm = Glm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
     outcome = run(glm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmOutcome
-    assert (outcome.family, outcome.link) == (family, link)
+    assert (outcome.y_family, outcome.link) == (family, link)
     assert list(outcome.columns) == list(outcome.metadata) == ['y']
     assert (outcome.metadata['y'].type, outcome.metadata['y'].role) == (column_type, 'outcome')
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
     assert list(outcome.prior.split) == ['fixed']
     assert (outcome.sigma_eps is None) == (family not in ['normal', 'student_t'])
-    assert outcome.family_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
-    assert outcome.prior.family_shape == outcome.family_shape
+    assert outcome.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert outcome.prior.y_shape == outcome.y_shape
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
@@ -922,10 +922,10 @@ def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_line
     scored_covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
     plain = dataclasses.replace(scored_covariates, score=None)
     covariates = scored_covariates if scored else plain
-    normal = point('family_shares', 'normal', Glm)
-    glmm = Glmm(family_shares=normal, deviation_scale=deviation_scale)
+    normal = point('y_family_shares', 'normal', Glm)
+    glmm = Glmm(y_family_shares=normal, deviation_scale=deviation_scale)
     outcome = run(glmm, covariates, np.random.default_rng(0))
-    reference = run(Glmm(family_shares=normal), plain, np.random.default_rng(0))
+    reference = run(Glmm(y_family_shares=normal), plain, np.random.default_rng(0))
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation.dtype == np.float32
     assert outcome.deviation_scale == deviation_scale
@@ -939,10 +939,14 @@ def test_run_on_a_glmm_records_the_shape_beside_the_random_effects(
     """The contaminated families draw on a GLMM as on a GLM: η holds the random effects,
     and the shape is the family's own, not a group's.
     """
-    glmm = Glmm(family_shares=point('family_shares', family, Glm), **SHAPES)
+    glmm = Glmm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
     outcome = run(glmm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
-    assert (outcome.family, outcome.link, outcome.metadata['y'].type) == (family, link, column_type)
-    assert outcome.family_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert (outcome.y_family, outcome.link, outcome.metadata['y'].type) == (
+        family,
+        link,
+        column_type,
+    )
+    assert outcome.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
     assert list(outcome.alpha) == ['g0']

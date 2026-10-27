@@ -84,7 +84,7 @@ class Parameters:
 
     beta: np.ndarray  # (d,) intercept first
     sigma_eps: float | None  # None unless the family is Normal or Student-t
-    family_shape: float | None  # y's second parameter, None for Normal, Bernoulli and Poisson
+    y_shape: float | None  # y's second parameter, None for Normal, Bernoulli and Poisson
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -108,7 +108,7 @@ class Prior:
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
-    family_shape: float | None
+    y_shape: float | None
     signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)
     split: dict[str, float]  # φ, each block's share of τ²
@@ -127,7 +127,7 @@ class Prior:
         return Parameters(
             beta=beta.astype(np.float32),
             sigma_eps=sigma_eps,
-            family_shape=self.family_shape,
+            y_shape=self.y_shape,
             sigma_alpha=random_effects['sigma_alpha'],
             corr_alpha=random_effects['corr_alpha'],
             alpha=random_effects['alpha'],
@@ -228,12 +228,12 @@ class Glm(Config):
     """
 
     SHARES: ClassVar[tuple[str, ...]] = (
-        'family_shares',
+        'y_family_shares',
         'beta_family_shares',
         'sigma_eps_family_shares',
     )
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()
-    PER_FAMILY: ClassVar[dict[str, str]] = {
+    PER_Y_FAMILY: ClassVar[dict[str, str]] = {
         'student_t': 'residual_df',
         'negative_binomial': 'dispersion',
         'latent_bernoulli': 'latent_scale',
@@ -241,7 +241,7 @@ class Glm(Config):
         'beta': 'beta_precision',
     }
 
-    family_shares: Simplex = {  # noqa: RUF012
+    y_family_shares: Simplex = {  # noqa: RUF012
         'normal': 1 / 3,
         'bernoulli': 1 / 3,
         'poisson': 1 / 3,
@@ -272,7 +272,7 @@ class Glm(Config):
 
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
         """Resolves each field that is drawn once per dataset."""
-        deferred = (*self.PER_FACTOR, *self.PER_FAMILY.values())
+        deferred = (*self.PER_FACTOR, *self.PER_Y_FAMILY.values())
         points = {}
         for name in type(self).model_fields:
             if name in deferred:
@@ -281,19 +281,19 @@ class Glm(Config):
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
 
-    def drawPrior(self, family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
+    def drawPrior(self, y_family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior for y's family over the blocks after the GLM is resolved."""
         # β's family, and optionally y's shape
         beta_family = self.beta_family_shares.choose(rng)
-        family_shape = None
-        if family in self.PER_FAMILY:
-            family_shape = self.resolveField(self.PER_FAMILY[family], rng)
+        y_shape = None
+        if y_family in self.PER_Y_FAMILY:
+            y_shape = self.resolveField(self.PER_Y_FAMILY[y_family], rng)
         # σ_ε's family and scale, if y's family has a residual
         sigma_eps_family = None
         signal_share = None
         predictor_sd = self.predictor_sd
         sigma_eps_scale = None
-        if family in ['normal', 'student_t']:
+        if y_family in ['normal', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
             # τ² = r and τ_ε² = 1 − r, so that y has unit variance at the scales
@@ -313,7 +313,7 @@ class Glm(Config):
             lkj_eta={},
             sigma_eps_family=sigma_eps_family,
             sigma_eps_scale=sigma_eps_scale,
-            family_shape=family_shape,
+            y_shape=y_shape,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
@@ -382,9 +382,9 @@ class Glmm(Glm):
     correlated_share: Share = 0.55
     lkj_eta: PositiveCount = UniformInt(1, 4)  # the LKJ shape per correlated factor
 
-    def drawPrior(self, family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
+    def drawPrior(self, y_family: str, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws a GLM's prior, then σ_α's family, each factor's LKJ shape and its σ_α scales."""
-        prior = super().drawPrior(family, blocks, rng)
+        prior = super().drawPrior(y_family, blocks, rng)
         _, *factors = blocks
         sigma_alpha_family = self.sigma_alpha_family_shares.choose(rng)
         lkj_eta = self._drawCorrelations(factors, rng)

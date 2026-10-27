@@ -346,13 +346,13 @@ class GlmOutcome(Outcome):
     - Coding: each continuous column's mean and sd, which map beta onto the raw columns.
     """
 
-    family: str  # a category of Glm's family_shares
+    y_family: str  # a category of Glm's y_family_shares
     link: str  # the family's canonical link
     fixed_terms: list[str]  # the design's names
     prior: Prior
     beta: np.ndarray  # (d,) float32
     sigma_eps: float | None  # None unless the family is Normal or Student-t
-    family_shape: float | None  # the second parameter, None for Normal, Bernoulli and Poisson
+    y_shape: float | None  # the second parameter, None for Normal, Bernoulli and Poisson
     deviation: np.ndarray  # (n,) float32
     deviation_scale: float  # λ
     means: dict[str, float]  # the design's
@@ -611,7 +611,7 @@ class Beta:
         return np.clip(y, np.finfo(np.float32).tiny, below_one).astype(Beta.COLUMN.dtype)
 
 
-FAMILIES = {
+Y_FAMILIES = {
     'normal': Normal,
     'bernoulli': Bernoulli,
     'poisson': Poisson,
@@ -657,8 +657,8 @@ def _drawGlmm(
     resolved = glm.resolveDataset(rng)
     rows = covariates.rows
     design = codeDesign(covariates.columns, covariates.metadata, rows)
-    name = resolved.family_shares.choose(rng)
-    family = FAMILIES[name]
+    name = resolved.y_family_shares.choose(rng)
+    family = Y_FAMILIES[name]
     # a fixed effect adds its column's variance to var(η) at scale 1, the intercept nothing
     fixed = Block(name='fixed', variances=design.matrix.var(axis=0).tolist())
     random_blocks, random_terms, random_columns = _buildRandomBlocks(
@@ -680,17 +680,17 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    y = family.draw(rng, eta, scale, parameters.family_shape)  # (n,)
+    y = family.draw(rng, eta, scale, parameters.y_shape)  # (n,)
     truth = {
         'columns': {'y': y},
         'metadata': {'y': family.COLUMN},
-        'family': name,
+        'y_family': name,
         'link': family.LINK,
         'fixed_terms': design.names,
         'prior': prior,
         'beta': parameters.beta,
         'sigma_eps': parameters.sigma_eps,
-        'family_shape': parameters.family_shape,
+        'y_shape': parameters.y_shape,
         'deviation': deviation,
         'deviation_scale': resolved.deviation_scale,
         'means': design.means,

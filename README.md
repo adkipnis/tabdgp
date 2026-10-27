@@ -25,7 +25,7 @@ generated it.
   binary, categorical, ordered or count.
 - **Model-based outcome.** Instead of the SCM's node, `outcome_form='glmm'` draws `y` from a
   generalized linear mixed model (GLMM) on the covariates. The family is Normal, Bernoulli or
-  Poisson (or, by overriding `family_shares`, Student-t, negative binomial, latent-noise
+  Poisson (or, by overriding `y_family_shares`, Student-t, negative binomial, latent-noise
   Bernoulli, Gamma or beta), with fixed effects and random effects per grouping factor. The true parameters are
   returned with the priors they were drawn from.
   `outcome_form='glm'` skips random effects, `Glmm(deviation_scale=0.3)` adds a known misspecification.
@@ -51,7 +51,7 @@ for name, column in dataset.metadata.items():
     values = dataset.columns[name][:3].round(2)
     print(f'{name:2} {column.type:11} per {unit[name]:3} {values}')
 outcome = dataset.outcome
-print(f'family: {outcome.family}')
+print(f'family: {outcome.y_family}')
 print(f'fixed: {" + ".join(outcome.fixed_terms)}')
 for factor, terms in outcome.random_terms.items():
     print(f'random per {factor}: {" + ".join(terms)}')
@@ -92,7 +92,7 @@ table = pd.DataFrame(
 )
 covariates = Covariates.fromPandas(table, factors=['school'])  # the types read from the dtypes
 outcome = drawOutcome(seed=0, index=0, covariates=covariates, model=Glmm())
-print(f'family: {outcome.family}')
+print(f'family: {outcome.y_family}')
 for term, beta in zip(outcome.fixed_terms, outcome.beta):
     print(f'{term:9} {beta:5.2f}')
 ```

@@ -308,10 +308,10 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     """A corpus of one family is one override (ADR 0006),
     and a consumer stacks y by its type: a Normal y float32, a Bernoulli y codes, a count int64.
     """
-    hyperprior = preset(outcome_form=config(family_shares=point('family_shares', family, Glm)))
+    hyperprior = preset(outcome_form=config(y_family_shares=point('y_family_shares', family, Glm)))
     for index in range(10):
         dataset = draw(0, index, hyperprior)
-        assert dataset.outcome.family == family
+        assert dataset.outcome.y_family == family
         assert dataset.metadata['y'].type == column_type
         assert dataset.columns['y'].dtype == dtype
 
@@ -323,7 +323,7 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
     returns beta. At r = 0.9999 and a half-normal F, σ_ε is about 0.01.
     """
     glm = Glm(
-        family_shares=point('family_shares', 'normal', Glm),
+        y_family_shares=point('y_family_shares', 'normal', Glm),
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
     )
@@ -359,7 +359,7 @@ def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_i
     Zα, or at λ = 0.3 a deviation that is not the one which entered η.
     """
     glmm = Glmm(
-        family_shares=point('family_shares', 'normal', Glm),
+        y_family_shares=point('y_family_shares', 'normal', Glm),
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
         correlated_share=1.0,
@@ -458,7 +458,7 @@ def test_to_pandas_codes_categoricals_ordered_when_ordered_continuous_float32_an
     so a pandas-based tool sees levels, not numbers, and a count stays an integer.
     A Poisson y is the dataset's count.
     """
-    poisson = Glm(family_shares=point('family_shares', 'poisson', Glm))
+    poisson = Glm(y_family_shares=point('y_family_shares', 'poisson', Glm))
     hyperprior = Hyperprior.grouped(
         rows=200, design_columns=12, type_shares=EVERY_TYPE, outcome_form=poisson
     )
@@ -505,7 +505,7 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
     At r = 1, τ_ε and so σ_ε are 0, and y is η = Xβ in float32, exactly.
     On grouped covariates the factors are no term.
     """
-    glm = Glm(family_shares=point('family_shares', 'normal', Glm), signal_share=1.0)
+    glm = Glm(y_family_shares=point('y_family_shares', 'normal', Glm), signal_share=1.0)
     for index in range(5):
         dataset = draw(0, index, Hyperprior.grouped(outcome_form=glm))
         design = dataset.toDesign()
