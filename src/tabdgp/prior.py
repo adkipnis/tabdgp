@@ -268,13 +268,13 @@ class Glm(Config):
     gamma_shape: Positive = LogUniform(1, 10)
     beta_precision: Positive = LogUniform(2, 50)
 
-    # TODO: rewrite more cleanly, this is hard to read
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
-        """Resolves each field drawn once per dataset, in declaration order."""
+        """Resolves each field that is drawn once per dataset."""
+        deferred = (*self.PER_FACTOR, *self.PER_FAMILY.values())
         points = {}
         for name in type(self).model_fields:
-            if name in self.PER_FACTOR or name in self.PER_FAMILY.values():
-                points[name] = getattr(self, name)  # defer resolution to each factor or family
+            if name in deferred:
+                points[name] = getattr(self, name)
             else:
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
