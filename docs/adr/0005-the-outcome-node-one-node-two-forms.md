@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form; 2026-10-23, ADR 0007: a form is a model, `'glm'` and `'glmm'` the built-in models' names, no `Hyperprior.glmm()`
+amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form; 2026-10-23, ADR 0007: a form is a model, `'glm'` and `'glmm'` the built-in models' names, no `Hyperprior.glmm()`; 2026-10-27, #65: `family_shares` is `y_family_shares`
 ---
 
 # 0005 — The outcome node: one node, two forms, drawn by default in its scm form
@@ -60,7 +60,7 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
   are coverage-first (ADR 0006) and never fitted; only its covariates are matched, since they
   are `grouped()`'s.
 - **One outcome type per corpus** is a point override, `outcome_type_shares = {'continuous': 1}`
-  or `family_shares = {'normal': 1}`, a study of that type, not a preset.
+  or `y_family_shares = {'normal': 1}`, a study of that type, not a preset.
 
 ## Considered options
 
