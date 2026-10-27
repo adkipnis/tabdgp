@@ -71,8 +71,8 @@ def drawY(
             noise = rng.standard_t(shape, len(eta))  # (n,)
             y = eta + scale * noise  # (n,)
         case 'negative_binomial':
-            # y ~ Poisson(λ) with λ ~ Gamma(φ, mean e^eta), the shape φ:
-            # the mean is μ = e^eta and the variance μ * (1 + μ / φ), the Poisson's at φ → ∞
+            # y ~ Poisson(λ) with λ ~ Gamma(φ, mean exp(eta)), the shape φ:
+            # the mean is μ = exp(eta) and the variance μ * (1 + μ / φ), the Poisson's at φ → ∞
             mean = _exponentiate(eta)  # (n,)
             # two steps, which saturate where numpy's negative_binomial raises (above the limit)
             rate = rng.gamma(shape, mean / shape)  # (n,)
@@ -82,7 +82,7 @@ def drawY(
             latent = eta + shape * rng.standard_normal(len(eta))  # (n,)
             y = _drawBernoulli(latent, rng)
         case 'gamma':
-            # y ~ Gamma(k, mean e^eta), the shape k: the variance is μ² / k
+            # y ~ Gamma(k, mean exp(eta)), the shape k: the variance is μ² / k
             mean = _exponentiate(eta)  # (n,)
             draws = rng.gamma(shape, mean / shape)  # (n,)
             # inside float32's positive range, which a fitter's Gamma likelihood needs
@@ -99,15 +99,15 @@ def drawY(
     return y.astype(Y_COLUMNS[family].dtype)
 
 
+def _invertLogit(eta: np.ndarray) -> np.ndarray:
+    """The inverse logit, without exp's overflow."""
+    return 0.5 * (1 + np.tanh(eta / 2))
+
+
 def _drawBernoulli(eta: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     p = _invertLogit(eta)  # (n,)
     uniforms = rng.random(len(eta))  # (n,)
     return uniforms < p
-
-
-def _invertLogit(eta: np.ndarray) -> np.ndarray:
-    """The inverse logit, without exp's overflow."""
-    return 0.5 * (1 + np.tanh(eta / 2))
 
 
 def _exponentiate(eta: np.ndarray) -> np.ndarray:
