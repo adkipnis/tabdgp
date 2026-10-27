@@ -51,7 +51,7 @@ for name, column in dataset.metadata.items():
     values = dataset.columns[name][:3].round(2)
     print(f'{name:2} {column.type:11} per {unit[name]:3} {values}')
 outcome = dataset.outcome
-print(f'family: {outcome.y_family}')
+print(f'family: {outcome.prior.y_family}')
 print(f'fixed: {" + ".join(outcome.fixed_terms)}')
 for factor, terms in outcome.random_terms.items():
     print(f'random per {factor}: {" + ".join(terms)}')
@@ -92,8 +92,8 @@ table = pd.DataFrame(
 )
 covariates = Covariates.fromPandas(table, factors=['school'])  # the types read from the dtypes
 outcome = drawOutcome(seed=0, index=0, covariates=covariates, model=Glmm())
-print(f'family: {outcome.y_family}')
-for term, beta in zip(outcome.fixed_terms, outcome.beta):
+print(f'family: {outcome.prior.y_family}')
+for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
     print(f'{term:9} {beta:5.2f}')
 ```
 

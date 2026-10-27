@@ -645,22 +645,21 @@ def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     glm = Glm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
     outcome = run(glm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmOutcome
-    assert (outcome.y_family, outcome.link) == (family, link)
+    assert (outcome.prior.y_family, outcome.link) == (family, link)
     assert list(outcome.columns) == list(outcome.metadata) == ['y']
     assert (outcome.metadata['y'].type, outcome.metadata['y'].role) == (column_type, 'outcome')
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
     assert list(outcome.prior.split) == ['fixed']
-    assert (outcome.sigma_eps is None) == (family not in ['normal', 'student_t'])
-    assert outcome.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
-    assert outcome.prior.y_shape == outcome.y_shape
+    assert (outcome.parameters.sigma_eps is None) == (family not in ['normal', 'student_t'])
+    assert outcome.prior.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
 
 MISSHAPEN = [
-    pytest.param({'beta': np.zeros(1)}, 'beta', id='beta one term short'),
-    pytest.param({'beta': np.zeros((2, 1))}, 'beta', id='beta as a column'),
+    pytest.param({'parameters': {'beta': np.zeros(1)}}, 'beta', id='beta one term short'),
+    pytest.param({'parameters': {'beta': np.zeros((2, 1))}}, 'beta', id='beta as a column'),
     pytest.param({'deviation': np.zeros(3)}, 'length', id='a deviation one row short'),
 ]
 
@@ -672,7 +671,15 @@ def test_a_glm_outcome_checks_its_shapes_against_n_and_d(change: dict, match: st
     """
     outcome = run(Glm(), covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
     with pytest.raises(ValidationError, match=match):
-        dataclasses.replace(outcome, **change)
+        _replaced(outcome, change)
+
+
+def _replaced(outcome: GlmOutcome, change: dict) -> GlmOutcome:
+    """The outcome with some fields changed, a dict under 'parameters' changing theirs."""
+    fields = dict(change)
+    if 'parameters' in fields:
+        fields['parameters'] = dataclasses.replace(outcome.parameters, **fields['parameters'])
+    return dataclasses.replace(outcome, **fields)
 
 
 def _covariance(sd: np.ndarray, corr: np.ndarray) -> np.ndarray:
@@ -713,6 +720,7 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
     # at a budget of d every term is random too, the effects correlated
     glmm = Glmm(random_effects=6, correlated_share=1.0)
     outcome = run(glmm, covariates, np.random.default_rng(0))
+    parameters = outcome.parameters
     raw = np.stack(
         [
             np.ones(6),
@@ -725,14 +733,14 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
         axis=1,
     ).astype(np.float64)  # (n, d)
     standardized = codeDesign(columns, metadata, rows=6).matrix  # (n, d)
-    np.testing.assert_allclose(raw @ outcome.beta_raw, standardized @ outcome.beta, rtol=1e-6)
-    assert outcome.beta_raw[2:5].tolist() == outcome.beta[2:5].tolist()
+    np.testing.assert_allclose(raw @ outcome.beta_raw, standardized @ parameters.beta, rtol=1e-6)
+    assert outcome.beta_raw[2:5].tolist() == parameters.beta[2:5].tolist()
     assert outcome.random_terms['g0'] == outcome.fixed_terms
     codes = grouping.codes['g0']  # (n,)
     random_raw = (raw * outcome.alpha_raw['g0'][codes]).sum(axis=1)  # (n,)
-    random_standardized = (standardized * outcome.alpha['g0'][codes]).sum(axis=1)  # (n,)
+    random_standardized = (standardized * parameters.alpha['g0'][codes]).sum(axis=1)  # (n,)
     np.testing.assert_allclose(random_raw, random_standardized, rtol=1e-6, atol=1e-6)
-    sigma = _covariance(outcome.sigma_alpha['g0'], outcome.corr_alpha['g0'])  # (q, q)
+    sigma = _covariance(parameters.sigma_alpha['g0'], parameters.corr_alpha['g0'])  # (q, q)
     sigma_raw = _covariance(outcome.sigma_alpha_raw['g0'], outcome.corr_alpha_raw['g0'])  # (q, q)
     variance_raw = ((raw @ sigma_raw) * raw).sum(axis=1)  # (n,)
     variance_standardized = ((standardized @ sigma) * standardized).sum(axis=1)  # (n,)
@@ -745,16 +753,18 @@ def test_the_truths_arrays_are_float32_on_both_scales() -> None:
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
     outcome = run(Glmm(), covariates, np.random.default_rng(0))
-    arrays = {'beta': outcome.beta, 'beta_raw': outcome.beta_raw, 'deviation': outcome.deviation}
-    for field in [
-        'sigma_alpha',
-        'corr_alpha',
-        'alpha',
-        'sigma_alpha_raw',
-        'corr_alpha_raw',
-        'alpha_raw',
-    ]:
-        arrays[field] = getattr(outcome, field)['g0']
+    parameters = outcome.parameters
+    arrays = {
+        'beta': parameters.beta,
+        'beta_raw': outcome.beta_raw,
+        'deviation': outcome.deviation,
+        'sigma_alpha': parameters.sigma_alpha['g0'],
+        'corr_alpha': parameters.corr_alpha['g0'],
+        'alpha': parameters.alpha['g0'],
+        'sigma_alpha_raw': outcome.sigma_alpha_raw['g0'],
+        'corr_alpha_raw': outcome.corr_alpha_raw['g0'],
+        'alpha_raw': outcome.alpha_raw['g0'],
+    }
     for field, array in arrays.items():
         assert array.dtype == np.float32, field
 
@@ -774,7 +784,7 @@ def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> Non
         terms = outcome.random_terms[factor]
         assert terms[0] == 'intercept'
         assert set(terms) <= set(outcome.fixed_terms)
-        assert len(outcome.alpha[factor]) == groups
+        assert len(outcome.parameters.alpha[factor]) == groups
 
 
 # six rows in three groups of g0, and covariates of design width 1, 2 and 3
@@ -863,6 +873,7 @@ def test_run_refuses_a_glmm_on_covariates_without_a_factor_naming_the_model() ->
         run(Glmm(), covariates, np.random.default_rng(0))
 
 
+# changes of the parameters, which a GLMM's outcome checks against its random terms
 MISSHAPEN_RANDOM = [
     pytest.param({'sigma_alpha': {'g0': np.ones(1)}}, 'sigma_alpha', id='sds one term short'),
     pytest.param({'corr_alpha': {'g0': np.eye(3)}}, 'corr_alpha', id='a correlation one too wide'),
@@ -884,7 +895,7 @@ def test_a_glmm_outcome_checks_each_factors_shapes_against_its_random_terms(
     outcome = run(Glmm(random_effects=2), covariates, np.random.default_rng(0))
     assert outcome.random_terms == {'g0': ['intercept', 'x0']}
     with pytest.raises(ValidationError, match=match):
-        dataclasses.replace(outcome, **change)
+        _replaced(outcome, {'parameters': change})
 
 
 def test_the_deviation_is_lambda_times_the_sd_of_x_beta_plus_z_alpha_times_the_score() -> None:
@@ -899,7 +910,9 @@ def test_the_deviation_is_lambda_times_the_sd_of_x_beta_plus_z_alpha_times_the_s
     x0 = np.arange(6.0)  # (n,)
     design = np.stack([np.ones(6), (x0 - x0.mean()) / x0.std()], axis=1)  # (n, d)
     codes = covariates.grouping.codes['g0']  # (n,)
-    linear = design @ outcome.beta + (design * outcome.alpha['g0'][codes]).sum(axis=1)  # (n,)
+    linear = design @ outcome.parameters.beta + (
+        design * outcome.parameters.alpha['g0'][codes]
+    ).sum(axis=1)  # (n,)
     assert outcome.random_terms['g0'] == ['intercept', 'x0']
     assert outcome.deviation_scale == 0.5
     np.testing.assert_allclose(outcome.deviation, 0.5 * linear.std() * x0, rtol=1e-6)
@@ -943,10 +956,10 @@ def test_run_on_a_glmm_records_the_shape_beside_the_random_effects(
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
     outcome = run(glmm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
-    assert (outcome.y_family, outcome.link, outcome.metadata['y'].type) == (
+    assert (outcome.prior.y_family, outcome.link, outcome.metadata['y'].type) == (
         family,
         link,
         column_type,
     )
-    assert outcome.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
-    assert list(outcome.alpha) == ['g0']
+    assert outcome.prior.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert list(outcome.parameters.alpha) == ['g0']

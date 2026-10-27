@@ -114,7 +114,7 @@ class Prior:
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
-    y_family: str
+    y_family: str  # a category of Glm's y_family_shares
     y_shape: float | None  # y's second parameter, None for Normal, Bernoulli and Poisson
     signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)

@@ -34,7 +34,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping
 from tabdgp.hyperprior import Model
-from tabdgp.prior import Block, Glm, Glmm, Prior
+from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
 
 # =====================================================================================
 # the checks
@@ -340,19 +340,17 @@ class ScmOutcome(Outcome):
 class GlmOutcome(Outcome):
     """A GLM's y and its truth, on the standardized scale as drawn and on the raw columns.
 
+    - Truth: the stated prior and the parameters drawn from it, on the standardized scale.
     - Terms: the design's columns, the intercept first, each with one coefficient in beta.
     - Deviation: the score's part of η at the deviation scale λ,
       zero at λ = 0 or without a score.
     - Coding: each continuous column's mean and sd, which map beta onto the raw columns.
     """
 
-    y_family: str  # a category of Glm's y_family_shares
     link: str  # the family's canonical link
     fixed_terms: list[str]  # the design's names
     prior: Prior
-    beta: np.ndarray  # (d,) float32
-    sigma_eps: float | None  # None unless the family is Normal or Student-t
-    y_shape: float | None  # the second parameter, None for Normal, Bernoulli and Poisson
+    parameters: Parameters
     deviation: np.ndarray  # (n,) float32
     deviation_scale: float  # λ
     means: dict[str, float]  # the design's
@@ -361,16 +359,15 @@ class GlmOutcome(Outcome):
     def __post_init__(self) -> None:
         super().__post_init__()
         # check that beta has one coefficient per term and the deviation one value per row
-        if self.beta.shape != (len(self.fixed_terms),):
-            raise ValueError(
-                f'beta has the shape {self.beta.shape}, not one per {self.fixed_terms}'
-            )
+        beta_shape = self.parameters.beta.shape
+        if beta_shape != (len(self.fixed_terms),):
+            raise ValueError(f'beta has the shape {beta_shape}, not one per {self.fixed_terms}')
         _checkOneLength([*self.columns.values(), self.deviation], 'the outcome')
 
     @property
     def beta_raw(self) -> np.ndarray:
         """beta on the raw columns, which gives the same η as beta on the design matrix."""
-        return self._buildRawMap(self.fixed_terms) @ self.beta  # (d,)
+        return self._buildRawMap(self.fixed_terms) @ self.parameters.beta  # (d,)
 
     def _buildRawMap(self, terms: list[str]) -> np.ndarray:
         """The matrix A that takes a block's coefficients, the intercept first,
@@ -398,29 +395,27 @@ class GlmmOutcome(GlmOutcome):
     """
 
     random_terms: dict[str, list[str]]  # by factor, the intercept first
-    sigma_alpha: dict[str, np.ndarray]  # (q,) float32 by factor
-    corr_alpha: dict[str, np.ndarray]  # (q, q) float32 by factor
-    alpha: dict[str, np.ndarray]  # (m, q) float32 by factor, a row per group
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        # check that every field has each factor, sized by the factor's q terms
+        # check that every random-effects parameter has each factor, sized by its q terms
         factors = list(self.random_terms)
+        parameters = self.parameters
         for field in ['sigma_alpha', 'corr_alpha', 'alpha']:
-            named = list(getattr(self, field))
+            named = list(getattr(parameters, field))
             if named != factors:
                 raise ValueError(f'{field} has the factors {named}, not {factors}')
         for factor, terms in self.random_terms.items():
             q = len(terms)
-            sd_shape = self.sigma_alpha[factor].shape
+            sd_shape = parameters.sigma_alpha[factor].shape
             if sd_shape != (q,):
                 raise ValueError(f'sigma_alpha of {factor} has the shape {sd_shape}, not ({q},)')
-            corr_shape = self.corr_alpha[factor].shape
+            corr_shape = parameters.corr_alpha[factor].shape
             if corr_shape != (q, q):
                 raise ValueError(
                     f'corr_alpha of {factor} has the shape {corr_shape}, not ({q}, {q})'
                 )
-            alpha_shape = self.alpha[factor].shape
+            alpha_shape = parameters.alpha[factor].shape
             if len(alpha_shape) != 2 or alpha_shape[1] != q:
                 raise ValueError(f'alpha of {factor} has the shape {alpha_shape}, not (m, {q})')
 
@@ -429,7 +424,7 @@ class GlmmOutcome(GlmOutcome):
         """alpha on the raw columns, which gives the same η as alpha on the design matrix."""
         raw = {}
         for factor, terms in self.random_terms.items():
-            raw[factor] = self.alpha[factor] @ self._buildRawMap(terms).T  # (m, q)
+            raw[factor] = self.parameters.alpha[factor] @ self._buildRawMap(terms).T  # (m, q)
         return raw
 
     @property
@@ -451,8 +446,8 @@ class GlmmOutcome(GlmOutcome):
         """Each factor's Σ on the raw columns, A Σ A' for the raw map A of its terms."""
         covariances = {}
         for factor, terms in self.random_terms.items():
-            sd = self.sigma_alpha[factor]
-            covariance = self.corr_alpha[factor] * np.outer(sd, sd)  # (q, q)
+            sd = self.parameters.sigma_alpha[factor]
+            covariance = self.parameters.corr_alpha[factor] * np.outer(sd, sd)  # (q, q)
             raw_map = self._buildRawMap(terms)  # (q, q)
             covariances[factor] = raw_map @ covariance @ raw_map.T  # (q, q)
         return covariances
@@ -683,13 +678,10 @@ def _drawGlmm(
     truth = {
         'columns': {'y': y},
         'metadata': {'y': family.COLUMN},
-        'y_family': prior.y_family,
         'link': family.LINK,
         'fixed_terms': design.names,
         'prior': prior,
-        'beta': parameters.beta,
-        'sigma_eps': parameters.sigma_eps,
-        'y_shape': prior.y_shape,
+        'parameters': parameters,
         'deviation': deviation,
         'deviation_scale': resolved.deviation_scale,
         'means': design.means,
@@ -697,13 +689,7 @@ def _drawGlmm(
     }
     if not factors:
         return GlmOutcome(**truth)
-    return GlmmOutcome(
-        **truth,
-        random_terms=random_terms,
-        sigma_alpha=parameters.sigma_alpha,
-        corr_alpha=parameters.corr_alpha,
-        alpha=parameters.alpha,
-    )
+    return GlmmOutcome(**truth, random_terms=random_terms)
 
 
 def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows: int) -> Design:

@@ -282,7 +282,7 @@ def test_grouped_with_glmm_returns_y_last_with_a_glmm_outcome_of_one_block_per_f
         for factor in factors:
             q = len(outcome.random_terms[factor])
             assert q <= min(6, len(outcome.fixed_terms))
-            assert outcome.alpha[factor].shape == (dataset.metadata[factor].levels, q)
+            assert outcome.parameters.alpha[factor].shape == (dataset.metadata[factor].levels, q)
 
 
 GLM_FAMILIES = [
@@ -311,7 +311,7 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     hyperprior = preset(outcome_form=config(y_family_shares=point('y_family_shares', family, Glm)))
     for index in range(10):
         dataset = draw(0, index, hyperprior)
-        assert dataset.outcome.y_family == family
+        assert dataset.outcome.prior.y_family == family
         assert dataset.metadata['y'].type == column_type
         assert dataset.columns['y'].dtype == dtype
 
@@ -333,18 +333,19 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
         design = dataset.toDesign()
         y = dataset.columns['y'].astype(np.float64)  # (n,)
         estimate, *_ = np.linalg.lstsq(design.matrix, y, rcond=None)
-        np.testing.assert_allclose(estimate, dataset.outcome.beta, atol=0.01)
+        np.testing.assert_allclose(estimate, dataset.outcome.parameters.beta, atol=0.01)
 
 
 def _linearPart(dataset: Dataset) -> np.ndarray:
     """Xβ + Σ_k Z_k α_k[codes_k] on the coded columns, a GLMM's η without the deviation."""
     outcome = dataset.outcome
     design = dataset.toDesign()
-    linear = design.matrix @ outcome.beta  # (n,)
+    linear = design.matrix @ outcome.parameters.beta  # (n,)
     for factor, terms in outcome.random_terms.items():
         positions = [design.names.index(term) for term in terms]
         z = design.matrix[:, positions]  # (n, q)
-        linear = linear + (z * outcome.alpha[factor][dataset.columns[factor]]).sum(axis=1)  # (n,)
+        alpha = outcome.parameters.alpha[factor][dataset.columns[factor]]  # (n, q)
+        linear = linear + (z * alpha).sum(axis=1)  # (n,)
     return linear
 
 
@@ -371,7 +372,8 @@ def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_i
         outcome = dataset.outcome
         y = dataset.columns['y'].astype(np.float64)  # (n,)
         residual = y - _linearPart(dataset) - outcome.deviation  # (n,)
-        assert abs(residual.std() - outcome.sigma_eps) < 0.1 * outcome.sigma_eps + 1e-4
+        sigma_eps = outcome.parameters.sigma_eps
+        assert abs(residual.std() - sigma_eps) < 0.1 * sigma_eps + 1e-4
 
 
 def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_the_same_beta_and_alpha_as_without_it_under_one_key() -> (
@@ -387,10 +389,13 @@ def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_th
         outcome = deviated.outcome
         assert outcome.deviation_scale == 0.3
         assert outcome.prior == plain.outcome.prior
-        assert outcome.beta.tobytes() == plain.outcome.beta.tobytes()
+        assert outcome.parameters.beta.tobytes() == plain.outcome.parameters.beta.tobytes()
         assert outcome.random_terms == plain.outcome.random_terms
         for factor in outcome.random_terms:
-            assert outcome.alpha[factor].tobytes() == plain.outcome.alpha[factor].tobytes()
+            assert (
+                outcome.parameters.alpha[factor].tobytes()
+                == plain.outcome.parameters.alpha[factor].tobytes()
+            )
         linear_sd = _linearPart(deviated).std()
         assert outcome.deviation.std() == pytest.approx(0.3 * linear_sd, rel=1e-4)
 
@@ -420,8 +425,8 @@ def test_draw_outcome_on_from_pandas_is_deterministic_per_key_and_differs_betwee
     keyed = run(model, TABLE_COVARIATES, np.random.default_rng([3, 1]))
     for outcome in [again, keyed]:
         assert np.array_equal(outcome.columns['y'], first.columns['y'])
-        assert np.array_equal(outcome.beta, first.beta)
-    assert not np.array_equal(other.beta, first.beta)
+        assert np.array_equal(outcome.parameters.beta, first.parameters.beta)
+    assert not np.array_equal(other.parameters.beta, first.parameters.beta)
 
 
 def test_a_resampled_glmm_outcome_has_as_many_groups_per_factor_as_the_table() -> None:
@@ -430,9 +435,9 @@ def test_a_resampled_glmm_outcome_has_as_many_groups_per_factor_as_the_table() -
     """
     for index in range(5):
         outcome = drawOutcome(0, index, TABLE_COVARIATES, Glmm())
-        assert list(outcome.alpha) == ['school', 'class']
-        assert outcome.alpha['school'].shape[0] == 5
-        assert outcome.alpha['class'].shape[0] == 10
+        assert list(outcome.parameters.alpha) == ['school', 'class']
+        assert outcome.parameters.alpha['school'].shape[0] == 5
+        assert outcome.parameters.alpha['class'].shape[0] == 10
 
 
 def test_to_pandas_leaves_the_latent_nodes_out() -> None:
@@ -512,7 +517,7 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
         outcome = dataset.outcome
         assert design.names == outcome.fixed_terms
         assert (design.means, design.sds) == (outcome.means, outcome.sds)
-        eta = design.matrix @ outcome.beta  # (n,)
+        eta = design.matrix @ outcome.parameters.beta  # (n,)
         assert np.array_equal(dataset.columns['y'], eta.astype(np.float32))
 
 
@@ -544,10 +549,10 @@ def test_to_dict_is_json_serializable_and_records_dtypes_and_a_users_model_by_na
         **{('columns', name): values for name, values in dataset.columns.items()},
         **{('latent', name): values for name, values in dataset.latent.items()},
         ('graph', 'parents'): dataset.graph.parents,
-        ('outcome', 'beta'): dataset.outcome.beta,
+        ('outcome', 'parameters', 'beta'): dataset.outcome.parameters.beta,
     }
-    for factor, alpha in dataset.outcome.alpha.items():
-        arrays['outcome', 'alpha', factor] = alpha
+    for factor, alpha in dataset.outcome.parameters.alpha.items():
+        arrays['outcome', 'parameters', 'alpha', factor] = alpha
     for path, values in arrays.items():
         stored = record
         for key in path:
