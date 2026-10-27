@@ -84,7 +84,7 @@ class Column:
         elif self.levels is not None and 'level_alpha' in self.parameters:
             own = ['level_alpha']  # a planned coded column's concentration
         else:
-            own = []  # a column no plan drew
+            own = []  # a column no plan drew (e.g. the outcome or a real table's column)
         if self.parameters.keys() != set(own):
             raise ValueError(f'a {self.type} column draws {own}, not {list(self.parameters)}')
 
