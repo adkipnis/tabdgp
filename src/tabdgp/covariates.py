@@ -148,11 +148,9 @@ class Covariates:
     @staticmethod
     def _codeLevels(values: pd.Series) -> tuple[np.ndarray, int]:
         """A column's codes and its levels k."""
-        if not isinstance(values.dtype, pd.CategoricalDtype):
-            values = values.astype('category')  # the categories are the sorted values
-        present = values.cat.remove_unused_categories()
-        codes = present.cat.codes.to_numpy(dtype=np.int64)  # (n,)
-        return codes, len(present.cat.categories)
+        # the levels in a categorical's order or sorted, each present in some row
+        codes, levels = pd.factorize(values, sort=True)  # (n,) and (k,)
+        return codes, len(levels)
 
     @classmethod
     def _findSuperior(
