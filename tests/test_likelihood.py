@@ -32,7 +32,7 @@ BELOW_ONE = 1 - 2.0**-24  # the largest float32 below 1
 INT64_MAX = np.iinfo(np.int64).max
 # a family, y's dtype and its range, and a shape that suits it (None for the base three)
 RANGES = [
-    pytest.param('normal', np.float32, -np.inf, np.inf, None, id='normal'),
+    pytest.param('gaussian', np.float32, -np.inf, np.inf, None, id='gaussian'),
     pytest.param('bernoulli', np.int64, 0, 1, None, id='bernoulli'),
     pytest.param('poisson', np.int64, 0, np.inf, None, id='poisson'),
     pytest.param('student_t', np.float32, -np.inf, np.inf, 3.0, id='student_t'),
@@ -83,7 +83,7 @@ LATENT_MEAN = _latentMean(math.log(3), 1.5)  # the latent Bernoulli's mean in LA
 # at which the means are round (1.5, logit⁻¹(log 3) = 0.75, e^(log 4) = 4), the variance of each
 # family's own noise at scale 1
 LAWS = [
-    pytest.param('normal', 1.5, None, 1.5, 1.0, id='normal: the identity'),
+    pytest.param('gaussian', 1.5, None, 1.5, 1.0, id='gaussian: the identity'),
     pytest.param('bernoulli', math.log(3), None, 0.75, 0.75 * 0.25, id='bernoulli: the logit'),
     pytest.param('poisson', math.log(4), None, 4.0, 4.0, id='poisson: the log'),
     pytest.param('student_t', 1.5, 10.0, 1.5, 10 / 8, id='student_t: df / (df − 2) at σ_ε = 1'),

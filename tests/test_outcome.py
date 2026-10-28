@@ -224,7 +224,7 @@ def test_the_coder_leaves_out_a_grouping_factor_and_y_by_role() -> None:
 
 
 RUNS = [
-    pytest.param('normal', 'identity', 'continuous', id='normal'),
+    pytest.param('gaussian', 'identity', 'continuous', id='gaussian'),
     pytest.param('bernoulli', 'logit', 'binary', id='bernoulli'),
     pytest.param('poisson', 'log', 'count', id='poisson'),
     pytest.param('student_t', 'identity', 'continuous', id='student_t'),
@@ -257,7 +257,7 @@ def test_run_model_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     """A Glm is TabDGP's own model: runModel codes the covariates, draws the prior and writes y.
     On grouped covariates it is the pooled ground truth: the factors' codes are no term,
     and the prior has the one block fixed.
-    Only the Normal and Student-t families have a σ_ε, only the contaminated families have a
+    Only the Gaussian and Student-t families have a σ_ε, only the contaminated families have a
     shape, and the deviation is zero at λ = 0.
     """
     glm = Glm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
@@ -269,8 +269,10 @@ def test_run_model_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
     assert list(outcome.prior.split) == ['fixed']
-    assert (outcome.parameters.sigma_eps is None) == (family not in ['normal', 'student_t'])
-    assert outcome.prior.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert (outcome.parameters.sigma_eps is None) == (family not in ['gaussian', 'student_t'])
+    assert outcome.prior.y_shape == (
+        None if family in ['gaussian', 'bernoulli', 'poisson'] else 4.0
+    )
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
@@ -539,10 +541,10 @@ def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_line
     scored_covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
     plain = dataclasses.replace(scored_covariates, y_score=None)
     covariates = scored_covariates if scored else plain
-    normal = point('y_family_shares', 'normal', Glm)
-    glmm = Glmm(y_family_shares=normal, deviation_scale=deviation_scale)
+    gaussian = point('y_family_shares', 'gaussian', Glm)
+    glmm = Glmm(y_family_shares=gaussian, deviation_scale=deviation_scale)
     outcome = runModel(glmm, covariates, np.random.default_rng(0))
-    reference = runModel(Glmm(y_family_shares=normal), plain, np.random.default_rng(0))
+    reference = runModel(Glmm(y_family_shares=gaussian), plain, np.random.default_rng(0))
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation.dtype == np.float32
     assert outcome.deviation_scale == deviation_scale
@@ -565,5 +567,7 @@ def test_run_model_on_a_glmm_records_the_shape_beside_the_random_effects(
         link,
         column_type,
     )
-    assert outcome.prior.y_shape == (None if family in ['normal', 'bernoulli', 'poisson'] else 4.0)
+    assert outcome.prior.y_shape == (
+        None if family in ['gaussian', 'bernoulli', 'poisson'] else 4.0
+    )
     assert list(outcome.parameters.alpha) == ['g0']

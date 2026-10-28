@@ -282,7 +282,7 @@ def test_grouped_with_glmm_returns_a_glmm_outcome_of_one_block_per_factor() -> N
 
 
 GLM_FAMILIES = [
-    pytest.param('normal', 'continuous', np.float32, id='normal'),
+    pytest.param('gaussian', 'continuous', np.float32, id='gaussian'),
     pytest.param('bernoulli', 'binary', np.int64, id='bernoulli'),
     pytest.param('poisson', 'count', np.int64, id='poisson'),
 ]
@@ -302,7 +302,7 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     config: type[Glm],
 ) -> None:
     """A corpus of one family is one override (ADR 0006),
-    and a consumer stacks y by its type: a Normal y float32, a Bernoulli y codes, a count int64.
+    and a consumer stacks y by its type: a Gaussian y float32, a Bernoulli y codes, a count int64.
     """
     hyperprior = preset(outcome_form=config(y_family_shares=point('y_family_shares', family, Glm)))
     for index in range(10):
@@ -320,7 +320,7 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
     At r = 0.9999 and a half-normal F, σ_ε is about 0.01.
     """
     glm = Glm(
-        y_family_shares=point('y_family_shares', 'normal', Glm),
+        y_family_shares=point('y_family_shares', 'gaussian', Glm),
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
     )
@@ -352,12 +352,12 @@ def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_i
 ) -> None:
     """The ground truth refers to the design matrix a user fits on:
     η = Xβ + Σ_k Z_k α_k[codes_k] + the deviation, Z_k the design's columns of the factor's
-    random terms, so what y leaves after them is the Normal noise, sd σ_ε, up to y's float32
+    random terms, so what y leaves after them is the Gaussian noise, sd σ_ε, up to y's float32
     rounding. At r = 0.9999 and a half-normal F, σ_ε is about 0.01, too small to hide a wrong
     Zα, or at λ = 0.3 a deviation that is not the one which entered η.
     """
     glmm = Glmm(
-        y_family_shares=point('y_family_shares', 'normal', Glm),
+        y_family_shares=point('y_family_shares', 'gaussian', Glm),
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
         correlated_share=1.0,
@@ -507,7 +507,7 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
     At r = 1, τ_ε and so σ_ε are 0, and y is η = Xβ in float32, exactly.
     On grouped covariates the factors are no term.
     """
-    glm = Glm(y_family_shares=point('y_family_shares', 'normal', Glm), signal_share=1.0)
+    glm = Glm(y_family_shares=point('y_family_shares', 'gaussian', Glm), signal_share=1.0)
     for index in range(5):
         dataset = draw(0, index, Hyperprior.grouped(outcome_form=glm))
         design = dataset.toDesign()

@@ -69,7 +69,7 @@ x2 continuous  per row [ 0.77 -0.05 -1.55]
 x3 binary      per row [1 0 0]
 x4 binary      per row [1 0 0]
 y  continuous  per row [-9.45  1.28  0.73]
-family: normal
+family: gaussian
 fixed: intercept + x0 + x1 + x2 + x3 + x4
 random per g0: intercept
 random per g1: intercept + x0 + x2 + x3
@@ -100,7 +100,7 @@ for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
 ```
 
 ```text
-family: normal
+family: gaussian
 intercept  1.01
 age        0.09
 female     0.45

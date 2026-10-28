@@ -1,7 +1,7 @@
 """prior.py defines how we draw the parameters of a GLM or GLMM outcome.
 
 A generalized linear model (GLM) links an outcome y to the linear predictor eta = Xβ
-with design matrix X. The link function differs per likelihood family (e.g. Normal, Bernoulli).
+with design matrix X. The link function differs per likelihood family (e.g. Gaussian, Bernoulli).
 A generalized linear mixed model (GLMM) adds random effects for each grouping factor k,
 eta = Xβ + Σ_k Z_k α_k, so each group gets its own additional intercept (and optionally slopes).
 This module samples priors and parameters for these models.
@@ -95,7 +95,7 @@ class Parameters:
     """The parameters a fitter estimates (on the standardized scale). All arrays are float32."""
 
     beta: np.ndarray  # (d,) intercept first
-    sigma_eps: float | None  # None unless the family is Normal or Student-t
+    sigma_eps: float | None  # None unless the family is Gaussian or Student-t
     sigma_alpha: dict[str, np.ndarray]  # (q,) by factor
     corr_alpha: dict[str, np.ndarray]  # (q, q) by factor
     alpha: dict[str, np.ndarray]  # (m, q) by factor
@@ -107,7 +107,7 @@ class Prior:
 
     - Fixed effects: family, locations, scales
     - Random effects: sd family, scales (per random effect), LKJ shape
-    - Residual: family, scale (for Normal and Student-t outcomes)
+    - Residual: family, scale (for Gaussian and Student-t outcomes)
     - Response: y's family and its shape (which a fitter of that family fixes)
     - Budget: signal share r, predictor sd τ, each block's share φ of var(eta)
     """
@@ -121,8 +121,8 @@ class Prior:
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
     y_family: str  # a category of Glm's y_family_shares
-    y_shape: float | None  # y's second parameter, None for Normal, Bernoulli and Poisson
-    signal_share: float | None  # r, the share of var(y) eta explains (Normal and Student-t only)
+    y_shape: float | None  # y's second parameter, None for Gaussian, Bernoulli and Poisson
+    signal_share: float | None  # r, the share of var(y) eta explains (Gaussian and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)
     split: dict[str, float]  # φ, each block's share of τ²
     blocks: list[Block]
@@ -254,7 +254,7 @@ class Glm(Config):
     }
 
     y_family_shares: Simplex = {  # noqa: RUF012
-        'normal': 1 / 3,
+        'gaussian': 1 / 3,
         'bernoulli': 1 / 3,
         'poisson': 1 / 3,
         # useful for misspecification tests
@@ -273,7 +273,7 @@ class Glm(Config):
     varying_scale_share: Share = 0.5  # the probability that a block's scales vary per coefficient
     scale_spread: NonNegative = Uniform(0, 2)  # the sd of a log weight in a varying block
     signal_share: Share = Beta(2, 2)  # r
-    predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ (unless the family is Normal or Student-t)
+    predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ (unless y is Gaussian or Student-t)
     # for misspecification
     deviation_scale: NonNegative = 0.0  # λ
     residual_df: Positive = LogUniform(3, 10)  # of the Student-t family
@@ -302,7 +302,7 @@ class Glm(Config):
         signal_share = None
         predictor_sd = self.predictor_sd
         sigma_eps_scale = None
-        if y_family in ['normal', 'student_t']:
+        if y_family in ['gaussian', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
             # τ² = r and τ_ε² = 1 − r, such that y has unit variance at the scales

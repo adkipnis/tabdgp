@@ -31,7 +31,7 @@ CONTAMINATED = {
 }
 DEFAULTS = {
     'y_family_shares': {
-        'normal': 1 / 3,
+        'gaussian': 1 / 3,
         'bernoulli': 1 / 3,
         'poisson': 1 / 3,
         'student_t': 0.0,
@@ -85,7 +85,7 @@ def test_the_fields_take_their_defaults_and_an_override() -> None:
     defaults = {field: getattr(Glm(), field) for field in Glm.model_fields}
     assert defaults == DEFAULTS
     glm = Glm(y_family_shares=point('y_family_shares', 'poisson', Glm), signal_share=0.5)
-    assert list(glm.y_family_shares) == ['normal', 'bernoulli', 'poisson', *CONTAMINATED]
+    assert list(glm.y_family_shares) == ['gaussian', 'bernoulli', 'poisson', *CONTAMINATED]
     assert (glm.y_family_shares['poisson'], glm.signal_share) == (1.0, 0.5)
 
 
@@ -207,13 +207,13 @@ WITHOUT_RESIDUAL = [
 ]
 IDENTITIES = [
     pytest.param(
-        'normal',
+        'gaussian',
         THREE_QUARTERS,
         0.36,
         0.6,
         0.4,
         0.8,
-        id='normal: τ² = r, τ_β = τ / 1.5, τ_ε = √(1 − r)',
+        id='gaussian: τ² = r, τ_β = τ / 1.5, τ_ε = √(1 − r)',
     ),
     pytest.param(
         'student_t',
@@ -222,7 +222,7 @@ IDENTITIES = [
         0.6,
         0.4,
         0.8,
-        id='student_t: drawn like the Normal, τ² = r, τ_ε = √(1 − r)',
+        id='student_t: drawn like the Gaussian, τ² = r, τ_ε = √(1 − r)',
     ),
     *[
         pytest.param(
@@ -247,7 +247,7 @@ def test_the_joint_draws_identities_hold(
 ) -> None:
     """ADR 0006's scales as the comment on #46 amended them: τ_β = τ √(φ_fixed / tr cov X),
     with φ_fixed = 1 for a GLM, so the fixed block realizes var(Xβ) = τ² on any coding.
-    Only the Normal and Student-t families have a residual scale, and the Normal's y then has
+    Only the Gaussian and Student-t families have a residual scale, and the Gaussian's y then has
     unit variance at the scales. r sets nothing under the other families, so the prior
     records none there.
     An intercept-only design has no slope for τ_β to scale.
@@ -293,7 +293,7 @@ def test_a_glmms_fixed_block_takes_its_share_and_one_factor_the_rest() -> None:
         Block(name='fixed', variances=THREE_QUARTERS),
         Block(name='g0', variances=[1.0, 3.0], groups=3),
     ]
-    prior = _drawPriorAt(glmm, 'normal', blocks, np.random.default_rng(0))
+    prior = _drawPriorAt(glmm, 'gaussian', blocks, np.random.default_rng(0))
     assert prior.split == {'fixed': 0.64, 'g0': pytest.approx(0.36)}
     assert prior.beta_scales[1:] == pytest.approx([0.32] * 3)
     assert prior.sigma_alpha_scales == {'g0': pytest.approx([0.18] * 2)}
@@ -479,7 +479,7 @@ def test_each_parameter_follows_its_stated_family_at_its_scale_over_many_draws(
     slopes = []
     random_effects = []
     for _ in range(DRAWS):
-        parameters = _drawPriorAt(glmm, 'normal', blocks, rng).drawParameters(rng)
+        parameters = _drawPriorAt(glmm, 'gaussian', blocks, rng).drawParameters(rng)
         residual_sds.append(parameters.sigma_eps / 0.8)
         random_sds.extend(parameters.sigma_alpha['g0'])
         intercepts.append(parameters.beta[0])
@@ -714,7 +714,7 @@ def test_an_uncorrelated_factor_gets_the_identity(correlated_share: float, width
 
 @pytest.mark.parametrize(
     ('family', 'sigma_eps_family'),
-    [('normal', 'exponential'), ('student_t', 'exponential'), ('poisson', None), ('gamma', None)],
+    [('gaussian', 'exponential'), ('student_t', 'exponential'), ('poisson', None), ('gamma', None)],
 )
 def test_the_prior_names_the_blocks_fixed_then_the_factors_in_order_and_the_chosen_families(
     family: str, sigma_eps_family: str | None
@@ -752,8 +752,8 @@ def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_prior_draws_a
     and a ground truth is resampled under a fixed prior.
     """
     resolved = Glmm(correlated_share=1.0).resolveDataset(np.random.default_rng(0))
-    first_prior = _drawPriorAt(resolved, 'normal', FACTOR_BLOCKS, np.random.default_rng(7))
-    second_prior = _drawPriorAt(resolved, 'normal', FACTOR_BLOCKS, np.random.default_rng(7))
+    first_prior = _drawPriorAt(resolved, 'gaussian', FACTOR_BLOCKS, np.random.default_rng(7))
+    second_prior = _drawPriorAt(resolved, 'gaussian', FACTOR_BLOCKS, np.random.default_rng(7))
     assert first_prior == second_prior
     assert first_prior.blocks == FACTOR_BLOCKS
     first = first_prior.drawParameters(np.random.default_rng(8))
@@ -788,7 +788,7 @@ def test_the_prior_records_the_chosen_familys_shape_from_its_own_field(family: s
     assert low <= _drawPriorAt(free, family, blocks, np.random.default_rng(0)).y_shape <= high
 
 
-@pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson'])
+@pytest.mark.parametrize('family', ['gaussian', 'bernoulli', 'poisson'])
 def test_a_base_family_has_no_shape_and_consumes_no_draw_for_one(family: str) -> None:
     """The shape fields stay distributions in a base family's draw, so a dataset of a base
     family draws what it drew before the contaminated families existed.
@@ -807,11 +807,11 @@ def test_a_base_family_has_no_shape_and_consumes_no_draw_for_one(family: str) ->
     assert free_rng.random() == fixed_rng.random()
 
 
-@pytest.mark.parametrize('family', ['normal', 'bernoulli', 'poisson', *CONTAMINATED])
+@pytest.mark.parametrize('family', ['gaussian', 'bernoulli', 'poisson', *CONTAMINATED])
 def test_the_parameters_hold_a_residual_only_where_the_family_has_one(family: str) -> None:
-    """Only the Normal and Student-t families have a σ_ε."""
+    """Only the Gaussian and Student-t families have a σ_ε."""
     blocks = [Block(name='fixed', variances=[0.0, 1.0])]
     resolved = Glm().resolveDataset(np.random.default_rng(0))
     prior = _drawPriorAt(resolved, family, blocks, np.random.default_rng(0))
     parameters = prior.drawParameters(np.random.default_rng(1))
-    assert (parameters.sigma_eps is not None) == (family in ['normal', 'student_t'])
+    assert (parameters.sigma_eps is not None) == (family in ['gaussian', 'student_t'])

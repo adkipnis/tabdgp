@@ -19,7 +19,7 @@ from tabdgp.column import Column
 # =====================================================================================
 
 LINKS = {
-    'normal': 'identity',
+    'gaussian': 'identity',
     'bernoulli': 'logit',
     'poisson': 'log',
     'student_t': 'identity',
@@ -29,7 +29,7 @@ LINKS = {
     'beta': 'logit',
 }
 COLUMNS = {
-    'normal': Column(type='continuous', role='outcome'),
+    'gaussian': Column(type='continuous', role='outcome'),
     'bernoulli': Column(type='binary', levels=2, role='outcome'),
     'poisson': Column(type='count', role='outcome'),
     'student_t': Column(type='continuous', role='outcome'),
@@ -55,7 +55,7 @@ def draw(
 ) -> np.ndarray:
     """Draws y from eta through the family's canonical link, in its column's dtype."""
     match family:
-        case 'normal':
+        case 'gaussian':
             # y ~ N(eta, σ_ε)
             noise = rng.standard_normal(len(eta))  # (n,)
             y = eta + scale * noise  # (n,)
