@@ -11,7 +11,7 @@ resolved sizes, shares and budget
 -> per column, its type by its shares, then its k or marginal    plan, _resolveColumn
 -> x0, x1, … until the budget is met, then y under the SCM       plan
 -> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
--> placed by the node's ranks, tied values sharing one           apply
+-> placed by the node's ranks, tied values sharing one           rankMatch
 """
 
 from __future__ import annotations
@@ -254,8 +254,8 @@ def _resolveColumn(
 # the values
 # =====================================================================================
 
-# TODO: rename to applyMarginal
-def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
+
+def rankMatch(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """Draws and sorts the column's values in its node's order:
     a marginal sample if continuous or a count, level codes otherwise.
     """

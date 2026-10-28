@@ -1,7 +1,7 @@
 """TabDGP, a data-generating process for grouped and flat tables."""
 
 from tabdgp.covariates import Covariates
-from tabdgp.draw import Dataset, draw, drawOutcome
+from tabdgp.draw import Dataset, draw, resampleOutcome
 from tabdgp.field import (
     Beta,
     Dirichlet,
@@ -28,5 +28,5 @@ __all__ = [
     'Uniform',
     'UniformInt',
     'draw',
-    'drawOutcome',
+    'resampleOutcome',
 ]

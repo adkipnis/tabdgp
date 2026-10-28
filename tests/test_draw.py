@@ -19,14 +19,14 @@ from hypothesis import strategies as st
 
 from tabdgp.column import Column
 from tabdgp.covariates import Covariates
-from tabdgp.draw import Dataset, draw, drawOutcome
+from tabdgp.draw import Dataset, draw, resampleOutcome
 from tabdgp.hyperprior import Hyperprior, UniformInt
 from tabdgp.outcome import (
     GlmmOutcome,
     GlmOutcome,
     Outcome,
     ScmOutcome,
-    run,
+    runModel,
 )
 from tabdgp.prior import Glm, Glmm
 from tests.fixtures.build import Y, betweenShare, graphOf, point
@@ -417,15 +417,17 @@ TABLE = pd.DataFrame(
 TABLE_COVARIATES = Covariates.fromPandas(TABLE, ['school', 'class'])
 
 
-def test_draw_outcome_on_from_pandas_is_deterministic_per_key_and_differs_between_keys() -> None:
+def test_resample_outcome_on_from_pandas_is_deterministic_per_key_and_differs_between_keys() -> (
+    None
+):
     """A resampled outcome is keyed like a dataset, default_rng([seed, index]),
     so the oracle set a study builds downstream from a table is reproducible per key.
     """
     model = Glmm()
-    first = drawOutcome(3, 1, TABLE_COVARIATES, model)
-    again = drawOutcome(3, 1, TABLE_COVARIATES, model)
-    other = drawOutcome(3, 2, TABLE_COVARIATES, model)
-    keyed = run(model, TABLE_COVARIATES, np.random.default_rng([3, 1]))
+    first = resampleOutcome(3, 1, TABLE_COVARIATES, model)
+    again = resampleOutcome(3, 1, TABLE_COVARIATES, model)
+    other = resampleOutcome(3, 2, TABLE_COVARIATES, model)
+    keyed = runModel(model, TABLE_COVARIATES, np.random.default_rng([3, 1]))
     for outcome in [again, keyed]:
         assert np.array_equal(outcome.columns['y'], first.columns['y'])
         assert np.array_equal(outcome.parameters.beta, first.parameters.beta)
@@ -437,7 +439,7 @@ def test_a_resampled_glmm_outcome_has_as_many_groups_per_factor_as_the_table() -
     and per class, so a study reads a group's ground truth at its code.
     """
     for index in range(5):
-        outcome = drawOutcome(0, index, TABLE_COVARIATES, Glmm())
+        outcome = resampleOutcome(0, index, TABLE_COVARIATES, Glmm())
         assert list(outcome.parameters.alpha) == ['school', 'class']
         assert outcome.parameters.alpha['school'].shape[0] == 5
         assert outcome.parameters.alpha['class'].shape[0] == 10

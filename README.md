@@ -30,7 +30,7 @@ generated it.
   returned with the priors they were drawn from.
   `outcome_form='glm'` skips random effects, `Glmm(deviation_scale=0.3)` adds a known misspecification.
   You can pass your own model as a function of the covariates by defining it as a Callable.
-- **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `drawOutcome` draws a
+- **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `resampleOutcome` draws a
   model's outcome on it. You can use this semi-synthetic data for oracle tests or power analysis.
 
 ## Install
@@ -80,7 +80,7 @@ The built-in `Glmm()` model also returns the drawn latent parameters.
 ```python
 import pandas as pd
 
-from tabdgp import Covariates, Glmm, drawOutcome
+from tabdgp import Covariates, Glmm, resampleOutcome
 
 table = pd.DataFrame(
     {
@@ -91,7 +91,7 @@ table = pd.DataFrame(
     }
 )
 covariates = Covariates.fromPandas(table, factors=['school'])  # the types read from the dtypes
-outcome = drawOutcome(seed=0, index=0, covariates=covariates, model=Glmm())
+outcome = resampleOutcome(seed=0, index=0, covariates=covariates, model=Glmm())
 print(f'family: {outcome.prior.y_family}')
 for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
     print(f'{term:9} {beta:5.2f}')

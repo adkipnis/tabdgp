@@ -1,5 +1,5 @@
 """The outcome module's seams: what an Outcome guarantees on its own,
-and run, a model's call and the check of its result.
+and runModel, a model's call and the check of its result.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from tabdgp.outcome import (
     Outcome,
     ScmOutcome,
     codeDesign,
-    run,
+    runModel,
 )
 from tabdgp.prior import Glm, Glmm
 from tests.fixtures.build import Y, columnsOf, covariatesOf, groupingOf, point
@@ -105,14 +105,14 @@ MODELS = [
 
 
 @pytest.mark.parametrize(('model', 'shift'), MODELS)
-def test_run_calls_a_model_with_the_covariates_and_the_generator_and_returns_its_outcome(
+def test_run_model_calls_a_model_with_the_covariates_and_the_generator_and_returns_its_outcome(
     model: object, shift: float
 ) -> None:
     """A study's model is any callable of the covariates and the key's generator,
     its settings bound by a partial; y must be its draw from that generator.
     """
     covariates = covariatesOf([[0, 0, 1, 1]], ['x0'])
-    outcome = run(model, covariates, np.random.default_rng(0))
+    outcome = runModel(model, covariates, np.random.default_rng(0))
     noise = np.random.default_rng(0).standard_normal(4, dtype=np.float32)  # (n,)
     assert np.array_equal(outcome.columns['y'], covariates.score + noise + shift)
 
@@ -141,7 +141,7 @@ MISFIT = [
 
 
 @pytest.mark.parametrize(('model', 'error', 'match'), MISFIT)
-def test_run_refuses_a_models_result_of_the_wrong_length_or_type_or_a_covariates_name_naming_the_model(
+def test_run_model_refuses_a_models_result_of_the_wrong_length_or_type_or_a_covariates_name_naming_the_model(
     model: object, error: type[Exception], match: str
 ) -> None:
     """A user's model is checked only on what it returns, so the failure must say whose it is.
@@ -149,7 +149,7 @@ def test_run_refuses_a_models_result_of_the_wrong_length_or_type_or_a_covariates
     A column under a covariate's name would replace that covariate in the dataset.
     """
     with pytest.raises(error, match=match) as raised:
-        run(model, covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
+        runModel(model, covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
     assert model.__name__ in str(raised.value)
 
 
@@ -251,17 +251,17 @@ SHAPES = {
         pytest.param(covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1']), id='grouped, pooled'),
     ],
 )
-def test_run_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
+def test_run_model_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     family: str, link: str, column_type: str, covariates: Covariates
 ) -> None:
-    """A Glm is TabDGP's own model: run codes the covariates, draws the prior and writes y.
+    """A Glm is TabDGP's own model: runModel codes the covariates, draws the prior and writes y.
     On grouped covariates it is the pooled ground truth: the factors' codes are no term,
     and the prior has the one block fixed.
     Only the Normal and Student-t families have a σ_ε, only the contaminated families have a
     shape, and the deviation is zero at λ = 0.
     """
     glm = Glm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
-    outcome = run(glm, covariates, np.random.default_rng(0))
+    outcome = runModel(glm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmOutcome
     assert (outcome.prior.y_family, outcome.link) == (family, link)
     assert list(outcome.columns) == list(outcome.metadata) == ['y']
@@ -287,7 +287,7 @@ def test_a_glm_outcome_checks_its_shapes_against_n_and_d(change: dict, match: st
     """A consumer pairs beta with the terms by position and adds the deviation to η row by row,
     so a shape that disagrees fails where the outcome is built.
     """
-    outcome = run(Glm(), covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
+    outcome = runModel(Glm(), covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
     with pytest.raises(ValidationError, match=match):
         _replaced(outcome, change)
 
@@ -337,7 +337,7 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
     )
     # at a budget of d every term is random too, the effects correlated
     glmm = Glmm(random_effects=6, correlated_share=1.0)
-    outcome = run(glmm, covariates, np.random.default_rng(0))
+    outcome = runModel(glmm, covariates, np.random.default_rng(0))
     parameters = outcome.parameters
     raw = np.stack(
         [
@@ -370,7 +370,7 @@ def test_the_ground_truths_arrays_are_float32_on_both_scales() -> None:
     on the raw columns too.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
-    outcome = run(Glmm(), covariates, np.random.default_rng(0))
+    outcome = runModel(Glmm(), covariates, np.random.default_rng(0))
     parameters = outcome.parameters
     arrays = {
         'beta': parameters.beta,
@@ -387,14 +387,14 @@ def test_the_ground_truths_arrays_are_float32_on_both_scales() -> None:
         assert array.dtype == np.float32, field
 
 
-def test_run_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> None:
+def test_run_model_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() -> None:
     """A Glmm draws one block of random effects per grouping factor, crossed or nested alike.
     Each factor's terms are design terms led by its intercept,
     and its effects have one row per group; GlmmOutcome checks their q itself.
     The prior names the blocks fixed, then the factors in order.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], ['x0', 'x1'])
-    outcome = run(Glmm(), covariates, np.random.default_rng(0))
+    outcome = runModel(Glmm(), covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
     assert list(outcome.prior.split) == ['fixed', 'g0', 'g1']
     assert list(outcome.random_terms) == ['g0', 'g1']
@@ -432,7 +432,7 @@ def _slopeCovariates(names: list[str]) -> Covariates:
 def _randomTerms(names: list[str], random_effects: int, seed: int) -> list[str]:
     """g0's random terms under a budget, on the grouping and these covariates."""
     glmm = Glmm(random_effects=random_effects)
-    outcome = run(glmm, _slopeCovariates(names), np.random.default_rng(seed))
+    outcome = runModel(glmm, _slopeCovariates(names), np.random.default_rng(seed))
     return outcome.random_terms['g0']
 
 
@@ -481,14 +481,14 @@ def test_a_random_effects_point_above_d_fails_naming_the_field() -> None:
         _randomTerms(['x'], 3, seed=0)
 
 
-def test_run_refuses_a_glmm_on_covariates_without_a_factor_naming_the_model() -> None:
+def test_run_model_refuses_a_glmm_on_covariates_without_a_factor_naming_the_model() -> None:
     """A GLMM without a grouping factor would split var(η) over no random block
     and draw a GLM at a fraction of its scale, silently; draw's hyperprior refuses it earlier,
     so this guards a table read without factors.
     """
     covariates = covariatesOf([], ['x0'], rows=4)
     with pytest.raises(ValueError, match='Glmm'):
-        run(Glmm(), covariates, np.random.default_rng(0))
+        runModel(Glmm(), covariates, np.random.default_rng(0))
 
 
 # changes of the parameters, which a GLMM's outcome checks against its random terms
@@ -510,7 +510,7 @@ def test_a_glmm_outcome_checks_each_factors_shapes_against_its_random_terms(
     The rows are the groups, which the outcome does not hold; the draw sizes them.
     """
     covariates = covariatesOf([[0, 0, 1, 1]], ['x0'])
-    outcome = run(Glmm(random_effects=2), covariates, np.random.default_rng(0))
+    outcome = runModel(Glmm(random_effects=2), covariates, np.random.default_rng(0))
     assert outcome.random_terms == {'g0': ['intercept', 'x0']}
     with pytest.raises(ValidationError, match=match):
         _replaced(outcome, {'parameters': change})
@@ -524,7 +524,7 @@ def test_the_deviation_is_lambda_times_the_sd_of_x_beta_plus_z_alpha_times_the_s
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
     glmm = Glmm(random_effects=2, deviation_scale=0.5)
-    outcome = run(glmm, covariates, np.random.default_rng(0))
+    outcome = runModel(glmm, covariates, np.random.default_rng(0))
     x0 = np.arange(6.0)  # (n,)
     design = np.stack([np.ones(6), (x0 - x0.mean()) / x0.std()], axis=1)  # (n, d)
     codes = covariates.grouping.codes['g0']  # (n,)
@@ -555,8 +555,8 @@ def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_line
     covariates = scored_covariates if scored else plain
     normal = point('y_family_shares', 'normal', Glm)
     glmm = Glmm(y_family_shares=normal, deviation_scale=deviation_scale)
-    outcome = run(glmm, covariates, np.random.default_rng(0))
-    reference = run(Glmm(y_family_shares=normal), plain, np.random.default_rng(0))
+    outcome = runModel(glmm, covariates, np.random.default_rng(0))
+    reference = runModel(Glmm(y_family_shares=normal), plain, np.random.default_rng(0))
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation.dtype == np.float32
     assert outcome.deviation_scale == deviation_scale
@@ -564,7 +564,7 @@ def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_line
 
 
 @pytest.mark.parametrize(('family', 'link', 'column_type'), RUNS)
-def test_run_on_a_glmm_records_the_shape_beside_the_random_effects(
+def test_run_model_on_a_glmm_records_the_shape_beside_the_random_effects(
     family: str, link: str, column_type: str
 ) -> None:
     """The contaminated families draw on a GLMM as on a GLM: η holds the random effects,
@@ -572,7 +572,7 @@ def test_run_on_a_glmm_records_the_shape_beside_the_random_effects(
     """
     glmm = Glmm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
-    outcome = run(glmm, covariates, np.random.default_rng(0))
+    outcome = runModel(glmm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
     assert (outcome.prior.y_family, outcome.link, outcome.metadata['y'].type) == (
         family,

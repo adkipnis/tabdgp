@@ -10,7 +10,7 @@ the key and the SCM hyperprior
 -> the column plan, y's column last under the SCM                plan
 -> the graph, each node at a unit of the grouping, y last        connect
 -> the node values, each at its unit, y's the score              propagate
--> the covariate columns at the rows, joined to their nodes      _applyColumns
+-> the covariate columns at the rows, joined to their nodes      _rankMatchColumns
 -> the latent nodes at the rows                                  _broadcastLatent
 -> the covariates, their metadata, the grouping and the score    Covariates
 -> the outcome: none, y rank-matched to the score under the SCM,
@@ -18,7 +18,7 @@ the key and the SCM hyperprior
 -> the Dataset, the grouping factors first, the outcome last     draw
 
 a key, covariates (a table's) and a model
--> the key's generator, then the model's outcome                 drawOutcome
+-> the key's generator, then the model's outcome                 resampleOutcome
 """
 
 from __future__ import annotations
@@ -34,12 +34,12 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.column import Column, Grouping, apply, assign, plan
+from tabdgp.column import Column, Grouping, assign, plan, rankMatch
 from tabdgp.covariates import Covariates
 from tabdgp.graph import Graph, connect
 from tabdgp.hyperprior import Hyperprior, Model, OutcomeForm
 from tabdgp.mechanism import propagate
-from tabdgp.outcome import Design, Outcome, ScmOutcome, codeDesign, run
+from tabdgp.outcome import Design, Outcome, ScmOutcome, codeDesign, runModel
 
 VERSION = version('tabdgp')
 NUMPY_VERSION = version('numpy')
@@ -92,13 +92,13 @@ class Dataset:
         return record
 
     @classmethod
-    def _recordValue(cls, value: Any) -> Any: # TODO: smells like overengineering, are all cases really needed in practice?
+    def _recordValue(cls, value: Any) -> Any:
         match value:
             case np.ndarray():
                 return {'dtype': value.dtype.name, 'values': value.tolist()}
             case dict():
                 return {key: cls._recordValue(item) for key, item in value.items()}
-            case list() | tuple():
+            case list() | tuple():  # a tuple from a groups override
                 return [cls._recordValue(item) for item in value]
             case None | str() | int() | float():
                 return value
@@ -110,7 +110,7 @@ class Dataset:
             case functools.partial():
                 return cls._nameModel(value.func)  # its bound settings are the study's
             case _ if callable(value):
-                return cls._nameModel(value)
+                return cls._nameModel(value)  # a study's model
             case _:
                 raise TypeError(f'{value!r}, a {type(value).__name__}, has no JSON form')
 
@@ -145,7 +145,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     covariate_metadata = {name: column for name, column in planned.items() if name != 'y'}
     graph = connect(resolved, grouping, covariate_metadata, rng)
     nodes = propagate(graph, resolved, grouping, rng)  # each at its unit
-    covariate_columns = _applyColumns(nodes, covariate_metadata, graph, grouping, rng)
+    covariate_columns = _rankMatchColumns(nodes, covariate_metadata, graph, grouping, rng)
     latent = _broadcastLatent(nodes, graph, grouping)
     covariates = Covariates(
         columns={**grouping.codes, **covariate_columns},
@@ -180,7 +180,7 @@ def _seedGenerator(seed: int, index: int) -> np.random.Generator:
     return np.random.default_rng([seed, index])
 
 
-def _applyColumns(
+def _rankMatchColumns(
     nodes: dict[str, np.ndarray],
     metadata: dict[str, Column],
     graph: Graph,
@@ -190,7 +190,7 @@ def _applyColumns(
     unit = dict(zip(graph.names, graph.unit))
     columns: dict[str, np.ndarray] = {}
     for name, column in metadata.items():
-        values = apply(nodes[name], column, rng)  # (e,) one per group of its unit, or per row
+        values = rankMatch(nodes[name], column, rng)  # (e,) one per group of its unit, or per row
         columns[name] = grouping.broadcast(values, unit[name], 'row')  # (n,)
     return columns
 
@@ -206,30 +206,30 @@ def _broadcastLatent(
 
 
 def _drawOutcome(
-    form: OutcomeForm | Model, # TODO: we wanted to drop any "form" mention in the source code, rename
+    model: OutcomeForm | Model,
     covariates: Covariates,
     y_column: Column | None,
     rng: np.random.Generator,
 ) -> Outcome | None:
     """The outcome under the SCM or a model (None under 'none')."""
-    match form:
+    match model:
         case 'none':
             return None
         case 'scm':
-            # y's column rank-matched to the score, the last draw
-            y = apply(covariates.score, y_column, rng)  # (n,) # TODO: this looks like it takes the score of the covariates, not of the outcome node
+            # the covariates carry y's node values as the score, and y is rank-matched to it last
+            y = rankMatch(covariates.score, y_column, rng)  # (n,)
             metadata = {'y': y_column}
             return ScmOutcome(columns={'y': y}, metadata=metadata, score=covariates.score)
         case _:
-            return run(form, covariates, rng)
+            return runModel(model, covariates, rng)
 
 
 # -------------------------------------------------------------------------------------
 # a resampled outcome: the key -> the model's outcome on given covariates
 # -------------------------------------------------------------------------------------
 
-# TODO: name confusion with _drawOutcome, come up with semantically more meaningful names
-def drawOutcome(seed: int, index: int, covariates: Covariates, model: Model) -> Outcome:
+
+def resampleOutcome(seed: int, index: int, covariates: Covariates, model: Model) -> Outcome:
     """The outcome of a model on given covariates, keyed like a dataset."""
     rng = _seedGenerator(seed, index)
-    return run(model, covariates, rng)
+    return runModel(model, covariates, rng)

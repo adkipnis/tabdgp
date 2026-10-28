@@ -14,7 +14,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from tabdgp.column import Column, Grouping, apply, assign, plan
+from tabdgp.column import Column, Grouping, assign, plan, rankMatch
 from tabdgp.field import UniformInt
 from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tests.fixtures.build import groupingOf, point
@@ -546,7 +546,7 @@ def test_a_point_override_gives_every_column_its_value() -> None:
 
 
 def test_plan_gives_every_column_its_marginal_or_level_alpha() -> None:
-    """apply reads them, and Column admits a column without either,
+    """rankMatch reads them, and Column admits a column without either,
     so the guarantee is the plan's: every column it draws, y included, carries its draws.
     """
     for seed in range(20):
@@ -626,11 +626,11 @@ def _apply(n: int, column: Column, seed: int) -> np.ndarray:
     """One column cut or matched from n standard normal values."""
     rng = np.random.default_rng(seed)
     values = rng.standard_normal(n)  # (n,)
-    return apply(values, column, rng)
+    return rankMatch(values, column, rng)
 
 
 @pytest.mark.parametrize('column', DISCRETE, ids=str)
-def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows(
+def test_rank_match_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows(
     column: Column,
 ) -> None:
     """A level no row has would not exist in a real table;
@@ -642,7 +642,7 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
             assert np.array_equal(np.unique(codes), np.arange(column.levels))
 
 
-def test_apply_gives_valid_codes_when_n_is_below_k() -> None:
+def test_rank_match_gives_valid_codes_when_n_is_below_k() -> None:
     """A small rows override can leave fewer rows than levels;
     each row still gets a code below k.
     """
@@ -657,7 +657,7 @@ def _monotone(n: int, column: Column, seed: int) -> bool:
     """Whether the codes never decrease as the values increase."""
     rng = np.random.default_rng(seed)
     values = rng.standard_normal(n)  # (n,)
-    codes = apply(values, column, rng)  # (n,)
+    codes = rankMatch(values, column, rng)  # (n,)
     return bool(np.all(np.diff(codes[np.argsort(values)]) >= 0))
 
 
@@ -699,7 +699,7 @@ def _node(seed: int) -> np.ndarray:
 
 def _applyTo(values: np.ndarray, column: Column, seed: int) -> np.ndarray:
     """The column cut or matched from given node values."""
-    return apply(values, column, np.random.default_rng(seed))
+    return rankMatch(values, column, np.random.default_rng(seed))
 
 
 @pytest.mark.parametrize('column', [*CONTINUOUS, COUNT], ids=str)
@@ -742,7 +742,7 @@ def test_tied_node_values_share_one_column_value(column: Column) -> None:
 
 
 @pytest.mark.parametrize('column', [*CONTINUOUS, COUNT, *DISCRETE], ids=str)
-def test_apply_gives_each_column_its_dtype(column: Column) -> None:
+def test_rank_match_gives_each_column_its_dtype(column: Column) -> None:
     """An outcome checks its arrays against Column.dtype, so the plan's columns must meet it."""
     assert _apply(50, column, 0).dtype == column.dtype
 
@@ -784,7 +784,7 @@ def test_plan_is_deterministic_under_a_fixed_generator() -> None:
 @pytest.mark.parametrize(
     'column', [*CONTINUOUS, COUNT, Column(type='categorical', levels=6, parameters=ALPHA)], ids=str
 )
-def test_apply_is_deterministic_under_a_fixed_generator(column: Column) -> None:
+def test_rank_match_is_deterministic_under_a_fixed_generator(column: Column) -> None:
     """Every marginal family and the level codes draw from the generator alone."""
     node = _node(1)
     assert np.array_equal(_applyTo(node, column, 7), _applyTo(node, column, 7))
@@ -805,7 +805,7 @@ def _fromDefaults(family: str, n: int, seed: int) -> np.ndarray:
     hyperprior = Hyperprior()
     parameters = {field: hyperprior.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
     column = _matched(family, parameters)
-    return apply(rng.standard_normal(n), column, rng)
+    return rankMatch(rng.standard_normal(n), column, rng)
 
 
 SUPPORTS = {

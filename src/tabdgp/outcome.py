@@ -7,7 +7,7 @@ The ground truth is float32, and eta is computed from its values in float64, so 
 pipeline:
 ---------
 the covariates (from an SCM draw or a provided table)
--> a model's outcome: its columns, their metadata and its ground truth: run
+-> a model's outcome: its columns, their metadata and its ground truth: runModel
    -> the design matrix (intercept first)                               codeDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
    -> y's family, the stated prior over the blocks, then the parameters Glm.drawPrior,
@@ -234,8 +234,8 @@ class GlmmOutcome(GlmOutcome):
 # the model's call
 # =====================================================================================
 
-# TODO: rename to runModel or applyModel
-def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
+
+def runModel(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """Draws the outcome of TabDGP's own model, or calls a study's and checks what it returns."""
     match model:
         case Glmm():
