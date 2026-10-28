@@ -142,7 +142,7 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
 
 def test_a_design_columns_point_above_half_the_rows_fails_naming_the_field_and_its_bound() -> None:
     """A point override is honored exactly or not at all:
-    19 design columns under 10 rows break n ≥ 2d.
+    19 design columns under 10 rows break n >= 2d.
     """
     with pytest.raises(ValueError, match=r'design_columns.*\b5\b'):
         Hyperprior(rows=10, design_columns=19).resolveDataset(np.random.default_rng(0))

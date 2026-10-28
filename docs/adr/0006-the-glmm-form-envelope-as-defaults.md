@@ -41,7 +41,7 @@ blocks at q = 2 and 3 of 18 above.
   half_student_t with df = 3, half_cauchy, exponential}, uniform, chosen once per dataset and
   shared by the random-effect standard deviations and the residual scale (a shares field, not
   a token, ADR 0007). `lkj_eta` uniform on {1, 2, 3, 4} when a factor's effects
-  are correlated, `correlated_share` 0.55 per factor with q_k ≥ 2 (the practice survey's share
+  are correlated, `correlated_share` 0.55 per factor with q_k >= 2 (the practice survey's share
   of models with slopes that correlate them, those that do not say counted as uncorrelated).
   The intercept's scale τ_0 `LogUniform(0.1, 10)`, the envelope.
 - **The fit drawn jointly.** Per dataset: `signal_share` r, a wide Beta; `predictor_sd` τ for
@@ -256,7 +256,7 @@ below are what the fourth fingerprint pins after ticket A; nothing the proofs ce
 ## Amendment 2026-10-26: the scales vary per coefficient by default
 
 #56's read of `prior` gave the context a scale per random effect, since a brms user can state
-one (`class = sd, coef = …`; the survey's rehrig_2020 and trouve_2018 give the intercept's sd a
+one (`class = sd, coef = ...`; the survey's rehrig_2020 and trouve_2018 give the intercept's sd a
 prior apart from the slopes'). Alex's rule for the default followed: an amortized model must
 amortize over the priors a user may state, with the common one a special case of them. The
 decision is: **each block's prior scales vary per coefficient by default. With probability

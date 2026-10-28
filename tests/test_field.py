@@ -219,7 +219,7 @@ def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_boun
     distribution: UniformInt | LogUniformInt,
 ) -> None:
     """No value of the distribution lies at or below the bound,
-    and a draw above it would break m ≤ n without a word.
+    and a draw above it would break m <= n without a word.
     """
     toy = Toy(count=distribution)
     with pytest.raises(ValueError, match=r'count.*\b7\b'):

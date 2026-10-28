@@ -9,7 +9,7 @@ resolved sizes, shares and budget
 -> per factor (top down), how many factors it nests in           _nestFactors
 -> per factor (bottom up), its m groups, their sizes and codes   _sampleSizes, assign
 -> per column, its type by its shares, then its k or marginal    plan, _resolveColumn
--> x0, x1, … until the budget is met, then y under the SCM       plan
+-> x0, x1, ... until the budget is met, then y under the SCM     plan
 -> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
 -> placed by the node's ranks, tied values sharing one           rankMatch
 """

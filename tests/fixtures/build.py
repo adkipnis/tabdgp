@@ -35,7 +35,7 @@ def columnsOf(names: list[str]) -> dict[str, Column]:
 
 
 def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None) -> Grouping:
-    """A grouping of the grouping factors g0, g1, …, codes[i] listing each row's group of g{i}."""
+    """A grouping of the grouping factors g0, g1, ..., codes[i] listing each row's group of g{i}."""
     # without nests_in, every grouping factor is crossed
     if nests_in is None:
         nests_in = [None] * len(codes)
@@ -85,7 +85,7 @@ def graphOf(
     group_share: float = 0.5,
     group_factor: str | None = None,
 ) -> Graph:
-    """A graph of nodes x0, x1, …, parents[j] listing node j's parents."""
+    """A graph of nodes x0, x1, ..., parents[j] listing node j's parents."""
     v = len(parents)
     adjacency = np.zeros((v, v), dtype=bool)  # (v, v)
     for j, parents_of_j in enumerate(parents):

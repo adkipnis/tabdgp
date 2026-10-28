@@ -422,7 +422,7 @@ def _uniformCdf(x: float) -> float:
 
 
 def _ksDistance(samples: list[float], cdf: Callable[[float], float]) -> float:
-    """The Kolmogorov–Smirnov distance between a sample and a distribution function."""
+    """The Kolmogorov-Smirnov distance between a sample and a distribution function."""
     n = len(samples)
     distance = 0.0
     for i, x in enumerate(sorted(samples)):

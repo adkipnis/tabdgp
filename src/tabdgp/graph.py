@@ -79,7 +79,7 @@ class Graph:
         if shapes != ((v, v), (v,), v, v, v, v, v, v, v):
             raise ValueError(f'{v} names, but the per-node fields have shapes {shapes}')
 
-        # the latent mask marks the z… names, and every parent comes before its child
+        # the latent mask marks the z... names, and every parent comes before its child
         named_latent = [name.startswith('z') for name in self.names]  # (v,)
         if not np.array_equal(self.latent, named_latent):
             raise ValueError(f'the latent mask {self.latent.tolist()} disagrees with {self.names}')
