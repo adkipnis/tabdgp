@@ -71,7 +71,7 @@ class GlmOutcome(Outcome):
 
     family: likelihood.Family  # y's, as the model states it
     link: str  # the canonical link of y's family
-    shape: float | None  # y's second parameter, None for Gaussian, Bernoulli and Poisson
+    shape: float | None  # y's second parameter (None for Gaussian, Bernoulli and Poisson)
     fixed_terms: list[str]  # the design's names
     prior: Prior
     parameters: Parameters

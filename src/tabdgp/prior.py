@@ -8,8 +8,7 @@ This module samples priors and parameters for these models.
 
 We draw at three levels, hyperprior -> prior -> parameters:
 - **Hyperprior (Glm, Glmm):** a default per field (which an override replaces).
-- **Prior:** the stated model and priors,
-  which a fitter may take as true or replace with its own.
+- **Prior:** the stated model and priors, which can be passed to a fitter
 - **Parameters:** what a fitter estimates (e.g. β, σ_α).
 
 The priors are specified by their family (e.g. Normal, Student-t)
@@ -70,7 +69,7 @@ from tabdgp.field import (
     Uniform,
     UniformInt,
 )
-from tabdgp.likelihood import SHAPES, Family
+from tabdgp import likelihood
 
 # =====================================================================================
 # what the draw reads and returns
@@ -239,7 +238,7 @@ class Glm(Config):
     SHARES: ClassVar[tuple[str, ...]] = ('beta_family_shares', 'sigma_eps_family_shares')
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()
 
-    family: Family  # y's, stated
+    family: likelihood.Family  # y's, stated
     shape: Positive | None = None  # y's second parameter, None for its family's default
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # σ_ε's family
@@ -256,13 +255,19 @@ class Glm(Config):
 
     @model_validator(mode='after')
     def _checkShape(self) -> Glm:
-        """y has a stated shape only where its family has one."""
-        if self.shape is not None and self.family not in SHAPES:
+        """y has a stated shape parameter only where its family has one."""
+        if self.shape is not None and self.family not in likelihood.SHAPES:
             raise ValueError(
                 f"shape = {self.shape} does not fit family = '{self.family}': "
-                f'only {list(SHAPES)} have one'
+                f'only {list(likelihood.SHAPES)} have one'
             )
         return self
+
+    def _resolveShape(self, rng: np.random.Generator) -> float | None:
+        """y's shape parameter, its family's default drawn where none is stated (None without one)."""
+        if self.shape is None and self.family in likelihood.SHAPES:
+            return likelihood.SHAPES[self.family].draw(rng)
+        return self.resolveField('shape', rng)
 
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
         """Resolves each field that is drawn once per dataset."""
@@ -275,12 +280,6 @@ class Glm(Config):
             else:
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
-
-    def _resolveShape(self, rng: np.random.Generator) -> float | None:
-        """y's shape, its family's default drawn where none is stated (None without one)."""
-        if self.shape is None and self.family in SHAPES:
-            return SHAPES[self.family].draw(rng)
-        return self.resolveField('shape', rng)
 
     def drawPrior(self, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior over the blocks after the GLM is resolved, a step per parameter."""
