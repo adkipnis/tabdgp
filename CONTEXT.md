@@ -84,6 +84,8 @@ _Avoid_: layer, activation (one part of it), edge function
 
 **Generating graph**:
 The directed acyclic graph of a dataset's nodes and their parents.
+It also holds each node's unit and drawn mechanism settings (e.g. family, activation, scales).
+The mechanisms' weights are drawn with the node values and not kept.
 It is returned with every dataset.
 _Avoid_: causal graph unqualified, DAG (one property of it), architecture
 
@@ -156,6 +158,9 @@ A config of distributions, one per field, from which a draw resolves its points.
 The SCM's, `Scm`, draws every quantity of a dataset (e.g. sizes, graph, mechanisms, marginals,
 types, quirks), and it is reached through a preset.
 A GLM's or GLMM's, `Glm` or `Glmm`, draws the prior over its parameters.
+A draw resolves `Scm` once per dataset, then draws one SCM from it: the generating graph and its
+mechanisms.
+In prose, an SCM, a GLM or a GLMM is a drawn model, and `Scm`, `Glm` or `Glmm` its hyperprior.
 _Avoid_: prior (the fitter's, over parameters), config unqualified, meta-distribution
 
 **Preset**:
