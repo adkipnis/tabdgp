@@ -134,7 +134,8 @@ def _factors(dataset: Dataset) -> list[str]:
     return [name for name, column in dataset.metadata.items() if column.role == 'grouping_factor']
 
 
-# bits hold per device: numpy's float functions may differ in the last bit on another CPU
+# bits hold per CPU type and numpy build: elsewhere numpy's float draws (uniform, beta, gamma)
+# and functions (exp, tanh, sin, matmul) differ in the last bit, and a rejection can shift the stream
 @pytest.mark.skipif(
     (sys.platform, platform.machine()) != ('darwin', 'arm64'),
     reason='the digest is pinned on macOS arm64',
