@@ -2,9 +2,9 @@
 
 pipeline:
 ---------
-the resolved hyperprior, the grouping and the covariates' columns
+the resolved SCM hyperprior, the grouping, and the covariate columns
 -> each node's unit                                                            _sampleUnits
--> names and units in topological order, the factors first, y last if drawn    _orderNodes
+-> names and units in topological order, the grouping factors first, y last if drawn    _orderNodes
 -> edges: Cauchy node terms and a block bonus                                  _sampleEdges
 -> the edges a child may read                                                  _maskEdges
 -> each node's own field draws: family, scales, activation                     _resolveNodes
