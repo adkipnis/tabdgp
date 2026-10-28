@@ -193,7 +193,7 @@ def _orderNodes(
     names = factors + [nodes[i] for i in order]
     unit = factors + [units[unit_index[i]] for i in order]
 
-    # the SCM and every model turn y's node into y
+    # the SCM turns y's node into y
     if resolved.outcome_form != 'none':
         names.append('y')
         unit.append('row')
