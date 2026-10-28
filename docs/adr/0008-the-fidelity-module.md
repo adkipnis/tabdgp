@@ -42,7 +42,7 @@ two-sample test, containment test, null, pairing.
   trees are the same under any monotone recoding, so the choice over sbi's z-scores only fixes
   the missing value's place and keeps a heavy-tailed axis from setting a distance.
 - **The distance per axis.** Wasserstein-1 between the two samples' ranks: the area between
-  their empirical distribution functions, bounded like Kolmogorov–Smirnov's largest gap and
+  their empirical distribution functions, bounded like Kolmogorov-Smirnov's largest gap and
   less noisy, since it integrates the whole gap. It says where a gap is; the band says how large.
 - **Containment.** The share of one sample's rows inside the other's band per axis, the band
   the 1st to 99th percentile by default, its ends at the nearest observed values so that it

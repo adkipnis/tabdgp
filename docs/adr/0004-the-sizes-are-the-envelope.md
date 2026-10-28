@@ -23,7 +23,7 @@ and has no default.** What the proofs certify is `grouped()`.
   Dirichlet(α) proportions. Two per-factor fields; G non-empty groups always; no retry.
 - **Truncation at resolve.** `rows` resolves first; `groups` draws from its distribution
   truncated at `rows`, a superior factor's `groups` below the subordinate factor's, and
-  `design_columns` at `rows / 2` (rule 8's one floor, n ≥ 2d, which #1 did not enforce).
+  `design_columns` at `rows / 2` (rule 8's one floor, n >= 2d, which #1 did not enforce).
   A draw clipped afterwards piles mass on the bound: from `LogUniformInt(2, 400)` at
   n = 20, 57 % of draws would become all-singleton tables.
 - **A superior factor has fewer groups than the subordinate one.** Its `groups` is
@@ -72,7 +72,7 @@ and has no default.** What the proofs certify is `grouped()`.
 ## Consequences
 
 - ADR 0001's "metabeta passes its sizes" is amended: metabeta passes nothing and calls
-  `draw(seed, index, Hyperprior.grouped())`. metabeta's `envelope.md` (rules 7–9) and its
+  `draw(seed, index, Hyperprior.grouped())`. metabeta's `envelope.md` (rules 7-9) and its
   `packages/mixed` ADR 0005 say the same on their side.
 - The proofs run on `grouped()`; mixedbench#72's flat sample tests `flat()`.
 - `hyperprior` gains the per-factor fields, the presets and the truncation; a bound names

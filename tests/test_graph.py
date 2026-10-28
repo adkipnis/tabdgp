@@ -77,7 +77,7 @@ MISLABELED = [
 
 @pytest.mark.parametrize('change', MISLABELED)
 def test_a_latent_mask_that_disagrees_with_the_names_fails(change: dict) -> None:
-    """The mask and the x…/z… names both tell latent from observed nodes;
+    """The mask and the x.../z... names both tell latent from observed nodes;
     they may not disagree.
     """
     with pytest.raises(ValidationError):

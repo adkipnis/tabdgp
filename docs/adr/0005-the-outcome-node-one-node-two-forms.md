@@ -15,7 +15,7 @@ likelihood on the design matrix (ADRs 0006 and 0007); `grouped()` and `flat()` d
 by default, and the proofs certify it.** The words are `CONTEXT.md`'s: outcome node, form, deviation, count, marginal, post-hoc
 type, group share.
 
-The sweep (TabPFN v1–3, TabICL v1–2, O'Prior, SurvivalPFN, SurvPFN, Do-PFN, scamd): the tabular
+The sweep (TabPFN v1-3, TabICL v1-2, O'Prior, SurvivalPFN, SurvPFN, Do-PFN, scamd): the tabular
 priors give y a class-count draw with permuted labels, a learnability filter on (X, y) (classes
 present in both halves, ExtraTrees beats the mean) and, in TabICL v2 and TabPFN v2, a place on
 any node of the SCM, with x downstream of y; an own noise level is rare (O'Prior, metabeta-v2's

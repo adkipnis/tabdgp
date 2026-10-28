@@ -258,7 +258,7 @@ class Hyperprior(Config):
             if name in self.PER_COLUMN + self.PER_NODE + self.PER_FACTOR:
                 points[name] = getattr(self, name)  # defer resolution to a later step
             elif name == 'design_columns':
-                points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n ≥ 2d
+                points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n >= 2d
             else:
                 points[name] = self.resolveField(name, rng)
         return Hyperprior(**points)

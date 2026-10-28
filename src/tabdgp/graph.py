@@ -178,7 +178,7 @@ def _orderNodes(
 
     # each node's unit
     latent_unit = _sampleUnits(resolved, len(factors), latent_nodes, rng)  # (latent_nodes,)
-    # sorted, so that z0, z1, … follow the order
+    # sorted, so that z0, z1, ... follow the order
     latent_unit = np.sort(latent_unit)
     observed_unit = _sampleUnits(resolved, len(factors), len(observed), rng)  # (d,)
     observed_columns = [columns[name] for name in observed]

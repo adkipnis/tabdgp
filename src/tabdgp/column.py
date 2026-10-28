@@ -239,7 +239,7 @@ def _resolveColumn(
         return Column(type=type, role=role, marginal=family, parameters=parameters)
     levels = 2
     if type != 'binary':
-        extra = rng.geometric(resolved.levels_p)  # 1, 2, …
+        extra = rng.geometric(resolved.levels_p)  # 1, 2, ...
         levels += int(extra)
     if resolved.max_levels is not None:
         levels = min(levels, resolved.max_levels)

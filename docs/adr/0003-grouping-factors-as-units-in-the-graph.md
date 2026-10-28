@@ -65,7 +65,7 @@ child column its parent explains.
   factor's groups.
 - **The grouping factor as a column**: int64 codes, type `categorical`, role
   `grouping_factor`, `levels = G`, outside the design-column budget; the role carries its
-  checks (G ≥ 2, no marginal, the size draw's fields as its parameters). The binary /
+  checks (G >= 2, no marginal, the size draw's fields as its parameters). The binary /
   categorical split is about design-matrix coding and applies to covariates only.
 - **Random effects stay the outcome node's.** A group-level node is covariate structure, which
   a GLMM takes as given; the outcome node (ADR 0005) draws its random effects per grouping

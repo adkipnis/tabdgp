@@ -203,7 +203,7 @@ def test_a_tuple_of_groups_that_cannot_nest_fails_at_construction() -> None:
 
 @given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
 def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int) -> None:
-    """A table has at least two rows per design column (metabeta's rule 8, n ≥ 2d)."""
+    """A table has at least two rows per design column (metabeta's rule 8, n >= 2d)."""
     resolved = Hyperprior(rows=rows).resolveDataset(np.random.default_rng(seed))
     assert resolved.design_columns <= rows // 2
 
