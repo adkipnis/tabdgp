@@ -26,7 +26,7 @@ prior, dataset.
   `functools.partial` with a study's settings bound, or an object with `__call__`. A string
   names a built-in model's default config, and a validator expands it (`'glm'` to `Glm()`,
   `'glmm'` to `Glmm()`), so the resolved hyperprior shows the object; an override of a model's
-  field is the object, `outcome_form=Glmm(y_family_shares={'normal': 1})`. There is no
+  field is the object, `outcome_form=Glmm(y_family_shares={'gaussian': 1})`. There is no
   `Hyperprior.glmm()`: `grouped()` already decides what a GLMM needs, and metabeta draws
   `Hyperprior.grouped(outcome_form='glmm')`, passing nothing else. The scm form stays the
   SCM's own: its three fields stay on `Hyperprior`, which is the SCM's config.

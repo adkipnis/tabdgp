@@ -31,9 +31,9 @@ blocks at q = 2 and 3 of 18 above.
 - **The form's defaults.** `outcome_form = 'glmm'` on `grouped()` is the form with `Glmm()`'s
   defaults, `deviation_scale = 0` among them (ADR 0007 replaced `Hyperprior.glmm()`). metabeta
   calls `draw(seed, index, Hyperprior.grouped(outcome_form='glmm'))` and passes nothing else;
-  a one-family corpus is `outcome_form=Glmm(y_family_shares={'normal': 1})`, a study of that
+  a one-family corpus is `outcome_form=Glmm(y_family_shares={'gaussian': 1})`, a study of that
   family. The white-box misspecified study overrides `deviation_scale`.
-- **The prior fields, the envelope.** `y_family_shares` over {normal, bernoulli, poisson},
+- **The prior fields, the envelope.** `y_family_shares` over {gaussian, bernoulli, poisson},
   uniform, with canonical links; the families of metabeta's v1 (binomial, negative binomial,
   Gamma, ordinal) are later entries. One `sd_family_shares` field over {half_normal,
   half_student_t with df = 3, half_cauchy, exponential}, uniform, chosen once per dataset and

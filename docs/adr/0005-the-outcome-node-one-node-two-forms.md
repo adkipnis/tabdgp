@@ -60,7 +60,7 @@ count, none ablates a y mechanism alone, none matches y to real data. scamd has 
   are coverage-first (ADR 0006) and never fitted; only its covariates are matched, since they
   are `grouped()`'s.
 - **One outcome type per corpus** is a point override, `outcome_type_shares = {'continuous': 1}`
-  or `y_family_shares = {'normal': 1}`, a study of that type, not a preset.
+  or `y_family_shares = {'gaussian': 1}`, a study of that type, not a preset.
 
 ## Considered options
 
