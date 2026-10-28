@@ -15,7 +15,6 @@ pipeline:
 ---------
 the (optional) overrides
 -> a preset with the overrides                           grouped, flat
--> a built-in model's name expanded to its config        _expandForm
 -> validation at construction                            Hyperprior
 -> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
@@ -29,7 +28,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, ClassVar, Literal
 
 import numpy as np
-from pydantic import Field, InstanceOf, field_validator, model_validator
+from pydantic import Field, InstanceOf, model_validator
 
 from tabdgp.field import (
     Beta,
@@ -62,7 +61,7 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-OutcomeForm = Literal['none', 'scm', 'glm', 'glmm']
+OutcomeForm = Literal['none', 'scm']
 # a config of TabDGP's own, or a study's callable (Covariates, Generator) -> Outcome,
 # both types outcome.py's, which imports this module
 Model = InstanceOf[Glm] | Callable[[Any, np.random.Generator], Any]
@@ -216,16 +215,6 @@ class Hyperprior(Config):
     def flat(cls, **overrides: Any) -> Hyperprior:
         return cls(factors=0, **overrides)
 
-    @field_validator('outcome_form')
-    @classmethod
-    def _expandForm(cls, form: OutcomeForm | Model) -> OutcomeForm | Model:
-        """Expands a built-in model's name to its default config. Syntactic sugar."""
-        if form == 'glm':
-            return Glm()
-        if form == 'glmm':
-            return Glmm()
-        return form
-
     @model_validator(mode='after')
     def _checkOnePointPerFactor(self) -> Hyperprior:
         """Checks that a tuple of groups gives every factor one point."""
@@ -275,7 +264,7 @@ class Hyperprior(Config):
         if isinstance(self.outcome_form, Glmm) and lowest == 0:
             raise ValueError(
                 f'a GLMM needs a grouping factor in every dataset, not factors = {self.factors}: '
-                "set factors to at least 1 or use outcome_form = 'glm'"
+                'set factors to at least 1 or pass a Glm'
             )
         return self
 
