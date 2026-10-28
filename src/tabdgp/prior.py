@@ -8,7 +8,7 @@ This module samples priors and parameters for these models.
 
 We draw at three levels, hyperprior -> prior -> parameters:
 - **Hyperprior (Glm, Glmm):** a default per field (which an override replaces).
-- **Prior:** the stated model and priors (including y's family and shape),
+- **Prior:** the stated model and priors,
   which a fitter may take as true or replace with its own.
 - **Parameters:** what a fitter estimates (e.g. β, σ_α).
 
@@ -108,7 +108,6 @@ class Prior:
     - Fixed effects: family, locations, scales
     - Random effects: sd family, scales (per random effect), LKJ shape
     - Residual: family, scale (for Gaussian and Student-t outcomes)
-    - Response: y's family and its shape (which a fitter of that family fixes)
     - Budget: signal share r, predictor sd τ, each block's share φ of var(eta)
     """
 
@@ -120,8 +119,6 @@ class Prior:
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
-    family: Family  # y's
-    shape: float | None  # y's second parameter, None for Gaussian, Bernoulli and Poisson
     signal_share: float | None  # r, the share of var(y) eta explains (Gaussian and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)
     split: dict[str, float]  # φ, each block's share of τ²
@@ -243,8 +240,7 @@ class Glm(Config):
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()
 
     family: Family  # y's, stated
-    # TODO: the field is needlessly complex, make it be simpler in part 2
-    shape: Positive | None = Field(default_factory=lambda fields: SHAPES.get(fields['family']))
+    shape: Positive | None = None  # y's second parameter, None for its family's default
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # σ_ε's family
     intercept_location: Real = Uniform(-3, 3)  # ν_0 on the link scale
@@ -260,8 +256,8 @@ class Glm(Config):
 
     @model_validator(mode='after')
     def _checkShape(self) -> Glm:
-        """y has a shape exactly where its family has one."""
-        if (self.shape is None) == (self.family in SHAPES):
+        """Checks that a shape is stated only for a family that has one."""
+        if self.shape is not None and self.family not in SHAPES:
             raise ValueError(
                 f"shape = {self.shape} does not fit family = '{self.family}': "
                 f'only {list(SHAPES)} have one'
@@ -274,9 +270,17 @@ class Glm(Config):
         for name in type(self).model_fields:
             if name in self.PER_FACTOR:
                 points[name] = getattr(self, name)
+            elif name == 'shape':
+                points[name] = self._resolveShape(rng)
             else:
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
+
+    def _resolveShape(self, rng: np.random.Generator) -> float | None:
+        """y's shape, its family's default drawn where none is stated (None without one)."""
+        if self.shape is None and self.family in SHAPES:
+            return SHAPES[self.family].draw(rng)
+        return self.resolveField('shape', rng)
 
     def drawPrior(self, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior over the blocks after the GLM is resolved, a step per parameter."""
@@ -306,9 +310,6 @@ class Glm(Config):
             lkj_eta={},
             sigma_eps_family=sigma_eps_family,
             sigma_eps_scale=sigma_eps_scale,
-            # TODO: these two will move in part 2
-            family=self.family,
-            shape=self.shape,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
