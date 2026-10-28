@@ -302,13 +302,13 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    y = likelihood.draw(prior.y_family, eta, scale, prior.y_shape, rng)  # (n,)
+    y = likelihood.draw(prior.family, eta, scale, prior.shape, rng)  # (n,)
 
     # the outcome, a GLMM's with its random terms
     fields = {
         'columns': {'y': y},
-        'metadata': {'y': likelihood.COLUMNS[prior.y_family]},
-        'link': likelihood.LINKS[prior.y_family],
+        'metadata': {'y': likelihood.COLUMNS[prior.family]},
+        'link': likelihood.LINKS[prior.family],
         'fixed_terms': design.names,
         'prior': prior,
         'parameters': parameters,
