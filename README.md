@@ -23,13 +23,13 @@ generated it.
   hyperprior, whatever batch or worker draws it.
 - **Model-free outcome.** One node `y` is drawn by default as the last node of the SCM: continuous,
   binary, categorical, ordered or count.
-- **Model-based outcome.** Instead of the SCM's node, `outcome_form='glmm'` draws `y` from a
-  generalized linear mixed model (GLMM) on the covariates.
+- **Model-based outcome.** Instead of the SCM's node, `outcome_form=Glmm(family='bernoulli')`
+  draws `y` from a generalized linear mixed model (GLMM) on the covariates.
   Supported likelihoods are Gaussian, Bernoulli, Poisson, Student-t, negative binomial,
   latent-noise Bernoulli, Gamma, and Beta.
   The true parameters are returned with the priors they were drawn from.
-  `outcome_form='glm'` skips random effects,
-  `Glmm(deviation_scale=0.3)` adds a known misspecification.
+  `Glm` skips random effects,
+  `Glmm(family='gaussian', deviation_scale=0.3)` adds a known misspecification.
   You can also pass your own model as a function of the covariates by defining it as a Callable.
 - **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `resampleOutcome`
   draws a model's outcome on it.
@@ -44,16 +44,17 @@ pip install tabdgp
 ## Quickstart
 
 ```python
-from tabdgp import Hyperprior, draw
+from tabdgp import Glmm, Hyperprior, draw
 
-hyperprior = Hyperprior.grouped(rows=100, design_columns=5, outcome_form='glmm')
+glmm = Glmm(family='gaussian')
+hyperprior = Hyperprior.grouped(rows=100, design_columns=5, outcome_form=glmm)
 dataset = draw(seed=0, index=0, hyperprior=hyperprior)  # the key: a seed and an index
 unit = dict(zip(dataset.graph.names, dataset.graph.unit))  # per row, or per group of a factor
 for name, column in dataset.metadata.items():
     values = dataset.columns[name][:3].round(2)
     print(f'{name:2} {column.type:11} per {unit[name]:3} {values}')
 outcome = dataset.outcome
-print(f'family: {outcome.prior.y_family}')
+print(f'family: {outcome.prior.family}')
 print(f'fixed: {" + ".join(outcome.fixed_terms)}')
 for factor, terms in outcome.random_terms.items():
     print(f'random per {factor}: {" + ".join(terms)}')
@@ -68,7 +69,7 @@ x1 binary      per row [1 0 0]
 x2 continuous  per row [ 0.77 -0.05 -1.55]
 x3 binary      per row [1 0 0]
 x4 binary      per row [1 0 0]
-y  continuous  per row [-9.45  1.28  0.73]
+y  continuous  per row [2.78 1.31 1.68]
 family: gaussian
 fixed: intercept + x0 + x1 + x2 + x3 + x4
 random per g0: intercept
@@ -93,17 +94,17 @@ table = pd.DataFrame(
     }
 )
 covariates = Covariates.fromPandas(table, factors=['school'])
-outcome = resampleOutcome(seed=0, index=0, covariates=covariates, model=Glmm())
+outcome = resampleOutcome(seed=0, index=0, covariates=covariates, model=Glmm(family='gaussian'))
 for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
     print(f'{term:9} {beta:5.2f}')
 ```
 
 The true fixed effects:
 ```text
-intercept  1.01
+intercept  0.66
 age        0.09
-female     0.45
-books     -0.29
+female    -0.41
+books      0.20
 ```
 
 ## Planned
