@@ -4,7 +4,7 @@ one dataset as a pure function of its key and its SCM hyperprior.
 pipeline:
 ---------
 the key and the SCM hyperprior
--> one generator from the key                                    _seedGenerator
+-> one generator from the key's seed sequence                    _seedSequence
 -> the resolved SCM hyperprior                                   Hyperprior.resolveDataset
 -> the grouping factors, their codes and metadata                assign
 -> the column plan, y's column last under the SCM                plan
@@ -13,12 +13,11 @@ the key and the SCM hyperprior
 -> the covariate columns at the rows, joined to their nodes      _rankMatchColumns
 -> the latent nodes at the rows                                  _broadcastLatent
 -> the covariates, their metadata, the grouping and the score    Covariates
--> the outcome: none, y rank-matched to the score under the SCM,
-   or a model's                                                  _drawOutcome
+-> the SCM's outcome, y rank-matched to the score                rankMatch
 -> the Dataset, the grouping factors first, the outcome last     draw
 
-a key, covariates (a table's) and a model
--> the key's generator, then the model's outcome                 resampleOutcome
+a key, covariates (drawn or a table's) and a model
+-> the key's first child stream, then the model's outcome        modelOutcome
 """
 
 from __future__ import annotations
