@@ -24,8 +24,10 @@ generated it.
 - **Model-free outcome.** One node `y` is drawn by default as the last node of the SCM: continuous,
   binary, categorical, ordered or count.
 - **Model-based outcome.** Instead of the SCM's node, `outcome_form='glmm'` draws `y` from a
-  generalized linear mixed model (GLMM) on the covariates. Supported likelihoods are is Gaussian, Bernoulli,
-  Poisson, Student-t, negative binomial, latent-noise Bernoulli, Gamma, and Beta. The true parameters are returned with the priors they were drawn from.
+  generalized linear mixed model (GLMM) on the covariates.
+  Supported likelihoods are Gaussian, Bernoulli and Poisson, and by overriding `y_family_shares`,
+  Student-t, negative binomial, latent-noise Bernoulli, Gamma, and Beta.
+  The true parameters are returned with the priors they were drawn from.
   `outcome_form='glm'` skips random effects,
   `Glmm(deviation_scale=0.3)` adds a known misspecification.
   You can also pass your own model as a function of the covariates by defining it as a Callable.
