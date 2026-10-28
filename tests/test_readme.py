@@ -16,7 +16,7 @@ def test_readme_links_are_absolute() -> None:
     assert relative == []
 
 
-@pytest.mark.parametrize('box', [0, 1], ids=['draw', 'resampleOutcome'])
+@pytest.mark.parametrize('box', [0, 1], ids=['draw', 'modelOutcome'])
 def test_the_readme_quickstart_prints_the_output_it_shows(
     box: int, capsys: pytest.CaptureFixture[str]
 ) -> None:
