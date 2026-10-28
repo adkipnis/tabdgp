@@ -205,6 +205,7 @@ The likelihood's family, with its canonical link.
 A model states it, and it is never drawn.
 It is Gaussian, Bernoulli, Poisson, Student-t, negative binomial, latent-noise Bernoulli, Gamma
 or beta, the last five with a shape of their own.
+The shape is a point, which a fitter of that family states as known.
 Student-t, negative binomial and latent-noise Bernoulli make a dataset misspecified for a fitter
 of their base family (Gaussian, Poisson, Bernoulli).
 _Avoid_: distribution unqualified, marginal (a covariate's)
@@ -249,10 +250,9 @@ _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it),
 The prior of a GLM's or GLMM's parameters, resolved per dataset and stored with it: what a
 well-specified fitter would state.
 A fitter may state another.
-It holds the response family and its shape, the family of the fixed effects, the location and scale of the intercept and of each
+It holds the family of the fixed effects, the location and scale of the intercept and of each
 slope, the family of each factor's random-effect standard deviations and the scale of each, the
 family and scale of the residual, and the shape of each correlation prior.
-The shape is a point, which a fitter of that family states as known.
 By default, the slopes have a scale each in about half the datasets and share one in the rest, and so do each factor's random effects.
 A slope's location is zero for most slopes and a hypothesis for the rest.
 It also holds the signal share and the split that set the scales.
