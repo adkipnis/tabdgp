@@ -146,8 +146,8 @@ What a draw returns: its covariates, the outcome, the generating graph, the valu
 latent nodes, the resolved hyperparameters, and the key with the package versions.
 Its columns, named arrays in their natural dtype, are the covariates' and the outcome's.
 The outcome is y's column under `scm`, and none under `none`.
-The hyperparameters leave out the fields that each column, node or grouping factor draws for
-itself.
+The hyperparameters leave unresolved the fields that each column, node or grouping factor draws
+for itself.
 A dataset is never padded and never written to a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
@@ -205,6 +205,7 @@ The likelihood's family, with its canonical link.
 A model states it, and it is never drawn.
 It is Gaussian, Bernoulli, Poisson, Student-t, negative binomial, latent-noise Bernoulli, Gamma
 or beta, the last five with a shape of their own.
+A model may state the shape, else each dataset draws it from the family's default.
 The shape is a point, which a fitter of that family states as known.
 Student-t, negative binomial and latent-noise Bernoulli make a dataset misspecified for a fitter
 of their base family (Gaussian, Poisson, Bernoulli).
@@ -231,7 +232,7 @@ _Avoid_: likelihood (one part of it), head, outcome function, target function
 **Score**:
 The outcome node's value in the SCM, z-scored: its mechanism over its parents (latent ones
 included) plus its noise.
-Under `scm`, it is rank-matched onto a marginal, and the covariates carry it.
+Under `scm`, it is rank-matched onto y's marginal or post-hoc type, and the covariates carry it.
 A GLM or GLMM adds it to the linear predictor as the deviation.
 A study's model may ignore it.
 A dataset drawn under `none` and a real table have no score.
@@ -255,7 +256,8 @@ slope, the family of each factor's random-effect standard deviations and the sca
 family and scale of the residual, and the shape of each correlation prior.
 By default, the slopes have a scale each in about half the datasets and share one in the rest, and so do each factor's random effects.
 A slope's location is zero for most slopes and a hypothesis for the rest.
-It also holds the signal share and the split that set the scales.
+It also holds the linear predictor's standard deviation, the signal share and the split that set
+the scales.
 It draws the parameters on its own, so a ground truth can be resampled under a fixed prior.
 _Avoid_: prior context, hyperparameters unqualified (the hyperprior's)
 
