@@ -1,6 +1,6 @@
 """scm.py defines how every hyperparameter of the SCM is sampled.
 
-We save hyperparameters as fields of the Scm class (a Config in field.py).
+We save hyperparameters as fields of the Scm class (a Hyperprior in field.py).
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
   or to a point where one value serves every dataset (the outcome's form, its type shares).
 - An override replaces it by a point or, where the field's type allows, by another distribution,
@@ -31,9 +31,9 @@ from pydantic import Field, model_validator
 
 from tabdgp.field import (
     Beta,
-    Config,
     Count,
     Dirichlet,
+    Hyperprior,
     Integer,
     LogUniform,
     LogUniformInt,
@@ -68,7 +68,7 @@ MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical 
 # =====================================================================================
 
 
-class Scm(Config):
+class Scm(Hyperprior):
     """The hyperparameters of a dataset (grouped by when they're used).
 
     - Columns: a table has rows and typed columns.
@@ -191,7 +191,7 @@ class Scm(Config):
 
     # outcome
     outcome_form: OutcomeForm = 'scm'
-    outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Config to BaseModel
+    outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Hyperprior to BaseModel
         'continuous': 0.6,
         'binary': 0.2,
         'categorical': 0.05,
