@@ -194,7 +194,7 @@ def _orderNodes(
     unit = factors + [units[unit_index[i]] for i in order]
 
     # the SCM turns y's node into y
-    if resolved.outcome_form != 'none':
+    if resolved.outcome_source != 'none':
         names.append('y')
         unit.append('row')
     return names, unit

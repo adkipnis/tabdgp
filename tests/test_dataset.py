@@ -145,7 +145,7 @@ def test_scm_and_none_draw_0_3_0s_bits() -> None:
     The digest holds for the numpy that uv.lock pins, as the README's quickstart does.
     The resolved hyperparameters stay out: their repr is pydantic's.
     """
-    presets = [Scm.grouped(), Scm.flat(), Scm.grouped(outcome_form='none')]
+    presets = [Scm.grouped(), Scm.flat(), Scm.grouped(outcome_source='none')]
     datasets = []
     for scm in presets:
         for index in range(5):
@@ -173,7 +173,7 @@ def test_outcome_none_gives_no_y_and_no_score() -> None:
     It never draws y's node, so its covariates have no score.
     """
     for index in range(20):
-        dataset = draw(0, index, Scm.grouped(outcome_form='none'))
+        dataset = draw(0, index, Scm.grouped(outcome_source='none'))
         assert dataset.outcome is None
         assert dataset.covariates.y_score is None
         assert 'y' not in dataset.columns
@@ -622,7 +622,7 @@ def test_every_override_is_honored(
     assume(groups >= factors + 1)  # the bottom factor of a chain of f needs f + 1 groups
     assume(model != GLMM_OVERRIDE or factors > 0)  # a GLMM needs a factor
     # a model draws on the SCM's covariates, whose score its deviation reads
-    form = model if isinstance(model, str) else 'scm'
+    source = model if isinstance(model, str) else 'scm'
     scm = Scm.grouped(
         rows=rows,
         design_columns=design_columns,
@@ -637,7 +637,7 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
-        outcome_form=form,
+        outcome_source=source,
         outcome_type_shares=point('outcome_type_shares', outcome_type),
         poisson_log_rate=2.0,
     )
@@ -659,8 +659,8 @@ def test_every_override_is_honored(
         if column.role == 'covariate':
             assert column.levels is None or column.levels <= max_levels
     # the outcome's fields through y's column
-    assert ('y' in metadata) == (form != 'none')
-    if form == 'scm':
+    assert ('y' in metadata) == (source != 'none')
+    if source == 'scm':
         assert metadata['y'].type == outcome_type
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
@@ -704,8 +704,8 @@ def test_every_override_is_honored(
         2.0,
         group_share,
     )
-    assert (resolved.outcome_form, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
-        form,
+    assert (resolved.outcome_source, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
+        source,
         0.5,
         2.0,
     )
@@ -714,7 +714,7 @@ def test_every_override_is_honored(
 def test_a_distribution_override_is_honored() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
-        scm = Scm.flat(rows=UniformInt(30, 40), design_columns=1, outcome_form='none')
+        scm = Scm.flat(rows=UniformInt(30, 40), design_columns=1, outcome_source='none')
         dataset = draw(0, index, scm)
         [values] = dataset.columns.values()
         assert 30 <= len(values) <= 40
@@ -723,7 +723,7 @@ def test_a_distribution_override_is_honored() -> None:
 def test_a_budget_of_0_gives_no_columns() -> None:
     """metabeta's budget may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
-        scm = Scm.flat(design_columns=0, latent_nodes=2, rows=50, outcome_form='none')
+        scm = Scm.flat(design_columns=0, latent_nodes=2, rows=50, outcome_source='none')
         dataset = draw(0, index, scm)
         assert dataset.columns == {}
         assert dataset.metadata == {}
@@ -780,7 +780,7 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
             type_shares=point('type_shares', type),
             max_levels=3,
             level_alpha=5.0,
-            outcome_form='none',
+            outcome_source='none',
             **SURE_EDGE,
         )
         for index in range(10):

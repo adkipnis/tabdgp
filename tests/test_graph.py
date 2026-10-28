@@ -333,8 +333,8 @@ def _connect(
 ) -> Graph:
     """A graph over a plan of continuous columns, with y under the SCM, else without y."""
     rng = np.random.default_rng(seed)
-    form = {'outcome_form': 'scm' if with_y else 'none'}
-    resolved = Scm(**form | overrides).resolveDataset(rng)
+    source = {'outcome_source': 'scm' if with_y else 'none'}
+    resolved = Scm(**source | overrides).resolveDataset(rng)
     columns = columnsOf(OBSERVED[:observed_nodes])
     return connect(resolved, grouping, columns, rng)
 
@@ -631,7 +631,7 @@ ONE_FACTOR = groupingOf([[0, 0, 1, 1]])
 
 
 def test_connect_without_y_is_spec_22s_graph() -> None:
-    """A plan without y, under outcome_form = 'none',
+    """A plan without y, under outcome_source = 'none',
     keeps the dataset its key drew before the outcome.
     The literals are spec #22's graph for this key.
     """
@@ -671,7 +671,7 @@ def test_y_is_in_the_graph_under_the_scm_without_a_planned_column_and_absent_und
     scm = _connect(0, 4, GROUPING, with_y=True, outcome_noise_scale=2.0, **DENSE)
     assert (scm.names[-1], scm.noise_scale[-1]) == ('y', 2.0)
     assert scm.group_factor[-1] in ['g0', 'g1', 'g2']
-    none = _connect(0, 4, GROUPING, outcome_form='none')
+    none = _connect(0, 4, GROUPING, outcome_source='none')
     assert 'y' not in none.names
 
 

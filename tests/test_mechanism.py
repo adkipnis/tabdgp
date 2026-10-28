@@ -58,7 +58,7 @@ def _propagateOver(
 ) -> dict[str, np.ndarray]:
     """Node values over a graph drawn by connect on the grouping, each at its unit, without y."""
     rng = np.random.default_rng(seed)
-    resolved = Scm(rows=n, outcome_form='none', **overrides).resolveDataset(rng)
+    resolved = Scm(rows=n, outcome_source='none', **overrides).resolveDataset(rng)
     graph = connect(resolved, grouping, columnsOf(OBSERVED[:observed_nodes]), rng)
     return propagate(graph, resolved, grouping, rng)
 
@@ -416,7 +416,7 @@ def test_the_flat_case_is_spec_1s_propagation(seed: int) -> None:
 def test_an_empty_graph_propagates_to_no_nodes() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
-    resolved = Scm(rows=50, latent_nodes=0, outcome_form='none').resolveDataset(rng)
+    resolved = Scm(rows=50, latent_nodes=0, outcome_source='none').resolveDataset(rng)
     graph = connect(resolved, FLAT, {}, rng)
     assert propagate(graph, resolved, FLAT, rng) == {}
 

@@ -44,7 +44,7 @@ def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
 
 
 OUTCOME_DEFAULTS = {
-    'outcome_form': 'scm',
+    'outcome_source': 'scm',
     'outcome_type_shares': {
         'continuous': 0.6,
         'binary': 0.2,
@@ -60,14 +60,14 @@ OUTCOME_DEFAULTS = {
 
 @pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
 def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Scm]) -> None:
-    """ADR 0005's table: both presets draw the outcome node in its scm form."""
+    """ADR 0005's table: both presets draw y from the SCM."""
     scm = preset()
     defaults = {field: getattr(scm, field) for field in OUTCOME_DEFAULTS}
     assert defaults == OUTCOME_DEFAULTS
 
 
-NOT_A_FORM = [
-    pytest.param('SCM', id='a misspelled form'),
+NOT_A_SOURCE = [
+    pytest.param('SCM', id='a misspelled source'),
     pytest.param('glm', id="a model's name, which states no family"),
     pytest.param('glmm', id="a glmm's name"),
     pytest.param(Glmm(family='gaussian'), id='a model, drawn after the dataset'),
@@ -79,16 +79,16 @@ NOT_A_FORM = [
 ]
 
 
-@pytest.mark.parametrize('form', NOT_A_FORM)
-def test_a_form_other_than_none_or_scm_fails_at_construction(
-    form: str | dict | Dirichlet | Glmm | Callable[..., None],
+@pytest.mark.parametrize('source', NOT_A_SOURCE)
+def test_a_source_other_than_none_or_scm_fails_at_construction(
+    source: str | dict | Dirichlet | Glmm | Callable[..., None],
 ) -> None:
-    """A dataset of each form returns different things, so no corpus mixes them:
+    """A dataset of each source returns different things, so no corpus mixes them:
     each fails where it is written, like a typo, not at a draw.
-    A model is no form: modelOutcome draws its outcome after the dataset.
+    A model is no source: modelOutcome draws its outcome after the dataset.
     """
     with pytest.raises(ValidationError):
-        Scm(outcome_form=form)
+        Scm(outcome_source=source)
 
 
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:

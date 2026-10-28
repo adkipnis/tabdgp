@@ -114,7 +114,7 @@ def draw(seed: int, index: int, hyperprior: Scm) -> Dataset:
 
     # under the SCM, y rank-matched onto its marginal at the score the covariates carry
     outcome = None
-    if resolved.outcome_form == 'scm':
+    if resolved.outcome_source == 'scm':
         y = rankMatch(covariates.y_score, planned['y'], rng)  # (n,)
         outcome = Outcome(columns={'y': y}, metadata={'y': planned['y']})
     return Dataset(

@@ -2,7 +2,7 @@
 
 We save hyperparameters as fields of the Scm class (a Hyperprior in field.py).
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
-  or to a point where one value serves every dataset (the outcome's form, its type shares).
+  or to a point where one value serves every dataset (the outcome's source, its type shares).
 - An override replaces it by a point or, where the field's type allows, by another distribution,
   checked against the field's bounds.
 - A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
@@ -59,7 +59,7 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-OutcomeForm = Literal['none', 'scm']
+OutcomeSource = Literal['none', 'scm']
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
@@ -99,7 +99,7 @@ class Scm(Hyperprior):
       marginal families, mechanisms and activations.
       Each column or node chooses its own, proportional to those shares.
     - Outcome: a single node y. No other node reads it.
-      Its form turns y's node (the score) into y under the SCM; under none, there is no y.
+      Its source is the SCM, which turns y's node (the score) into y, or none, with no y.
       Its type shares and noise scale are the SCM's.
     """
 
@@ -190,7 +190,7 @@ class Scm(Hyperprior):
     poisson_log_rate: Annotated[Real, within(le=40)] = Uniform(-1, 6)
 
     # outcome
-    outcome_form: OutcomeForm = 'scm'
+    outcome_source: OutcomeSource = 'scm'
     outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Hyperprior to BaseModel
         'continuous': 0.6,
         'binary': 0.2,
