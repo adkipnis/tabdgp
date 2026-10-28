@@ -1,19 +1,19 @@
 """draw.py defines the pipeline and its output:
-one dataset as a pure function of its key and its hyperprior.
+one dataset as a pure function of its key and its SCM hyperprior.
 
 pipeline:
 ---------
-the key and the hyperprior
+the key and the SCM hyperprior
 -> one generator from the key                                    _seedGenerator
--> the resolved hyperprior                                       Hyperprior.resolveDataset
+-> the resolved SCM hyperprior                                   Hyperprior.resolveDataset
 -> the grouping factors, their codes and metadata                assign
--> the column plan, y's column last under the scm form           plan
+-> the column plan, y's column last under the SCM                plan
 -> the graph, each node at a unit of the grouping, y last        connect
 -> the node values, each at its unit, y's the score              propagate
--> the covariates at the rows, joined to their nodes by name     _applyColumns
+-> the covariate columns at the rows, joined to their nodes      _applyColumns
 -> the latent nodes at the rows                                  _broadcastLatent
 -> the covariates, their metadata, the grouping and the score    Covariates
--> the form's outcome: none, y rank-matched to the score,
+-> the outcome: none, y rank-matched to the score under the SCM,
    or a model's                                                  _drawOutcome
 -> the Dataset, the grouping factors first, the outcome last     draw
 
@@ -55,11 +55,11 @@ class Dataset:
     Each array is stored as drawn (not copied), so a consumer can share its memory.
     """
 
-    columns: dict[str, np.ndarray]  # (n,) each, float32 if continuous, int64 counts or codes 0..k−1
+    columns: dict[str, np.ndarray]  # (n,) each, in its type's dtype
     metadata: dict[str, Column]
     graph: Graph
-    latent: dict[str, np.ndarray]  # (n,) float32 each, z-scored over its groups if group-level
-    outcome: Outcome | None  # the form's columns and ground truth, None under 'none'
+    latent: dict[str, np.ndarray]  # (n,) each, z-scored over its groups if group-level
+    outcome: Outcome | None  # the SCM's or the model's columns and ground truth, None under 'none'
     hyperparameters: Hyperprior  # resolved but for what each column, node, factor or model draws
     seed: int  # the corpus
     index: int  # the dataset within its corpus
@@ -67,12 +67,11 @@ class Dataset:
     numpy_version: str  # its generator's streams may change between numpy releases
 
     def toPandas(self) -> pd.DataFrame:
-        """The columns as a table, the latent nodes left out.
-        A coded column is a categorical over its codes 0..k − 1, ordered if its type is.
-        """
-        table = {}
+        """The columns as a table (the latent nodes left out)."""
+        table: dict[str, np.ndarray | pd.Categorical] = {}
         for name, column in self.metadata.items():
             values = self.columns[name]
+            # a coded column is a categorical over its codes 0..k − 1, ordered if its type is
             if column.levels is not None:
                 ordered = column.type == 'ordered'
                 values = pd.Categorical.from_codes(values, range(column.levels), ordered=ordered)
@@ -84,9 +83,7 @@ class Dataset:
         return codeDesign(self.columns, self.metadata, self.hyperparameters.rows)
 
     def toDict(self) -> dict[str, Any]:
-        """The dataset in JSON's types, lossless but for a study's model, recorded by its name.
-        An array records its dtype and values, an object its class and fields.
-        """
+        """The dataset in JSON's types (lossless but for a study's model, recorded by its name)."""
         record = self._recordValue(self)
         if self.outcome is not None:
             # the outcome's columns are the dataset's, under the same names, so recorded once
@@ -94,34 +91,34 @@ class Dataset:
             del record['outcome']['metadata']
         return record
 
-    @staticmethod
-    def _recordValue(value: Any) -> Any:
+    @classmethod
+    def _recordValue(cls, value: Any) -> Any:
         match value:
             case np.ndarray():
                 return {'dtype': value.dtype.name, 'values': value.tolist()}
             case dict():
-                return {key: Dataset._recordValue(item) for key, item in value.items()}
+                return {key: cls._recordValue(item) for key, item in value.items()}
             case list() | tuple():
-                return [Dataset._recordValue(item) for item in value]
+                return [cls._recordValue(item) for item in value]
             case None | str() | int() | float():
                 return value
             case BaseModel():
-                return Dataset._recordFields(value, list(type(value).model_fields))
+                return cls._recordFields(value, list(type(value).model_fields))
             case _ if dataclasses.is_dataclass(value):
                 names = [field.name for field in dataclasses.fields(value)]
-                return Dataset._recordFields(value, names)
+                return cls._recordFields(value, names)
             case functools.partial():
-                return Dataset._nameModel(value.func)  # its bound settings are the study's
+                return cls._nameModel(value.func)  # its bound settings are the study's
             case _ if callable(value):
-                return Dataset._nameModel(value)
+                return cls._nameModel(value)
             case _:
                 raise TypeError(f'{value!r}, a {type(value).__name__}, has no JSON form')
 
-    @staticmethod
-    def _recordFields(value: Any, names: list[str]) -> dict[str, Any]:
+    @classmethod
+    def _recordFields(cls, value: Any, names: list[str]) -> dict[str, Any]:
         record = {'class': type(value).__name__}
         for name in names:
-            record[name] = Dataset._recordValue(getattr(value, name))
+            record[name] = cls._recordValue(getattr(value, name))
         return record
 
     @staticmethod
@@ -140,9 +137,10 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     rng = _seedGenerator(seed, index)
     resolved = hyperprior.resolveDataset(rng)
-    # the grouping before the graph, which draws each node's unit among its factors
+
+    # the grouping before the graph, which draws each node's unit among the grouping factors
     grouping = assign(resolved, rng)
-    planned = plan(resolved, rng)  # the covariates' columns, then y's under the scm form
+    planned = plan(resolved, rng)  # the covariate columns, then y's under the SCM
     # y's planned column is the outcome's, the rest the graph's and the covariates'
     covariate_metadata = {name: column for name, column in planned.items() if name != 'y'}
     graph = connect(resolved, grouping, covariate_metadata, rng)
@@ -153,13 +151,14 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
         columns={**grouping.codes, **covariate_columns},
         metadata={**grouping.metadata, **covariate_metadata},
         grouping=grouping,
-        score=nodes.get('y'),  # (n,), y is at the row; None under 'none'
+        score=nodes.get('y'),  # (n,) as y's node is at the row, None under 'none'
     )
+
+    # the outcome's columns after the covariates', so that y stays last
     outcome = _drawOutcome(resolved.outcome_form, covariates, planned.get('y'), rng)
     columns = covariates.columns
     metadata = covariates.metadata
     if outcome is not None:
-        # the form's columns after the covariates', so that y stays last
         columns = {**columns, **outcome.columns}
         metadata = {**metadata, **outcome.metadata}
     return Dataset(
@@ -189,7 +188,7 @@ def _applyColumns(
     rng: np.random.Generator,
 ) -> dict[str, np.ndarray]:
     unit = dict(zip(graph.names, graph.unit))
-    columns = {}
+    columns: dict[str, np.ndarray] = {}
     for name, column in metadata.items():
         values = apply(nodes[name], column, rng)  # (e,) one per group of its unit, or per row
         columns[name] = grouping.broadcast(values, unit[name], 'row')  # (n,)
@@ -199,7 +198,7 @@ def _applyColumns(
 def _broadcastLatent(
     nodes: dict[str, np.ndarray], graph: Graph, grouping: Grouping
 ) -> dict[str, np.ndarray]:
-    latent = {}
+    latent: dict[str, np.ndarray] = {}
     for name, unit, is_latent in zip(graph.names, graph.unit, graph.latent):
         if is_latent:
             latent[name] = grouping.broadcast(nodes[name], unit, 'row')  # (n,)
@@ -212,7 +211,7 @@ def _drawOutcome(
     y_column: Column | None,
     rng: np.random.Generator,
 ) -> Outcome | None:
-    """The form's outcome from the covariates and the score, None under 'none'."""
+    """The outcome under the SCM or a model (None under 'none')."""
     match form:
         case 'none':
             return None
