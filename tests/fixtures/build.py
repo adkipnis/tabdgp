@@ -69,7 +69,7 @@ def covariatesOf(codes: list[list[int]], names: list[str], rows: int | None = No
         columns=columns,
         metadata={**grouping.metadata, **columnsOf(names)},
         grouping=grouping,
-        score=np.arange(rows, dtype=np.float32),
+        y_score=np.arange(rows, dtype=np.float32),
     )
 
 

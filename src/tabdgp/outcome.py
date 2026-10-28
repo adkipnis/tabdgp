@@ -109,11 +109,11 @@ class Outcome:
 class ScmOutcome(Outcome):
     """The SCM's y and its ground truth, the score it rank-matched onto y's marginal."""
 
-    score: np.ndarray  # (n,)
+    y_score: np.ndarray  # (n,)
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        checkSameLength([*self.columns.values(), self.score], 'the outcome')
+        checkSameLength([*self.columns.values(), self.y_score], 'the outcome')
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
@@ -254,7 +254,7 @@ def runModel(model: Model, covariates: Covariates, rng: np.random.Generator) -> 
             outcome = model(covariates, rng)
             if not isinstance(outcome, Outcome):
                 raise TypeError(f'{model!r} returned a {type(outcome).__name__}, not an Outcome')
-            arrays = [*covariates.columns.values(), covariates.score, *outcome.columns.values()]
+            arrays = [*covariates.columns.values(), covariates.y_score, *outcome.columns.values()]
             checkSameLength(arrays, f'{model!r} and its covariates')
             # the dataset holds both, so a shared name would replace the covariate
             shared = covariates.columns.keys() & outcome.columns.keys()
@@ -293,9 +293,9 @@ def _drawGlmm(
 
     # optionally add the deviation
     deviation = np.zeros(rows, dtype=np.float32)  # (n,)
-    if covariates.score is not None:
+    if covariates.y_score is not None:
         linear_sd = float(eta.std())  # the population sd over the n rows
-        deviation = resolved.deviation_scale * linear_sd * covariates.score  # (n,)
+        deviation = resolved.deviation_scale * linear_sd * covariates.y_score  # (n,)
     eta = eta + deviation  # (n,)
 
     # y from its likelihood, with σ_ε at every row (if y's family has a residual)

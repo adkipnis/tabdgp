@@ -55,11 +55,11 @@ class Covariates:
     columns: dict[str, np.ndarray]  # (n,) each
     metadata: dict[str, Column]
     grouping: Grouping
-    score: np.ndarray | None  # (n,) float32, None for a table without an SCM
+    y_score: np.ndarray | None  # (n,) float32, None for a table without an SCM
 
     def __post_init__(self) -> None:
         # check that every array has one length, each column its metadata, and none a reserved name
-        checkSameLength([*self.columns.values(), self.score], 'the covariates')
+        checkSameLength([*self.columns.values(), self.y_score], 'the covariates')
         checkNames(self.columns, self.metadata)
         for name in self.columns:
             match name:
@@ -72,7 +72,7 @@ class Covariates:
     def rows(self) -> int:
         """n, the number of observations."""
         # a flat draw without covariates (an intercept-only GLM) has only the score
-        for array in [*self.columns.values(), self.score]:
+        for array in [*self.columns.values(), self.y_score]:
             if array is not None:
                 return len(array)
         raise ValueError('covariates without a column or a score have no rows')
@@ -100,7 +100,7 @@ class Covariates:
             if column.role == 'covariate':
                 columns[name] = cls._readValues(table[name], column)
         observed_metadata = {name: metadata[name] for name in columns}
-        return cls(columns=columns, metadata=observed_metadata, grouping=grouping, score=None)
+        return cls(columns=columns, metadata=observed_metadata, grouping=grouping, y_score=None)
 
     @classmethod
     def _validateMetadata(

@@ -132,7 +132,7 @@ class Dataset:
 # the draw
 # =====================================================================================
 
-# TODO: rename to drawDataset
+
 def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     rng = _seedGenerator(seed, index)
@@ -151,7 +151,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
         columns={**grouping.codes, **covariate_columns},
         metadata={**grouping.metadata, **covariate_metadata},
         grouping=grouping,
-        score=nodes.get('y'),  # (n,) as y's node is at the row, None under 'none'
+        y_score=nodes.get('y'),  # (n,) as y's node is at the row, None under 'none'
     )
 
     # the outcome's columns after the covariates', so that y stays last
@@ -216,10 +216,10 @@ def _drawOutcome(
         case 'none':
             return None
         case 'scm':
-            # the covariates carry y's node values as the score # TODO: rename .score to something semantically meaningful
-            y = rankMatch(covariates.score, y_column, rng)  # (n,)
+            # the covariates carry y's node values as the score
+            y = rankMatch(covariates.y_score, y_column, rng)  # (n,)
             metadata = {'y': y_column}
-            return ScmOutcome(columns={'y': y}, metadata=metadata, score=covariates.score)
+            return ScmOutcome(columns={'y': y}, metadata=metadata, y_score=covariates.y_score)
         case _:
             return runModel(model, covariates, rng)
 

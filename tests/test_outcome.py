@@ -85,16 +85,16 @@ def test_an_outcome_refuses_two_lengths_a_dtype_other_than_its_types_a_name_with
 def test_a_scm_outcome_holds_its_score_as_given_and_refuses_one_of_another_length() -> None:
     """The SCM's ground truth is the score it rank-matched onto y's marginal, at y's rows."""
     score = np.zeros(4, dtype=np.float32)
-    outcome = ScmOutcome(**WRITTEN, score=score)
-    assert outcome.score is score
+    outcome = ScmOutcome(**WRITTEN, y_score=score)
+    assert outcome.y_score is score
     with pytest.raises(ValidationError, match='length'):
-        ScmOutcome(**WRITTEN, score=np.zeros(5, dtype=np.float32))
+        ScmOutcome(**WRITTEN, y_score=np.zeros(5, dtype=np.float32))
 
 
 def _noisyScore(covariates: Covariates, rng: np.random.Generator, shift: float = 0.0) -> Outcome:
     """A model whose y is the score plus the generator's standard normals and a shift."""
-    noise = rng.standard_normal(len(covariates.score), dtype=np.float32)  # (n,)
-    y = covariates.score + noise + shift  # (n,)
+    noise = rng.standard_normal(len(covariates.y_score), dtype=np.float32)  # (n,)
+    y = covariates.y_score + noise + shift  # (n,)
     return Outcome(columns={'y': y}, metadata={'y': Y})
 
 
@@ -114,23 +114,23 @@ def test_run_model_calls_a_model_with_the_covariates_and_the_generator_and_retur
     covariates = covariatesOf([[0, 0, 1, 1]], ['x0'])
     outcome = runModel(model, covariates, np.random.default_rng(0))
     noise = np.random.default_rng(0).standard_normal(4, dtype=np.float32)  # (n,)
-    assert np.array_equal(outcome.columns['y'], covariates.score + noise + shift)
+    assert np.array_equal(outcome.columns['y'], covariates.y_score + noise + shift)
 
 
 def _shortY(covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """A model whose y is one row short of the covariates."""
-    y = np.zeros(len(covariates.score) - 1, dtype=np.float32)  # (n − 1,)
+    y = np.zeros(len(covariates.y_score) - 1, dtype=np.float32)  # (n − 1,)
     return Outcome(columns={'y': y}, metadata={'y': Y})
 
 
 def _bareY(covariates: Covariates, rng: np.random.Generator) -> dict[str, np.ndarray]:
     """A model that returns its y without an Outcome around it."""
-    return {'y': covariates.score}
+    return {'y': covariates.y_score}
 
 
 def _x0(covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """A model that writes its outcome under a covariate's name."""
-    return Outcome(columns={'x0': covariates.score}, metadata={'x0': Y})
+    return Outcome(columns={'x0': covariates.y_score}, metadata={'x0': Y})
 
 
 MISFIT = [
@@ -333,7 +333,7 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
         columns={**grouping.codes, **columns},
         metadata={**grouping.metadata, **metadata},
         grouping=grouping,
-        score=None,
+        y_score=None,
     )
     # at a budget of d every term is random too, the effects correlated
     glmm = Glmm(random_effects=6, correlated_share=1.0)
@@ -426,7 +426,7 @@ def _slopeCovariates(names: list[str]) -> Covariates:
     for name in names:
         columns[name] = SLOPE_COLUMNS[name]
         metadata[name] = SLOPE_METADATA[name]
-    return Covariates(columns=columns, metadata=metadata, grouping=SLOPE_GROUPING, score=None)
+    return Covariates(columns=columns, metadata=metadata, grouping=SLOPE_GROUPING, y_score=None)
 
 
 def _randomTerms(names: list[str], random_effects: int, seed: int) -> list[str]:
@@ -551,7 +551,7 @@ def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_line
     y is then bitwise the y drawn as if neither the score nor λ existed.
     """
     scored_covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
-    plain = dataclasses.replace(scored_covariates, score=None)
+    plain = dataclasses.replace(scored_covariates, y_score=None)
     covariates = scored_covariates if scored else plain
     normal = point('y_family_shares', 'normal', Glm)
     glmm = Glmm(y_family_shares=normal, deviation_scale=deviation_scale)

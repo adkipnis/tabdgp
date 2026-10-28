@@ -19,14 +19,14 @@ FIELDS = {
     'columns': {**GROUPING.codes, 'x0': np.zeros(4, dtype=np.float32)},
     'metadata': {**GROUPING.metadata, **columnsOf(['x0'])},
     'grouping': GROUPING,
-    'score': np.zeros(4, dtype=np.float32),
+    'y_score': np.zeros(4, dtype=np.float32),
 }
 
 
 def test_covariates_that_meet_every_check_construct_with_or_without_a_score() -> None:
     """The control for the checks below; a real table has no SCM and so no score."""
     Covariates(**FIELDS)
-    Covariates(**FIELDS | {'score': None})
+    Covariates(**FIELDS | {'y_score': None})
 
 
 def _withColumn(name: str) -> dict:
@@ -43,7 +43,7 @@ UNFIT = [
         'length',
         id='a covariate one row short',
     ),
-    pytest.param({'score': np.zeros(5, dtype=np.float32)}, 'length', id='a score one row long'),
+    pytest.param({'y_score': np.zeros(5, dtype=np.float32)}, 'length', id='a score one row long'),
     pytest.param({'metadata': GROUPING.metadata}, 'metadata', id='a column without metadata'),
     pytest.param(
         {'metadata': {**GROUPING.metadata, **columnsOf(['x0', 'x1'])}},
@@ -79,7 +79,7 @@ def test_covariates_without_a_column_count_their_rows_by_the_score() -> None:
     and an intercept-only GLM on it still needs n.
     """
     covariates = Covariates(
-        columns={}, metadata={}, grouping=groupingOf([]), score=np.zeros(5, dtype=np.float32)
+        columns={}, metadata={}, grouping=groupingOf([]), y_score=np.zeros(5, dtype=np.float32)
     )
     assert covariates.rows == 5
 
@@ -167,7 +167,7 @@ def test_from_pandas_nests_a_factor_in_the_first_named_of_two_superiors_with_as_
 
 def test_from_pandas_gives_no_score() -> None:
     """A table has no SCM, so a GLM or GLMM drawn on it has no deviation."""
-    assert Covariates.fromPandas(TABLE, ['class']).score is None
+    assert Covariates.fromPandas(TABLE, ['class']).y_score is None
 
 
 def test_from_pandas_makes_a_factors_codes_dense() -> None:

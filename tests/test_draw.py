@@ -202,9 +202,9 @@ def test_the_scm_form_returns_a_scm_outcome_whose_y_is_the_datasets_and_whose_sc
         assert isinstance(outcome, ScmOutcome)
         assert outcome.columns['y'] is dataset.columns['y']
         assert outcome.metadata['y'] is dataset.metadata['y']
-        assert outcome.score.dtype == np.float32
-        np.testing.assert_allclose(outcome.score.mean(), 0, atol=1e-5)
-        np.testing.assert_allclose(outcome.score.std(), 1, atol=1e-5)
+        assert outcome.y_score.dtype == np.float32
+        np.testing.assert_allclose(outcome.y_score.mean(), 0, atol=1e-5)
+        np.testing.assert_allclose(outcome.y_score.std(), 1, atol=1e-5)
 
 
 class _ScoreAsY:
@@ -212,7 +212,7 @@ class _ScoreAsY:
 
     def __call__(self, covariates: Covariates, rng: np.random.Generator) -> Outcome:
         self.covariates = covariates
-        return Outcome(columns={'y': covariates.score}, metadata={'y': Y})
+        return Outcome(columns={'y': covariates.y_score}, metadata={'y': Y})
 
 
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
@@ -231,7 +231,7 @@ def test_a_model_gets_the_covariates_the_grouping_and_the_score_and_its_y_is_the
             assert dataset.columns[name] is values
         for name, codes in covariates.grouping.codes.items():
             assert dataset.columns[name] is codes
-        assert dataset.columns['y'] is covariates.score
+        assert dataset.columns['y'] is covariates.y_score
         assert dataset.metadata['y'].role == 'outcome'
         assert dataset.graph.names[-1] == 'y'
 
@@ -528,7 +528,7 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
 
 def _shiftedScore(covariates: Covariates, rng: np.random.Generator, shift: float) -> Outcome:
     """A model whose y is the score plus a shift, its setting bound by a partial."""
-    return Outcome(columns={'y': covariates.score + np.float32(shift)}, metadata={'y': Y})
+    return Outcome(columns={'y': covariates.y_score + np.float32(shift)}, metadata={'y': Y})
 
 
 def _throughJson(dataset: Dataset) -> dict:
@@ -892,7 +892,7 @@ def test_every_array_has_length_n() -> None:
         assert 'y' in dataset.columns
         outcome = dataset.outcome
         arrays = [*dataset.columns.values(), *dataset.latent.values(), *outcome.columns.values()]
-        for array in [*arrays, outcome.score]:
+        for array in [*arrays, outcome.y_score]:
             assert array.shape == (80,)
 
 
