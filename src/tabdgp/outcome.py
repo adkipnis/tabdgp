@@ -302,6 +302,7 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
+    # TODO: the family moves to the hyperprior object in part 2
     y = likelihood.draw(prior.family, eta, scale, prior.shape, rng)  # (n,)
 
     # the outcome, a GLMM's with its random terms

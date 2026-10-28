@@ -262,6 +262,7 @@ class Glm(Config):
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()
 
     family: Family  # y's, stated
+    # TODO: the field is needlessly complex, make it be simpler in part 2
     shape: Positive | None = Field(default_factory=lambda fields: SHAPES.get(fields['family']))
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # σ_ε's family
@@ -324,6 +325,7 @@ class Glm(Config):
             lkj_eta={},
             sigma_eps_family=sigma_eps_family,
             sigma_eps_scale=sigma_eps_scale,
+            # TODO: these two will move in part 2
             family=self.family,
             shape=self.shape,
             signal_share=signal_share,

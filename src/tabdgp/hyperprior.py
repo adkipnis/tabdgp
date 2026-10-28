@@ -257,6 +257,7 @@ class Hyperprior(Config):
         lowest, _ = self._support(self.groups)
         return lowest + depth
 
+    # TODO: outcome_form should only take strings. if any model-based outcome is desired, it is modeled separately after the dataset has been drawn. this way the two logics are less entangled and easier to maintain/change
     @model_validator(mode='after')
     def _checkFactorsForGlmm(self) -> Hyperprior:
         """Checks that a GLMM's random effects have a grouping factor in every dataset."""
