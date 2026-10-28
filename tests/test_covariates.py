@@ -4,6 +4,8 @@ and fromPandas, a table read by its declared or inferred metadata and checked ag
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -82,6 +84,78 @@ def test_covariates_without_a_column_count_their_rows_by_the_score() -> None:
         columns={}, metadata={}, grouping=groupingOf([]), y_score=np.zeros(5, dtype=np.float32)
     )
     assert covariates.rows == 5
+
+
+def _covariatesOf(columns: dict[str, np.ndarray], metadata: dict[str, Column]) -> Covariates:
+    """Covariates of these columns, without a grouping factor or a score."""
+    return Covariates(columns=columns, metadata=metadata, grouping=groupingOf([]), y_score=None)
+
+
+def test_the_design_puts_the_intercept_first_z_scores_a_continuous_column_and_records_its_mean_and_sd() -> (
+    None
+):
+    """The glossary's design matrix: the intercept, then each continuous column z-scored by the
+    population sd over the n rows, in float64.
+    Its mean and sd map a standardized β back to the raw column.
+    """
+    columns = {'x0': np.array([1, 2, 3, 6], dtype=np.float32)}
+    design = _covariatesOf(columns, columnsOf(['x0'])).toDesign()
+    # mean 3, deviations −2, −1, 0 and 3, population sd √(14 / 4)
+    sd = math.sqrt(3.5)
+    expected = np.array([[1, -2 / sd], [1, -1 / sd], [1, 0], [1, 3 / sd]])  # (n, d)
+    assert design.names == ['intercept', 'x0']
+    assert design.matrix.dtype == np.float64
+    np.testing.assert_allclose(design.matrix, expected)
+    assert design.means == {'x0': 3.0}
+    assert design.sds == {'x0': pytest.approx(sd)}
+
+
+def test_the_design_codes_a_binary_0_1_a_categoricals_k_minus_1_dummies_dropping_the_first_level_and_a_count_as_continuous() -> (
+    None
+):
+    """Treatment coding against the first level in the codes' order, as R's default contrasts do,
+    an ordered column like a categorical; a count is z-scored like any continuous column.
+    Only the z-scored columns have a mean and an sd to record.
+    Each covariate's positions are its columns of the matrix, which a random slope takes whole.
+    """
+    columns = {
+        'b': np.array([0, 1, 1, 0]),
+        'c': np.array([0, 1, 2, 1]),
+        'o': np.array([2, 0, 1, 1]),
+        'n': np.array([0, 2, 4, 2]),
+    }
+    metadata = {
+        'b': Column(type='binary', levels=2),
+        'c': Column(type='categorical', levels=3),
+        'o': Column(type='ordered', levels=3),
+        'n': Column(type='count'),
+    }
+    design = _covariatesOf(columns, metadata).toDesign()
+    # the count: mean 2, deviations −2, 0, 2 and 0, population sd √2
+    root2 = math.sqrt(2)
+    expected = np.array(
+        [
+            [1, 0, 0, 0, 0, 1, -root2],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 0, 1, 1, 0, root2],
+            [1, 0, 1, 0, 1, 0, 0],
+        ]
+    )  # (n, d)
+    assert design.names == ['intercept', 'b', 'c=1', 'c=2', 'o=1', 'o=2', 'n']
+    assert design.positions == {'b': [1], 'c': [2, 3], 'o': [4, 5], 'n': [6]}
+    np.testing.assert_allclose(design.matrix, expected)
+    assert design.means == {'n': 2.0}
+    assert design.sds == {'n': pytest.approx(root2)}
+
+
+def test_the_design_leaves_out_a_grouping_factor_by_role() -> None:
+    """A factor's codes index random effects (the glossary), so they are no term,
+    whatever the factor's type; the GLM on grouped covariates is then pooled.
+    """
+    columns = {**GROUPING.codes, 'x0': np.array([1, 2, 3, 6], dtype=np.float32)}
+    metadata = {**GROUPING.metadata, **columnsOf(['x0'])}
+    covariates = Covariates(columns=columns, metadata=metadata, grouping=GROUPING, y_score=None)
+    assert covariates.toDesign().names == ['intercept', 'x0']
 
 
 # eight rows: classes coded as integers nested in two schools named after them,
