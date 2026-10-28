@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
-amended: 2026-10-14, #24: a superior factor has fewer groups than the subordinate one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`, and a range too narrow for the longest chain fails like a point; #29: superior and subordinate, not coarser and finer; 2026-10-22, ADR 0006: metabeta draws from `Hyperprior.glmm()`, the grouped preset with the outcome node in its glmm form; 2026-10-23, ADR 0007: that is `Hyperprior.grouped(outcome_form='glmm')`; 2026-10-24, #59: `groups` also takes a tuple, one point per factor in the factors' order, so sizes can be paired to a registry fit
+amended: 2026-10-14, #24: a superior factor has fewer groups than the subordinate one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`, and a range too narrow for the longest chain fails like a point; #29: superior and subordinate, not coarser and finer; 2026-10-22, ADR 0006: metabeta draws from `Hyperprior.glmm()`, the grouped preset with the outcome node in its glmm form; 2026-10-23, ADR 0007: that is `Hyperprior.grouped(outcome_form='glmm')`; 2026-10-24, #59: `groups` also takes a tuple, one point per factor in the factors' order, so sizes can be paired to a registry fit; 2026-10-28, #67: `Hyperprior` is `Scm`, `draw` is `drawDataset`
 ---
 
 # 0004 - The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
@@ -10,8 +10,8 @@ ADR 0001 and root ADR 0005 of metabeta-v3 let `metabeta.mixed` pass the sizes of
 rules 7 and 8 as overrides. Decided on 2026-10-14, with ADR 0003: all simulation happens in
 TabDGP, and metabeta draws no size of its own. So **rules 7 and 8 are TabDGP's size defaults,
 a count bounded by another field is drawn from its distribution truncated at that field's
-resolved value, and the kind of table is a preset of the hyperprior: `Hyperprior.grouped()`,
-metabeta's corpus, and `Hyperprior.flat()`; `draw(seed, index, hyperprior)` takes a preset
+resolved value, and the kind of table is a preset of the SCM's hyperprior: `Scm.grouped()`,
+metabeta's corpus, and `Scm.flat()`; `drawDataset(seed, index, scm)` takes a preset
 and has no default.** What the proofs certify is `grouped()`.
 
 ## Decisions
@@ -34,9 +34,9 @@ and has no default.** What the proofs certify is `grouped()`.
   fails at resolve. A chain of L factors needs L counts, each below the subordinate one's, so
   a `groups` with fewer values than the largest `factors` (a point has one) fails at construction
   unless `factors` stays that small or `nested_share` at 0.
-- **Presets.** `factors` allows 0, and `Hyperprior.flat()` sets it to 0; `grouped()` is the
+- **Presets.** `factors` allows 0, and `Scm.flat()` sets it to 0; `grouped()` is the
   default below. A later kind of table (item response, survival, causal) is a constructor
-  that fixes fields, never a branch in `draw` and never a new mechanism. Neither metabeta nor a
+  that fixes fields, never a branch in `drawDataset` and never a new mechanism. Neither metabeta nor a
   standalone user passes an override; an override serves a study, an ablation or a size
   outside a preset.
 - **The defaults of `grouped()`**, round numbers, the first set agreed in the grill:
@@ -63,8 +63,8 @@ and has no default.** What the proofs certify is `grouped()`.
   Forced when the subordinate factor has 2 groups, it hit 15.9 % of nested pairs under
   `grouped()`. Turning such a pair crossed was the other fix: it honors `nested_share` only
   sometimes.
-- **A kwarg on `draw`** for the kind of table, `flat: bool` or a `Literal` of kinds: a bool
-  is not future-proof, a `Literal` makes every kind a branch inside `draw` that can contradict
+- **A kwarg on `drawDataset`** for the kind of table, `flat: bool` or a `Literal` of kinds: a bool
+  is not future-proof, a `Literal` makes every kind a branch inside `drawDataset` that can contradict
   an override. A preset is the hyperprior itself.
 - **`factors` from 0 by default**, metabeta overriding to 1: the defaults are what metabeta
   trains on, so the grouped corpus is the preset and the flat table the other preset.
@@ -72,8 +72,8 @@ and has no default.** What the proofs certify is `grouped()`.
 ## Consequences
 
 - ADR 0001's "metabeta passes its sizes" is amended: metabeta passes nothing and calls
-  `draw(seed, index, Hyperprior.grouped())`. metabeta's `envelope.md` (rules 7-9) and its
+  `drawDataset(seed, index, Scm.grouped())`. metabeta's `envelope.md` (rules 7-9) and its
   `packages/mixed` ADR 0005 say the same on their side.
 - The proofs run on `grouped()`; mixedbench#72's flat sample tests `flat()`.
-- `hyperprior` gains the per-factor fields, the presets and the truncation; a bound names
+- `scm` gains the per-factor fields, the presets and the truncation; a bound names
   the field it depends on, and `resolveDataset` resolves in dependency order.
