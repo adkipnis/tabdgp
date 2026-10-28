@@ -3,13 +3,13 @@
 pipeline:
 ---------
 the resolved SCM hyperprior, the grouping, and the covariate columns
--> each node's unit                                                            _sampleUnits
--> names and units in topological order, the grouping factors first, y last if drawn    _orderNodes
--> edges: Cauchy node terms and a block bonus                                  _sampleEdges
--> the edges a child may read                                                  _maskEdges
--> each node's own field draws: family, scales, activation                     _resolveNodes
--> each row-unit node's group share and group factor                           _resolveParts
--> the Graph                                                                   connect
+-> each node's unit                                                                    _sampleUnits
+-> names and units in topological order, the grouping factors first, y last if drawn   _orderNodes
+-> edges: Cauchy node terms and a block bonus                                          _sampleEdges
+-> the edges a child may read                                                          _maskEdges
+-> each node's own field draws: family, scales, activation                             _resolveNodes
+-> each row-unit node's group share and group factor                                   _resolveParts
+-> the Graph                                                                           connect
 """
 
 from __future__ import annotations
