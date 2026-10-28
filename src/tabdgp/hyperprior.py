@@ -99,9 +99,8 @@ class Hyperprior(Config):
       marginal families, mechanisms and activations.
       Each column or node chooses its own, proportional to those shares.
     - Outcome: a single node y. No other node reads it.
-      Its form turns y's node (the score) into y:
-      the SCM itself, a GLM or GLMM, a study's model, or none.
-      Its type shares are the scm form's, its noise scale every form's but none.
+      Its form turns y's node (the score) into y under the SCM; under none, there is no y.
+      Its type shares and noise scale are the SCM's.
     """
 
     PER_NODE: ClassVar[tuple[str, ...]] = (
