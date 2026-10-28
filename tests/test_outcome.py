@@ -174,14 +174,14 @@ def test_run_model_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     glm = Glm(family=family, shape=shape)
     outcome = runModel(glm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmOutcome
-    assert (outcome.prior.family, outcome.link) == (family, link)
+    assert (outcome.family, outcome.link) == (family, link)
     assert list(outcome.columns) == list(outcome.metadata) == ['y']
     assert (outcome.metadata['y'].type, outcome.metadata['y'].role) == (column_type, 'outcome')
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
     assert list(outcome.prior.split) == ['fixed']
     assert (outcome.parameters.sigma_eps is None) == (family not in ['gaussian', 'student_t'])
-    assert outcome.prior.shape == shape
+    assert outcome.shape == shape
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
@@ -437,30 +437,36 @@ def test_the_deviation_is_lambda_times_the_sd_of_x_beta_plus_z_alpha_times_the_s
     np.testing.assert_allclose(outcome.deviation, 0.5 * linear.std() * x0, rtol=1e-6)
 
 
-WITHOUT_DEVIATION = [
-    pytest.param(False, 0.5, id='no score, as in a table'),
-    pytest.param(True, 0.0, id='lambda 0, the default'),
-]
+# six rows in three groups of g0, with and without the score
+SCORED = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
+UNSCORED = dataclasses.replace(SCORED, y_score=None)
 
 
-@pytest.mark.parametrize(('scored', 'deviation_scale'), WITHOUT_DEVIATION)
-def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_linear_parts(
-    scored: bool, deviation_scale: float
+@pytest.mark.parametrize(
+    'covariates', [SCORED, UNSCORED], ids=['a score', 'no score, as in a table']
+)
+def test_the_deviation_is_zeros_at_lambda_0_with_or_without_a_score_and_y_is_the_linear_parts(
+    covariates: Covariates,
 ) -> None:
-    """Either way the deviation is zeros and λ is recorded as given,
+    """Either way the deviation is zeros at λ = 0, the default,
     so that a GlmOutcome has the same fields whether the covariates come from a draw or a table.
-    y is then bitwise the y drawn as if neither the score nor λ existed.
+    y is then bitwise the y drawn as if the score did not exist.
     """
-    scored_covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
-    plain = dataclasses.replace(scored_covariates, y_score=None)
-    covariates = scored_covariates if scored else plain
-    glmm = Glmm(family='gaussian', deviation_scale=deviation_scale)
-    outcome = runModel(glmm, covariates, np.random.default_rng(0))
-    reference = runModel(Glmm(family='gaussian'), plain, np.random.default_rng(0))
+    outcome = runModel(Glmm(family='gaussian'), covariates, np.random.default_rng(0))
+    reference = runModel(Glmm(family='gaussian'), UNSCORED, np.random.default_rng(0))
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation.dtype == np.float32
-    assert outcome.deviation_scale == deviation_scale
+    assert outcome.deviation_scale == 0.0
     assert outcome.columns['y'].tobytes() == reference.columns['y'].tobytes()
+
+
+def test_a_deviation_without_a_score_fails_naming_the_fix() -> None:
+    """The deviation is the score scaled, so covariates without one (a table's, or a draw's
+    under 'none') cannot carry it, and a deviation of zeros would pass for a misspecified y.
+    """
+    glmm = Glmm(family='gaussian', deviation_scale=0.5)
+    with pytest.raises(ValueError, match="draw the covariates under 'scm'"):
+        runModel(glmm, UNSCORED, np.random.default_rng(0))
 
 
 @pytest.mark.parametrize(('family', 'link', 'column_type', 'shape'), RUNS)
@@ -474,10 +480,10 @@ def test_run_model_on_a_glmm_records_the_shape_beside_the_random_effects(
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
     outcome = runModel(glmm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
-    assert (outcome.prior.family, outcome.link, outcome.metadata['y'].type) == (
+    assert (outcome.family, outcome.link, outcome.metadata['y'].type) == (
         family,
         link,
         column_type,
     )
-    assert outcome.prior.shape == shape
+    assert outcome.shape == shape
     assert list(outcome.parameters.alpha) == ['g0']
