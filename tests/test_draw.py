@@ -4,9 +4,7 @@ and draw(seed, index, hyperprior), one dataset per key.
 
 from __future__ import annotations
 
-import functools
 import hashlib
-import json
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -19,26 +17,32 @@ from hypothesis import strategies as st
 
 from tabdgp.column import Column
 from tabdgp.covariates import Covariates
-from tabdgp.draw import Dataset, draw, resampleOutcome
+from tabdgp.draw import Dataset, draw, modelOutcome
 from tabdgp.hyperprior import Hyperprior, UniformInt
 from tabdgp.outcome import (
     GlmmOutcome,
     GlmOutcome,
     Outcome,
-    ScmOutcome,
 )
 from tabdgp.prior import Glm, Glmm
-from tests.fixtures.build import Y, betweenShare, graphOf, point
+from tests.fixtures.build import Y, betweenShare, graphOf, groupingOf, point
 
 
 def test_a_dataset_holds_its_arrays_without_copying() -> None:
-    """metabeta hands the columns to torch.from_numpy; a copy per draw would cost throughput."""
+    """metabeta hands the columns to torch.from_numpy; a copy per draw would cost throughput.
+    The columns are the covariates' arrays, then the outcome's.
+    """
     values = np.zeros(5, dtype=np.float32)
     latent = np.ones(5, dtype=np.float32)
     y = np.ones(5, dtype=np.float32)
+    covariates = Covariates(
+        columns={'x0': values},
+        metadata={'x0': Column(type='continuous', marginal='normal')},
+        grouping=groupingOf([]),
+        y_score=None,
+    )
     dataset = Dataset(
-        columns={'x0': values, 'y': y},
-        metadata={'x0': Column(type='continuous', marginal='normal'), 'y': Y},
+        covariates=covariates,
         graph=graphOf([[], []]),
         latent={'z0': latent},
         outcome=Outcome(columns={'y': y}, metadata={'y': Y}),
@@ -48,8 +52,9 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
         version='0.0.1',
         numpy_version='2.3.0',
     )
+    assert list(dataset.columns) == list(dataset.metadata) == ['x0', 'y']
     assert dataset.columns['x0'] is values and dataset.latent['z0'] is latent
-    assert dataset.outcome.columns['y'] is y
+    assert dataset.columns['y'] is y
 
 
 GRAPH_LISTS = [
@@ -155,11 +160,14 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
         assert list(dataset.latent) == latent
 
 
-def test_outcome_none_gives_no_y() -> None:
-    """A covariate-only table, spec #22's, is one override, and it has no outcome to hold."""
+def test_outcome_none_gives_no_y_and_no_score() -> None:
+    """A covariate-only table, spec #22's, is one override, and it has no outcome to hold.
+    It never draws y's node, so its covariates have no score.
+    """
     for index in range(20):
         dataset = draw(0, index, Hyperprior.grouped(outcome_form='none'))
         assert dataset.outcome is None
+        assert dataset.covariates.y_score is None
         assert 'y' not in dataset.columns
         assert 'y' not in dataset.metadata
         assert 'y' not in dataset.graph.names
@@ -167,49 +175,29 @@ def test_outcome_none_gives_no_y() -> None:
 
 
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_the_scm_returns_an_scm_outcome_whose_score_is_z_scored(
+def test_under_the_scm_the_covariates_carry_ys_score_z_scored(
     preset: Callable[[], Hyperprior],
 ) -> None:
     """The SCM's ground truth is y's node before rank matching,
-    z-scored over the rows like every row-unit node.
+    z-scored over the rows like every row-unit node, and a model's deviation reads it.
     """
     for index in range(10):
-        dataset = draw(0, index, preset())
-        outcome = dataset.outcome
-        assert isinstance(outcome, ScmOutcome)
-        assert outcome.y_score.dtype == np.float32
-        np.testing.assert_allclose(outcome.y_score.mean(), 0, atol=1e-5)
-        np.testing.assert_allclose(outcome.y_score.std(), 1, atol=1e-5)
+        score = draw(0, index, preset()).covariates.y_score
+        assert score.dtype == np.float32
+        np.testing.assert_allclose(score.mean(), 0, atol=1e-5)
+        np.testing.assert_allclose(score.std(), 1, atol=1e-5)
 
 
-class _ScoreAsY:
-    """A model that keeps the covariates it was last called with and returns their score as y."""
-
-    def __call__(self, covariates: Covariates, rng: np.random.Generator) -> Outcome:
-        self.covariates = covariates
-        return Outcome(columns={'y': covariates.y_score}, metadata={'y': Y})
-
-
-EVERY_MODEL = [
-    pytest.param(Hyperprior.grouped(), id='scm on grouped'),
-    pytest.param(Hyperprior.flat(), id='scm on flat'),
-    pytest.param(Hyperprior.flat(outcome_form=Glm(family='bernoulli')), id='glm on flat'),
-    pytest.param(Hyperprior.grouped(outcome_form=Glm(family='poisson')), id='glm on grouped'),
-    pytest.param(Hyperprior.grouped(outcome_form=Glmm(family='gaussian')), id='glmm on grouped'),
-    pytest.param(Hyperprior.grouped(outcome_form=_ScoreAsY()), id='a study model on grouped'),
-]
-
-
-@pytest.mark.parametrize('hyperprior', EVERY_MODEL)
+@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
 def test_y_is_the_last_column_and_node_with_role_outcome_and_one_array_with_the_outcomes(
-    hyperprior: Hyperprior,
+    preset: Callable[[], Hyperprior],
 ) -> None:
     """A consumer takes the last column as the outcome and the rest as its predictors,
     and no node reads y, so it is last in the graph too.
     The dataset and its outcome hold one y, not two copies.
     """
     for index in range(10):
-        dataset = draw(0, index, hyperprior)
+        dataset = draw(0, index, preset())
         assert list(dataset.columns)[-1] == 'y'
         assert list(dataset.metadata)[-1] == 'y'
         assert dataset.graph.names[-1] == 'y'
@@ -221,56 +209,32 @@ def test_y_is_the_last_column_and_node_with_role_outcome_and_one_array_with_the_
 
 
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_a_model_gets_the_covariates_the_grouping_and_the_score_and_its_y_follows_them(
-    preset: Callable[..., Hyperprior],
-) -> None:
-    """A study's model reads every observed column but y, the grouping and the score,
-    each the dataset's own array, and its y joins the dataset after them, as the SCM's does.
-    """
-    model = _ScoreAsY()
-    for index in range(10):
-        dataset = draw(0, index, preset(outcome_form=model))
-        covariates = model.covariates
-        assert list(dataset.columns) == [*covariates.columns, 'y']
-        for name, values in covariates.columns.items():
-            assert dataset.columns[name] is values
-        for name, codes in covariates.grouping.codes.items():
-            assert dataset.columns[name] is codes
-        assert dataset.columns['y'] is covariates.y_score
-
-
-def test_the_datasets_outcome_form_records_the_model() -> None:
-    """A dataset names what drew it; a user's model is part of that, as the object passed."""
-    model = _ScoreAsY()
-    dataset = draw(0, 0, Hyperprior.grouped(outcome_form=model))
-    assert dataset.hyperparameters.outcome_form is model
-
-
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
 def test_glm_returns_a_glm_outcome_and_on_grouped_the_pooled_ground_truth(
-    preset: Callable[..., Hyperprior],
+    preset: Callable[[], Hyperprior],
 ) -> None:
     """A GLM corpus needs no grouping (flat),
     and on grouped covariates it is the pooled ground truth:
-    the factors' codes stay in the dataset but are no term, so a fitter's random-effect scale
+    the factors' codes stay in the covariates but are no term, so a fitter's random-effect scale
     should go to zero. One term per design column besides the intercept.
     """
+    glm = Glm(family='gaussian')
     for index in range(10):
-        dataset = draw(0, index, preset(outcome_form=Glm(family='gaussian')))
-        outcome = dataset.outcome
+        dataset = draw(0, index, preset())
+        outcome = modelOutcome(0, index, dataset.covariates, glm)
         assert type(outcome) is GlmOutcome
         assert len(_factors(dataset)) == dataset.hyperparameters.factors
         assert len(outcome.fixed_terms) == 1 + dataset.hyperparameters.design_columns
         assert list(outcome.prior.split) == ['fixed']
 
 
-def test_grouped_with_glmm_returns_a_glmm_outcome_of_one_block_per_factor() -> None:
+def test_a_glmm_on_grouped_covariates_returns_a_glmm_outcome_of_one_block_per_factor() -> None:
     """metabeta's one call (ADR 0006): one block of random effects per grouping factor,
     a row per group, each block within its budget of 6 and within the design.
     """
+    glmm = Glmm(family='gaussian')
     for index in range(10):
-        dataset = draw(0, index, Hyperprior.grouped(outcome_form=Glmm(family='gaussian')))
-        outcome = dataset.outcome
+        dataset = draw(0, index, Hyperprior.grouped())
+        outcome = modelOutcome(0, index, dataset.covariates, glmm)
         assert type(outcome) is GlmmOutcome
         factors = _factors(dataset)
         assert list(outcome.random_terms) == factors
@@ -298,18 +262,19 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     family: str,
     column_type: str,
     dtype: type,
-    preset: Callable[..., Hyperprior],
+    preset: Callable[[], Hyperprior],
     config: type[Glm],
 ) -> None:
-    """A corpus of one family is one override (ADR 0006),
+    """A corpus of one family is one model (ADR 0006),
     and a consumer stacks y by its type: a Gaussian y float32, a Bernoulli y codes, a count int64.
     """
-    hyperprior = preset(outcome_form=config(family=family))
+    model = config(family=family)
     for index in range(10):
-        dataset = draw(0, index, hyperprior)
-        assert dataset.outcome.prior.family == family
-        assert dataset.metadata['y'].type == column_type
-        assert dataset.columns['y'].dtype == dtype
+        dataset = draw(0, index, preset())
+        outcome = modelOutcome(0, index, dataset.covariates, model)
+        assert outcome.prior.family == family
+        assert outcome.metadata['y'].type == column_type
+        assert outcome.columns['y'].dtype == dtype
 
 
 def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squares_on_the_coded_columns() -> (
@@ -324,19 +289,18 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
     )
-    hyperprior = Hyperprior.flat(rows=2000, outcome_form=glm)
     for index in range(5):
-        dataset = draw(0, index, hyperprior)
-        design = dataset.toDesign()
-        y = dataset.columns['y'].astype(np.float64)  # (n,)
+        dataset = draw(0, index, Hyperprior.flat(rows=2000))
+        outcome = modelOutcome(0, index, dataset.covariates, glm)
+        design = dataset.covariates.toDesign()
+        y = outcome.columns['y'].astype(np.float64)  # (n,)
         estimate, *_ = np.linalg.lstsq(design.matrix, y, rcond=None)
-        np.testing.assert_allclose(estimate, dataset.outcome.parameters.beta, atol=0.01)
+        np.testing.assert_allclose(estimate, outcome.parameters.beta, atol=0.01)
 
 
-def _linearPart(dataset: Dataset) -> np.ndarray:
+def _linearPart(dataset: Dataset, outcome: GlmmOutcome) -> np.ndarray:
     """Xβ + Σ_k Z_k α_k[codes_k] on the coded columns, a GLMM's η without the deviation."""
-    outcome = dataset.outcome
-    design = dataset.toDesign()
+    design = dataset.covariates.toDesign()
     linear = design.matrix @ outcome.parameters.beta  # (n,)
     for factor, terms in outcome.random_terms.items():
         positions = [design.names.index(term) for term in terms]
@@ -363,12 +327,11 @@ def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_i
         correlated_share=1.0,
         deviation_scale=deviation_scale,
     )
-    hyperprior = Hyperprior.grouped(rows=2000, outcome_form=glmm)
     for index in range(5):
-        dataset = draw(0, index, hyperprior)
-        outcome = dataset.outcome
-        y = dataset.columns['y'].astype(np.float64)  # (n,)
-        residual = y - _linearPart(dataset) - outcome.deviation  # (n,)
+        dataset = draw(0, index, Hyperprior.grouped(rows=2000))
+        outcome = modelOutcome(0, index, dataset.covariates, glmm)
+        y = outcome.columns['y'].astype(np.float64)  # (n,)
+        residual = y - _linearPart(dataset, outcome) - outcome.deviation  # (n,)
         sigma_eps = outcome.parameters.sigma_eps
         assert abs(residual.std() - sigma_eps) < 0.1 * sigma_eps + 1e-4
 
@@ -381,20 +344,20 @@ def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_th
     The score is z-scored over the rows, so the deviation's sd is λ times the linear part's.
     """
     for index in range(10):
-        plain = draw(0, index, Hyperprior.grouped(outcome_form=Glmm(family='gaussian')))
+        dataset = draw(0, index, Hyperprior.grouped())
+        plain = modelOutcome(0, index, dataset.covariates, Glmm(family='gaussian'))
         deviated = Glmm(family='gaussian', deviation_scale=0.3)
-        deviated = draw(0, index, Hyperprior.grouped(outcome_form=deviated))
-        outcome = deviated.outcome
+        outcome = modelOutcome(0, index, dataset.covariates, deviated)
         assert outcome.deviation_scale == 0.3
-        assert outcome.prior == plain.outcome.prior
-        assert outcome.parameters.beta.tobytes() == plain.outcome.parameters.beta.tobytes()
-        assert outcome.random_terms == plain.outcome.random_terms
+        assert outcome.prior == plain.prior
+        assert outcome.parameters.beta.tobytes() == plain.parameters.beta.tobytes()
+        assert outcome.random_terms == plain.random_terms
         for factor in outcome.random_terms:
             assert (
                 outcome.parameters.alpha[factor].tobytes()
-                == plain.outcome.parameters.alpha[factor].tobytes()
+                == plain.parameters.alpha[factor].tobytes()
             )
-        linear_sd = _linearPart(deviated).std()
+        linear_sd = _linearPart(dataset, outcome).std()
         assert outcome.deviation.std() == pytest.approx(0.3 * linear_sd, rel=1e-4)
 
 
@@ -412,27 +375,41 @@ TABLE = pd.DataFrame(
 TABLE_COVARIATES = Covariates.fromPandas(TABLE, ['school', 'class'])
 
 
-def test_resample_outcome_on_from_pandas_is_deterministic_per_key_and_differs_between_keys() -> (
-    None
-):
-    """A resampled outcome is keyed like a dataset,
+def test_model_outcome_on_from_pandas_is_deterministic_per_key_and_differs_between_keys() -> None:
+    """A model's outcome is keyed like a dataset,
     so the oracle set a study builds downstream from a table is reproducible per key.
     """
     model = Glmm(family='gaussian')
-    first = resampleOutcome(3, 1, TABLE_COVARIATES, model)
-    again = resampleOutcome(3, 1, TABLE_COVARIATES, model)
-    other = resampleOutcome(3, 2, TABLE_COVARIATES, model)
+    first = modelOutcome(3, 1, TABLE_COVARIATES, model)
+    again = modelOutcome(3, 1, TABLE_COVARIATES, model)
+    other = modelOutcome(3, 2, TABLE_COVARIATES, model)
     assert np.array_equal(again.columns['y'], first.columns['y'])
     assert np.array_equal(again.parameters.beta, first.parameters.beta)
     assert not np.array_equal(other.parameters.beta, first.parameters.beta)
 
 
-def test_a_resampled_glmm_outcome_has_as_many_groups_per_factor_as_the_table() -> None:
+def _uniformY(covariates: Covariates, rng: np.random.Generator) -> Outcome:
+    """A model whose y is the first uniforms of the generator it is handed."""
+    y = rng.random(covariates.rows, dtype=np.float32)  # (n,)
+    return Outcome(columns={'y': y}, metadata={'y': Y})
+
+
+def test_model_outcome_at_a_datasets_own_key_reads_other_numbers_than_the_draw() -> None:
+    """A model on a dataset's covariates at the dataset's own key must not replay the numbers
+    its covariates were drawn from (ρ = 1.00 between rows and ν_0 over 200 keys when it did),
+    so it draws from a stream of the key's own, not the draw's generator default_rng([seed, index]).
+    """
+    y = modelOutcome(3, 1, TABLE_COVARIATES, _uniformY).columns['y']
+    root = np.random.default_rng([3, 1]).random(len(y), dtype=np.float32)  # (n,)
+    assert not np.array_equal(y, root)
+
+
+def test_a_model_outcome_on_a_table_has_as_many_groups_per_factor_as_the_table() -> None:
     """A random effect per group of each factor the table has, a row of alpha per school
     and per class, so a study reads a group's ground truth at its code.
     """
     for index in range(5):
-        outcome = resampleOutcome(0, index, TABLE_COVARIATES, Glmm(family='gaussian'))
+        outcome = modelOutcome(0, index, TABLE_COVARIATES, Glmm(family='gaussian'))
         assert list(outcome.parameters.alpha) == ['school', 'class']
         assert outcome.parameters.alpha['school'].shape[0] == 5
         assert outcome.parameters.alpha['class'].shape[0] == 10
@@ -459,11 +436,11 @@ def test_to_pandas_codes_categoricals_ordered_when_ordered_continuous_float32_an
 ):
     """The column type picks the pandas dtype: a coded column is a categorical over its codes,
     so a pandas-based tool sees levels, not numbers, and a count stays an integer.
-    A Poisson y is the dataset's count.
+    A count y, the SCM's, is the dataset's count.
     """
-    poisson = Glm(family='poisson')
+    count = point('outcome_type_shares', 'count')
     hyperprior = Hyperprior.grouped(
-        rows=200, design_columns=12, type_shares=EVERY_TYPE, outcome_form=poisson
+        rows=200, design_columns=12, type_shares=EVERY_TYPE, outcome_type_shares=count
     )
     types = set()
     for index in range(5):
@@ -510,75 +487,13 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
     """
     glm = Glm(family='gaussian', signal_share=1.0)
     for index in range(5):
-        dataset = draw(0, index, Hyperprior.grouped(outcome_form=glm))
-        design = dataset.toDesign()
-        outcome = dataset.outcome
+        dataset = draw(0, index, Hyperprior.grouped())
+        outcome = modelOutcome(0, index, dataset.covariates, glm)
+        design = dataset.covariates.toDesign()
         assert design.names == outcome.fixed_terms
         assert (design.means, design.sds) == (outcome.means, outcome.sds)
         eta = design.matrix @ outcome.parameters.beta  # (n,)
-        assert np.array_equal(dataset.columns['y'], eta.astype(np.float32))
-
-
-def _shiftedScore(covariates: Covariates, rng: np.random.Generator, shift: float) -> Outcome:
-    """A model whose y is the score plus a shift, its setting bound by a partial."""
-    return Outcome(columns={'y': covariates.y_score + np.float32(shift)}, metadata={'y': Y})
-
-
-def _throughJson(dataset: Dataset) -> dict:
-    """The dataset's dict after a trip through strict JSON."""
-    return json.loads(json.dumps(dataset.toDict(), allow_nan=False))
-
-
-def _restored(record: dict) -> np.ndarray:
-    """An array from its dict, its values in its dtype."""
-    return np.array(record['values'], dtype=record['dtype'])
-
-
-def test_to_dict_is_json_serializable_and_records_dtypes_and_a_users_model_by_name() -> None:
-    """A dataset survives a trip through JSON:
-    each array comes back bit for bit from its dtype and values, the ground truth's float32 too,
-    and each object and distribution keeps its class.
-    y is recorded once, among the dataset's columns: the outcome's record holds its ground truth.
-    A study's model, which JSON cannot hold, is recorded by its qualified name.
-    """
-    dataset = draw(0, 0, Hyperprior.grouped(outcome_form=Glmm(family='gaussian')))
-    record = _throughJson(dataset)
-    arrays = {
-        **{('columns', name): values for name, values in dataset.columns.items()},
-        **{('latent', name): values for name, values in dataset.latent.items()},
-        ('graph', 'parents'): dataset.graph.parents,
-        ('outcome', 'parameters', 'beta'): dataset.outcome.parameters.beta,
-    }
-    for factor, alpha in dataset.outcome.parameters.alpha.items():
-        arrays['outcome', 'parameters', 'alpha', factor] = alpha
-    for path, values in arrays.items():
-        stored = record
-        for key in path:
-            stored = stored[key]
-        restored = _restored(stored)
-        assert restored.dtype == values.dtype
-        assert restored.tobytes() == values.tobytes()
-    assert record['outcome']['class'] == 'GlmmOutcome'
-    assert not {'columns', 'metadata'} & set(record['outcome'])
-    assert record['hyperparameters']['outcome_form']['class'] == 'Glmm'
-    level_alpha = {'class': 'LogUniform', 'low': 0.5, 'high': 5.0}
-    assert record['hyperparameters']['level_alpha'] == level_alpha
-    models = {'_ScoreAsY': _ScoreAsY(), '_shiftedScore': functools.partial(_shiftedScore, shift=1)}
-    for name, model in models.items():
-        record = _throughJson(draw(0, 0, Hyperprior.grouped(outcome_form=model)))
-        assert record['hyperparameters']['outcome_form'].endswith(f'test_draw.{name}')
-
-
-def test_from_pandas_reads_the_metadata_to_dict_wrote_after_a_trip_through_json() -> None:
-    """A table saved beside its metadata file comes back whole:
-    the metadata as toDict writes it, each Column's fields and its class, is a declaration.
-    """
-    for index in range(5):
-        dataset = draw(0, index, Hyperprior.grouped())
-        metadata = _throughJson(dataset)['metadata']
-        covariates = Covariates.fromPandas(dataset.toPandas(), metadata=metadata)
-        for name, column in covariates.metadata.items():
-            assert column == dataset.metadata[name]
+        assert np.array_equal(outcome.columns['y'], eta.astype(np.float32))
 
 
 @pytest.mark.parametrize(
@@ -698,6 +613,8 @@ def test_every_override_is_honored(
     assume(rows >= max(2 * design_columns, groups, factors + 1))
     assume(groups >= factors + 1)  # the bottom factor of a chain of f needs f + 1 groups
     assume(model != GLMM_OVERRIDE or factors > 0)  # a GLMM needs a factor
+    # a model draws on the SCM's covariates, whose score its deviation reads
+    form = model if isinstance(model, str) else 'scm'
     hyperprior = Hyperprior.grouped(
         rows=rows,
         design_columns=design_columns,
@@ -712,7 +629,7 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
-        outcome_form=model,
+        outcome_form=form,
         outcome_type_shares=point('outcome_type_shares', outcome_type),
         poisson_log_rate=2.0,
     )
@@ -734,18 +651,20 @@ def test_every_override_is_honored(
         if column.role == 'covariate':
             assert column.levels is None or column.levels <= max_levels
     # the outcome's fields through y's column
-    assert ('y' in metadata) == (model != 'none')
-    if model == 'scm':
+    assert ('y' in metadata) == (form != 'none')
+    if form == 'scm':
         assert metadata['y'].type == outcome_type
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
     if model == GLM_OVERRIDE:
-        assert dataset.outcome.prior.beta_scales[0] == 0.5
-        assert dataset.outcome.deviation_scale == 0.3
+        outcome = modelOutcome(0, 0, dataset.covariates, model)
+        assert outcome.prior.beta_scales[0] == 0.5
+        assert outcome.deviation_scale == 0.3
     if model == GLMM_OVERRIDE:
-        assert list(dataset.outcome.random_terms) == factor_names
+        outcome = modelOutcome(0, 0, dataset.covariates, model)
+        assert list(outcome.random_terms) == factor_names
         for name in factor_names:
-            assert dataset.outcome.random_terms[name] == ['intercept']
+            assert outcome.random_terms[name] == ['intercept']
     # the per-node fields through the graph
     graph = dataset.graph
     for name, unit in zip(graph.names, graph.unit):
@@ -778,7 +697,7 @@ def test_every_override_is_honored(
         group_share,
     )
     assert (resolved.outcome_form, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
-        model,
+        form,
         0.5,
         2.0,
     )
