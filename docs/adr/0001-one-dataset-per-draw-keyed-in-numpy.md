@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node; 2026-10-25, #52: a GLM's or GLMM's ground truth is float32 too; 2026-10-27, #56: ground truth, not truth
+amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node; 2026-10-25, #52: a GLM's or GLMM's ground truth is float32 too; 2026-10-27, #56: ground truth, not truth; 2026-10-28, ADR 0007: a model's outcome draws from the key's first child stream, so a dataset's own key gives an independent outcome
 ---
 
 # 0001 - One dataset per draw, keyed by seed and index, in numpy
