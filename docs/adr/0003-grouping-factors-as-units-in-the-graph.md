@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
-amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`, a nested pair is superior and subordinate, not coarser and finer, and an override `group_share = 1` is the known exception to every level appearing; 2026-10-22, ADR 0005: the endogeneity switch is `latent_nodes` and the deviation, and time and treatment go to their own item
+amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`, a nested pair is superior and subordinate, not coarser and finer, and an override `group_share = 1` is the known exception to every level appearing; 2026-10-22, ADR 0005: the endogeneity switch is `latent_nodes` and the deviation, and time and treatment go to their own item; 2026-10-28, #67: the module `hyperprior` is `scm`
 ---
 
 # 0003 - Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
@@ -106,7 +106,7 @@ child column its parent explains.
 
 - `graph` gains the per-node `unit` and `group_share`, the mask and the order; `mechanism`
   the arithmetic at a unit, the broadcast and the two parts; `column` the role, the codes of
-  a grouping factor and the marginal at G values; `hyperprior` the fields and the size draw
+  a grouping factor and the marginal at G values; `scm` the fields and the size draw
   (ADR 0004). Every dataset a key draws changes: a version change.
 - Group confounding is the first quirk axis granted before the measurement pass, since the
   registry already witnesses it (31 % group-level columns); its default is a round guess,
