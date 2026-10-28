@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-import math
 
 import numpy as np
 import pytest
@@ -18,12 +17,10 @@ from tabdgp.outcome import (
     GlmmOutcome,
     GlmOutcome,
     Outcome,
-    ScmOutcome,
-    codeDesign,
     runModel,
 )
 from tabdgp.prior import Glm, Glmm
-from tests.fixtures.build import Y, columnsOf, covariatesOf, groupingOf
+from tests.fixtures.build import Y, covariatesOf, groupingOf
 
 # four rows in two groups of g0
 GROUPING = groupingOf([[0, 0, 1, 1]])
@@ -80,15 +77,6 @@ def test_an_outcome_refuses_two_lengths_a_dtype_other_than_its_types_a_name_with
     """
     with pytest.raises(ValidationError, match=match):
         Outcome(**WRITTEN | change)
-
-
-def test_a_scm_outcome_holds_its_score_as_given_and_refuses_one_of_another_length() -> None:
-    """The SCM's ground truth is the score it rank-matched onto y's marginal, at y's rows."""
-    score = np.zeros(4, dtype=np.float32)
-    outcome = ScmOutcome(**WRITTEN, y_score=score)
-    assert outcome.y_score is score
-    with pytest.raises(ValidationError, match='length'):
-        ScmOutcome(**WRITTEN, y_score=np.zeros(5, dtype=np.float32))
 
 
 def _noisyScore(covariates: Covariates, rng: np.random.Generator, shift: float = 0.0) -> Outcome:
@@ -151,76 +139,6 @@ def test_run_model_refuses_a_models_result_of_the_wrong_length_or_type_or_a_cova
     with pytest.raises(error, match=match) as raised:
         runModel(model, covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
     assert model.__name__ in str(raised.value)
-
-
-def test_the_coder_puts_the_intercept_first_z_scores_a_continuous_column_and_records_its_mean_and_sd() -> (
-    None
-):
-    """The glossary's design matrix: the intercept, then each continuous column z-scored by the
-    population sd over the n rows, in float64.
-    Its mean and sd map a standardized β back to the raw column.
-    """
-    columns = {'x0': np.array([1, 2, 3, 6], dtype=np.float32)}
-    design = codeDesign(columns, columnsOf(['x0']), rows=4)
-    # mean 3, deviations −2, −1, 0 and 3, population sd √(14 / 4)
-    sd = math.sqrt(3.5)
-    expected = np.array([[1, -2 / sd], [1, -1 / sd], [1, 0], [1, 3 / sd]])  # (n, d)
-    assert design.names == ['intercept', 'x0']
-    assert design.matrix.dtype == np.float64
-    np.testing.assert_allclose(design.matrix, expected)
-    assert design.means == {'x0': 3.0}
-    assert design.sds == {'x0': pytest.approx(sd)}
-
-
-def test_the_coder_codes_a_binary_0_1_a_categoricals_k_minus_1_dummies_dropping_the_first_level_and_a_count_as_continuous() -> (
-    None
-):
-    """Treatment coding against the first level in the codes' order, as R's default contrasts do,
-    an ordered column like a categorical; a count is z-scored like any continuous column.
-    Only the z-scored columns have a mean and an sd to record.
-    Each covariate's positions are its columns of the matrix, which a random slope takes whole.
-    """
-    columns = {
-        'b': np.array([0, 1, 1, 0]),
-        'c': np.array([0, 1, 2, 1]),
-        'o': np.array([2, 0, 1, 1]),
-        'n': np.array([0, 2, 4, 2]),
-    }
-    metadata = {
-        'b': Column(type='binary', levels=2),
-        'c': Column(type='categorical', levels=3),
-        'o': Column(type='ordered', levels=3),
-        'n': Column(type='count'),
-    }
-    design = codeDesign(columns, metadata, rows=4)
-    # the count: mean 2, deviations −2, 0, 2 and 0, population sd √2
-    root2 = math.sqrt(2)
-    expected = np.array(
-        [
-            [1, 0, 0, 0, 0, 1, -root2],
-            [1, 1, 1, 0, 0, 0, 0],
-            [1, 1, 0, 1, 1, 0, root2],
-            [1, 0, 1, 0, 1, 0, 0],
-        ]
-    )  # (n, d)
-    assert design.names == ['intercept', 'b', 'c=1', 'c=2', 'o=1', 'o=2', 'n']
-    assert design.positions == {'b': [1], 'c': [2, 3], 'o': [4, 5], 'n': [6]}
-    np.testing.assert_allclose(design.matrix, expected)
-    assert design.means == {'n': 2.0}
-    assert design.sds == {'n': pytest.approx(root2)}
-
-
-def test_the_coder_leaves_out_a_grouping_factor_and_y_by_role() -> None:
-    """A factor's codes index random effects and y is what is predicted (the glossary),
-    so neither is a term, whatever its type; the GLM on grouped covariates is then pooled.
-    """
-    columns = {
-        **GROUPING.codes,
-        'x0': np.array([1, 2, 3, 6], dtype=np.float32),
-        'y': np.array([0, 1, 1, 0]),
-    }
-    metadata = {**GROUPING.metadata, **columnsOf(['x0']), 'y': BINARY}
-    assert codeDesign(columns, metadata, rows=4).names == ['intercept', 'x0']
 
 
 # each family with its link, y's type and a shape as a point, so the shape a run records is known
@@ -355,7 +273,7 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
         ],
         axis=1,
     ).astype(np.float64)  # (n, d)
-    standardized = codeDesign(covariates.columns, covariates.metadata, rows=6).matrix  # (n, d)
+    standardized = covariates.toDesign().matrix  # (n, d)
     np.testing.assert_allclose(raw @ outcome.beta_raw, standardized @ parameters.beta, rtol=1e-6)
     assert outcome.beta_raw[2:5].tolist() == parameters.beta[2:5].tolist()
     assert outcome.random_terms['g0'] == outcome.fixed_terms
