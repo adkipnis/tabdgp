@@ -12,8 +12,8 @@ covariate node does not, the decision is: **the outcome is one node of the gener
 role `outcome`, name `y`, at the row unit and last in order, so a sink; a field,
 `outcome_source`, sets its source: `scm`, a node like the others, or a model, `glm` and `glmm` a
 likelihood on the design matrix (ADRs 0006 and 0007); `grouped()` and `flat()` draw y from the SCM
-by default, and the proofs certify it.** The words are `CONTEXT.md`'s: outcome node, outcome source, deviation, count, marginal, post-hoc
-type, group share.
+by default, and the proofs certify it.** The words are `CONTEXT.md`'s: outcome node, outcome source,
+deviation, count, marginal, post-hoc type, group share.
 
 The sweep (TabPFN v1-3, TabICL v1-2, O'Prior, SurvivalPFN, SurvPFN, Do-PFN, scamd): the tabular
 priors give y a class-count draw with permuted labels, a learnability filter on (X, y) (classes
