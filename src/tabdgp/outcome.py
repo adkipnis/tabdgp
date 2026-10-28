@@ -63,12 +63,15 @@ class GlmOutcome(Outcome):
     """A GLM's y and its ground truth, both on the standardized scale and on the raw columns.
 
     - Ground Truth: the stated prior and the parameters drawn from it (on standardized scale).
+    - Likelihood: y's family with its link and shape, which a fitter of the family states as known.
     - Terms: the design's columns (intercept first), each with a beta-coefficient.
     - Deviation: the score's part of eta at the deviation scale λ (0 at λ = 0 or without a score).
     - Standardization: each z-scored column's mean and sd, which map beta onto the raw columns.
     """
 
+    family: likelihood.Family  # y's, as the model states it
     link: str  # the canonical link of y's family
+    shape: float | None  # y's second parameter, None for Gaussian, Bernoulli and Poisson
     fixed_terms: list[str]  # the design's names
     prior: Prior
     parameters: Parameters
@@ -236,9 +239,14 @@ def _drawGlmm(
         alpha = covariates.grouping.broadcast(parameters.alpha[factor], factor, 'row')  # (n, q)
         eta = eta + (z * alpha).sum(axis=1)  # (n,)
 
-    # optionally add the deviation
+    # optionally add the deviation, which only covariates drawn under the SCM can carry
     deviation = np.zeros(rows, dtype=np.float32)  # (n,)
-    if covariates.y_score is not None:
+    if resolved.deviation_scale > 0:
+        if covariates.y_score is None:
+            raise ValueError(
+                f'a deviation_scale of {resolved.deviation_scale} needs the score, '
+                "which these covariates lack: draw the covariates under 'scm'"
+            )
         linear_sd = float(eta.std())  # the population sd over the n rows
         deviation = resolved.deviation_scale * linear_sd * covariates.y_score  # (n,)
     eta = eta + deviation  # (n,)
@@ -247,14 +255,15 @@ def _drawGlmm(
     scale = None
     if parameters.sigma_eps is not None:
         scale = np.full(rows, parameters.sigma_eps)  # (n,)
-    # TODO: the family moves to the hyperprior object in part 2
-    y = likelihood.draw(prior.family, eta, scale, prior.shape, rng)  # (n,)
+    y = likelihood.draw(resolved.family, eta, scale, resolved.shape, rng)  # (n,)
 
     # the outcome, a GLMM's with its random terms
     fields = {
         'columns': {'y': y},
-        'metadata': {'y': likelihood.COLUMNS[prior.family]},
-        'link': likelihood.LINKS[prior.family],
+        'metadata': {'y': likelihood.COLUMNS[resolved.family]},
+        'family': resolved.family,
+        'link': likelihood.LINKS[resolved.family],
+        'shape': resolved.shape,
         'fixed_terms': design.names,
         'prior': prior,
         'parameters': parameters,
