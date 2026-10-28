@@ -5,6 +5,8 @@ and draw(seed, index, hyperprior), one dataset per key.
 from __future__ import annotations
 
 import hashlib
+import platform
+import sys
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -132,6 +134,11 @@ def _factors(dataset: Dataset) -> list[str]:
     return [name for name, column in dataset.metadata.items() if column.role == 'grouping_factor']
 
 
+# bits hold per device: numpy's float functions may differ in the last bit on another CPU
+@pytest.mark.skipif(
+    (sys.platform, platform.machine()) != ('darwin', 'arm64'),
+    reason='the digest is pinned on macOS arm64',
+)
 def test_scm_and_none_draw_0_3_0s_bits() -> None:
     """A refactor or a new model may not change a corpus drawn under the SCM or none in 0.3.0.
     The digest holds for the numpy that uv.lock pins, as the README's quickstart does.
