@@ -13,6 +13,9 @@ a table, its grouping factors or metadata
 -> the factors' codes (checked against levels and nesting)  _readGrouping
 -> each covariate's values in its type's dtype              _readValues
 -> the covariates                                           Covariates.fromPandas
+
+the covariates
+-> the design matrix, the intercept first                   Covariates.toDesign
 """
 
 from __future__ import annotations
@@ -49,6 +52,17 @@ def checkNames(columns: dict[str, np.ndarray], metadata: dict[str, Column]) -> N
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class Design:
+    """The design matrix: the covariates coded for a linear predictor, the intercept first."""
+
+    matrix: np.ndarray  # (n, d)
+    names: list[str]  # the terms: 'intercept', then each covariate's
+    positions: dict[str, list[int]]  # each covariate's columns of the matrix
+    means: dict[str, float]  # per column (continuous or count)
+    sds: dict[str, float]  # per column population sd over the n rows
+
+
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Covariates:
     """The observed columns a model reads: the grouping factors' codes and the covariates."""
 
@@ -76,6 +90,36 @@ class Covariates:
             if array is not None:
                 return len(array)
         raise ValueError('covariates without a column or a score have no rows')
+
+    def toDesign(self) -> Design:
+        """The design matrix of the covariates (in their order, after the intercept)."""
+        names = ['intercept']
+        coded = [np.ones(self.rows)]  # (n,) each
+        positions: dict[str, list[int]] = {}
+        means: dict[str, float] = {}
+        sds: dict[str, float] = {}
+        for name, column in self.metadata.items():
+            # a grouping factor is left out by role
+            if column.role != 'covariate':
+                continue
+            start = len(names)
+            values = self.columns[name].astype(np.float64)  # (n,)
+            if column.type in ['continuous', 'count']:
+                means[name] = float(values.mean())
+                sds[name] = float(values.std())  # the population sd, over the n rows
+                names.append(name)
+                coded.append((values - means[name]) / sds[name])
+            elif column.type == 'binary':
+                names.append(name)
+                coded.append(values)
+            else:
+                # k − 1 dummies, the first level in the codes' order dropped
+                for level in range(1, column.levels):
+                    names.append(f'{name}={level}')
+                    coded.append((values == level).astype(np.float64))
+            positions[name] = list(range(start, len(names)))
+        matrix = np.stack(coded, axis=1)  # (n, d)
+        return Design(matrix=matrix, names=names, positions=positions, means=means, sds=sds)
 
     @classmethod
     def fromPandas(
