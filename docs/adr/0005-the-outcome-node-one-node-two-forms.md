@@ -4,7 +4,7 @@ date: 2026-10-22
 amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form; 2026-10-23, ADR 0007: a form is a model, `'glm'` and `'glmm'` the built-in models' names, no `Hyperprior.glmm()`
 ---
 
-# 0005 — The outcome node: one node, two forms, drawn by default in its scm form
+# 0005 - The outcome node: one node, two forms, drawn by default in its scm form
 
 The outcome joins the grouped SCM of #1 and #22. Grilled on
 2026-10-22 after a prior-art sweep of what the tabular priors give their target that a
@@ -15,7 +15,7 @@ likelihood on the design matrix (ADRs 0006 and 0007); `grouped()` and `flat()` d
 by default, and the proofs certify it.** The words are `CONTEXT.md`'s: outcome node, form, deviation, count, marginal, post-hoc
 type, group share.
 
-The sweep (TabPFN v1–3, TabICL v1–2, O'Prior, SurvivalPFN, SurvPFN, Do-PFN, scamd): the tabular
+The sweep (TabPFN v1-3, TabICL v1-2, O'Prior, SurvivalPFN, SurvPFN, Do-PFN, scamd): the tabular
 priors give y a class-count draw with permuted labels, a learnability filter on (X, y) (classes
 present in both halves, ExtraTrees beats the mean) and, in TabICL v2 and TabPFN v2, a place on
 any node of the SCM, with x downstream of y; an own noise level is rare (O'Prior, metabeta-v2's

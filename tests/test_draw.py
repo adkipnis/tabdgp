@@ -235,7 +235,7 @@ def test_every_override_is_honored(
     factor through the factor's column and the outcome's through y's column. A point groups
     cannot nest, so a chain draws its groups from a range below the point.
     """
-    # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
+    # a point above its bound fails instead: rows >= 2d, m <= n and a chain of f factors in f + 1 rows
     assume(rows >= max(2 * design_columns, groups, factors + 1))
     assume(groups >= factors + 1)  # the bottom factor of a chain of f needs f + 1 groups
     hyperprior = Hyperprior.grouped(
@@ -377,7 +377,7 @@ def _neighborAgreement(codes: np.ndarray, parent: np.ndarray) -> float:
 def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_low_noise() -> None:
     """scamd's categoricals were nearly independent of their parents, and only shapes were tested.
 
-    One latent root, one typed column of k ≤ 3 and a sure edge between them, so the column must
+    One latent root, one typed column of k <= 3 and a sure edge between them, so the column must
     follow the root's values; flat, so that the edge is the graph's only one.
     """
     for type, design_columns in [('binary', 1), ('categorical', 2), ('ordered', 2)]:

@@ -4,7 +4,7 @@ date: 2026-10-14
 amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`, a nested pair is superior and subordinate, not coarser and finer, and an override `group_share = 1` is the known exception to every level appearing; 2026-10-22, ADR 0005: the endogeneity switch is `latent_nodes` and the deviation, and time and treatment go to their own item
 ---
 
-# 0003 — Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
+# 0003 - Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism
 
 Spec #22 adds grouping to the flat SCM of #1. Grilled on 2026-10-14 after a
 prior-art search of 2026-10-12, the decision is: **a
@@ -65,7 +65,7 @@ child column its parent explains.
   factor's groups.
 - **The grouping factor as a column**: int64 codes, type `categorical`, role
   `grouping_factor`, `levels = G`, outside the design-column budget; the role carries its
-  checks (G ≥ 2, no marginal, the size draw's fields as its parameters). The binary /
+  checks (G >= 2, no marginal, the size draw's fields as its parameters). The binary /
   categorical split is about design-matrix coding and applies to covariates only.
 - **Random effects stay the outcome node's.** A group-level node is covariate structure, which
   a GLMM takes as given; the outcome node (ADR 0005) draws its random effects per grouping

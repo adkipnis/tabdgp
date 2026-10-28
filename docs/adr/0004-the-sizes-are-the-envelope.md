@@ -4,7 +4,7 @@ date: 2026-10-14
 amended: 2026-10-14, #24: a superior factor has fewer groups than the subordinate one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`, and a range too narrow for the longest chain fails like a point; #29: superior and subordinate, not coarser and finer; 2026-10-22, ADR 0006: metabeta draws from `Hyperprior.glmm()`, the grouped preset with the outcome node in its glmm form; 2026-10-23, ADR 0007: that is `Hyperprior.grouped(outcome_form='glmm')`; 2026-10-24, #59: `groups` also takes a tuple, one point per factor in the factors' order, so sizes can be paired to a registry fit
 ---
 
-# 0004 — The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
+# 0004 - The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
 
 ADR 0001 and root ADR 0005 of metabeta-v3 let `metabeta.mixed` pass the sizes of its envelope
 rules 7 and 8 as overrides. Decided on 2026-10-14, with ADR 0003: all simulation happens in
@@ -23,7 +23,7 @@ and has no default.** What the proofs certify is `grouped()`.
   Dirichlet(α) proportions. Two per-factor fields; G non-empty groups always; no retry.
 - **Truncation at resolve.** `rows` resolves first; `groups` draws from its distribution
   truncated at `rows`, a superior factor's `groups` below the subordinate factor's, and
-  `design_columns` at `rows / 2` (rule 8's one floor, n ≥ 2d, which #1 did not enforce).
+  `design_columns` at `rows / 2` (rule 8's one floor, n >= 2d, which #1 did not enforce).
   A draw clipped afterwards piles mass on the bound: from `LogUniformInt(2, 400)` at
   n = 20, 57 % of draws would become all-singleton tables.
 - **A superior factor has fewer groups than the subordinate one.** Its `groups` is
@@ -72,7 +72,7 @@ and has no default.** What the proofs certify is `grouped()`.
 ## Consequences
 
 - ADR 0001's "metabeta passes its sizes" is amended: metabeta passes nothing and calls
-  `draw(seed, index, Hyperprior.grouped())`. metabeta's `envelope.md` (rules 7–9) and its
+  `draw(seed, index, Hyperprior.grouped())`. metabeta's `envelope.md` (rules 7-9) and its
   `packages/mixed` ADR 0005 say the same on their side.
 - The proofs run on `grouped()`; mixedbench#72's flat sample tests `flat()`.
 - `hyperprior` gains the per-factor fields, the presets and the truncation; a bound names

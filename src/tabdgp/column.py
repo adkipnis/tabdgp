@@ -9,7 +9,7 @@ resolved sizes, shares and budget
 -> per factor (top down), how many factors it nests in           _nestFactors
 -> per factor (bottom up), its m groups, their sizes and codes   _sampleSizes, assign
 -> per column, its type by its shares, then its k or marginal    plan, _resolveColumn
--> x0, x1, … until the budget is met, then y if the form is scm  plan
+-> x0, x1, ... until the budget is met, then y if the form is scm  plan
 -> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
 -> placed by the node's ranks, tied values sharing one           apply
 """
@@ -227,7 +227,7 @@ def _resolveColumn(
         return Column(type=type, role=role, marginal=family, parameters=parameters)
     levels = 2
     if type != 'binary':
-        extra = rng.geometric(resolved.levels_p)  # 1, 2, …
+        extra = rng.geometric(resolved.levels_p)  # 1, 2, ...
         levels += int(extra)
     if resolved.max_levels is not None:
         levels = min(levels, resolved.max_levels)

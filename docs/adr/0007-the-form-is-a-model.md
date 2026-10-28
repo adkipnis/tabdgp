@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-23
 ---
 
-# 0007 — The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
+# 0007 - The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
 
 ADR 0005 made the outcome one node with two forms; ADR 0006 made the glmm form read
 columns and a grouping, never the graph, so that a real table's covariates can carry a

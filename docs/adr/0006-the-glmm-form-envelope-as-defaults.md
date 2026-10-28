@@ -4,7 +4,7 @@ date: 2026-10-22
 amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets
 ---
 
-# 0006 — The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
+# 0006 - The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
 
 The outcome node's second form (ADR 0005) is a generalized linear mixed model
 (GLMM) on the design matrix, the datasets `metabeta.mixed` trains on and, with a deviation,
@@ -23,7 +23,7 @@ datasets overflow numpy's Poisson sampler (20,000 synthetic draws, 2026-10-22); 
 defaults (2.5 everywhere) 61 %, 94 % and 6 %. metabeta-v2 answered this with caps on the
 linear predictor's scale and an R² cap, each rescaling the parameters after the draw, so the
 recorded prior was not the one drawn from. MixedBench's 694 documented formulas hold 881
-random-effect blocks: q = 1 in 88 %, q = 2 in 10 %, q ≥ 3 in 2 % (max 7); `||` is 8 of 84
+random-effect blocks: q = 1 in 88 %, q = 2 in 10 %, q >= 3 in 2 % (max 7); `||` is 8 of 84
 blocks at q = 2 and 3 of 18 above.
 
 ## Decisions
@@ -39,7 +39,7 @@ blocks at q = 2 and 3 of 18 above.
   half_student_t with ν = 3, half_cauchy, exponential}, uniform, chosen once per dataset and
   shared by the random-effect standard deviations and the residual scale (a shares field, not
   a token, ADR 0007). `lkj_eta` uniform on {1, 2, 3, 4} when a factor's effects
-  are correlated, `correlated_share` 0.55 per factor with q_k ≥ 2 (the practice survey's share
+  are correlated, `correlated_share` 0.55 per factor with q_k >= 2 (the practice survey's share
   of models with slopes). The intercept's scale σ_0 `LogUniform(0.1, 10)`, the envelope.
 - **The fit drawn jointly.** Per dataset: `signal_share` r, a wide Beta; `predictor_sd` τ for
   the unit-free families, log-uniform on about [0.25, 4] on the logit and log scales, and
@@ -60,7 +60,7 @@ blocks at q = 2 and 3 of 18 above.
   `design_columns + 1`; q_k the random effects of factor k with the intercept, a slope on a
   categorical column taking k − 1 of them. The intercept always; then slope covariate columns
   drawn uniformly, time first when present, each adding its width, until a budget uniform on
-  {1, …, min(6, d)}; q_k = 1 when no column fits. One edge, independent of correlation: above
+  {1, ..., min(6, d)}; q_k = 1 when no column fits. One edge, independent of correlation: above
   q = 3 the registry has 11 blocks, too few for a conditional edge. Random effects α_k per
   factor are independent, N(0, diag(σ_k) Ω_k diag(σ_k)) per group, crossed and nested alike,
   since a subordinate factor's codes are already global. Ω_k by the C-vine of Lewandowski,
@@ -124,7 +124,7 @@ blocks at q = 2 and 3 of 18 above.
 
 ## Consequences
 
-- metabeta's `envelope.md`: rule 8's "q stays this package's" and its "q ≤ 4" give way to this
+- metabeta's `envelope.md`: rule 8's "q stays this package's" and its "q <= 4" give way to this
   form's default (6, in columns); the prior table cites this ADR; rule 9 names the glmm form.
   mixed ADR 0003's consequence "log s log-uniform per block" becomes "jointly, so that the
   fit is spread"; the families, η and the envelope's range stand. Root ADR 0005's "until the

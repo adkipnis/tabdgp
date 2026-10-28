@@ -4,7 +4,7 @@ date: 2026-10-24
 amended: 2026-10-24, #58: the p-value counts the statistic among its null, (k + 1)/(B + 1); the ranks are scaled as (r − ½)/N; the band ends at observed values; sbi's c2st runs plain folds and accuracy on z-scores, so the recipe follows it, not copies it
 ---
 
-# 0008 — The fidelity module: how generated and registry summaries are compared
+# 0008 - The fidelity module: how generated and registry summaries are compared
 
 The proofs (metabeta-v3's mixed ADR 0005) compare summary vectors of generated and registry
 tables by a two-sample test and a containment test, and the hyperprior's fit (roadmap item 4)
@@ -41,7 +41,7 @@ two-sample test, containment test, null, pairing.
   trees are the same under any monotone recoding, so the choice over sbi's z-scores only fixes
   the missing value's place and keeps a heavy-tailed axis from setting a distance.
 - **The distance per axis.** Wasserstein-1 between the two samples' ranks: the area between
-  their empirical distribution functions, bounded like Kolmogorov–Smirnov's largest gap and
+  their empirical distribution functions, bounded like Kolmogorov-Smirnov's largest gap and
   less noisy, since it integrates the whole gap. It says where a gap is; the band says how large.
 - **Containment.** The share of one sample's rows inside the other's band per axis, the band
   the 1st to 99th percentile by default, its ends at the nearest observed values so that it

@@ -29,7 +29,7 @@ def columnsOf(names: list[str]) -> dict[str, Column]:
 
 
 def groupingOf(codes: list[list[int]], nests_in: list[str | None] | None = None) -> Grouping:
-    """A grouping of factors g0, g1, …, codes[i] listing each row's group of factor i.
+    """A grouping of factors g0, g1, ..., codes[i] listing each row's group of factor i.
 
     Without nests_in, every factor is crossed.
     """
@@ -58,7 +58,7 @@ def graphOf(
     group_share: float = 0.5,
     group_factor: str | None = None,
 ) -> Graph:
-    """A graph of nodes x0, x1, …, parents[j] listing node j's parents.
+    """A graph of nodes x0, x1, ..., parents[j] listing node j's parents.
 
     Without a mechanism, a root has none and every other node is linear.
     A node with parents takes the noise scale; an MLP node also the activation and the init scale.

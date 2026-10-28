@@ -51,7 +51,7 @@ CONTRADICTING_LEVELS = [
 
 @pytest.mark.parametrize(('type', 'levels'), CONTRADICTING_LEVELS)
 def test_levels_that_contradict_the_type_fail(type: str, levels: int | None) -> None:
-    """Binary is exactly k = 2 and the other discrete types k ≥ 3, so the types never overlap."""
+    """Binary is exactly k = 2 and the other discrete types k >= 3, so the types never overlap."""
     with pytest.raises(ValidationError):
         Column(type=type, levels=levels)
 
@@ -163,7 +163,7 @@ def test_a_grouping_factor_or_the_outcome_is_0_design_columns_wide(column: Colum
 
 
 def test_a_grouping_factor_with_fewer_than_2_levels_fails() -> None:
-    """One group is no grouping; two are, so a factor need not be k ≥ 3 like a categorical."""
+    """One group is no grouping; two are, so a factor need not be k >= 3 like a categorical."""
     with pytest.raises(ValidationError, match='1 levels'):
         Column(type='categorical', levels=1, role='grouping_factor')
 
@@ -441,7 +441,7 @@ def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_co
     """metabeta's design matrix has the width it drew.
 
     A corner such as all-categorical must still fill a remainder of 1.
-    100 rows admit every budget up to 19 (n ≥ 2d).
+    100 rows admit every budget up to 19 (n >= 2d).
     """
     for budget in range(20):
         for seed in range(10):

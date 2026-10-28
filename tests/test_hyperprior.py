@@ -235,7 +235,7 @@ def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_boun
     distribution: UniformInt | LogUniformInt,
 ) -> None:
     """No value of the distribution lies at or below the bound,
-    and a draw above it would break m ≤ n without a word.
+    and a draw above it would break m <= n without a word.
     """
     hyperprior = Hyperprior(groups=distribution)
     with pytest.raises(ValueError, match=r'groups.*\b7\b'):
@@ -263,7 +263,7 @@ def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
 
 def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
     """A point override is honored exactly or not at all:
-    50 groups cannot be assigned to 30 rows, and 19 design columns under 10 rows break n ≥ 2d.
+    50 groups cannot be assigned to 30 rows, and 19 design columns under 10 rows break n >= 2d.
     """
     rng = np.random.default_rng(0)
     with pytest.raises(ValueError, match=r'groups.*\b30\b'):
@@ -327,7 +327,7 @@ def test_a_tuple_of_groups_that_cannot_nest_fails_at_construction() -> None:
 
 @given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
 def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int) -> None:
-    """A table has at least two rows per design column (metabeta's rule 8, n ≥ 2d)."""
+    """A table has at least two rows per design column (metabeta's rule 8, n >= 2d)."""
     resolved = Hyperprior(rows=rows).resolveDataset(np.random.default_rng(seed))
     assert resolved.design_columns <= rows // 2
 

@@ -179,7 +179,7 @@ a model specification
   order, under a `# ----` banner naming the pipeline or its stage (`url -> archive -> tree`). A
   step that two public functions call goes after its first caller.
 - A script's `__main__` reads as the run's table of contents; for a pipeline class, it creates
-  the class and calls its steps (`puller = Puller(); puller.getSurvset(); …; puller.flush()`).
+  the class and calls its steps (`puller = Puller(); puller.getSurvset(); ...; puller.flush()`).
 
 ## Comments and docstrings
 
