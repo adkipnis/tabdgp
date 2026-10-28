@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect; 2026-10-26, #56: the scales vary per coefficient by default, β's and σ_α's alike; 2026-10-26, #56: `shape` is `family_shape`, as an unqualified family is y's; 2026-10-26, #56: the prior context is the `Prior`, drawn by `Glm.drawPrior`; 2026-10-26, #56: the prior's locations are ν and its scales τ (ν_β and τ_β, τ_α, τ_ε), τ unsubscripted the predictor sd they split, and the Student-t's degrees of freedom df; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares` and its shape `y_shape`, and `Glm.drawPrior(blocks, rng)` draws it first, the `Prior` holding it; 2026-10-27, #66: `drawPrior` draws each parameter's family with its locations and scales, β's after the split, the `Prior` holds y's shape and `Parameters` only what a fitter estimates; 2026-10-27, #56: `correlated_share` is the practice survey's share of models with slopes that correlate them, not of models with slopes; 2026-10-27, #56: y's families and links are `family`'s and the covariates `covariates`', modules of their own that `outcome` imports; 2026-10-27, #56: `family` is `likelihood`, the distribution y is drawn from, since family alone does not say whose; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: y's family is stated with no default, never drawn, `family` on `Glm` and the `Prior`, `y_family_shares` gone, and one `shape` field, its default per family in `likelihood`
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect; 2026-10-26, #56: the scales vary per coefficient by default, β's and σ_α's alike; 2026-10-26, #56: `shape` is `family_shape`, as an unqualified family is y's; 2026-10-26, #56: the prior context is the `Prior`, drawn by `Glm.drawPrior`; 2026-10-26, #56: the prior's locations are ν and its scales τ (ν_β and τ_β, τ_α, τ_ε), τ unsubscripted the predictor sd they split, and the Student-t's degrees of freedom df; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares` and its shape `y_shape`, and `Glm.drawPrior(blocks, rng)` draws it first, the `Prior` holding it; 2026-10-27, #66: `drawPrior` draws each parameter's family with its locations and scales, β's after the split, the `Prior` holds y's shape and `Parameters` only what a fitter estimates; 2026-10-27, #56: `correlated_share` is the practice survey's share of models with slopes that correlate them, not of models with slopes; 2026-10-27, #56: y's families and links are `family`'s and the covariates `covariates`', modules of their own that `outcome` imports; 2026-10-27, #56: `family` is `likelihood`, the distribution y is drawn from, since family alone does not say whose; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: y's family is stated with no default, never drawn, `family` on `Glm` and the `Prior`, `y_family_shares` gone, and one `shape` field, its default per family in `likelihood`; 2026-10-28, #68: the family and shape on a GLM's outcome beside its link, not on the `Prior`, and the shape None for its family's default, which each dataset draws
 ---
 
 # 0006 - The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
@@ -300,16 +300,19 @@ family sets.** ADR 0007's amendment of the same day calls a model after the draw
 - **The family.** `Glm(family=...)`, a `Literal` over the eight families, has no default, so
   `Glm()` fails at construction. The `Literal` lives in `likelihood`, beside each family's link
   and column. The unqualified family is y's, as in brms's `family`; β's and the sd families keep
-  their qualified shares fields and stay drawn. The `Prior` holds it as `family`.
+  their qualified shares fields and stay drawn. The `Prior` holds it as `family` (until
+  2026-10-28: a GLM's outcome holds it, beside its link).
 - **No shares.** `y_family_shares` goes. A corpus of several families picks the family per
   index, `Glmm(family=FAMILIES[index % 3])`, so each index draws its own covariates. The same
   index under two families draws the same covariates, a paired design when a study wants one.
 - **The shape.** One field, `shape`, replaces `residual_df`, `dispersion`, `latent_scale`,
   `gamma_shape` and `beta_precision`. `likelihood` holds each family's default, the values
-  above, and a validator fills it at construction, so the resolved model shows it; it resolves
+  above, and a validator fills it at construction, so the resolved model shows it (until
+  2026-10-28: the field defaults to `None`, and a dataset draws its family's default when it
+  resolves, so the resolved model shows the point); it resolves
   once per dataset like any field. A shape on Gaussian, Bernoulli or Poisson fails at
   construction. Every shape is positive, since σ_c = 0 was the Bernoulli family a second time.
-  The `Prior` holds it as `shape`.
+  The `Prior` holds it as `shape` (until 2026-10-28: a GLM's outcome holds it).
 
 ### Considered options
 
@@ -324,6 +327,12 @@ family sets.** ADR 0007's amendment of the same day calls a model after the draw
 - **A `Likelihood(family, shape)` pair:** a class for a pair the `Prior` already holds flat.
 - **A burned draw** keeping the stream where the family's choice was: a line with no meaning,
   for models no release has shipped.
+- **The family and shape on the `Prior`:** they are the model's specification, which a fitter
+  states, not a prior over its parameters; the outcome holds them beside the link a fitter reads.
+- **The resolved config on the outcome:** it carries every field a fitter does not need.
+- **A default filled at construction** (a data-aware default factory): a field whose default
+  depends on another, for a value each dataset draws anyway.
+- **No default shape**, the five shaped families stating one: drops the per-family defaults.
 
 ### Consequences
 
