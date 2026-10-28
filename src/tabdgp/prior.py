@@ -37,7 +37,6 @@ the (optional) overrides
 -> validation at construction                                 Glm, Glmm
 -> a point per field drawn once per dataset                   Glm.resolveDataset
 -> the prior over the blocks, each parameter's in one step    Glm.drawPrior
-   -> y's family and optionally its shape                     _drawResponseSpec
    -> σ_ε's family and scale (if y's family has a residual)
    -> the split of τ² among blocks                            _drawSplit
    -> β's family, locations and scales                        _drawBetaPrior
@@ -52,10 +51,10 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Literal
 
 import numpy as np
-from pydantic import ConfigDict, Field, NonNegativeFloat, PositiveInt
+from pydantic import ConfigDict, Field, NonNegativeFloat, PositiveInt, model_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.field import (
@@ -75,6 +74,26 @@ from tabdgp.field import (
 # =====================================================================================
 # what the draw reads and returns
 # =====================================================================================
+
+# y's families, each with its link and column in likelihood
+Family = Literal[
+    'gaussian',
+    'bernoulli',
+    'poisson',
+    'student_t',
+    'negative_binomial',
+    'latent_bernoulli',
+    'gamma',
+    'beta',
+]
+# the default shape of each family that has one, y's second parameter
+SHAPES = {
+    'student_t': LogUniform(3, 10),  # df
+    'negative_binomial': LogUniform(1, 10),  # φ, the variance μ + μ² / φ
+    'latent_bernoulli': LogUniform(0.5, 2),  # σ_c
+    'gamma': LogUniform(1, 10),  # k, the variance μ² / k
+    'beta': LogUniform(2, 50),  # φ, the precision
+}
 
 
 @pydantic_dataclass(frozen=True)
@@ -120,8 +139,8 @@ class Prior:
     lkj_eta: dict[str, int | None]  # by factor, None if its effects are independent
     sigma_eps_family: str | None  # None unless the family has a residual
     sigma_eps_scale: float | None  # τ_ε, σ_ε's prior scale, None unless the family has a residual
-    y_family: str  # a category of Glm's y_family_shares
-    y_shape: float | None  # y's second parameter, None for Gaussian, Bernoulli and Poisson
+    family: Family  # y's
+    shape: float | None  # y's second parameter, None for Gaussian, Bernoulli and Poisson
     signal_share: float | None  # r, the share of var(y) eta explains (Gaussian and Student-t only)
     predictor_sd: float  # τ, the sd of eta (without the intercept)
     split: dict[str, float]  # φ, each block's share of τ²
@@ -239,31 +258,11 @@ class Glm(Config):
     - Deviation (outside the prior): the score added to eta, scaled by λ * sd(Xβ + Σ_k Z_k α_k)
     """
 
-    SHARES: ClassVar[tuple[str, ...]] = (
-        'y_family_shares',
-        'beta_family_shares',
-        'sigma_eps_family_shares',
-    )
+    SHARES: ClassVar[tuple[str, ...]] = ('beta_family_shares', 'sigma_eps_family_shares')
     PER_FACTOR: ClassVar[tuple[str, ...]] = ()
-    PER_Y_FAMILY: ClassVar[dict[str, str]] = {
-        'student_t': 'residual_df',
-        'negative_binomial': 'dispersion',
-        'latent_bernoulli': 'latent_scale',
-        'gamma': 'gamma_shape',
-        'beta': 'beta_precision',
-    }
 
-    y_family_shares: Simplex = {  # noqa: RUF012
-        'gaussian': 1 / 3,
-        'bernoulli': 1 / 3,
-        'poisson': 1 / 3,
-        # useful for misspecification tests
-        'student_t': 0.0,
-        'negative_binomial': 0.0,
-        'latent_bernoulli': 0.0,
-        'gamma': 0.0,
-        'beta': 0.0,
-    }
+    family: Family  # y's, stated
+    shape: Positive | None = Field(default_factory=lambda fields: SHAPES.get(fields['family']))
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # σ_ε's family
     intercept_location: Real = Uniform(-3, 3)  # ν_0 on the link scale
@@ -276,18 +275,22 @@ class Glm(Config):
     predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ (unless y is Gaussian or Student-t)
     # for misspecification
     deviation_scale: NonNegative = 0.0  # λ
-    residual_df: Positive = LogUniform(3, 10)  # of the Student-t family
-    dispersion: Positive = LogUniform(1, 10)  # φ of the negative binomial, variance μ + μ² / φ
-    latent_scale: NonNegative = LogUniform(0.5, 2)  # σ_c of the latent-noise Bernoulli
-    gamma_shape: Positive = LogUniform(1, 10)
-    beta_precision: Positive = LogUniform(2, 50)
+
+    @model_validator(mode='after')
+    def _checkShape(self) -> Glm:
+        """y has a shape exactly where its family has one."""
+        if (self.shape is None) == (self.family in SHAPES):
+            raise ValueError(
+                f"shape = {self.shape} does not fit family = '{self.family}': "
+                f'only {list(SHAPES)} have one'
+            )
+        return self
 
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
         """Resolves each field that is drawn once per dataset."""
-        deferred = (*self.PER_FACTOR, *self.PER_Y_FAMILY.values())
         points = {}
         for name in type(self).model_fields:
-            if name in deferred:
+            if name in self.PER_FACTOR:
                 points[name] = getattr(self, name)
             else:
                 points[name] = self.resolveField(name, rng)
@@ -295,14 +298,12 @@ class Glm(Config):
 
     def drawPrior(self, blocks: list[Block], rng: np.random.Generator) -> Prior:
         """Draws the prior over the blocks after the GLM is resolved, a step per parameter."""
-        y_family, y_shape = self._drawResponseSpec(rng)
-
         # σ_ε's family and scale (if y's family has a residual)
         sigma_eps_family = None
         signal_share = None
         predictor_sd = self.predictor_sd
         sigma_eps_scale = None
-        if y_family in ['gaussian', 'student_t']:
+        if self.family in ['gaussian', 'student_t']:
             sigma_eps_family = self.sigma_eps_family_shares.choose(rng)
             signal_share = self.signal_share
             # τ² = r and τ_ε² = 1 − r, such that y has unit variance at the scales
@@ -323,21 +324,13 @@ class Glm(Config):
             lkj_eta={},
             sigma_eps_family=sigma_eps_family,
             sigma_eps_scale=sigma_eps_scale,
-            y_family=y_family,
-            y_shape=y_shape,
+            family=self.family,
+            shape=self.shape,
             signal_share=signal_share,
             predictor_sd=predictor_sd,
             split=split,
             blocks=blocks,
         )
-
-    def _drawResponseSpec(self, rng: np.random.Generator) -> tuple[str, float | None]:
-        """Draws y's family and optionally its shape."""
-        y_family = self.y_family_shares.choose(rng)
-        y_shape = None
-        if y_family in self.PER_Y_FAMILY:
-            y_shape = self.resolveField(self.PER_Y_FAMILY[y_family], rng)
-        return y_family, y_shape
 
     def _drawSplit(self, blocks: list[Block], rng: np.random.Generator) -> dict[str, float]:
         return {blocks[0].name: 1.0}  # a GLM's one block takes all of var(eta)
