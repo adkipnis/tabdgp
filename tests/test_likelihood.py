@@ -6,21 +6,25 @@ from __future__ import annotations
 
 import math
 import warnings
+from typing import get_args
 
 import numpy as np
 import pytest
 
 from tabdgp.likelihood import COLUMNS, LINKS, draw
-from tabdgp.prior import Glm
+from tabdgp.prior import SHAPES, Family
 
 
-def test_each_family_of_glms_shares_has_a_link_a_column_a_range_and_a_law() -> None:
-    """A family with a share but no link, column or case in draw would fail only when a dataset
-    chose it, which the tables below catch only if they list it.
+def test_each_family_has_a_link_a_column_a_range_and_a_law() -> None:
+    """A family without a link, column or case in draw would fail only when a model stated it,
+    which the tables below catch only if they list it.
+    The families that draw with a shape are those that have a default one.
     """
-    families = Glm.categories('y_family_shares')
+    families = list(get_args(Family))
     assert list(LINKS) == list(COLUMNS) == families
     assert _families(RANGES) == _families(LAWS) == families
+    shaped = [case.values[0] for case in RANGES if case.values[-1] is not None]
+    assert shaped == list(SHAPES)
 
 
 def _families(cases: list) -> list[str]:
