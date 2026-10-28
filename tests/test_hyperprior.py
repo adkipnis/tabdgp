@@ -76,8 +76,8 @@ MODELS = [
     pytest.param(drawNothing, id='a function'),
     pytest.param(functools.partial(drawNothing), id='a partial'),
     pytest.param(_CallableModel(), id='an object with __call__'),
-    pytest.param(Glm(signal_share=0.5), id="a glm config, TabDGP's own model"),
-    pytest.param(Glmm(lkj_eta=2), id='a glmm config'),
+    pytest.param(Glm(family='gaussian', signal_share=0.5), id="a glm config, TabDGP's own model"),
+    pytest.param(Glmm(family='gaussian', lkj_eta=2), id='a glmm config'),
 ]
 
 
@@ -92,6 +92,8 @@ def test_a_model_is_a_form(model: Callable[..., None] | Glm) -> None:
 
 NOT_A_FORM = [
     pytest.param('SCM', id='a misspelled form'),
+    pytest.param('glm', id="a model's name, which states no family"),
+    pytest.param('glmm', id="a glmm's name"),
     pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
     pytest.param(Dirichlet({'none': 1, 'scm': 1}), id='a dirichlet'),
     pytest.param({'signal_share': 0.5}, id="a dict of a glm's fields"),
@@ -100,7 +102,7 @@ NOT_A_FORM = [
 
 
 @pytest.mark.parametrize('form', NOT_A_FORM)
-def test_a_form_other_than_none_scm_glm_glmm_or_a_model_fails_at_construction(
+def test_a_form_other_than_none_scm_or_a_model_fails_at_construction(
     form: str | dict | Dirichlet,
 ) -> None:
     """A dataset of each form returns different things, so no corpus mixes them:
@@ -111,32 +113,13 @@ def test_a_form_other_than_none_scm_glm_glmm_or_a_model_fails_at_construction(
         Hyperprior(outcome_form=form)
 
 
-EXPANSIONS = [
-    pytest.param(Hyperprior.grouped, 'glm', Glm(), id='glm on grouped, the pooled ground truth'),
-    pytest.param(Hyperprior.flat, 'glm', Glm(), id='glm on flat, which needs no grouping'),
-    pytest.param(Hyperprior.grouped, 'glmm', Glmm(), id="glmm on grouped, metabeta's one call"),
-]
-
-
-@pytest.mark.parametrize(('preset', 'form', 'config'), EXPANSIONS)
-def test_glm_and_glmm_expand_to_their_default_configs(
-    preset: Callable[..., Hyperprior], form: str, config: Glm
-) -> None:
-    """A string names a built-in model's default config (ADR 0007; Glmm's are ADR 0006's),
-    and the hyperprior shows the object, so a dataset records which model drew it.
-    """
-    assert preset(outcome_form=form).outcome_form == config
-
-
+GLMM = Glmm(family='gaussian')
 WITHOUT_A_FACTOR = [
-    pytest.param(Hyperprior.flat, {'outcome_form': 'glmm'}, id='flat'),
+    pytest.param(Hyperprior.flat, {'outcome_form': GLMM}, id='flat'),
     pytest.param(
         Hyperprior.grouped,
-        {'factors': UniformInt(0, 3), 'outcome_form': 'glmm'},
+        {'factors': UniformInt(0, 3), 'outcome_form': GLMM},
         id='a factors range reaching 0',
-    ),
-    pytest.param(
-        Hyperprior.grouped, {'factors': 0, 'outcome_form': Glmm(lkj_eta=2)}, id='a glmm config'
     ),
 ]
 
@@ -203,7 +186,10 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
 
 @pytest.mark.parametrize(
     'model',
-    [pytest.param(drawNothing, id='a model'), pytest.param(Glm(), id='a config unresolved')],
+    [
+        pytest.param(drawNothing, id='a model'),
+        pytest.param(Glm(family='gaussian'), id='a config unresolved'),
+    ],
 )
 def test_resolve_leaves_a_model_or_a_config_as_given(model: Callable[..., None] | Glm) -> None:
     """A model draws inside its own call, a config resolves its fields there,
