@@ -23,23 +23,19 @@ a key, covariates (a table's) and a model
 
 from __future__ import annotations
 
-import dataclasses
-import functools
-from collections.abc import Callable
 from importlib.metadata import version
-from typing import Any
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping, assign, plan, rankMatch
 from tabdgp.covariates import Covariates
 from tabdgp.graph import Graph, connect
-from tabdgp.hyperprior import Hyperprior, Model, OutcomeForm
+from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
-from tabdgp.outcome import Design, Outcome, ScmOutcome, codeDesign, runModel
+from tabdgp.outcome import Model, Outcome, runModel
 
 VERSION = version('tabdgp')
 NUMPY_VERSION = version('numpy')
@@ -55,16 +51,28 @@ class Dataset:
     Each array is stored as drawn (not copied), so a consumer can share its memory.
     """
 
-    columns: dict[str, np.ndarray]  # (n,) each, in its type's dtype
-    metadata: dict[str, Column]
+    covariates: Covariates  # the grouping factors and the covariates, the score under 'scm'
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) each, z-scored over its groups if group-level
-    outcome: Outcome | None  # the SCM's or the model's columns and ground truth, None under 'none'
+    outcome: Outcome | None  # y under 'scm', None under 'none'
     hyperparameters: Hyperprior  # after resolution
     seed: int  # the corpus
     index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version
     numpy_version: str  # its generator's streams may change between numpy releases
+
+    @property
+    def columns(self) -> dict[str, np.ndarray]:
+        """The covariates' columns, then the outcome's (y last)."""
+        if self.outcome is None:
+            return self.covariates.columns
+        return {**self.covariates.columns, **self.outcome.columns}  # (n,) each
+
+    @property
+    def metadata(self) -> dict[str, Column]:
+        if self.outcome is None:
+            return self.covariates.metadata
+        return {**self.covariates.metadata, **self.outcome.metadata}
 
     def toPandas(self) -> pd.DataFrame:
         """The columns as a table (the latent nodes left out)."""
@@ -78,55 +86,6 @@ class Dataset:
             table[name] = values
         return pd.DataFrame(table)
 
-    def toDesign(self) -> Design:
-        """The design matrix of the covariates, by the coder a GLM's ground truth refers to."""
-        return codeDesign(self.columns, self.metadata, self.hyperparameters.rows)
-
-    def toDict(self) -> dict[str, Any]:
-        """The dataset in JSON's types (lossless but for a study's model, recorded by its name)."""
-        record = self._recordValue(self)
-        if self.outcome is not None:
-            # the outcome's columns are the dataset's, under the same names, so recorded once
-            del record['outcome']['columns']
-            del record['outcome']['metadata']
-        return record
-
-    @classmethod
-    def _recordValue(cls, value: Any) -> Any:
-        match value:
-            case np.ndarray():
-                return {'dtype': value.dtype.name, 'values': value.tolist()}
-            case dict():
-                return {key: cls._recordValue(item) for key, item in value.items()}
-            case list() | tuple():  # a tuple from a groups override
-                return [cls._recordValue(item) for item in value]
-            case None | str() | int() | float():
-                return value
-            case BaseModel():
-                return cls._recordFields(value, list(type(value).model_fields))
-            case _ if dataclasses.is_dataclass(value):
-                names = [field.name for field in dataclasses.fields(value)]
-                return cls._recordFields(value, names)
-            case functools.partial():
-                return cls._nameModel(value.func)  # its bound settings are the study's
-            case _ if callable(value):
-                return cls._nameModel(value)  # a study's model
-            case _:
-                raise TypeError(f'{value!r}, a {type(value).__name__}, has no JSON form')
-
-    @classmethod
-    def _recordFields(cls, value: Any, names: list[str]) -> dict[str, Any]:
-        record = {'class': type(value).__name__}
-        for name in names:
-            record[name] = cls._recordValue(getattr(value, name))
-        return record
-
-    @staticmethod
-    def _nameModel(model: Callable) -> str:
-        """A function's qualified name, or an object's class's."""
-        named = model if hasattr(model, '__qualname__') else type(model)
-        return f'{named.__module__}.{named.__qualname__}'
-
 
 # =====================================================================================
 # the draw
@@ -135,7 +94,7 @@ class Dataset:
 
 def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
-    rng = _seedGenerator(seed, index)
+    rng = np.random.default_rng(_seedSequence(seed, index))
     resolved = hyperprior.resolveDataset(rng)
 
     # the grouping before the graph, which draws each node's unit among the grouping factors
@@ -154,16 +113,13 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
         y_score=nodes.get('y'),  # (n,) as y's node is at the row, None under 'none'
     )
 
-    # the outcome's columns after the covariates', so that y stays last
-    outcome = _drawOutcome(resolved.outcome_form, covariates, planned.get('y'), rng)
-    columns = covariates.columns
-    metadata = covariates.metadata
-    if outcome is not None:
-        columns = {**columns, **outcome.columns}
-        metadata = {**metadata, **outcome.metadata}
+    # under the SCM, y rank-matched onto its marginal at the score the covariates carry
+    outcome = None
+    if resolved.outcome_form == 'scm':
+        y = rankMatch(covariates.y_score, planned['y'], rng)  # (n,)
+        outcome = Outcome(columns={'y': y}, metadata={'y': planned['y']})
     return Dataset(
-        columns=columns,
-        metadata=metadata,
+        covariates=covariates,
         graph=graph,
         latent=latent,
         outcome=outcome,
@@ -175,9 +131,9 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     )
 
 
-def _seedGenerator(seed: int, index: int) -> np.random.Generator:
-    """The key's generator, the one source of every draw keyed by seed and index."""
-    return np.random.default_rng([seed, index])
+def _seedSequence(seed: int, index: int) -> np.random.SeedSequence:
+    """The key's seed sequence, the one source of every draw keyed by seed and index."""
+    return np.random.SeedSequence([seed, index])
 
 
 def _rankMatchColumns(
@@ -205,26 +161,8 @@ def _broadcastLatent(
     return latent
 
 
-def _drawOutcome(
-    model: OutcomeForm | Model,
-    covariates: Covariates,
-    y_column: Column | None,
-    rng: np.random.Generator,
-) -> Outcome | None:
-    """The outcome under the SCM or a model (None under 'none')."""
-    match model:
-        case 'none':
-            return None
-        case 'scm':
-            # the covariates carry y's node values as the score
-            y = rankMatch(covariates.y_score, y_column, rng)  # (n,)
-            metadata = {'y': y_column}
-            return ScmOutcome(columns={'y': y}, metadata=metadata, y_score=covariates.y_score)
-        case _:
-            return runModel(model, covariates, rng)
-
-
-def resampleOutcome(seed: int, index: int, covariates: Covariates, model: Model) -> Outcome:
-    """The outcome of a model on given covariates, keyed like a dataset."""
-    rng = _seedGenerator(seed, index)
-    return runModel(model, covariates, rng)
+def modelOutcome(seed: int, index: int, covariates: Covariates, model: Model) -> Outcome:
+    """A model's outcome on drawn or given covariates, keyed like a dataset."""
+    # the key's first child stream, since the draw reads the root's numbers
+    [child] = _seedSequence(seed, index).spawn(1)
+    return runModel(model, covariates, np.random.default_rng(child))
