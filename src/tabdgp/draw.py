@@ -132,7 +132,7 @@ class Dataset:
 # the draw
 # =====================================================================================
 
-
+# TODO: rename to drawDataset
 def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     rng = _seedGenerator(seed, index)
@@ -216,17 +216,12 @@ def _drawOutcome(
         case 'none':
             return None
         case 'scm':
-            # the covariates carry y's node values as the score, and y is rank-matched to it last
+            # the covariates carry y's node values as the score # TODO: rename .score to something semantically meaningful
             y = rankMatch(covariates.score, y_column, rng)  # (n,)
             metadata = {'y': y_column}
             return ScmOutcome(columns={'y': y}, metadata=metadata, score=covariates.score)
         case _:
             return runModel(model, covariates, rng)
-
-
-# -------------------------------------------------------------------------------------
-# a resampled outcome: the key -> the model's outcome on given covariates
-# -------------------------------------------------------------------------------------
 
 
 def resampleOutcome(seed: int, index: int, covariates: Covariates, model: Model) -> Outcome:
