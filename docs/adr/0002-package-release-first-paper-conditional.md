@@ -4,7 +4,7 @@ date: 2026-10-11
 amended: 2026-10-15, cut to the decision and its consequences
 ---
 
-# 0002 — Package release first; a paper only with a finding of its own
+# 0002 - Package release first; a paper only with a finding of its own
 
 Asked on 2026-10-11 whether TabDGP earns a paper of its own, the
 decision is: **a proper package release and a short software paper as a citable handle; the

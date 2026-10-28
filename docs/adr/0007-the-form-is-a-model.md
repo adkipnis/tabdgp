@@ -4,7 +4,7 @@ date: 2026-10-23
 amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms; 2026-10-27, #56: ground truth, not truth
 ---
 
-# 0007 — The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
+# 0007 - The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
 
 ADR 0005 made the outcome one node with two forms; ADR 0006 made the glmm form read
 columns and a grouping, never the graph, so that a real table's covariates can carry a

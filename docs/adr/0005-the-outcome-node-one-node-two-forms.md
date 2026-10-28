@@ -4,7 +4,7 @@ date: 2026-10-22
 amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form; 2026-10-23, ADR 0007: a form is a model, `'glm'` and `'glmm'` the built-in models' names, no `Hyperprior.glmm()`; 2026-10-27, #65: `family_shares` is `y_family_shares`
 ---
 
-# 0005 — The outcome node: one node, two forms, drawn by default in its scm form
+# 0005 - The outcome node: one node, two forms, drawn by default in its scm form
 
 The outcome joins the grouped SCM of #1 and #22. Grilled on
 2026-10-22 after a prior-art sweep of what the tabular priors give their target that a

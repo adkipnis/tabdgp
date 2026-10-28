@@ -4,7 +4,7 @@ date: 2026-10-14
 amended: 2026-10-14, #24: a superior factor has fewer groups than the subordinate one, and a point `groups` cannot nest; #28: the floor starts at the lowest value of `groups`, and a range too narrow for the longest chain fails like a point; #29: superior and subordinate, not coarser and finer; 2026-10-22, ADR 0006: metabeta draws from `Hyperprior.glmm()`, the grouped preset with the outcome node in its glmm form; 2026-10-23, ADR 0007: that is `Hyperprior.grouped(outcome_form='glmm')`; 2026-10-24, #59: `groups` also takes a tuple, one point per factor in the factors' order, so sizes can be paired to a registry fit
 ---
 
-# 0004 — The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
+# 0004 - The size defaults are metabeta's envelope; presets, not overrides, choose the kind of table
 
 ADR 0001 and root ADR 0005 of metabeta-v3 let `metabeta.mixed` pass the sizes of its envelope
 rules 7 and 8 as overrides. Decided on 2026-10-14, with ADR 0003: all simulation happens in
