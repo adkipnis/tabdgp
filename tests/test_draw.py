@@ -272,7 +272,7 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     for index in range(10):
         dataset = draw(0, index, preset())
         outcome = modelOutcome(0, index, dataset.covariates, model)
-        assert outcome.prior.family == family
+        assert outcome.family == family
         assert outcome.metadata['y'].type == column_type
         assert outcome.columns['y'].dtype == dtype
 
