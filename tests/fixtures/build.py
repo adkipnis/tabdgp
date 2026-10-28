@@ -12,13 +12,13 @@ from tabdgp.column import Column, Grouping
 from tabdgp.covariates import Covariates
 from tabdgp.field import Config
 from tabdgp.graph import Graph
-from tabdgp.hyperprior import Hyperprior
+from tabdgp.scm import Scm
 
 # a model writes its columns without a marginal or parameters
 Y = Column(type='continuous', role='outcome')
 
 
-def point(field: str, category: str, config: type[Config] = Hyperprior) -> dict[str, float]:
+def point(field: str, category: str, config: type[Config] = Scm) -> dict[str, float]:
     """Shares of a config's field that put all mass on one category."""
     shares: dict[str, float] = {}
     for name in config.categories(field):

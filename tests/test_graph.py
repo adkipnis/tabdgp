@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, assign
 from tabdgp.graph import Graph, connect
-from tabdgp.hyperprior import Hyperprior
+from tabdgp.scm import Scm
 from tests.fixtures.build import columnsOf, graphOf, groupingOf, point
 
 
@@ -334,7 +334,7 @@ def _connect(
     """A graph over a plan of continuous columns, with y under the SCM, else without y."""
     rng = np.random.default_rng(seed)
     form = {'outcome_form': 'scm' if with_y else 'none'}
-    resolved = Hyperprior(**form | overrides).resolveDataset(rng)
+    resolved = Scm(**form | overrides).resolveDataset(rng)
     columns = columnsOf(OBSERVED[:observed_nodes])
     return connect(resolved, grouping, columns, rng)
 
@@ -607,7 +607,7 @@ def test_a_column_with_more_levels_than_its_factors_groups_stays_at_the_row() ->
     }
     for seed in range(10):
         rng = np.random.default_rng(seed)
-        resolved = Hyperprior(group_level_share=1.0).resolveDataset(rng)
+        resolved = Scm(group_level_share=1.0).resolveDataset(rng)
         graph = connect(resolved, grouping, columns, rng)
         unit = dict(zip(graph.names, graph.unit))
         assert [unit['a'], unit['b'], unit['c']] == ['g0', 'g0', 'row']
@@ -619,7 +619,7 @@ def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> No
     """
     for seed in range(20):
         rng = np.random.default_rng(seed)
-        resolved = Hyperprior.grouped(rows=200).resolveDataset(rng)
+        resolved = Scm.grouped(rows=200).resolveDataset(rng)
         grouping = assign(resolved, rng)
         graph = connect(resolved, grouping, columnsOf(OBSERVED[:5]), rng)
         factors = [name for name in graph.names if name.startswith('g')]
@@ -654,10 +654,10 @@ def test_y_is_drawn_under_every_grouping(seed: int, factors: int) -> None:
     connect draws y where Graph accepts it: last, at the row and read by no node.
     """
     rng = np.random.default_rng(seed)
-    hyperprior = Hyperprior.grouped(
+    scm = Scm.grouped(
         rows=100, factors=factors, group_level_share=1.0, edge_offset=30.0, hub_scale=0.0
     )
-    resolved = hyperprior.resolveDataset(rng)
+    resolved = scm.resolveDataset(rng)
     grouping = assign(resolved, rng)
     columns = columnsOf(OBSERVED[:5])
     graph = connect(resolved, grouping, columns, rng)

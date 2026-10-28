@@ -1,6 +1,6 @@
-"""hyperprior.py defines how every hyperparameter of the dataset is sampled.
+"""scm.py defines how every hyperparameter of the SCM is sampled.
 
-We save hyperparameters as fields of the Hyperprior class (a Config in field.py).
+We save hyperparameters as fields of the Scm class (a Config in field.py).
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
   or to a point where one value serves every dataset (the outcome's form, its type shares).
 - An override replaces it by a point or, where the field's type allows, by another distribution,
@@ -15,7 +15,7 @@ pipeline:
 ---------
 the (optional) overrides
 -> a preset with the overrides                           grouped, flat
--> validation at construction                            Hyperprior
+-> validation at construction                            Scm
 -> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
    (a column, node or factor resolves its own fields later, by resolveField)
@@ -64,11 +64,11 @@ MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical 
 
 
 # =====================================================================================
-# the hyperprior
+# the SCM's hyperprior
 # =====================================================================================
 
 
-class Hyperprior(Config):
+class Scm(Config):
     """The hyperparameters of a dataset (grouped by when they're used).
 
     - Columns: a table has rows and typed columns.
@@ -202,15 +202,15 @@ class Hyperprior(Config):
     outcome_noise_scale: NonNegative = LogUniform(0.1, 3)
 
     @classmethod
-    def grouped(cls, **overrides: Any) -> Hyperprior:
+    def grouped(cls, **overrides: Any) -> Scm:
         return cls(**overrides)
 
     @classmethod
-    def flat(cls, **overrides: Any) -> Hyperprior:
+    def flat(cls, **overrides: Any) -> Scm:
         return cls(factors=0, **overrides)
 
     @model_validator(mode='after')
-    def _checkOnePointPerFactor(self) -> Hyperprior:
+    def _checkOnePointPerFactor(self) -> Scm:
         """Checks that a tuple of groups gives every factor one point."""
         if isinstance(self.groups, tuple) and self.factors != len(self.groups):
             raise ValueError(
@@ -219,7 +219,7 @@ class Hyperprior(Config):
         return self
 
     @model_validator(mode='after')
-    def _checkGroupsCanNest(self) -> Hyperprior:
+    def _checkGroupsCanNest(self) -> Scm:
         """Checks that groups has enough values for the longest chain the fields allow:
         its bottom factor must reach its floor, and a tuple must rise from each point to the next.
         """
@@ -251,7 +251,7 @@ class Hyperprior(Config):
         lowest, _ = self._support(self.groups)
         return lowest + depth
 
-    def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
+    def resolveDataset(self, rng: np.random.Generator) -> Scm:
         """Resolves each field drawn once per dataset."""
         points = {}
         for name in type(self).model_fields:
@@ -261,7 +261,7 @@ class Hyperprior(Config):
                 points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n >= 2d
             else:
                 points[name] = self.resolveField(name, rng)
-        return Hyperprior(**points)
+        return Scm(**points)
 
     def resolveGroups(self, factor: int, depth: int, rng: np.random.Generator, high: int) -> int:
         """A factor's m: its own point of a tuple, else a draw from its depth's floor to high."""

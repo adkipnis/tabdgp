@@ -1,4 +1,4 @@
-"""The hyperprior's seams: construction with overrides, and their resolution to points."""
+"""The SCM hyperprior's seams: construction with overrides, and their resolution to points."""
 
 from __future__ import annotations
 
@@ -14,15 +14,15 @@ from pydantic import ValidationError
 from tabdgp.column import ColumnType, assign
 from tabdgp.field import Beta, Dirichlet, LogUniform, LogUniformInt, Uniform, UniformInt
 from tabdgp.graph import Activation, Graph, Mechanism
-from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tabdgp.mechanism import ACTIVATIONS
 from tabdgp.prior import Glmm
+from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm
 from tests.fixtures.build import drawNothing
 
 
 def test_the_defaults_validate() -> None:
     """A standalone user overrides nothing, so the defaults alone must pass every check."""
-    Hyperprior()
+    Scm()
 
 
 GROUPING_DEFAULTS = {
@@ -38,8 +38,8 @@ GROUPING_DEFAULTS = {
 
 def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
     """ADR 0004's table: what the proofs certify and metabeta trains on."""
-    hyperprior = Hyperprior()
-    defaults = {field: getattr(hyperprior, field) for field in GROUPING_DEFAULTS}
+    scm = Scm()
+    defaults = {field: getattr(scm, field) for field in GROUPING_DEFAULTS}
     assert defaults == GROUPING_DEFAULTS
 
 
@@ -58,11 +58,11 @@ OUTCOME_DEFAULTS = {
 }
 
 
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Hyperprior]) -> None:
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
+def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Scm]) -> None:
     """ADR 0005's table: both presets draw the outcome node in its scm form."""
-    hyperprior = preset()
-    defaults = {field: getattr(hyperprior, field) for field in OUTCOME_DEFAULTS}
+    scm = preset()
+    defaults = {field: getattr(scm, field) for field in OUTCOME_DEFAULTS}
     assert defaults == OUTCOME_DEFAULTS
 
 
@@ -88,21 +88,21 @@ def test_a_form_other_than_none_or_scm_fails_at_construction(
     A model is no form: modelOutcome draws its outcome after the dataset.
     """
     with pytest.raises(ValidationError):
-        Hyperprior(outcome_form=form)
+        Scm(outcome_form=form)
 
 
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
-    """Every draw starts from a preset; Hyperprior() stays valid as the grouped one,
+    """Every draw starts from a preset; Scm() stays valid as the grouped one,
     and the flat preset differs from it in factors alone.
     """
-    assert Hyperprior.grouped() == Hyperprior()
-    assert Hyperprior.flat() == Hyperprior(factors=0)
+    assert Scm.grouped() == Scm()
+    assert Scm.flat() == Scm(factors=0)
 
 
 def test_an_override_on_a_preset_replaces_its_default() -> None:
     """A study narrows one field of a preset and keeps the rest."""
-    assert Hyperprior.grouped(rows=500) == Hyperprior(rows=500)
-    assert Hyperprior.flat(rows=500) == Hyperprior(rows=500, factors=0)
+    assert Scm.grouped(rows=500) == Scm(rows=500)
+    assert Scm.flat(rows=500) == Scm(rows=500, factors=0)
 
 
 def test_flat_rejects_an_override_of_factors() -> None:
@@ -110,14 +110,14 @@ def test_flat_rejects_an_override_of_factors() -> None:
     flat(factors=2) would be a grouped table under the wrong name.
     """
     with pytest.raises(TypeError, match='factors'):
-        Hyperprior.flat(factors=2)
+        Scm.flat(factors=2)
 
 
 def test_a_point_override_resolves_to_itself() -> None:
     """metabeta passes its sizes as points; resolveDataset must hand them back untouched."""
     shares = {'continuous': 1.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 0.0}
-    hyperprior = Hyperprior(rows=500, type_shares=shares, edge_offset=-1.5)
-    resolved = hyperprior.resolveDataset(np.random.default_rng(0))
+    scm = Scm(rows=500, type_shares=shares, edge_offset=-1.5)
+    resolved = scm.resolveDataset(np.random.default_rng(0))
     assert (resolved.rows, resolved.type_shares, resolved.edge_offset) == (500, shares, -1.5)
 
 
@@ -125,7 +125,7 @@ def test_resolving_twice_changes_nothing() -> None:
     """Dataset.hyperparameters holds the resolved hyperprior, which a caller reads as final.
     A per-dataset distribution left over would be drawn again, so resolving twice would change it.
     """
-    resolved = Hyperprior().resolveDataset(np.random.default_rng(0))
+    resolved = Scm().resolveDataset(np.random.default_rng(0))
     assert resolved.resolveDataset(np.random.default_rng(1)) == resolved
 
 
@@ -134,10 +134,10 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
     so no dataset-wide value is drawn.
     """
     # each of these fields defaults to a distribution, so a draw would show as a point
-    hyperprior = Hyperprior()
-    resolved = hyperprior.resolveDataset(np.random.default_rng(0))
-    for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
-        assert getattr(resolved, field) == getattr(hyperprior, field)
+    scm = Scm()
+    resolved = scm.resolveDataset(np.random.default_rng(0))
+    for field in Scm.PER_COLUMN + Scm.PER_NODE + Scm.PER_FACTOR:
+        assert getattr(resolved, field) == getattr(scm, field)
 
 
 def test_a_design_columns_point_above_half_the_rows_fails_naming_the_field_and_its_bound() -> None:
@@ -145,7 +145,7 @@ def test_a_design_columns_point_above_half_the_rows_fails_naming_the_field_and_i
     19 design columns under 10 rows break n >= 2d.
     """
     with pytest.raises(ValueError, match=r'design_columns.*\b5\b'):
-        Hyperprior(rows=10, design_columns=19).resolveDataset(np.random.default_rng(0))
+        Scm(rows=10, design_columns=19).resolveDataset(np.random.default_rng(0))
 
 
 def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
@@ -154,11 +154,11 @@ def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
     failing at construction beats failing in the datasets that happen to draw a nesting.
     """
     with pytest.raises(ValidationError, match='nested_share'):
-        Hyperprior(groups=5)
-    Hyperprior(groups=5, nested_share=0)
-    Hyperprior(groups=5, factors=1)
-    Hyperprior(groups=5, factors=UniformInt(0, 1))
-    Hyperprior.flat(groups=5)
+        Scm(groups=5)
+    Scm(groups=5, nested_share=0)
+    Scm(groups=5, factors=1)
+    Scm(groups=5, factors=UniformInt(0, 1))
+    Scm.flat(groups=5)
 
 
 def test_a_groups_range_too_narrow_for_the_longest_chain_fails_at_construction() -> None:
@@ -166,12 +166,12 @@ def test_a_groups_range_too_narrow_for_the_longest_chain_fails_at_construction()
     so a range of fewer values fails as a point does, not in the datasets that draw a chain.
     """
     with pytest.raises(ValidationError, match='nested_share'):
-        Hyperprior(groups=UniformInt(2, 3))
+        Scm(groups=UniformInt(2, 3))
     with pytest.raises(ValidationError, match='nested_share'):
-        Hyperprior(groups=LogUniformInt(10, 11))
-    Hyperprior(groups=UniformInt(2, 4))
-    Hyperprior(groups=UniformInt(2, 3), factors=UniformInt(1, 2))
-    Hyperprior(groups=UniformInt(2, 3), nested_share=0)
+        Scm(groups=LogUniformInt(10, 11))
+    Scm(groups=UniformInt(2, 4))
+    Scm(groups=UniformInt(2, 3), factors=UniformInt(1, 2))
+    Scm(groups=UniformInt(2, 3), nested_share=0)
 
 
 def test_a_tuple_of_groups_fails_at_construction_unless_it_has_one_point_per_factor() -> None:
@@ -180,11 +180,11 @@ def test_a_tuple_of_groups_fails_at_construction_unless_it_has_one_point_per_fac
     A distribution of factors cannot match a tuple's length.
     """
     with pytest.raises(ValidationError, match='factors'):
-        Hyperprior(groups=(5, 30), factors=3, nested_share=0)
+        Scm(groups=(5, 30), factors=3, nested_share=0)
     with pytest.raises(ValidationError, match='factors'):
-        Hyperprior(groups=(5, 30), nested_share=0)
-    Hyperprior(groups=(5, 30), factors=2, nested_share=0)
-    Hyperprior.flat(groups=())
+        Scm(groups=(5, 30), nested_share=0)
+    Scm(groups=(5, 30), factors=2, nested_share=0)
+    Scm.flat(groups=())
 
 
 def test_a_tuple_of_groups_that_cannot_nest_fails_at_construction() -> None:
@@ -192,33 +192,33 @@ def test_a_tuple_of_groups_that_cannot_nest_fails_at_construction() -> None:
     pair by pair along the tuple; crossed factors take any counts.
     """
     with pytest.raises(ValidationError, match='nested_share'):
-        Hyperprior(groups=(30, 5), factors=2)
+        Scm(groups=(30, 5), factors=2)
     with pytest.raises(ValidationError, match='nested_share'):
-        Hyperprior(groups=(5, 5), factors=2, nested_share=1)
+        Scm(groups=(5, 5), factors=2, nested_share=1)
     with pytest.raises(ValidationError, match='nested_share'):
-        Hyperprior(groups=(5, 30, 10), factors=3)
-    Hyperprior(groups=(5, 30), factors=2)
-    Hyperprior(groups=(30, 5), factors=2, nested_share=0)
+        Scm(groups=(5, 30, 10), factors=3)
+    Scm(groups=(5, 30), factors=2)
+    Scm(groups=(30, 5), factors=2, nested_share=0)
 
 
 @given(rows=st.integers(2, 60), seed=st.integers(0, 2**32 - 1))
 def test_design_columns_resolves_at_or_below_half_the_rows(rows: int, seed: int) -> None:
     """A table has at least two rows per design column (metabeta's rule 8, n >= 2d)."""
-    resolved = Hyperprior(rows=rows).resolveDataset(np.random.default_rng(seed))
+    resolved = Scm(rows=rows).resolveDataset(np.random.default_rng(seed))
     assert resolved.design_columns <= rows // 2
 
 
 def test_rows_precedes_design_columns_in_field_order() -> None:
     """resolveDataset resolves in field order and bounds design_columns by the resolved rows."""
-    fields = list(Hyperprior.model_fields)
+    fields = list(Scm.model_fields)
     assert fields.index('rows') < fields.index('design_columns')
 
 
 def test_resolve_is_deterministic_under_a_fixed_generator() -> None:
     """A dataset is a pure function of its key, so the same generator gives the same points."""
-    hyperprior = Hyperprior()
-    first = hyperprior.resolveDataset(np.random.default_rng(7))
-    second = hyperprior.resolveDataset(np.random.default_rng(7))
+    scm = Scm()
+    first = scm.resolveDataset(np.random.default_rng(7))
+    second = scm.resolveDataset(np.random.default_rng(7))
     assert first == second
 
 
@@ -261,13 +261,13 @@ OUT_OF_RANGE = [
 def test_an_out_of_range_value_fails_at_construction(overrides: dict) -> None:
     """An invalid override fails where it is written, not deep inside a later draw."""
     with pytest.raises(ValidationError):
-        Hyperprior(**overrides)
+        Scm(**overrides)
 
 
 def test_a_misspelled_override_fails_at_construction() -> None:
     """A typo in a field name would otherwise leave the default in place without a word."""
     with pytest.raises(ValidationError):
-        Hyperprior(n_ob=500)
+        Scm(n_ob=500)
 
 
 SUPPORTED = [
@@ -286,8 +286,8 @@ def test_a_distribution_override_resolves_inside_its_support(
     """Narrow integer ranges probe the log-uniform's floor at its upper end.
     A budget of 0 admits every row count, a single row included.
     """
-    hyperprior = Hyperprior(**{field: distribution(low, low + width)}, design_columns=0)
-    resolved = hyperprior.resolveDataset(np.random.default_rng(seed))
+    scm = Scm(**{field: distribution(low, low + width)}, design_columns=0)
+    resolved = scm.resolveDataset(np.random.default_rng(seed))
     assert low <= getattr(resolved, field) <= low + width
 
 
@@ -296,7 +296,7 @@ def test_the_fields_drawn_per_column_are_the_families_and_the_level_concentratio
     read = {'level_alpha'}
     for fields in MARGINAL_FIELDS.values():
         read.update(fields)
-    assert read == set(Hyperprior.PER_COLUMN)
+    assert read == set(Scm.PER_COLUMN)
 
 
 def test_the_fields_drawn_per_factor_are_exactly_those_a_factor_column_records() -> None:
@@ -304,18 +304,18 @@ def test_the_fields_drawn_per_factor_are_exactly_those_a_factor_column_records()
     groups is recorded as the column's levels, size_alpha among the parameters of an unbalanced one.
     """
     rng = np.random.default_rng(0)
-    resolved = Hyperprior.grouped(factors=2, balanced_share=0).resolveDataset(rng)
+    resolved = Scm.grouped(factors=2, balanced_share=0).resolveDataset(rng)
     recorded = {'groups'}
     for column in assign(resolved, rng).metadata.values():
         recorded.update(column.parameters)
-    assert recorded == set(Hyperprior.PER_FACTOR)
+    assert recorded == set(Scm.PER_FACTOR)
 
 
 def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None:
     """A field drawn per node that the graph does not record would silently stay a distribution."""
-    recorded = set(Graph.__dataclass_fields__) & set(Hyperprior.model_fields)
+    recorded = set(Graph.__dataclass_fields__) & set(Scm.model_fields)
     recorded.add('outcome_noise_scale')  # recorded as y's noise_scale
-    assert recorded == set(Hyperprior.PER_NODE)
+    assert recorded == set(Scm.PER_NODE)
 
 
 CATALOGS = [
@@ -336,4 +336,4 @@ def test_each_catalog_names_exactly_the_hyperprior_defaults_categories(
     catalog: set[str], field: str
 ) -> None:
     """A category with a share but no entry in its catalog would fail only when drawn."""
-    assert catalog == set(Hyperprior.categories(field))
+    assert catalog == set(Scm.categories(field))

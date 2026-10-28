@@ -18,7 +18,7 @@ generated it.
 
 - **Grouped or flat.** One to three grouping factors by default, nested or crossed, with 2 to
   400 groups each. A covariate varies by row or is constant within the groups of one factor.
-  `Hyperprior.flat()` draws none.
+  `Scm.flat()` draws none.
 - **White-box.** Each dataset carries its graph, latent nodes, column metadata and hyperparameters.
 - **Reproducible.** A dataset is a pure function of its key (a seed and an index) and the
   hyperprior, whatever batch or worker draws it.
@@ -45,10 +45,10 @@ pip install tabdgp
 ## Quickstart
 
 ```python
-from tabdgp import Glmm, Hyperprior, draw, modelOutcome
+from tabdgp import Glmm, Scm, draw, modelOutcome
 
-hyperprior = Hyperprior.grouped(rows=100, design_columns=5)
-dataset = draw(seed=0, index=0, hyperprior=hyperprior)  # the key: a seed and an index
+scm = Scm.grouped(rows=100, design_columns=5)
+dataset = draw(seed=0, index=0, hyperprior=scm)  # the key: a seed and an index
 unit = dict(zip(dataset.graph.names, dataset.graph.unit))  # per row, or per group of a factor
 for name, column in dataset.metadata.items():
     values = dataset.columns[name][:3].round(2)
