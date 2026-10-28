@@ -45,7 +45,7 @@ _Avoid_: edge case, noise, messiness
 
 **Node**:
 One variable of a dataset's structural causal model (SCM): a grouping factor, a group-level or
-within-group covariate, a latent node, time, treatment, or the outcome node.
+within-group covariate, a latent node or the outcome node (time and treatment later).
 A node has a parent set and a mechanism.
 A node without parents is called a root.
 _Avoid_: feature, variable unqualified, neuron (of an MLP)
@@ -96,7 +96,7 @@ _Avoid_: hidden unit, confounder (a role a latent node can play)
 A variable in the table: an observed node, a column written by a model, or a column of a given
 table.
 Its metadata holds its type (continuous, binary, categorical, ordered, count), its levels and
-its role (grouping factor, covariate, time, treatment, outcome).
+its role (grouping factor, covariate or outcome; time and treatment later).
 A nested grouping factor also names its immediate superior.
 A drawn column also records its marginal and the parameters its values were drawn with.
 A table's metadata is either declared or inferred from the dtypes, and is checked against the
@@ -252,8 +252,8 @@ The prior of a GLM's or GLMM's parameters, resolved per dataset and stored with 
 well-specified fitter would state.
 A fitter may state another.
 It holds the family of the fixed effects, the location and scale of the intercept and of each
-slope, the family of each factor's random-effect standard deviations and the scale of each, the
-family and scale of the residual, and the shape of each correlation prior.
+slope, the family of the random-effect standard deviations, shared by the grouping factors, and
+the scale of each, the family and scale of the residual, and the shape of each correlation prior.
 By default, the slopes have a scale each in about half the datasets and share one in the rest, and so do each factor's random effects.
 A slope's location is zero for most slopes and a hypothesis for the rest.
 It also holds the linear predictor's standard deviation, the signal share and the split that set
