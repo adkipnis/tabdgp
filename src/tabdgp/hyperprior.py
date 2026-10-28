@@ -24,11 +24,10 @@ the (optional) overrides
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Annotated, Any, ClassVar, Literal
 
 import numpy as np
-from pydantic import Field, InstanceOf, model_validator
+from pydantic import Field, model_validator
 
 from tabdgp.field import (
     Beta,
@@ -48,7 +47,6 @@ from tabdgp.field import (
     UniformInt,
     within,
 )
-from tabdgp.prior import Glm, Glmm
 
 MARGINAL_FIELDS = {
     'normal': [],
@@ -62,9 +60,6 @@ MARGINAL_FIELDS = {
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
 OutcomeForm = Literal['none', 'scm']
-# a config of TabDGP's own, or a study's callable (Covariates, Generator) -> Outcome,
-# both types outcome.py's, which imports this module
-Model = InstanceOf[Glm] | Callable[[Any, np.random.Generator], Any]
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
@@ -196,7 +191,7 @@ class Hyperprior(Config):
     poisson_log_rate: Annotated[Real, within(le=40)] = Uniform(-1, 6)
 
     # outcome
-    outcome_form: OutcomeForm | Model = 'scm'
+    outcome_form: OutcomeForm = 'scm'
     outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Config to BaseModel
         'continuous': 0.6,
         'binary': 0.2,
@@ -256,18 +251,6 @@ class Hyperprior(Config):
         """
         lowest, _ = self._support(self.groups)
         return lowest + depth
-
-    # TODO: outcome_form should only take strings. if any model-based outcome is desired, it is modeled separately after the dataset has been drawn. this way the two logics are less entangled and easier to maintain/change
-    @model_validator(mode='after')
-    def _checkFactorsForGlmm(self) -> Hyperprior:
-        """Checks that a GLMM's random effects have a grouping factor in every dataset."""
-        lowest, _ = self._support(self.factors)
-        if isinstance(self.outcome_form, Glmm) and lowest == 0:
-            raise ValueError(
-                f'a GLMM needs a grouping factor in every dataset, not factors = {self.factors}: '
-                'set factors to at least 1 or pass a Glm'
-            )
-        return self
 
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
         """Resolves each field drawn once per dataset."""
