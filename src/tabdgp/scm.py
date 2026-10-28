@@ -1,5 +1,11 @@
 """scm.py defines how every hyperparameter of the SCM is sampled.
 
+We draw at three levels, hyperprior -> SCM -> values:
+- **Hyperprior (Scm):** a default per field (which an override replaces), resolved by each draw.
+- **SCM:** the generating graph, each node's parents, unit and mechanism settings (graph.py).
+- **Values:** each node's values from its parents and its noise, its weights drawn on the way
+  (mechanism.py).
+
 We save hyperparameters as fields of the Scm class (a Hyperprior in field.py).
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
   or to a point where one value serves every dataset (the outcome's source, its type shares).
@@ -69,7 +75,7 @@ MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical 
 
 
 class Scm(Hyperprior):
-    """The hyperparameters of a dataset (grouped by when they're used).
+    """The hyperparameters of a TabDGP dataset (grouped by when they're used).
 
     - Columns: a table has rows and typed columns.
       A column is continuous, a count or has levels (binary, categorical or ordered).
