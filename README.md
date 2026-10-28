@@ -23,15 +23,15 @@ generated it.
   hyperprior, whatever batch or worker draws it.
 - **Model-free outcome.** One node `y` is drawn by default as the last node of the SCM: continuous,
   binary, categorical, ordered or count.
-- **Model-based outcome.** Instead of the SCM's node, `outcome_form=Glmm(family='bernoulli')`
-  draws `y` from a generalized linear mixed model (GLMM) on the covariates.
+- **Model-based outcome.** Instead of the SCM's node, `modelOutcome` draws `y` from a
+  generalized linear mixed model (GLMM) on the covariates (e.g. `Glmm(family='bernoulli')`).
   Supported likelihoods are Gaussian, Bernoulli, Poisson, Student-t, negative binomial,
   latent-noise Bernoulli, Gamma, and Beta.
   The true parameters are returned with the priors they were drawn from.
   `Glm` skips random effects,
   `Glmm(family='gaussian', deviation_scale=0.3)` adds a known misspecification.
   You can also pass your own model as a function of the covariates by defining it as a Callable.
-- **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `resampleOutcome`
+- **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `modelOutcome`
   draws a model's outcome on it.
   You can use this semi-synthetic data for oracle tests or power analysis.
 
@@ -44,17 +44,16 @@ pip install tabdgp
 ## Quickstart
 
 ```python
-from tabdgp import Glmm, Hyperprior, draw
+from tabdgp import Glmm, Hyperprior, draw, modelOutcome
 
-glmm = Glmm(family='gaussian')
-hyperprior = Hyperprior.grouped(rows=100, design_columns=5, outcome_form=glmm)
+hyperprior = Hyperprior.grouped(rows=100, design_columns=5)
 dataset = draw(seed=0, index=0, hyperprior=hyperprior)  # the key: a seed and an index
 unit = dict(zip(dataset.graph.names, dataset.graph.unit))  # per row, or per group of a factor
 for name, column in dataset.metadata.items():
     values = dataset.columns[name][:3].round(2)
     print(f'{name:2} {column.type:11} per {unit[name]:3} {values}')
-outcome = dataset.outcome
-print(f'family: {outcome.prior.family}')
+glmm = Glmm(family='gaussian')
+outcome = modelOutcome(seed=0, index=0, covariates=dataset.covariates, model=glmm)
 print(f'fixed: {" + ".join(outcome.fixed_terms)}')
 for factor, terms in outcome.random_terms.items():
     print(f'random per {factor}: {" + ".join(terms)}')
@@ -64,26 +63,25 @@ for factor, terms in outcome.random_terms.items():
 g0 categorical per g0  [4 5 2]
 g1 categorical per g1  [ 6 22 29]
 g2 categorical per g2  [7 7 5]
-x0 binary      per g0  [1 0 0]
-x1 binary      per row [1 0 0]
-x2 continuous  per row [ 0.77 -0.05 -1.55]
-x3 binary      per row [1 0 0]
-x4 binary      per row [1 0 0]
-y  continuous  per row [2.78 1.31 1.68]
-family: gaussian
+x0 binary      per row [1 0 1]
+x1 binary      per row [0 1 0]
+x2 continuous  per g2  [1.77 1.77 2.66]
+x3 binary      per row [0 0 1]
+x4 binary      per g2  [0 0 1]
+y  continuous  per row [0.76 0.62 0.93]
 fixed: intercept + x0 + x1 + x2 + x3 + x4
-random per g0: intercept
-random per g1: intercept + x0 + x2 + x3
-random per g2: intercept + x2
+random per g0: intercept + x1 + x3 + x4
+random per g1: intercept + x0 + x1 + x2 + x3 + x4
+random per g2: intercept
 ```
 
 An outcome `y` can also be sampled based on a model and the table's covariates.
-The built-in `Glmm()` model also returns the drawn latent parameters.
+The built-in `Glmm` model also returns the drawn latent parameters.
 
 ```python
 import pandas as pd
 
-from tabdgp import Covariates, Glmm, resampleOutcome
+from tabdgp import Covariates, Glmm, modelOutcome
 
 table = pd.DataFrame(
     {
@@ -94,17 +92,17 @@ table = pd.DataFrame(
     }
 )
 covariates = Covariates.fromPandas(table, factors=['school'])
-outcome = resampleOutcome(seed=0, index=0, covariates=covariates, model=Glmm(family='gaussian'))
+outcome = modelOutcome(seed=0, index=0, covariates=covariates, model=Glmm(family='gaussian'))
 for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
     print(f'{term:9} {beta:5.2f}')
 ```
 
 The true fixed effects:
 ```text
-intercept  0.66
-age        0.09
-female    -0.41
-books      0.20
+intercept  2.77
+age        0.04
+female     0.08
+books      0.27
 ```
 
 ## Planned
