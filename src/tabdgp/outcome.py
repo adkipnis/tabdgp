@@ -234,7 +234,7 @@ class GlmmOutcome(GlmOutcome):
 # the model's call
 # =====================================================================================
 
-
+# TODO: rename to runModel or applyModel
 def run(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """Draws the outcome of TabDGP's own model, or calls a study's and checks what it returns."""
     match model:

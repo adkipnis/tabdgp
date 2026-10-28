@@ -254,7 +254,7 @@ def _resolveColumn(
 # the values
 # =====================================================================================
 
-
+# TODO: rename to applyMarginal
 def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """Draws and sorts the column's values in its node's order:
     a marginal sample if continuous or a count, level codes otherwise.

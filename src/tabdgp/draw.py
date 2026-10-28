@@ -60,7 +60,7 @@ class Dataset:
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) each, z-scored over its groups if group-level
     outcome: Outcome | None  # the SCM's or the model's columns and ground truth, None under 'none'
-    hyperparameters: Hyperprior  # resolved but for what each column, node, factor or model draws
+    hyperparameters: Hyperprior  # after resolution
     seed: int  # the corpus
     index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version
@@ -92,7 +92,7 @@ class Dataset:
         return record
 
     @classmethod
-    def _recordValue(cls, value: Any) -> Any:
+    def _recordValue(cls, value: Any) -> Any: # TODO: smells like overengineering, are all cases really needed in practice?
         match value:
             case np.ndarray():
                 return {'dtype': value.dtype.name, 'values': value.tolist()}
@@ -206,7 +206,7 @@ def _broadcastLatent(
 
 
 def _drawOutcome(
-    form: OutcomeForm | Model,
+    form: OutcomeForm | Model, # TODO: we wanted to drop any "form" mention in the source code, rename
     covariates: Covariates,
     y_column: Column | None,
     rng: np.random.Generator,
@@ -217,7 +217,7 @@ def _drawOutcome(
             return None
         case 'scm':
             # y's column rank-matched to the score, the last draw
-            y = apply(covariates.score, y_column, rng)  # (n,)
+            y = apply(covariates.score, y_column, rng)  # (n,) # TODO: this looks like it takes the score of the covariates, not of the outcome node
             metadata = {'y': y_column}
             return ScmOutcome(columns={'y': y}, metadata=metadata, score=covariates.score)
         case _:
@@ -228,7 +228,7 @@ def _drawOutcome(
 # a resampled outcome: the key -> the model's outcome on given covariates
 # -------------------------------------------------------------------------------------
 
-
+# TODO: name confusion with _drawOutcome, come up with semantically more meaningful names
 def drawOutcome(seed: int, index: int, covariates: Covariates, model: Model) -> Outcome:
     """The outcome of a model on given covariates, keyed like a dataset."""
     rng = _seedGenerator(seed, index)
