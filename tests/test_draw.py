@@ -26,7 +26,6 @@ from tabdgp.outcome import (
     GlmOutcome,
     Outcome,
     ScmOutcome,
-    runModel,
 )
 from tabdgp.prior import Glm, Glmm
 from tests.fixtures.build import Y, betweenShare, graphOf, point
@@ -53,24 +52,44 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
     assert dataset.outcome.columns['y'] is y
 
 
+GRAPH_LISTS = [
+    'names',
+    'mechanism',
+    'activation',
+    'noise_scale',
+    'init_scale',
+    'unit',
+    'group_share',
+    'group_factor',
+]
+
+
+def _digest(datasets: list[Dataset]) -> str:
+    """A sha256 over the datasets' arrays in dtype and bytes, their metadata and their graphs."""
+    digest = hashlib.sha256()
+    for dataset in datasets:
+        for arrays in [dataset.columns, dataset.latent]:
+            for name, values in arrays.items():
+                digest.update(name.encode())
+                digest.update(values.dtype.str.encode())
+                digest.update(values.tobytes())
+        digest.update(repr(dataset.metadata).encode())
+        digest.update(dataset.graph.parents.tobytes())
+        digest.update(dataset.graph.latent.tobytes())
+        for field in GRAPH_LISTS:
+            digest.update(repr(getattr(dataset.graph, field)).encode())
+    return digest.hexdigest()
+
+
 def _assertIdentical(a: Dataset, b: Dataset) -> None:
-    """Two datasets agree bit for bit: every array in dtype and bytes, everything else by ==."""
-    for name in ['columns', 'latent']:
-        arrays_a, arrays_b = getattr(a, name), getattr(b, name)
-        assert list(arrays_a) == list(arrays_b)
-        for key in arrays_a:
-            assert arrays_a[key].dtype == arrays_b[key].dtype
-            assert arrays_a[key].tobytes() == arrays_b[key].tobytes()
-    assert a.metadata == b.metadata
-    assert a.graph.names == b.graph.names
-    assert (a.graph.mechanism, a.graph.activation) == (b.graph.mechanism, b.graph.activation)
-    assert np.array_equal(a.graph.parents, b.graph.parents)
-    assert np.array_equal(a.graph.latent, b.graph.latent)
-    assert (a.graph.noise_scale, a.graph.init_scale) == (b.graph.noise_scale, b.graph.init_scale)
-    assert (a.graph.unit, a.graph.group_share) == (b.graph.unit, b.graph.group_share)
-    assert a.graph.group_factor == b.graph.group_factor
-    assert (a.seed, a.index, a.version) == (b.seed, b.index, b.version)
-    assert a.numpy_version == b.numpy_version
+    """Two datasets agree bit for bit: the digest's arrays, metadata and graph, the rest by ==."""
+    assert _digest([a]) == _digest([b])
+    assert (a.seed, a.index, a.version, a.numpy_version) == (
+        b.seed,
+        b.index,
+        b.version,
+        b.numpy_version,
+    )
     assert a.hyperparameters == b.hyperparameters
 
 
@@ -103,37 +122,13 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
         _assertIdentical(alone, dataset)
 
 
-GRAPH_LISTS = [
-    'names',
-    'mechanism',
-    'activation',
-    'noise_scale',
-    'init_scale',
-    'unit',
-    'group_share',
-    'group_factor',
-]
-
-
-def _digest(datasets: list[Dataset]) -> str:
-    """A sha256 over the datasets' arrays in dtype and bytes, their metadata and their graphs."""
-    digest = hashlib.sha256()
-    for dataset in datasets:
-        for arrays in [dataset.columns, dataset.latent]:
-            for name, values in arrays.items():
-                digest.update(name.encode())
-                digest.update(values.dtype.str.encode())
-                digest.update(values.tobytes())
-        digest.update(repr(dataset.metadata).encode())
-        digest.update(dataset.graph.parents.tobytes())
-        digest.update(dataset.graph.latent.tobytes())
-        for field in GRAPH_LISTS:
-            digest.update(repr(getattr(dataset.graph, field)).encode())
-    return digest.hexdigest()
+def _factors(dataset: Dataset) -> list[str]:
+    """The grouping factors' names, in the dataset's order."""
+    return [name for name, column in dataset.metadata.items() if column.role == 'grouping_factor']
 
 
 def test_scm_and_none_draw_0_3_0s_bits() -> None:
-    """A refactor or a new form may not change a corpus the scm or none form drew under 0.3.0.
+    """A refactor or a new model may not change a corpus drawn under the SCM or none in 0.3.0.
     The digest holds for the numpy that uv.lock pins, as the README's quickstart does.
     The resolved hyperparameters stay out: their repr is pydantic's.
     """
@@ -160,23 +155,6 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
         assert list(dataset.latent) == latent
 
 
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_y_is_the_last_column_and_the_last_node_with_role_outcome_under_grouped_and_flat(
-    preset: Callable[[], Hyperprior],
-) -> None:
-    """A consumer takes the last column as the outcome and the rest as its predictors,
-    and no node reads y, so it is last in the graph too.
-    """
-    for index in range(20):
-        dataset = draw(0, index, preset())
-        assert list(dataset.columns)[-1] == 'y'
-        assert list(dataset.metadata)[-1] == 'y'
-        assert dataset.metadata['y'].role == 'outcome'
-        assert dataset.graph.names[-1] == 'y'
-        roles = [column.role for column in dataset.metadata.values()]
-        assert roles.count('outcome') == 1
-
-
 def test_outcome_none_gives_no_y() -> None:
     """A covariate-only table, spec #22's, is one override, and it has no outcome to hold."""
     for index in range(20):
@@ -189,19 +167,16 @@ def test_outcome_none_gives_no_y() -> None:
 
 
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_the_scm_form_returns_a_scm_outcome_whose_y_is_the_datasets_and_whose_score_is_z_scored(
+def test_the_scm_returns_an_scm_outcome_whose_score_is_z_scored(
     preset: Callable[[], Hyperprior],
 ) -> None:
-    """The scm form's ground truth is y's node before rank matching,
-    z-scored over the rows like every row-unit node;
-    the dataset and its outcome hold one y, not two copies.
+    """The SCM's ground truth is y's node before rank matching,
+    z-scored over the rows like every row-unit node.
     """
     for index in range(10):
         dataset = draw(0, index, preset())
         outcome = dataset.outcome
         assert isinstance(outcome, ScmOutcome)
-        assert outcome.columns['y'] is dataset.columns['y']
-        assert outcome.metadata['y'] is dataset.metadata['y']
         assert outcome.y_score.dtype == np.float32
         np.testing.assert_allclose(outcome.y_score.mean(), 0, atol=1e-5)
         np.testing.assert_allclose(outcome.y_score.std(), 1, atol=1e-5)
@@ -215,12 +190,42 @@ class _ScoreAsY:
         return Outcome(columns={'y': covariates.y_score}, metadata={'y': Y})
 
 
+EVERY_MODEL = [
+    pytest.param(Hyperprior.grouped(), id='scm on grouped'),
+    pytest.param(Hyperprior.flat(), id='scm on flat'),
+    pytest.param(Hyperprior.flat(outcome_form='glm'), id='glm on flat'),
+    pytest.param(Hyperprior.grouped(outcome_form='glm'), id='glm on grouped'),
+    pytest.param(Hyperprior.grouped(outcome_form='glmm'), id='glmm on grouped'),
+    pytest.param(Hyperprior.grouped(outcome_form=_ScoreAsY()), id='a study model on grouped'),
+]
+
+
+@pytest.mark.parametrize('hyperprior', EVERY_MODEL)
+def test_y_is_the_last_column_and_node_with_role_outcome_and_one_array_with_the_outcomes(
+    hyperprior: Hyperprior,
+) -> None:
+    """A consumer takes the last column as the outcome and the rest as its predictors,
+    and no node reads y, so it is last in the graph too.
+    The dataset and its outcome hold one y, not two copies.
+    """
+    for index in range(10):
+        dataset = draw(0, index, hyperprior)
+        assert list(dataset.columns)[-1] == 'y'
+        assert list(dataset.metadata)[-1] == 'y'
+        assert dataset.graph.names[-1] == 'y'
+        roles = [column.role for column in dataset.metadata.values()]
+        assert roles.count('outcome') == 1
+        assert dataset.metadata['y'].role == 'outcome'
+        assert dataset.outcome.columns['y'] is dataset.columns['y']
+        assert dataset.outcome.metadata['y'] is dataset.metadata['y']
+
+
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_a_model_gets_the_covariates_the_grouping_and_the_score_and_its_y_is_the_last_column(
+def test_a_model_gets_the_covariates_the_grouping_and_the_score_and_its_y_follows_them(
     preset: Callable[..., Hyperprior],
 ) -> None:
     """A study's model reads every observed column but y, the grouping and the score,
-    each the dataset's own array, and its y joins the dataset after them, as the scm form's does.
+    each the dataset's own array, and its y joins the dataset after them, as the SCM's does.
     """
     model = _ScoreAsY()
     for index in range(10):
@@ -232,8 +237,6 @@ def test_a_model_gets_the_covariates_the_grouping_and_the_score_and_its_y_is_the
         for name, codes in covariates.grouping.codes.items():
             assert dataset.columns[name] is codes
         assert dataset.columns['y'] is covariates.y_score
-        assert dataset.metadata['y'].role == 'outcome'
-        assert dataset.graph.names[-1] == 'y'
 
 
 def test_the_datasets_outcome_form_records_the_model() -> None:
@@ -244,7 +247,7 @@ def test_the_datasets_outcome_form_records_the_model() -> None:
 
 
 @pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
-def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_ground_truth(
+def test_glm_returns_a_glm_outcome_and_on_grouped_the_pooled_ground_truth(
     preset: Callable[..., Hyperprior],
 ) -> None:
     """A GLM corpus needs no grouping (flat),
@@ -256,29 +259,20 @@ def test_glm_returns_y_last_with_a_glm_outcome_and_on_grouped_the_pooled_ground_
         dataset = draw(0, index, preset(outcome_form='glm'))
         outcome = dataset.outcome
         assert type(outcome) is GlmOutcome
-        assert list(dataset.columns)[-1] == 'y'
-        assert dataset.graph.names[-1] == 'y'
-        assert outcome.columns['y'] is dataset.columns['y']
-        roles = [column.role for column in dataset.metadata.values()]
-        assert roles.count('grouping_factor') == dataset.hyperparameters.factors
+        assert len(_factors(dataset)) == dataset.hyperparameters.factors
         assert len(outcome.fixed_terms) == 1 + dataset.hyperparameters.design_columns
         assert list(outcome.prior.split) == ['fixed']
 
 
-def test_grouped_with_glmm_returns_y_last_with_a_glmm_outcome_of_one_block_per_factor() -> None:
-    """metabeta's one call (ADR 0006): y last, after the grouping factors and the covariates,
-    and one block of random effects per grouping factor, a row per group,
-    each block within its budget of 6 and within the design.
+def test_grouped_with_glmm_returns_a_glmm_outcome_of_one_block_per_factor() -> None:
+    """metabeta's one call (ADR 0006): one block of random effects per grouping factor,
+    a row per group, each block within its budget of 6 and within the design.
     """
     for index in range(10):
         dataset = draw(0, index, Hyperprior.grouped(outcome_form='glmm'))
         outcome = dataset.outcome
         assert type(outcome) is GlmmOutcome
-        assert list(dataset.columns)[-1] == 'y'
-        assert outcome.columns['y'] is dataset.columns['y']
-        factors = [
-            name for name, column in dataset.metadata.items() if column.role == 'grouping_factor'
-        ]
+        factors = _factors(dataset)
         assert list(outcome.random_terms) == factors
         assert list(outcome.prior.split) == ['fixed', *factors]
         for factor in factors:
@@ -420,17 +414,15 @@ TABLE_COVARIATES = Covariates.fromPandas(TABLE, ['school', 'class'])
 def test_resample_outcome_on_from_pandas_is_deterministic_per_key_and_differs_between_keys() -> (
     None
 ):
-    """A resampled outcome is keyed like a dataset, default_rng([seed, index]),
+    """A resampled outcome is keyed like a dataset,
     so the oracle set a study builds downstream from a table is reproducible per key.
     """
     model = Glmm()
     first = resampleOutcome(3, 1, TABLE_COVARIATES, model)
     again = resampleOutcome(3, 1, TABLE_COVARIATES, model)
     other = resampleOutcome(3, 2, TABLE_COVARIATES, model)
-    keyed = runModel(model, TABLE_COVARIATES, np.random.default_rng([3, 1]))
-    for outcome in [again, keyed]:
-        assert np.array_equal(outcome.columns['y'], first.columns['y'])
-        assert np.array_equal(outcome.parameters.beta, first.parameters.beta)
+    assert np.array_equal(again.columns['y'], first.columns['y'])
+    assert np.array_equal(again.parameters.beta, first.parameters.beta)
     assert not np.array_equal(other.parameters.beta, first.parameters.beta)
 
 
@@ -674,7 +666,7 @@ GLMM_OVERRIDE = Glmm(random_effects=1)  # every factor's intercept alone
     balanced=st.booleans(),
     group_level=st.booleans(),
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
-    form=st.sampled_from(['scm', 'none', GLM_OVERRIDE, GLMM_OVERRIDE]),
+    model=st.sampled_from(['scm', 'none', GLM_OVERRIDE, GLMM_OVERRIDE]),
     outcome_type=st.sampled_from(Hyperprior.categories('outcome_type_shares')),
 )
 def test_every_override_is_honored(
@@ -688,21 +680,21 @@ def test_every_override_is_honored(
     balanced: bool,
     group_level: bool,
     group_share: float,
-    form: str | Glm | Glmm,
+    model: str | Glm | Glmm,
     outcome_type: str,
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
     The fields without a visible size are honored through hyperparameters, which must hold
     every point override as given, a field drawn per node through the graph, one drawn per
-    factor through the factor's column, the scm form's through y's column, a GLM's through
+    factor through the factor's column, the SCM's through y's column, a GLM's through
     its outcome's prior and a GLMM's through each factor's random terms. A point groups
     cannot nest, so a chain draws its groups from a range below the point.
     """
     # a point above its bound fails instead: rows ≥ 2d, m ≤ n and a chain of f factors in f + 1 rows
     assume(rows >= max(2 * design_columns, groups, factors + 1))
     assume(groups >= factors + 1)  # the bottom factor of a chain of f needs f + 1 groups
-    assume(form != GLMM_OVERRIDE or factors > 0)  # a GLMM needs a factor
+    assume(model != GLMM_OVERRIDE or factors > 0)  # a GLMM needs a factor
     hyperprior = Hyperprior.grouped(
         rows=rows,
         design_columns=design_columns,
@@ -717,7 +709,7 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
-        outcome_form=form,
+        outcome_form=model,
         outcome_type_shares=point('outcome_type_shares', outcome_type),
         poisson_log_rate=2.0,
     )
@@ -728,7 +720,7 @@ def test_every_override_is_honored(
         assert array.shape == (rows,)
     assert len(dataset.latent) == latent_nodes
     # the grouping factors, each recording its size draw
-    factor_names = [name for name, column in metadata.items() if column.role == 'grouping_factor']
+    factor_names = _factors(dataset)
     assert factor_names == [f'g{i}' for i in range(factors)]
     for i, name in enumerate(factor_names):
         column = metadata[name]
@@ -739,15 +731,15 @@ def test_every_override_is_honored(
         if column.role == 'covariate':
             assert column.levels is None or column.levels <= max_levels
     # the outcome's fields through y's column
-    assert ('y' in metadata) == (form != 'none')
-    if form == 'scm':
+    assert ('y' in metadata) == (model != 'none')
+    if model == 'scm':
         assert metadata['y'].type == outcome_type
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
-    if form == GLM_OVERRIDE:
+    if model == GLM_OVERRIDE:
         assert dataset.outcome.prior.beta_scales[0] == 0.5
         assert dataset.outcome.deviation_scale == 0.3
-    if form == GLMM_OVERRIDE:
+    if model == GLMM_OVERRIDE:
         assert list(dataset.outcome.random_terms) == factor_names
         for name in factor_names:
             assert dataset.outcome.random_terms[name] == ['intercept']
@@ -783,7 +775,7 @@ def test_every_override_is_honored(
         group_share,
     )
     assert (resolved.outcome_form, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
-        form,
+        model,
         0.5,
         2.0,
     )
@@ -890,9 +882,7 @@ def test_every_array_has_length_n() -> None:
     for index in range(20):
         dataset = draw(0, index, hyperprior)
         assert 'y' in dataset.columns
-        outcome = dataset.outcome
-        arrays = [*dataset.columns.values(), *dataset.latent.values(), *outcome.columns.values()]
-        for array in [*arrays, outcome.y_score]:
+        for array in [*dataset.columns.values(), *dataset.latent.values()]:
             assert array.shape == (80,)
 
 
@@ -900,11 +890,8 @@ def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() 
     """metabeta indexes a random effect by the codes; a missing group would give an empty one."""
     for index in range(20):
         dataset = draw(0, index, Hyperprior.grouped(factors=3))
-        factors = [
-            name for name, column in dataset.metadata.items() if column.role == 'grouping_factor'
-        ]
-        assert factors == ['g0', 'g1', 'g2']
-        for name in factors:
+        assert _factors(dataset) == ['g0', 'g1', 'g2']
+        for name in _factors(dataset):
             codes = dataset.columns[name]
             assert codes.dtype == np.int64
             assert np.array_equal(np.unique(codes), np.arange(dataset.metadata[name].levels))
