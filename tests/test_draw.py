@@ -193,9 +193,9 @@ class _ScoreAsY:
 EVERY_MODEL = [
     pytest.param(Hyperprior.grouped(), id='scm on grouped'),
     pytest.param(Hyperprior.flat(), id='scm on flat'),
-    pytest.param(Hyperprior.flat(outcome_form='glm'), id='glm on flat'),
-    pytest.param(Hyperprior.grouped(outcome_form='glm'), id='glm on grouped'),
-    pytest.param(Hyperprior.grouped(outcome_form='glmm'), id='glmm on grouped'),
+    pytest.param(Hyperprior.flat(outcome_form=Glm(family='bernoulli')), id='glm on flat'),
+    pytest.param(Hyperprior.grouped(outcome_form=Glm(family='poisson')), id='glm on grouped'),
+    pytest.param(Hyperprior.grouped(outcome_form=Glmm(family='gaussian')), id='glmm on grouped'),
     pytest.param(Hyperprior.grouped(outcome_form=_ScoreAsY()), id='a study model on grouped'),
 ]
 
@@ -256,7 +256,7 @@ def test_glm_returns_a_glm_outcome_and_on_grouped_the_pooled_ground_truth(
     should go to zero. One term per design column besides the intercept.
     """
     for index in range(10):
-        dataset = draw(0, index, preset(outcome_form='glm'))
+        dataset = draw(0, index, preset(outcome_form=Glm(family='gaussian')))
         outcome = dataset.outcome
         assert type(outcome) is GlmOutcome
         assert len(_factors(dataset)) == dataset.hyperparameters.factors
@@ -269,7 +269,7 @@ def test_grouped_with_glmm_returns_a_glmm_outcome_of_one_block_per_factor() -> N
     a row per group, each block within its budget of 6 and within the design.
     """
     for index in range(10):
-        dataset = draw(0, index, Hyperprior.grouped(outcome_form='glmm'))
+        dataset = draw(0, index, Hyperprior.grouped(outcome_form=Glmm(family='gaussian')))
         outcome = dataset.outcome
         assert type(outcome) is GlmmOutcome
         factors = _factors(dataset)
@@ -304,10 +304,10 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     """A corpus of one family is one override (ADR 0006),
     and a consumer stacks y by its type: a Gaussian y float32, a Bernoulli y codes, a count int64.
     """
-    hyperprior = preset(outcome_form=config(y_family_shares=point('y_family_shares', family, Glm)))
+    hyperprior = preset(outcome_form=config(family=family))
     for index in range(10):
         dataset = draw(0, index, hyperprior)
-        assert dataset.outcome.prior.y_family == family
+        assert dataset.outcome.prior.family == family
         assert dataset.metadata['y'].type == column_type
         assert dataset.columns['y'].dtype == dtype
 
@@ -320,7 +320,7 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
     At r = 0.9999 and a half-normal F, σ_ε is about 0.01.
     """
     glm = Glm(
-        y_family_shares=point('y_family_shares', 'gaussian', Glm),
+        family='gaussian',
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
     )
@@ -357,7 +357,7 @@ def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_i
     Zα, or at λ = 0.3 a deviation that is not the one which entered η.
     """
     glmm = Glmm(
-        y_family_shares=point('y_family_shares', 'gaussian', Glm),
+        family='gaussian',
         sigma_eps_family_shares=point('sigma_eps_family_shares', 'half_normal', Glm),
         signal_share=0.9999,
         correlated_share=1.0,
@@ -381,8 +381,9 @@ def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_th
     The score is z-scored over the rows, so the deviation's sd is λ times the linear part's.
     """
     for index in range(10):
-        plain = draw(0, index, Hyperprior.grouped(outcome_form='glmm'))
-        deviated = draw(0, index, Hyperprior.grouped(outcome_form=Glmm(deviation_scale=0.3)))
+        plain = draw(0, index, Hyperprior.grouped(outcome_form=Glmm(family='gaussian')))
+        deviated = Glmm(family='gaussian', deviation_scale=0.3)
+        deviated = draw(0, index, Hyperprior.grouped(outcome_form=deviated))
         outcome = deviated.outcome
         assert outcome.deviation_scale == 0.3
         assert outcome.prior == plain.outcome.prior
@@ -417,7 +418,7 @@ def test_resample_outcome_on_from_pandas_is_deterministic_per_key_and_differs_be
     """A resampled outcome is keyed like a dataset,
     so the oracle set a study builds downstream from a table is reproducible per key.
     """
-    model = Glmm()
+    model = Glmm(family='gaussian')
     first = resampleOutcome(3, 1, TABLE_COVARIATES, model)
     again = resampleOutcome(3, 1, TABLE_COVARIATES, model)
     other = resampleOutcome(3, 2, TABLE_COVARIATES, model)
@@ -431,7 +432,7 @@ def test_a_resampled_glmm_outcome_has_as_many_groups_per_factor_as_the_table() -
     and per class, so a study reads a group's ground truth at its code.
     """
     for index in range(5):
-        outcome = resampleOutcome(0, index, TABLE_COVARIATES, Glmm())
+        outcome = resampleOutcome(0, index, TABLE_COVARIATES, Glmm(family='gaussian'))
         assert list(outcome.parameters.alpha) == ['school', 'class']
         assert outcome.parameters.alpha['school'].shape[0] == 5
         assert outcome.parameters.alpha['class'].shape[0] == 10
@@ -460,7 +461,7 @@ def test_to_pandas_codes_categoricals_ordered_when_ordered_continuous_float32_an
     so a pandas-based tool sees levels, not numbers, and a count stays an integer.
     A Poisson y is the dataset's count.
     """
-    poisson = Glm(y_family_shares=point('y_family_shares', 'poisson', Glm))
+    poisson = Glm(family='poisson')
     hyperprior = Hyperprior.grouped(
         rows=200, design_columns=12, type_shares=EVERY_TYPE, outcome_form=poisson
     )
@@ -507,7 +508,7 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
     At r = 1, τ_ε and so σ_ε are 0, and y is η = Xβ in float32, exactly.
     On grouped covariates the factors are no term.
     """
-    glm = Glm(y_family_shares=point('y_family_shares', 'gaussian', Glm), signal_share=1.0)
+    glm = Glm(family='gaussian', signal_share=1.0)
     for index in range(5):
         dataset = draw(0, index, Hyperprior.grouped(outcome_form=glm))
         design = dataset.toDesign()
@@ -540,7 +541,7 @@ def test_to_dict_is_json_serializable_and_records_dtypes_and_a_users_model_by_na
     y is recorded once, among the dataset's columns: the outcome's record holds its ground truth.
     A study's model, which JSON cannot hold, is recorded by its qualified name.
     """
-    dataset = draw(0, 0, Hyperprior.grouped(outcome_form='glmm'))
+    dataset = draw(0, 0, Hyperprior.grouped(outcome_form=Glmm(family='gaussian')))
     record = _throughJson(dataset)
     arrays = {
         **{('columns', name): values for name, values in dataset.columns.items()},
@@ -650,8 +651,10 @@ def _exceedsAFactorsGroups(dataset: Dataset, name: str) -> bool:
     return column is not None and column.levels is not None and column.levels > min(groups)
 
 
-GLM_OVERRIDE = Glm(intercept_scale=0.5, deviation_scale=0.3)  # τ_0 in the prior, λ beside it
-GLMM_OVERRIDE = Glmm(random_effects=1)  # every factor's intercept alone
+GLM_OVERRIDE = Glm(
+    family='gaussian', intercept_scale=0.5, deviation_scale=0.3
+)  # τ_0 in the prior, λ beside it
+GLMM_OVERRIDE = Glmm(family='gaussian', random_effects=1)  # every factor's intercept alone
 
 
 @settings(max_examples=25, deadline=None)
