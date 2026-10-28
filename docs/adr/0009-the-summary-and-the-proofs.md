@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-28
+amended: 2026-10-28, #72: the gate waits for the fitted defaults, and #47's arms run in the proofs' script
 ---
 
 # 0009 - The summary and the proofs: how a dataset is measured and how the defaults are certified
@@ -54,21 +55,24 @@ containment test, neighborhood test, pairing.
   tracked downstream rank (Structural Coverage), which is why it is read at all.
 - **The bar.** A proof asserts that at least a bar's share of the registry rows lies inside the
   generated 1st to 99th band on every axis of a file and stratum. The bar is one round number
-  per proof, set in the spec from the first run just below what the defaults reach, and raised
-  by the fit; a change to it is a default change. The every-axis recall, the precision, the
+  per proof, set from the first run of the fitted defaults just below what they reach; a change
+  to it is a default change. Until the fit, the defaults are guesses it replaces, so the gate
+  waits for it and the script reports the recall it will gate on. The every-axis recall, the precision, the
   C2ST, the distances and the neighborhood test are reported with their nulls, never gated. The
   C2ST gate at 0.6 is retired: a widened prior puts mass off the registry by design, which a
   symmetric test punishes, and a discriminator's accuracy did not predict performance (Mind the
   Gap).
 - **Where the numbers live.** An `experiments/proofs.py` script draws the paired sample, writes
   the summary tables, a report (`SUMMARY.md` and one comparison table per file and stratum as
-  CSV) and the keys; the slow tests call the same function and assert the bar. The generated
+  CSV) and the keys; the slow tests, written with the gate, call the same function and assert
+  the bar. The generated
   summaries are not committed, since the keys regenerate them bit for bit. `Scm.flat()` runs
   against the flat sample by the same machinery, paired by `n_obs` and `d_all`, last.
 - **The proofs test the scm outcome.** The preset's y against `responses.csv`, per response
-  type, is a proof. A GLMM's y against `fits.csv` and `responses.csv` is an experiment,
-  `experiments/joint-scale-draw`, the rerun of the lab note that chose ADR 0006's joint scale
-  draw: three arms as subclasses of `Glmm` overriding `drawPrior` in the script (the current
+  type, is a proof. A GLMM's y against `fits.csv` and `responses.csv` is an experiment
+  in the same script, the rerun of the lab note that chose ADR 0006's joint scale draw and the
+  question the script answers first: three arms as subclasses of `Glmm` overriding `drawPrior`
+  in it (the current
   prior, R2D2M2 at Aguilar and Bürkner's defaults, and unit scales with no budget, the prior the
   budget replaced), the package's draw with sizes paired per fit, the ground-truth statistics
   and y refitted by lme4 through `mixedbench.frequentist` on the cluster, so estimates meet
