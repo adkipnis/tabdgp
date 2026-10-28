@@ -14,7 +14,7 @@ the key and the SCM hyperprior
 -> the latent nodes at the rows                                  _broadcastLatent
 -> the covariates, their metadata, the grouping and the score    Covariates
 -> the SCM's outcome, y rank-matched to the score                rankMatch
--> the Dataset, the grouping factors first, the outcome last     draw
+-> the Dataset, the grouping factors first, the outcome last     drawDataset
 
 a key, covariates (drawn or a table's) and a model
 -> the key's first child stream, then the model's outcome        modelOutcome
@@ -91,10 +91,10 @@ class Dataset:
 # =====================================================================================
 
 
-def draw(seed: int, index: int, hyperprior: Scm) -> Dataset:
+def drawDataset(seed: int, index: int, scm: Scm) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     rng = np.random.default_rng(_seedSequence(seed, index))
-    resolved = hyperprior.resolveDataset(rng)
+    resolved = scm.resolveDataset(rng)
 
     # the grouping before the graph, which draws each node's unit among the grouping factors
     grouping = assign(resolved, rng)

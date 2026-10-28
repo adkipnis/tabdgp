@@ -45,10 +45,10 @@ pip install tabdgp
 ## Quickstart
 
 ```python
-from tabdgp import Glmm, Scm, draw, modelOutcome
+from tabdgp import Glmm, Scm, drawDataset, modelOutcome
 
 scm = Scm.grouped(rows=100, design_columns=5)
-dataset = draw(seed=0, index=0, hyperprior=scm)  # the key: a seed and an index
+dataset = drawDataset(seed=0, index=0, scm=scm)  # the key: a seed and an index
 unit = dict(zip(dataset.graph.names, dataset.graph.unit))  # per row, or per group of a factor
 for name, column in dataset.metadata.items():
     values = dataset.columns[name][:3].round(2)
