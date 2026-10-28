@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-24
-amended: 2026-10-24, #58: the p-value counts the statistic among its null, (k + 1)/(B + 1); the ranks are scaled as (r − ½)/N; the band ends at observed values; sbi's c2st runs plain folds and accuracy on z-scores, so the recipe follows it, not copies it; 2026-10-27, #56: ground truth, not truth
+amended: 2026-10-24, #58: the p-value counts the statistic among its null, (k + 1)/(B + 1); the ranks are scaled as (r − ½)/N; the band ends at observed values; sbi's c2st runs plain folds and accuracy on z-scores, so the recipe follows it, not copies it; 2026-10-27, #56: ground truth, not truth; 2026-10-28, ADR 0009: a neighborhood test (PRDC) joins the comparisons, the C2ST and it run on the per-dataset summary vector, containment and the distances per key
 ---
 
 # 0008 - The fidelity module: how generated and registry summaries are compared
@@ -63,7 +63,8 @@ two-sample test, containment test, null, pairing.
 - **The SBI benchmark's MLP** (two hidden layers of 10 p units): needs scaling and many
   iterations for the forest's accuracy at these sizes.
 - **A support metric** (k-NN coverage, PRDC) for containment: needs a metric on the summary
-  space, which ranks only fake; deferred to item 3's grill, where the summary vector is decided.
+  space, which ranks only fake; deferred to the summary vector's decision, where ADR 0009 took
+  it up on rows complete on every axis.
 - **Reproducing the lab notes' k-NN numbers**: dropped, since both notes are rerun anyway.
 
 ## Consequences
@@ -71,7 +72,7 @@ two-sample test, containment test, null, pairing.
 - Among the three tests, containment comes first: of the distributional measures, coverage is
   the one that tracked downstream performance (Structural Coverage), while a discriminator
   separates every prior from real tables (Mind the Gap) and its accuracy did not predict
-  performance. The C2ST diagnoses how far, the per-axis distance where; item 3's grill decides
-  the bar's form in that light, and the downstream ablation stays the arbiter.
+  performance. The C2ST diagnoses how far, the per-axis distance where; ADR 0009 decided the
+  bar's form in that light, and the downstream ablation stays the arbiter.
 - The lab notes' functions become calls into the module; the #47 rerun is an `experiments/`
   script on the package's own draw.
