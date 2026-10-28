@@ -10,14 +10,28 @@ y's family, eta, the residual scale and y's shape
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 
 from tabdgp.column import Column
+from tabdgp.field import LogUniform
 
 # =====================================================================================
-# the families' links and columns
+# the families' links, columns and shapes
 # =====================================================================================
 
+# y's families, each with its link and column below
+Family = Literal[
+    'gaussian',
+    'bernoulli',
+    'poisson',
+    'student_t',
+    'negative_binomial',
+    'latent_bernoulli',
+    'gamma',
+    'beta',
+]
 LINKS = {
     'gaussian': 'identity',
     'bernoulli': 'logit',
@@ -37,6 +51,14 @@ COLUMNS = {
     'latent_bernoulli': Column(type='binary', levels=2, role='outcome'),
     'gamma': Column(type='continuous', role='outcome'),
     'beta': Column(type='continuous', role='outcome'),
+}
+# the default shape of each family that has one, y's second parameter
+SHAPES = {
+    'student_t': LogUniform(3, 10),  # df
+    'negative_binomial': LogUniform(1, 10),  # φ, the variance μ + μ² / φ
+    'latent_bernoulli': LogUniform(0.5, 2),  # σ_c
+    'gamma': LogUniform(1, 10),  # k, the variance μ² / k
+    'beta': LogUniform(2, 50),  # φ, the precision
 }
 RATE_LIMIT = 9.2e18  # numpy refuses a Poisson rate above about 9.22e18, int64's largest count
 MEAN_EDGE = 2.0**-53  # keeps both of the beta's parameters positive, which numpy needs, at any eta
