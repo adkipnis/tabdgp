@@ -11,8 +11,7 @@ from typing import get_args
 import numpy as np
 import pytest
 
-from tabdgp.likelihood import COLUMNS, LINKS, draw
-from tabdgp.prior import SHAPES, Family
+from tabdgp.likelihood import COLUMNS, LINKS, SHAPES, Family, draw
 
 
 def test_each_family_has_a_link_a_column_a_range_and_a_law() -> None:
