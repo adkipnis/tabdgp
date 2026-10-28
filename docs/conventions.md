@@ -1,177 +1,158 @@
 <!-- shared conventions: generated, do not edit by hand; propose a change in an issue -->
 # Conventions
 
-The rules a change is reviewed against: the shared rules first, then this repository's own under
-the last heading. The reasons behind the larger rules are in the [ADRs](adr).
+The rules a change is reviewed against: the shared ones first, this repository's own under the
+last heading. The [ADRs](adr) give the reasons behind the larger ones.
 
 ## Tooling
 
-- **uv:** Python through `uv` only; `uv run` for everything, every command from the repository
-  root, without `cd`.
+- **uv:** for all Python; `uv run` everything from the repository root, without `cd`.
 - **CI:** `ruff format` (100 columns, single quotes) and `pytest`.
-- **argparse:** wrap its blocks in `# fmt: off` / `# fmt: on`.
-- **Dependencies:** open an issue before adding a heavyweight one.
+- **argparse:** blocks wrapped in `# fmt: off` / `# fmt: on`.
+- **Dependencies:** an issue before adding a heavyweight one.
 
 ## Design
 
-After Ousterhout, *A Philosophy of Software Design*: complexity is anything that makes code
-harder to understand or change; it accrues one small edit at a time.
+After Ousterhout, *A Philosophy of Software Design*.
 
 - **Deep modules:** a small interface over much functionality; an interface as complex as its
   implementation folds into its caller or callee.
 - **Information hiding:** each module owns one design decision (a file format, a tensor layout,
-  a prior's parameterization) that no other module depends on. Split code by what it knows, not
-  by the order it runs in.
-- **One home per fact:** in code as in the docs, with links everywhere else. A rule written out
-  twice (a truncation, an order, a loop's initial state) becomes one function, one named value,
-  or a call to the module that owns it.
+  a prior's parameterization) no other module depends on. Split code by what it knows, not by
+  when it runs.
+- **One home per fact:** in code and docs, linked from everywhere else. A rule written twice (a
+  truncation, an order, a loop's initial state) becomes one function, one named value or a call
+  to the module that owns it.
 - **No utils module:** a helper two modules need lives in the module that owns its fact.
-- **No pass-throughs:** a method that forwards its arguments unchanged adds nothing; call the
-  target directly.
-- **Pull complexity down:** the module absorbs the awkward case so its callers stay simple. A
-  fixed sensible behavior beats a new config parameter.
+- **No pass-throughs:** call the target directly, not through a method that forwards its
+  arguments unchanged.
+- **Pull complexity down:** the module absorbs the awkward case so callers stay simple; a fixed
+  sensible behavior beats a new config parameter.
 - **Define errors out of existence:** shape the interface so the invalid case cannot arise
-  (accept the empty set, validate once at construction). The rest fails loudly: no fallbacks, no
-  defensive `try`/`except`, no speculative generality.
-- **Observed cases only:** branch only for a case observed on real inputs; add the next branch
-  when use hits it.
+  (accept the empty set, validate once at construction). The rest fails loudly: no fallbacks,
+  defensive `try`/`except` or speculative generality.
+- **Observed cases only:** branch only for a case seen on real inputs; add the next when use
+  hits it.
 - **Design it twice:** for a non-trivial interface, name two designs and why one wins before
-  writing code.
+  coding.
 - **Obvious over clever:** the simplest form a reader guesses right on first read. If 200 lines
   could be 50, rewrite them.
 
 ## Changing code
 
-- **Smallest change:** one that solves the problem and meets the design bar, with no unrequested
-  extras. Leave adjacent code, comments and formatting untouched.
-- **Scripts:** a task that repeats, or is error-prone by hand, gets a `.py` or `.sh` script.
-- **Borrowed code:** code taken from elsewhere cites its source in the docstring and is copied
-  verbatim or imported and wrapped. A simplified rewrite comes with a test that it matches the
-  original up to numeric noise.
+- **Smallest change:** solves the problem and meets the design bar, no unrequested extras;
+  adjacent code, comments and formatting stay untouched.
+- **Scripts:** a `.py` or `.sh` script for a task that repeats or is error-prone by hand.
+- **Borrowed code:** cites its source in the docstring; copied verbatim or imported and wrapped.
+  A simplified rewrite gets a test that it matches the original up to numeric noise.
 
 ## Commits and issues
 
-- **Pull requests:** work reaches `main` only through a pull request, squash-merged into one
-  commit that names the change and closes its issue. The branch keeps the steps: the failing
-  test, the code, the fixes.
-- **Issues:** a change to behavior or to an interface starts as an issue. An issue holds only
-  what a contributor needs, in a few lines: the problem, the decision, the check that closes it
-  and the issues that block it.
+- **Pull requests:** the only way to `main`, squash-merged into one commit that names the change
+  and closes its issue. The branch keeps the steps: failing test, code, fixes.
+- **Issues:** every change to behavior or an interface starts as one. An issue holds only what a
+  contributor needs, in a few lines: the problem, the decision, the check that closes it, the
+  blocking issues.
 - **Planning:** who works an issue, with which tool, model or budget, stays out of the tracker.
-- **Closing a spec:** a spec of several tickets closes with two more: an automated
-  simplification and code-review pass over the branch (the debloat), then a guided manual
-  review, one file per session, with small refactors. Only then is the branch merged.
+- **Closing a spec:** a spec of several tickets ends with two more: an automated simplification
+  and code-review pass over the branch (the debloat), then a guided manual review, one file per
+  session, with small refactors. Only then is the branch merged.
 - **Releases:** a `vX.Y.Z` tag on `main` with release notes.
 
 ## Names
 
-- **Spelling:** American (`standardized`, `behavior`, `catalog`), in names as in prose. A
-  released name spelled otherwise is renamed in the next release; only a name an outside
-  standard fixes (R's own names, a library's) keeps its spelling.
-- **Project names:** a project's package, repository, paths and code are lowercase (`metabeta`,
-  `import metabeta`); prose names the project in capitals (MetaBeta), in READMEs, notebooks,
-  docs and papers alike. A release keeps the package name (metabeta 0.6.0), and a quote keeps
-  its source's spelling.
+- **Spelling:** American (`standardized`, `behavior`, `catalog`) in names and prose; a released
+  name spelled otherwise is renamed in the next release. Only a name an outside standard fixes
+  (R's, a library's) keeps its spelling.
+- **Project names:** lowercase in package, repository, paths and code (`metabeta`); capitalized
+  in all prose (MetaBeta). A release keeps the package name (metabeta 0.6.0); a quote keeps its
+  source's spelling.
 - **Modules:** one lowercase word.
 - **Case:** `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and
-  methods, `snake_case` for variables, fields and a `Literal`'s values (`'grouping_factor'`),
+  methods, `snake_case` for variables, fields and `Literal` values (`'grouping_factor'`),
   `UPPER_SNAKE_CASE` for constants.
-- **Functions:** named for what they do, a verb and its object (`_resolveColumn`), not for what
-  they return (`_column`). A test helper is read inside an assert, so it may name what it
-  returns (`_density`).
-- **Scopes:** one thing at different scopes keeps one name. Methods share its verb and each
-  names its scope (`resolveDataset` for every field drawn once per dataset, `resolveField` for
-  one); a counted quantity keeps its noun at every scope.
-- **Counts:** a config field that counts is a plural noun (`rows`, `latent_nodes`), without an
-  `n_` prefix.
+- **Functions:** named for what they do, verb and object (`_resolveColumn`), not what they
+  return (`_column`). A test helper, read inside an assert, may name what it returns
+  (`_density`).
+- **Scopes:** one thing keeps one name at every scope: its methods share a verb and each names
+  its scope (`resolveDataset` for every field drawn once per dataset, `resolveField` for one); a
+  counted quantity keeps its noun.
+- **Counts:** a config field that counts is a plural noun (`rows`, `latent_nodes`), no `n_`
+  prefix.
 - **Directories:** `dir`, not `folder`.
-- **DataFrames:** a `table`, several are `tables`, never `df` or `frame`.
-- **Leading underscore:** marks a pipeline step and anything no other module imports.
+- **DataFrames:** `table` and `tables`, never `df` or `frame`.
+- **Leading underscore:** a pipeline step, or anything no other module imports.
 
 ## Code
 
 ### Imports and types
 
-- **Absolute imports:** `from <package>.<module> import name`, never relative ones.
-- **Library names:** import a library's names when they are unmistakable (`BaseModel`), rename
-  one that shadows a standard-library name (`dataclass as pydantic_dataclass`), and alias a
-  module only by its community's convention (`np`, `pd`).
+- **Absolute imports:** `from <package>.<module> import name`, never relative.
+- **Library names:** imported directly when unmistakable (`BaseModel`), renamed when they shadow
+  the standard library (`dataclass as pydantic_dataclass`); a module aliased only by its
+  community's convention (`np`, `pd`).
 - **Whole modules:** a module that names nothing by its caller (`likelihood.draw`) is imported
   whole, `from <package> import <module>`, so each call says whose it is.
-- **Packages:** a package's `__init__.py` holds no code of its own: it imports the public names
-  from the modules that define them and lists them in `__all__`.
+- **Packages:** `__init__.py` holds no code: it imports the public names from their modules and
+  lists them in `__all__`.
 - **Modern typing:** `X | Y`, built-in generics, `from __future__ import annotations`.
-- **Fixed options:** `Literal[...]` for an argument with a fixed set of options, a type alias
-  once it repeats.
-- **Config models:** Pydantic. A check a type can state is its constraint (`PositiveFloat`,
-  `Field(ge=3)`), and `__post_init__` or a model validator holds only the checks across fields.
+- **Fixed options:** `Literal[...]`, a type alias once it repeats.
+- **Config models:** Pydantic. A check a type can state is a constraint (`PositiveFloat`,
+  `Field(ge=3)`); `__post_init__` or a model validator holds only the checks across fields.
 
 ### Control flow
 
-- **Statements:** f-strings, one statement per line.
-- **Readable over compact:** unless runtime efficiency pays for it, one operation per line, each
-  long expression or meaningful intermediate value named on the line before, and a loop where a
-  comprehension would nest.
-- **Method order:** a method lists its steps in the order you would describe them; a step with
-  its own `if` ladder or loop becomes a method.
+- **Statements:** one per line; f-strings.
+- **Readable over compact:** unless runtime efficiency pays, one operation per line, each long
+  expression or meaningful intermediate named on the line before, a loop where a comprehension
+  would nest.
+- **Method order:** steps in the order you would describe them; a step with its own `if` ladder
+  or loop becomes a method.
 - **Searches:** a plain loop with an explicit check after it, not `for`/`else`, `while True` or
   `next()` on a generator.
-- **One loop:** a loop fills its result as it goes; a second loop that only repackages the first
-  one's output folds into it.
+- **One loop:** fills its result as it goes; a second loop that only repackages the first one's
+  output folds into it.
 - **Conditional expressions:** `a if c else b` only on a short line.
-- **Lookup tables:** literal dicts or `if` chains, not built with comprehensions,
-  `dict.fromkeys` or `|`.
+- **Lookup tables:** literal dicts or `if` chains, not built by comprehension, `dict.fromkeys`
+  or `|`.
 - **Dispatch:** cases that read different arguments are a `match` over their `Literal`, not a
-  dict of wrappers that share one signature.
-- **Conditions:** each is tested once: one `if`/`else` sets every value it decides, not a
-  conditional expression per value or a second `if` on the same test. A flag that names the test
-  (`bounded`) may be read again on the next line.
+  dict of wrappers with one signature.
+- **Conditions:** tested once: one `if`/`else` sets every value it decides, not a conditional
+  expression per value or a second `if` on the same test. A flag naming the test (`bounded`) may
+  be read again on the next line.
 
 ### Classes
 
-- **Concepts:** a class per concept a reader should hold apart (a format family, a
+- **Concepts:** one class per concept a reader should hold apart (a format family, a
   distribution).
-- **Methods:** a method takes `self` if it calls another method of its class or reads the
-  instance's state, unless it runs before an instance exists (a validator); otherwise it is a
-  class or a static method, as its use needs.
+- **Methods:** take `self` if they call another method of the class or read instance state,
+  unless they run before an instance exists (a validator); otherwise class or static, as use
+  needs.
 - **Helpers:** a helper or constant used by one class lives on it; module functions are for what
   spans classes.
-- **Pipelines:** one that holds state (a cache, a run directory) is a class; one without state
-  is module functions.
-- **Data classes:** hold their fields and the checks across them; the function that builds one
-  is a module function beside it, not a method of the class, unless it is an alternate
-  constructor from an outside format (`fromPandas`), which is a classmethod.
+- **Pipelines:** a class if it holds state (a cache, a run directory), else module functions.
+- **Data classes:** hold their fields and the checks across them; their builder is a module
+  function beside them, unless it is an alternate constructor from an outside format
+  (`fromPandas`), which is a classmethod.
 - **Base classes:** hold a skeleton their subclasses inherit: fields, methods or checks. Classes
-  that only an `isinstance` check groups are a union alias, not an empty base.
+  grouped only by an `isinstance` check are a union alias, not an empty base.
 
 ### Arrays and tensors
 
-- **Shapes:** annotate a shape inline on the line that returns it (`# (b, n, d)` for b datasets
-  of n rows and d columns), never in a docstring.
-- **Reshaping:** with `einops` where the package depends on it; never mutate a reused array in
-  place.
+- **Shapes:** commented inline on the line that returns them (`# (b, n, d)` for b datasets of n
+  rows and d columns), never in a docstring.
+- **Reshaping:** `einops` where the package depends on it; never mutate a reused array in place.
 - **Vectorization:** broadcasting and advanced indexing, not loops; batch over datasets.
-- **Shape letters:** one lowercase letter per counted quantity, in shape comments and in the
-  variables that hold the count:
-
-  | letter | counts |
-  |---|---|
-  | `b` | the batch: datasets |
-  | `n` | rows |
-  | `m` | groups |
-  | `s` | draws |
-  | `d` | columns, or fixed effects |
-  | `q` | random effects |
-  | `p` | model parameters |
-  | `k` | a categorical column's levels |
-
-  No letter counts two quantities; a repository's own letters are listed in its part. A name
-  that a file format or an outside convention fixes (Stan's `N` and `J`, a file's `K` column)
-  keeps its spelling.
+- **Shape letters:** one lowercase letter per counted quantity, in shape comments and count
+  variables: `b` datasets (the batch), `n` rows, `m` groups, `s` draws, `d` columns or fixed
+  effects, `q` random effects, `p` model parameters, `k` a categorical column's levels. No
+  letter counts two quantities; a repository lists its own letters in its part. A name a file
+  format or outside convention fixes (Stan's `N` and `J`, a file's `K` column) keeps its
+  spelling.
 - **Randomness:** every draw takes an explicit generator or key; nothing reads global random
   state.
-- **Scalars:** a scalar that a config holds or an array computation reads is a Python `int` or
-  `float`, its arithmetic `math`'s: a numpy float64 scalar would promote a float32 array to
+- **Scalars:** a scalar a config holds or an array computation reads is a Python `int` or
+  `float` with `math` arithmetic, since a numpy float64 scalar promotes a float32 array to
   float64.
 
 ## File layout
@@ -195,93 +176,89 @@ a model specification
 - **Module docstring:** one sentence on what the module defines, optionally a short paragraph on
   how, then the pipeline in run order, one `-> result` line per step with its function on the
   right. A module whose why is not obvious replaces the paragraph with a short pyramid for a
-  reader new to the repository: what it offers and why, then how. Who imports the module is the
+  newcomer to the repository: what it offers and why, then how. Who imports it is the
   [map](#modules)'s.
-- **Banners:** `# ====` banners separate globals, classes and main, `# ----` banners
-  subsections. Each is named in plain words, with one comment line on why the section exists
-  where neither the name nor a class docstring below says it.
+- **Banners:** `# ====` for globals, classes and main, `# ----` for subsections, named in plain
+  words, plus one comment line on why the section exists if neither the name nor a class
+  docstring below says it.
 - **Order:** the constants, aliases and data classes the steps use come first, each after any
   function it is built from. Then each public function or method, followed by the steps it calls
   in run order, under a `# ----` banner naming the pipeline or its stage
-  (`url -> archive -> tree`). A step that two public functions call goes after its first caller.
-- **Scripts:** a script's `__main__` reads as the run's table of contents; for a pipeline class,
-  it creates the class and calls its steps
-  (`puller = Puller(); puller.getSurvset(); ...; puller.flush()`).
+  (`url -> archive -> tree`). A step two public functions call follows its first caller.
+- **Scripts:** `__main__` reads as the run's table of contents; for a pipeline class it creates
+  the class and calls its steps (`puller = Puller(); puller.getSurvset(); ...; puller.flush()`).
 
 ## Comments and docstrings
 
 - **Sentences:** short and plain, one idea each, with a subject and a verb. Comments start in
-  lower case; docstrings are capitalized sentences.
-- **Line breaks:** at sentence or clause boundaries, not at the column limit.
-- **Docstrings:** only where the behavior or design is not obvious: one or two plain sentences
-  that start with what the function does or returns and leave out what the code already shows,
-  never a chain of `;` clauses. Detail goes into inline comments that say why.
-- **Sources:** a comment cites a paper link, or the authors, year and equation number for a
-  formula from a paper; a link for code or a method it follows.
+  lower case; docstrings are capitalized.
+- **Line breaks:** at sentence or clause boundaries, not the column limit.
+- **Docstrings:** only where behavior or design is not obvious: one or two plain sentences that
+  start with what the function does or returns and leave out what the code shows, never a chain
+  of `;` clauses. Detail goes into inline comments that say why.
+- **Sources:** cited in a comment: a paper link, or the authors, year and equation number for a
+  formula; a link for code or a method it follows.
 - **Config docstrings:** a config or data class's docstring introduces the concepts its fields
-  name, a short bullet each. A field's detail goes into a short trailing comment, which every
-  field whose name does not say what it is carries.
+  name, a short bullet each. A field's detail goes into a short trailing comment, required where
+  its name does not say what it is.
 - **Checks:** a block of checks opens with one plain sentence on what it checks.
-- **No history:** a comment explains the code, not its history: the case behind a rule goes to
-  the test that pins it, a definition to `CONTEXT.md`, how it was decided to an ADR. Code states
-  its rules without citing an ADR; the ADR keeps the reason.
-- **Embedded scripts:** an embedded script (an R snippet) gets a one-sentence comment above it,
-  one statement per line.
+- **No history:** comments explain the code, not its history: the case behind a rule goes to the
+  test that pins it, a definition to `CONTEXT.md`, how it was decided to an ADR. Code states its
+  rules without citing an ADR.
+- **Embedded scripts** (an R snippet): a one-sentence comment above, one statement per line.
 
 ## Tests
 
 - **Test first:** the failing test, then the minimal code.
 - **Property tests:** `hypothesis`.
-- **Layout:** the tests mirror the source: one `test_<module>.py` per module, each test named as
-  a sentence (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
-- **Purpose:** each test says in a sentence or two why it exists, unless obvious.
+- **Layout:** mirrors the source: one `test_<module>.py` per module, each test named as a
+  sentence (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
+- **Purpose:** a sentence or two on why each test exists, unless obvious.
 - **Body:** bind the object under test, then call it; small named helpers, not lambdas or
   repeated comprehensions.
-- **No self-checks:** a test asserts nothing its object checks itself: no shape its data class
-  validates, no control that rebuilds what the call has just built.
-- **Tables:** cases of one check are one parametrized table, each case's reason in its id, not
-  one test per case.
+- **No self-checks:** assert nothing the object checks itself: no shape its data class
+  validates, no control that rebuilds what the call just built.
+- **Tables:** cases of one check are one parametrized table, each case's reason in its id.
 - **Cross-checks:** names listed in two modules (a `Literal`, a catalog, a table's columns) are
-  checked against each other by a test; the code checks nothing at import.
+  checked against each other by a test, never at import.
 - **Coverage:** no gate.
 
 ## Docs
 
-Markdown meets the same bar as code: simple, and read top to bottom.
+Markdown meets the same bar as code: simple, read top to bottom.
 
-- **Bullets:** short, the essentials first, detail in an appendix or a linked file.
-- **Living rules:** a living rule sits with the method it governs.
+- **Bullets:** short, essentials first, detail in an appendix or a linked file.
+- **Living rules:** next to the method they govern.
 - **Counts:** in generated files (a `SUMMARY.md`), never in prose.
-- **README:** `README.md` is for users and fits one screen. Its links are absolute to `main`, so
-  they render off GitHub too (on PyPI).
+- **README:** for users, one screen. Its links are absolute to `main`, so they render off GitHub
+  too (on PyPI).
 
 ## Data
 
-- **Raw data:** never overwrite it.
-- **Witnesses:** a default, an edge or a share is read off the data collections and surveys
-  already at hand (a registry, a practice survey) before it is guessed, and cites its witness.
-  Where no witness exists and one pays off, gather the data first.
-- **Large data:** stream or lazily load data that would not fit in memory.
-- **Figures:** PDFs, never PNG or JPG. Existing vector files convert to SVG; a PDF is never
+- **Raw data:** never overwritten.
+- **Witnesses:** a default, an edge or a share is read off the data collections and surveys at
+  hand (a registry, a practice survey) before it is guessed, and cites its witness. Where none
+  exists and one pays off, gather the data first.
+- **Large data:** streamed or lazily loaded if it would not fit in memory.
+- **Figures:** PDF, never PNG or JPG. Existing vector files convert to SVG; a PDF is never
   rasterized.
 
 ## Lab notes and experiments
 
-- **Lab notes:** `lab/YYYY-MM-DD-slug/`, one small design choice, its notebook with outputs and
-  any PDFs, indexed in `lab/README.md` with the decision. Lab notes are private: `lab/` is in
-  `.gitignore`, and nothing imports from it.
-- **Experiments:** `experiments/`, rerunnable scripted studies, tracked and public. A lab note
-  moves here once something public rests on it: a released behavior, an ADR's reason or a
-  paper's number. Rerun with flags; never one-off.
+- **Lab notes:** `lab/YYYY-MM-DD-slug/`, one small design choice: its notebook with outputs and
+  any PDFs, indexed in `lab/README.md` with the decision. Private: `lab/` is in `.gitignore` and
+  nothing imports from it.
+- **Experiments:** `experiments/`, rerunnable scripted studies, tracked and public, rerun with
+  flags, never one-off. A lab note moves here once something public rests on it: a released
+  behavior, an ADR's reason or a paper's number.
 
 ## Notebooks
 
-- **Reader:** the text speaks to a reader who knows the field but not the repository: no project
-  vocabulary, and every abbreviation spelled out at first use.
-- **Scope:** a notebook holds only what the figures and the decision need. Implementation
-  details, fixed bugs and caveats that leave the result unchanged belong in the code or the
-  issue.
-- **Sentences:** short and plain, one per line, with `<br>` between them in a paragraph.
+- **Reader:** knows the field but not the repository: no project vocabulary, every abbreviation
+  spelled out at first use.
+- **Scope:** only what the figures and the decision need; implementation details, fixed bugs and
+  caveats that leave the result unchanged belong in the code or the issue.
+- **Sentences:** short and plain, one per line, `<br>` between them in a paragraph.
 - **Bullets:** a bold label and one fact; a second fact is a second bullet, never a `<br>`.
 <!-- end of shared conventions -->
 
