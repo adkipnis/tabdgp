@@ -8,7 +8,7 @@ This module samples priors and parameters for these models.
 
 We draw at three levels, hyperprior -> prior -> parameters:
 - **Hyperprior (Glm, Glmm):** a default per field (which an override replaces).
-- **Prior:** the stated model and priors, which can be passed to a fitter
+- **Prior:** the stated model and priors, which can be passed to a fitter.
 - **Parameters:** what a fitter estimates (e.g. β, σ_α).
 
 The priors are specified by their family (e.g. Normal, Student-t)
@@ -56,6 +56,7 @@ import numpy as np
 from pydantic import ConfigDict, Field, NonNegativeFloat, PositiveInt, model_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from tabdgp import likelihood
 from tabdgp.field import (
     Beta,
     Config,
@@ -69,7 +70,6 @@ from tabdgp.field import (
     Uniform,
     UniformInt,
 )
-from tabdgp import likelihood
 
 # =====================================================================================
 # what the draw reads and returns
