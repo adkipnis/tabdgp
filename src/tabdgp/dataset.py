@@ -5,7 +5,7 @@ pipeline:
 ---------
 the key and the SCM hyperprior
 -> one generator from the key's seed sequence                    _seedSequence
--> the resolved SCM hyperprior                                   Hyperprior.resolveDataset
+-> the resolved SCM hyperprior                                   Scm.resolveDataset
 -> the grouping factors, their codes and metadata                assign
 -> the column plan, y's column last under the SCM                plan
 -> the graph, each node at a unit of the grouping, y last        connect
@@ -14,7 +14,7 @@ the key and the SCM hyperprior
 -> the latent nodes at the rows                                  _broadcastLatent
 -> the covariates, their metadata, the grouping and the score    Covariates
 -> the SCM's outcome, y rank-matched to the score                rankMatch
--> the Dataset, the grouping factors first, the outcome last     draw
+-> the Dataset, the grouping factors first, the outcome last     drawDataset
 
 a key, covariates (drawn or a table's) and a model
 -> the key's first child stream, then the model's outcome        modelOutcome
@@ -32,9 +32,9 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp.column import Column, Grouping, assign, plan, rankMatch
 from tabdgp.covariates import Covariates
 from tabdgp.graph import Graph, connect
-from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import propagate
 from tabdgp.outcome import Model, Outcome, runModel
+from tabdgp.scm import Scm
 
 VERSION = version('tabdgp')
 NUMPY_VERSION = version('numpy')
@@ -54,7 +54,7 @@ class Dataset:
     graph: Graph
     latent: dict[str, np.ndarray]  # (n,) each, z-scored over its groups if group-level
     outcome: Outcome | None  # y under 'scm', None under 'none'
-    hyperparameters: Hyperprior  # after resolution
+    hyperparameters: Scm  # after resolution
     seed: int  # the corpus
     index: int  # the dataset within its corpus
     version: str  # of TabDGP; a key reproduces a dataset only within one version
@@ -91,10 +91,10 @@ class Dataset:
 # =====================================================================================
 
 
-def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
+def drawDataset(seed: int, index: int, scm: Scm) -> Dataset:
     """Dataset `index` of the corpus `seed`, the same bits whatever else is drawn."""
     rng = np.random.default_rng(_seedSequence(seed, index))
-    resolved = hyperprior.resolveDataset(rng)
+    resolved = scm.resolveDataset(rng)
 
     # the grouping before the graph, which draws each node's unit among the grouping factors
     grouping = assign(resolved, rng)
@@ -114,7 +114,7 @@ def draw(seed: int, index: int, hyperprior: Hyperprior) -> Dataset:
 
     # under the SCM, y rank-matched onto its marginal at the score the covariates carry
     outcome = None
-    if resolved.outcome_form == 'scm':
+    if resolved.outcome_source == 'scm':
         y = rankMatch(covariates.y_score, planned['y'], rng)  # (n,)
         outcome = Outcome(columns={'y': y}, metadata={'y': planned['y']})
     return Dataset(

@@ -1,8 +1,14 @@
-"""hyperprior.py defines how every hyperparameter of the dataset is sampled.
+"""scm.py defines how every hyperparameter of the SCM is sampled.
 
-We save hyperparameters as fields of the Hyperprior class (a Config in field.py).
+We draw at three levels, hyperprior -> SCM -> values:
+- **Hyperprior (Scm):** a default per field (which an override replaces), resolved by each draw.
+- **SCM:** the generating graph, each node's parents, unit and mechanism settings (graph.py).
+- **Values:** each node's values from its parents and its noise, its weights drawn on the way
+  (mechanism.py).
+
+We save hyperparameters as fields of the Scm class (a Hyperprior in field.py).
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
-  or to a point where one value serves every dataset (the outcome's form, its type shares).
+  or to a point where one value serves every dataset (the outcome's source, its type shares).
 - An override replaces it by a point or, where the field's type allows, by another distribution,
   checked against the field's bounds.
 - A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
@@ -15,7 +21,7 @@ pipeline:
 ---------
 the (optional) overrides
 -> a preset with the overrides                           grouped, flat
--> validation at construction                            Hyperprior
+-> validation at construction                            Scm
 -> a point for one field, in the bounds it is given      resolveField
 -> a point for each field drawn once per dataset         resolveDataset
    (a column, node or factor resolves its own fields later, by resolveField)
@@ -31,9 +37,9 @@ from pydantic import Field, model_validator
 
 from tabdgp.field import (
     Beta,
-    Config,
     Count,
     Dirichlet,
+    Hyperprior,
     Integer,
     LogUniform,
     LogUniformInt,
@@ -59,17 +65,17 @@ MARGINAL_FIELDS = {
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-OutcomeForm = Literal['none', 'scm']
+OutcomeSource = Literal['none', 'scm']
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
 # =====================================================================================
-# the hyperprior
+# the SCM's hyperprior
 # =====================================================================================
 
 
-class Hyperprior(Config):
-    """The hyperparameters of a dataset (grouped by when they're used).
+class Scm(Hyperprior):
+    """The hyperparameters of a TabDGP dataset (grouped by when they're used).
 
     - Columns: a table has rows and typed columns.
       A column is continuous, a count or has levels (binary, categorical or ordered).
@@ -99,7 +105,7 @@ class Hyperprior(Config):
       marginal families, mechanisms and activations.
       Each column or node chooses its own, proportional to those shares.
     - Outcome: a single node y. No other node reads it.
-      Its form turns y's node (the score) into y under the SCM; under none, there is no y.
+      Its source is the SCM, which turns y's node (the score) into y, or none, with no y.
       Its type shares and noise scale are the SCM's.
     """
 
@@ -190,8 +196,8 @@ class Hyperprior(Config):
     poisson_log_rate: Annotated[Real, within(le=40)] = Uniform(-1, 6)
 
     # outcome
-    outcome_form: OutcomeForm = 'scm'
-    outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Config to BaseModel
+    outcome_source: OutcomeSource = 'scm'
+    outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Hyperprior to BaseModel
         'continuous': 0.6,
         'binary': 0.2,
         'categorical': 0.05,
@@ -202,15 +208,15 @@ class Hyperprior(Config):
     outcome_noise_scale: NonNegative = LogUniform(0.1, 3)
 
     @classmethod
-    def grouped(cls, **overrides: Any) -> Hyperprior:
+    def grouped(cls, **overrides: Any) -> Scm:
         return cls(**overrides)
 
     @classmethod
-    def flat(cls, **overrides: Any) -> Hyperprior:
+    def flat(cls, **overrides: Any) -> Scm:
         return cls(factors=0, **overrides)
 
     @model_validator(mode='after')
-    def _checkOnePointPerFactor(self) -> Hyperprior:
+    def _checkOnePointPerFactor(self) -> Scm:
         """Checks that a tuple of groups gives every factor one point."""
         if isinstance(self.groups, tuple) and self.factors != len(self.groups):
             raise ValueError(
@@ -219,7 +225,7 @@ class Hyperprior(Config):
         return self
 
     @model_validator(mode='after')
-    def _checkGroupsCanNest(self) -> Hyperprior:
+    def _checkGroupsCanNest(self) -> Scm:
         """Checks that groups has enough values for the longest chain the fields allow:
         its bottom factor must reach its floor, and a tuple must rise from each point to the next.
         """
@@ -251,7 +257,7 @@ class Hyperprior(Config):
         lowest, _ = self._support(self.groups)
         return lowest + depth
 
-    def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
+    def resolveDataset(self, rng: np.random.Generator) -> Scm:
         """Resolves each field drawn once per dataset."""
         points = {}
         for name in type(self).model_fields:
@@ -261,7 +267,7 @@ class Hyperprior(Config):
                 points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n >= 2d
             else:
                 points[name] = self.resolveField(name, rng)
-        return Hyperprior(**points)
+        return Scm(**points)
 
     def resolveGroups(self, factor: int, depth: int, rng: np.random.Generator, high: int) -> int:
         """A factor's m: its own point of a tuple, else a draw from its depth's floor to high."""

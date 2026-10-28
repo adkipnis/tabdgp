@@ -19,7 +19,7 @@ The numerical coding of the covariates that a linear predictor would see:
 an intercept column, z-scored continuous columns, 0/1 binary columns, k − 1 treatment-coded
 columns per categorical or ordered column.
 The design is strictly derived from covariates.
-The hyperprior's design-column budget counts its columns besides the intercept.
+The design-column budget of the SCM's hyperprior counts its columns besides the intercept.
 _Avoid_: X for the uncoded covariates, features
 
 **Within-group covariate** / **group-level covariate**:
@@ -84,6 +84,8 @@ _Avoid_: layer, activation (one part of it), edge function
 
 **Generating graph**:
 The directed acyclic graph of a dataset's nodes and their parents.
+It also holds each node's unit and drawn mechanism settings (e.g. family, activation, scales).
+The mechanisms' weights are drawn with the node values and not kept.
 It is returned with every dataset.
 _Avoid_: causal graph unqualified, DAG (one property of it), architecture
 
@@ -105,7 +107,7 @@ _Avoid_: feature, variable unqualified
 
 **Count**:
 A column type for non-negative integers (e.g. a Poisson outcome, an integer covariate of a table).
-The hyperprior draws no count covariates yet.
+The SCM's hyperprior draws no count covariates yet.
 In the design matrix, a count is treated as a continuous column.
 _Avoid_: integer column, discrete column (an ordered one)
 
@@ -130,8 +132,8 @@ _Avoid_: dtype, encoding (the design matrix's)
 ### The draw
 
 **Draw**:
-The public call that returns one dataset.
-It is a pure function of a key and a hyperprior.
+The public call that returns one dataset, `drawDataset`.
+It is a pure function of a key and the SCM's hyperprior.
 Many datasets are drawn by looping over indices.
 _Avoid_: sample (a row or a value), generate, batch
 
@@ -152,29 +154,33 @@ A dataset is never padded and never written to a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
 **Hyperprior**:
-The config of distributions from which every quantity of a dataset is drawn (e.g. sizes, graph,
-mechanisms, marginals, types, quirks).
-It is reached through a preset.
-The defaults of the grouped preset are to be matched to real grouped tables and then widened.
-They are what the proofs certify.
+A config of distributions, one per field, from which a draw resolves its points.
+The SCM's, `Scm`, draws every quantity of a dataset (e.g. sizes, graph, mechanisms, marginals,
+types, quirks), and it is reached through a preset.
+A GLM's or GLMM's, `Glm` or `Glmm`, draws the prior over its parameters.
+A draw resolves `Scm` once per dataset, then draws one SCM from it: the generating graph and its
+mechanisms.
+In prose, an SCM, a GLM or a GLMM is a drawn model, and `Scm`, `Glm` or `Glmm` its hyperprior.
 _Avoid_: prior (the fitter's, over parameters), config unqualified, meta-distribution
 
 **Preset**:
-A named hyperprior for one kind of table: grouped or flat today, item response, survival or
-causal later.
+A named SCM hyperprior for one kind of table, `Scm.grouped()` or `Scm.flat()` today, item
+response, survival or causal later.
 A preset only sets defaults and never adds a mechanism.
 Every draw starts from one.
+The defaults of the grouped preset are to be matched to real grouped tables and then widened.
+They are what the proofs certify.
 _Avoid_: dataset type, kind, mode
 
 **Override**:
-A point value or a distribution passed for one field of a preset, which replaces its default
-for that call.
-Overrides choose the outcome's form, or adapt a preset to a study, an ablation or a size outside
-its range.
+A point value or a distribution passed for one field of a hyperprior, which replaces its
+default for that call.
+Overrides choose the outcome's source, or adapt a preset of `Scm` to a study, an ablation or a
+size outside its range.
 _Avoid_: setting, parameter, hyperparameter
 
 **Quirk axis**:
-A field of the hyperprior that controls one quirk.
+A field of the SCM's hyperprior that controls one quirk.
 It is added only when measurements on real tables show the quirk strongly enough.
 _Avoid_: noise, perturbation, augmentation
 
@@ -182,16 +188,16 @@ _Avoid_: noise, perturbation, augmentation
 The node `y` with role `outcome`.
 It is drawn by default, at the row unit, as the last node of the generating graph and without
 children.
-Its parents are drawn like any node's, and its form says how y follows from them.
+Its parents are drawn like any node's, and its source says how y follows from them.
 A dataset has at most one.
 _Avoid_: target, label, response unqualified, dependent variable
 
-**Form**:
-How the outcome node turns its score into y, one per dataset.
+**Outcome source**:
+Where a dataset's own y comes from, one per dataset.
 Under `scm`, the default, y is a node like the others, with a marginal or a post-hoc type.
 Under `none`, the dataset has no y.
 A model draws a y of its own on a dataset's covariates.
-_Avoid_: mode, kind, outcome type (its column type)
+_Avoid_: form, mode, kind, outcome type (its column type), outcome model (a model's)
 
 **Likelihood**:
 The distribution y is drawn from, given a function of the parameters and the covariates (the

@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, assign
 from tabdgp.graph import Graph, connect
-from tabdgp.hyperprior import Hyperprior
+from tabdgp.scm import Scm
 from tests.fixtures.build import columnsOf, graphOf, groupingOf, point
 
 
@@ -333,8 +333,8 @@ def _connect(
 ) -> Graph:
     """A graph over a plan of continuous columns, with y under the SCM, else without y."""
     rng = np.random.default_rng(seed)
-    form = {'outcome_form': 'scm' if with_y else 'none'}
-    resolved = Hyperprior(**form | overrides).resolveDataset(rng)
+    source = {'outcome_source': 'scm' if with_y else 'none'}
+    resolved = Scm(**source | overrides).resolveDataset(rng)
     columns = columnsOf(OBSERVED[:observed_nodes])
     return connect(resolved, grouping, columns, rng)
 
@@ -607,7 +607,7 @@ def test_a_column_with_more_levels_than_its_factors_groups_stays_at_the_row() ->
     }
     for seed in range(10):
         rng = np.random.default_rng(seed)
-        resolved = Hyperprior(group_level_share=1.0).resolveDataset(rng)
+        resolved = Scm(group_level_share=1.0).resolveDataset(rng)
         graph = connect(resolved, grouping, columns, rng)
         unit = dict(zip(graph.names, graph.unit))
         assert [unit['a'], unit['b'], unit['c']] == ['g0', 'g0', 'row']
@@ -619,7 +619,7 @@ def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> No
     """
     for seed in range(20):
         rng = np.random.default_rng(seed)
-        resolved = Hyperprior.grouped(rows=200).resolveDataset(rng)
+        resolved = Scm.grouped(rows=200).resolveDataset(rng)
         grouping = assign(resolved, rng)
         graph = connect(resolved, grouping, columnsOf(OBSERVED[:5]), rng)
         factors = [name for name in graph.names if name.startswith('g')]
@@ -631,7 +631,7 @@ ONE_FACTOR = groupingOf([[0, 0, 1, 1]])
 
 
 def test_connect_without_y_is_spec_22s_graph() -> None:
-    """A plan without y, under outcome_form = 'none',
+    """A plan without y, under outcome_source = 'none',
     keeps the dataset its key drew before the outcome.
     The literals are spec #22's graph for this key.
     """
@@ -654,10 +654,10 @@ def test_y_is_drawn_under_every_grouping(seed: int, factors: int) -> None:
     connect draws y where Graph accepts it: last, at the row and read by no node.
     """
     rng = np.random.default_rng(seed)
-    hyperprior = Hyperprior.grouped(
+    scm = Scm.grouped(
         rows=100, factors=factors, group_level_share=1.0, edge_offset=30.0, hub_scale=0.0
     )
-    resolved = hyperprior.resolveDataset(rng)
+    resolved = scm.resolveDataset(rng)
     grouping = assign(resolved, rng)
     columns = columnsOf(OBSERVED[:5])
     graph = connect(resolved, grouping, columns, rng)
@@ -671,7 +671,7 @@ def test_y_is_in_the_graph_under_the_scm_without_a_planned_column_and_absent_und
     scm = _connect(0, 4, GROUPING, with_y=True, outcome_noise_scale=2.0, **DENSE)
     assert (scm.names[-1], scm.noise_scale[-1]) == ('y', 2.0)
     assert scm.group_factor[-1] in ['g0', 'g1', 'g2']
-    none = _connect(0, 4, GROUPING, outcome_form='none')
+    none = _connect(0, 4, GROUPING, outcome_source='none')
     assert 'y' not in none.names
 
 

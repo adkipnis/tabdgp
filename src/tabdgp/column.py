@@ -23,7 +23,7 @@ import numpy as np
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
+from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm
 
 MarginalType = Literal['continuous', 'count']
 ColumnType = Literal[MarginalType, 'binary', 'categorical', 'ordered']
@@ -68,7 +68,7 @@ class Column:
         if self.type == 'count':
             agree = self.marginal in [None, 'poisson']
         elif self.type == 'continuous':
-            agree = self.marginal in [None, *Hyperprior.categories('marginal_shares')]
+            agree = self.marginal in [None, *Scm.categories('marginal_shares')]
         else:
             agree = self.marginal is None
         if not agree:
@@ -141,7 +141,7 @@ class Grouping:
         return values[superior_of]
 
 
-def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
+def assign(resolved: Scm, rng: np.random.Generator) -> Grouping:
     """The grouping factors (g0, g1, ...), each row assigned to one group per factor."""
     depths = _nestFactors(resolved, rng)
     # what the next factor's groups split, each row's element among them, and its bound:
@@ -174,7 +174,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     return Grouping(metadata=dict(reversed(metadata.items())), codes=dict(reversed(codes.items())))
 
 
-def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
+def _nestFactors(resolved: Scm, rng: np.random.Generator) -> list[int]:
     """Each factor's depth (the number of factors superior to it)."""
     depths: list[int] = []
     for i in range(resolved.factors):
@@ -184,7 +184,7 @@ def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
 
 
 def _sampleSizes(
-    elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
+    elements: int, groups: int, resolved: Scm, rng: np.random.Generator
 ) -> tuple[np.ndarray, dict[str, float]]:
     """The group sizes over the elements (equal or Dirichlet-multinomial) and the fields drawn."""
     if rng.random() < resolved.balanced_share:
@@ -204,7 +204,7 @@ def _sampleSizes(
 # =====================================================================================
 
 
-def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
+def plan(resolved: Scm, rng: np.random.Generator) -> dict[str, Column]:
     """Columns x0, x1, ... are drawn one by one until their design columns fill the budget.
     The outcome y is drawn last, if its model is the SCM.
     """
@@ -216,7 +216,7 @@ def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
         column = _resolveColumn(type, 'covariate', remainder + 1, resolved, rng)
         columns[f'x{len(columns)}'] = column
         remainder -= column.design_columns
-    if resolved.outcome_form == 'scm':
+    if resolved.outcome_source == 'scm':
         type = resolved.outcome_type_shares.choose(rng)
         columns['y'] = _resolveColumn(type, 'outcome', resolved.outcome_max_levels, resolved, rng)
     return columns
@@ -226,7 +226,7 @@ def _resolveColumn(
     type: ColumnType,
     role: Role,
     most_levels: int,
-    resolved: Hyperprior,
+    resolved: Scm,
     rng: np.random.Generator,
 ) -> Column:
     """One column's k or marginal family (and its own parameters)."""

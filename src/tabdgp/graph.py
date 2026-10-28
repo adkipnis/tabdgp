@@ -22,7 +22,7 @@ from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.column import Column, Grouping
-from tabdgp.hyperprior import Hyperprior
+from tabdgp.scm import Scm
 
 Mechanism = Literal['linear', 'mlp']
 Activation = Literal['tanh', 'relu', 'sin']
@@ -138,7 +138,7 @@ class Graph:
 
 
 def connect(
-    resolved: Hyperprior,
+    resolved: Scm,
     grouping: Grouping,
     columns: dict[str, Column],
     rng: np.random.Generator,
@@ -162,7 +162,7 @@ def connect(
 
 
 def _orderNodes(
-    resolved: Hyperprior,
+    resolved: Scm,
     grouping: Grouping,
     columns: dict[str, Column],
     rng: np.random.Generator,
@@ -194,13 +194,13 @@ def _orderNodes(
     unit = factors + [units[unit_index[i]] for i in order]
 
     # the SCM turns y's node into y
-    if resolved.outcome_form != 'none':
+    if resolved.outcome_source != 'none':
         names.append('y')
         unit.append('row')
     return names, unit
 
 
-def _sampleUnits(resolved: Hyperprior, f: int, nodes: int, rng: np.random.Generator) -> np.ndarray:
+def _sampleUnits(resolved: Scm, f: int, nodes: int, rng: np.random.Generator) -> np.ndarray:
     """Each node's unit as an index into the f factors, f for the row."""
     if f == 0:
         return np.zeros(nodes, dtype=np.int64)  # a flat table draws nothing
@@ -218,7 +218,7 @@ def _keepEveryLevel(unit: np.ndarray, columns: list[Column], grouping: Grouping)
     return np.where(levels > most_levels[unit], len(groups), unit)  # (d,)
 
 
-def _sampleEdges(resolved: Hyperprior, v: int, rng: np.random.Generator) -> np.ndarray:
+def _sampleEdges(resolved: Scm, v: int, rng: np.random.Generator) -> np.ndarray:
     # TabICL's Cauchy DAG: an edge i -> j has logit offset + out_i + in_j with heavy-tailed node terms;
     # this way, graph density varies and a few nodes become hubs
     out_cauchy = rng.standard_cauchy(v)  # (v,)
@@ -258,7 +258,7 @@ def _maskEdges(edges: np.ndarray, unit: list[str], grouping: Grouping) -> np.nda
 
 
 def _resolveNodes(
-    names: list[str], parents: np.ndarray, resolved: Hyperprior, rng: np.random.Generator
+    names: list[str], parents: np.ndarray, resolved: Scm, rng: np.random.Generator
 ) -> dict[str, list]:
     """Each node's own draws by field, None where it draws nothing."""
     v = len(parents)
@@ -283,7 +283,7 @@ def _resolveNodes(
 
 
 def _resolveParts(
-    unit: list[str], grouping: Grouping, resolved: Hyperprior, rng: np.random.Generator
+    unit: list[str], grouping: Grouping, resolved: Scm, rng: np.random.Generator
 ) -> tuple[list[float | None], list[str | None]]:
     """Each row-unit node's group share and group factor, None elsewhere and in a flat table."""
     factors = list(grouping.metadata)

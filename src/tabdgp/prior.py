@@ -59,7 +59,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp import likelihood
 from tabdgp.field import (
     Beta,
-    Config,
+    Hyperprior,
     LogUniform,
     NonNegative,
     Positive,
@@ -223,7 +223,7 @@ SD_FAMILY_SHARES = {
 }
 
 
-class Glm(Config):
+class Glm(Hyperprior):
     """The hyperprior of a generalized linear model (GLM),
     from which the prior and in turn the model parameters are drawn:
 

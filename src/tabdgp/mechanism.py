@@ -28,7 +28,7 @@ import numpy as np
 
 from tabdgp.column import Grouping
 from tabdgp.graph import Graph
-from tabdgp.hyperprior import Hyperprior
+from tabdgp.scm import Scm
 
 # =====================================================================================
 # activations
@@ -50,7 +50,7 @@ ACTIVATIONS = {'tanh': np.tanh, 'relu': _relu, 'sin': np.sin}
 
 
 def propagate(
-    graph: Graph, resolved: Hyperprior, grouping: Grouping, rng: np.random.Generator
+    graph: Graph, resolved: Scm, grouping: Grouping, rng: np.random.Generator
 ) -> dict[str, np.ndarray]:
     """Every node's values by name in the graph's order, each at its unit, z-scored, its own array.
 
@@ -77,7 +77,7 @@ def _runMechanism(
     nodes: dict[str, np.ndarray],
     graph: Graph,
     grouping: Grouping,
-    resolved: Hyperprior,
+    resolved: Scm,
     rng: np.random.Generator,
 ) -> np.ndarray:
     """Node j's mechanism over these parents, run at `run_unit` and z-scored at j's own unit."""
@@ -99,7 +99,7 @@ def _runMechanism(
     return _zscore(_zscore(output) + graph.noise_scale[j] * noise)
 
 
-def _countElements(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
+def _countElements(unit: str, grouping: Grouping, resolved: Scm) -> int:
     """How many elements a unit has: the groups of a factor, the rows of the row."""
     if unit == 'row':
         return resolved.rows
@@ -107,7 +107,7 @@ def _countElements(unit: str, grouping: Grouping, resolved: Hyperprior) -> int:
 
 
 def _mapParents(
-    hidden: np.ndarray, j: int, graph: Graph, resolved: Hyperprior, rng: np.random.Generator
+    hidden: np.ndarray, j: int, graph: Graph, resolved: Scm, rng: np.random.Generator
 ) -> np.ndarray:
     """Node j's family over its parents' values, with fresh weights."""
     layers = resolved.layers if graph.mechanism[j] == 'mlp' else 0
@@ -150,7 +150,7 @@ def _mixParts(
     nodes: dict[str, np.ndarray],
     graph: Graph,
     grouping: Grouping,
-    resolved: Hyperprior,
+    resolved: Scm,
     rng: np.random.Generator,
 ) -> np.ndarray:
     """The two-part mechanism of row-unit node j: z(sqrt(s) · group + sqrt(1 − s) · row)."""

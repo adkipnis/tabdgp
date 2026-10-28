@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node; 2026-10-25, #52: a GLM's or GLMM's ground truth is float32 too; 2026-10-27, #56: ground truth, not truth; 2026-10-28, ADR 0007: a model's outcome draws from the key's first child stream, so a dataset's own key gives an independent outcome; 2026-10-28, #56: bitwise per CPU type and numpy build, since numpy's float draws and functions differ in the last bit across them
+amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node; 2026-10-25, #52: a GLM's or GLMM's ground truth is float32 too; 2026-10-27, #56: ground truth, not truth; 2026-10-28, ADR 0007: a model's outcome draws from the key's first child stream, so a dataset's own key gives an independent outcome; 2026-10-28, #56: bitwise per CPU type and numpy build, since numpy's float draws and functions differ in the last bit across them; 2026-10-28, #67: `draw` is `drawDataset`, its hyperprior `Scm`
 ---
 
 # 0001 - One dataset per draw, keyed by seed and index, in numpy
@@ -14,7 +14,7 @@ draws the outcome before anything is written. Grilled on
 **the seed is the corpus.** Dataset `i` is a pure function of its key `(seed, index)`, the
 hyperprior with its overrides and the installed versions of TabDGP and numpy, whose generator
 promises no stable streams across its releases; the dataset records both. The public call
-draws one dataset, `draw(seed, index, hyperprior) -> Dataset`, in numpy, at the dataset's own
+draws one dataset, `drawDataset(seed, index, scm) -> Dataset`, in numpy, at the dataset's own
 shapes. TabDGP never pads, never batches across datasets and never writes a file.
 
 ## Considered options

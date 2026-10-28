@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from tabdgp.column import Column, Grouping, assign, plan, rankMatch
 from tabdgp.field import UniformInt
-from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
+from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm
 from tests.fixtures.build import groupingOf, point
 
 ALPHA = {'level_alpha': 1.0}
@@ -275,7 +275,7 @@ def test_broadcasting_out_of_a_units_chain_fails(from_unit: str, to_unit: str) -
 
 def _assign(seed: int, **overrides: object) -> Grouping:
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior.grouped(**overrides).resolveDataset(rng)
+    resolved = Scm.grouped(**overrides).resolveDataset(rng)
     return assign(resolved, rng)
 
 
@@ -453,11 +453,11 @@ def test_assign_is_deterministic_under_a_fixed_generator() -> None:
 
 def _plan(seed: int, **overrides: object) -> dict[str, Column]:
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolveDataset(rng)
+    resolved = Scm(**overrides).resolveDataset(rng)
     return plan(resolved, rng)
 
 
-@pytest.mark.parametrize('type', Hyperprior.categories('type_shares'))
+@pytest.mark.parametrize('type', Scm.categories('type_shares'))
 def test_the_budget_is_met_exactly_for_budgets_0_to_19_under_every_type_share_corner(
     type: str,
 ) -> None:
@@ -486,7 +486,7 @@ def test_k_is_clipped_when_it_would_overflow_the_budget() -> None:
         design_columns=3,
         type_shares=point('type_shares', 'categorical'),
         levels_p=1e-6,
-        outcome_form='none',
+        outcome_source='none',
     )
     assert _shapes(columns) == [('categorical', 4)]
 
@@ -501,7 +501,7 @@ def test_max_levels_caps_k() -> None:
         type_shares=point('type_shares', 'ordered'),
         levels_p=1e-6,
         max_levels=10,
-        outcome_form='none',
+        outcome_source='none',
     )
     assert _shapes(columns) == [('ordered', 10), ('ordered', 10), ('binary', 2)]
 
@@ -515,7 +515,7 @@ def test_each_column_draws_its_own_parameters() -> None:
         design_columns=5,
         type_shares=point('type_shares', 'continuous'),
         marginal_shares=point('marginal_shares', 'lognormal'),
-        outcome_form='none',
+        outcome_source='none',
     )
     sigmas = {column.parameters['lognormal_sigma'] for column in lognormal.values()}
     assert len(sigmas) == 5
@@ -525,7 +525,7 @@ def test_each_column_draws_its_own_parameters() -> None:
         design_columns=8,
         type_shares=point('type_shares', 'ordered'),
         levels_p=1.0,
-        outcome_form='none',
+        outcome_source='none',
     )
     alphas = {column.parameters['level_alpha'] for column in ordered.values()}
     assert len(alphas) == 4
@@ -539,7 +539,7 @@ def test_a_point_override_gives_every_column_its_value() -> None:
         type_shares=point('type_shares', 'continuous'),
         marginal_shares=point('marginal_shares', 'lognormal'),
         lognormal_sigma=0.7,
-        outcome_form='none',
+        outcome_source='none',
     )
     for column in columns.values():
         assert column.parameters == {'lognormal_sigma': 0.7}
@@ -560,7 +560,7 @@ def test_plan_names_its_columns_x0_to_x_d_minus_1() -> None:
     every later step reads the names.
     """
     columns = _plan(
-        0, design_columns=4, type_shares=point('type_shares', 'continuous'), outcome_form='none'
+        0, design_columns=4, type_shares=point('type_shares', 'continuous'), outcome_source='none'
     )
     assert list(columns) == ['x0', 'x1', 'x2', 'x3']
 
@@ -571,14 +571,14 @@ def test_plan_ends_with_y_under_scm_and_has_no_y_under_none() -> None:
     y is drawn after the budget loop, so the covariates are the same either way.
     """
     with_y = _plan(0, design_columns=5)
-    without_y = _plan(0, design_columns=5, outcome_form='none')
+    without_y = _plan(0, design_columns=5, outcome_source='none')
     assert list(with_y)[-1] == 'y'
     assert with_y['y'].role == 'outcome'
     assert 'y' not in without_y
     assert {name: with_y[name] for name in without_y} == without_y
 
 
-@pytest.mark.parametrize('type', Hyperprior.categories('outcome_type_shares'))
+@pytest.mark.parametrize('type', Scm.categories('outcome_type_shares'))
 def test_ys_type_follows_outcome_type_shares_under_every_point_mass(type: str) -> None:
     """A corpus of one outcome type is one override,
     count included, which the covariates' type shares never draw.
@@ -687,7 +687,7 @@ def _example(family: str) -> Column:
     return _matched(family, parameters)
 
 
-CONTINUOUS = [_example(family) for family in Hyperprior.categories('marginal_shares')]
+CONTINUOUS = [_example(family) for family in Scm.categories('marginal_shares')]
 COUNT = _example('poisson')
 
 
@@ -802,8 +802,8 @@ def test_a_large_level_alpha_gives_even_level_counts() -> None:
 def _fromDefaults(family: str, n: int, seed: int) -> np.ndarray:
     """A column of the family under parameters drawn from the defaults, as plan draws them."""
     rng = np.random.default_rng(seed)
-    hyperprior = Hyperprior()
-    parameters = {field: hyperprior.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
+    scm = Scm()
+    parameters = {field: scm.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
     column = _matched(family, parameters)
     return rankMatch(rng.standard_normal(n), column, rng)
 

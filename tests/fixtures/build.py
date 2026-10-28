@@ -10,18 +10,18 @@ import numpy as np
 
 from tabdgp.column import Column, Grouping
 from tabdgp.covariates import Covariates
-from tabdgp.field import Config
+from tabdgp.field import Hyperprior
 from tabdgp.graph import Graph
-from tabdgp.hyperprior import Hyperprior
+from tabdgp.scm import Scm
 
 # a model writes its columns without a marginal or parameters
 Y = Column(type='continuous', role='outcome')
 
 
-def point(field: str, category: str, config: type[Config] = Hyperprior) -> dict[str, float]:
-    """Shares of a config's field that put all mass on one category."""
+def point(field: str, category: str, hyperprior: type[Hyperprior] = Scm) -> dict[str, float]:
+    """Shares of a hyperprior's field that put all mass on one category."""
     shares: dict[str, float] = {}
-    for name in config.categories(field):
+    for name in hyperprior.categories(field):
         shares[name] = 1.0 if name == category else 0.0
     return shares
 

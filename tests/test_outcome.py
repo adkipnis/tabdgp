@@ -382,8 +382,8 @@ def test_a_random_effects_point_above_d_fails_naming_the_field() -> None:
 
 def test_run_model_refuses_a_glmm_on_covariates_without_a_factor_naming_the_model() -> None:
     """A GLMM without a grouping factor would split var(η) over no random block
-    and draw a GLM at a fraction of its scale, silently; draw's hyperprior refuses it earlier,
-    so this guards a table read without factors.
+    and draw a GLM at a fraction of its scale, silently;
+    this guards a flat draw's covariates and a table read without factors.
     """
     covariates = covariatesOf([], ['x0'], rows=4)
     with pytest.raises(ValueError, match='Glmm'):

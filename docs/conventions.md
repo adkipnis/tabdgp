@@ -274,11 +274,20 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 
 ### Modules
 
+The modules form layers: each arrow points to a module that imports it, and no import points back.
+
+```
+field -> scm -> column -> graph -> mechanism -> dataset
+                column -> covariates -> outcome -> dataset
+                column -> likelihood -> prior -> outcome
+fidelity (imported by nothing in src/)
+```
+
 | module | owns | imported by |
 |---|---|---|
-| `field` | how a field is a point or a distribution, its kind and bounds, its resolution to a point within given bounds, shares over named categories in their default's order | prior, hyperprior, likelihood, the package's `__init__` |
-| `prior` | the configs `Glm` and `Glmm`, their fields and their defaults and which fields each factor resolves, y's family as stated and its shape, the family's default shape drawn per dataset unless one is stated, the stated prior drawn over named blocks (a block's variance per coefficient at scale 1 and its groups): β's family, the intercept's location, each slope's location, each block's scales from its budget, shared or per coefficient by a gate per block, the split between the fixed block and the factors, the families of σ_α and σ_ε apart, each factor's LKJ shape, each parameter's family drawn with its locations and scales; `Prior`, which draws the parameters from that prior without the config, the sd families' draws and the LKJ C-vine; nothing about columns | outcome, the package's `__init__` |
-| `hyperprior` | the dataset's fields and their defaults, an integer truncated at another field's value, the presets, whether the SCM draws y, y's type shares and noise scale, and which fields each column, node or grouping factor draws, by marginal family for a continuous or count column | column, graph, mechanism, dataset, the package's `__init__` |
+| `field` | `Hyperprior`, the base of `Scm`, `Glm` and `Glmm`: how a field is a point or a distribution, its kind and bounds, its resolution to a point within given bounds, shares over named categories in their default's order | prior, scm, likelihood, the package's `__init__` |
+| `prior` | the hyperpriors `Glm` and `Glmm`, their fields and their defaults and which fields each factor resolves, y's family as stated and its shape, the family's default shape drawn per dataset unless one is stated, the stated prior drawn over named blocks (a block's variance per coefficient at scale 1 and its groups): β's family, the intercept's location, each slope's location, each block's scales from its budget, shared or per coefficient by a gate per block, the split between the fixed block and the factors, the families of σ_α and σ_ε apart, each factor's LKJ shape, each parameter's family drawn with its locations and scales; `Prior`, which draws the parameters from that prior without the hyperprior, the sd families' draws and the LKJ C-vine; nothing about columns | outcome, the package's `__init__` |
+| `scm` | `Scm`, the SCM's hyperprior: the dataset's fields and their defaults, an integer truncated at another field's value, the presets, whether the SCM draws y, y's type shares and noise scale, and which fields each column, node or grouping factor draws, by marginal family for a continuous or count column | column, graph, mechanism, dataset, the package's `__init__` |
 | `column` | the design-column budget, the post-hoc types and the type `count` with its `poisson` marginal: each column's name, type, k and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks; the outcome as the column `y` with role `outcome`, minted last outside the budget under the SCM; a column a model wrote or a table brought, without a marginal or parameters; the grouping factor as a column, its relation, size draw and codes, and `Grouping`, the unit arithmetic (a unit's chain, the broadcast between units) | graph, mechanism, covariates, likelihood, outcome, dataset |
 | `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, the block bonus, each node's unit and the mask on edges out of its chain, the order (the grouping factors, then the units in the factors' order, the row last, latent before observed within a unit, the outcome last of all at the row), each node's family, activation and scales, the outcome's noise scale from its own field, a row-unit node's group share and group factor, and what the graph guarantees | mechanism, dataset |
 | `mechanism` | how a node's values follow from its parents and its noise, at a unit: linear and MLP families, the parents read at the unit, relative noise, the z-score at the node's own unit, and a row-unit node's group part and row part mixed by its group share | dataset |

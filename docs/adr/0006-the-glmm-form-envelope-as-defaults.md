@@ -1,20 +1,20 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect; 2026-10-26, #56: the scales vary per coefficient by default, β's and σ_α's alike; 2026-10-26, #56: `shape` is `family_shape`, as an unqualified family is y's; 2026-10-26, #56: the prior context is the `Prior`, drawn by `Glm.drawPrior`; 2026-10-26, #56: the prior's locations are ν and its scales τ (ν_β and τ_β, τ_α, τ_ε), τ unsubscripted the predictor sd they split, and the Student-t's degrees of freedom df; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares` and its shape `y_shape`, and `Glm.drawPrior(blocks, rng)` draws it first, the `Prior` holding it; 2026-10-27, #66: `drawPrior` draws each parameter's family with its locations and scales, β's after the split, the `Prior` holds y's shape and `Parameters` only what a fitter estimates; 2026-10-27, #56: `correlated_share` is the practice survey's share of models with slopes that correlate them, not of models with slopes; 2026-10-27, #56: y's families and links are `family`'s and the covariates `covariates`', modules of their own that `outcome` imports; 2026-10-27, #56: `family` is `likelihood`, the distribution y is drawn from, since family alone does not say whose; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: y's family is stated with no default, never drawn, `family` on `Glm` and the `Prior`, `y_family_shares` gone, and one `shape` field, its default per family in `likelihood`; 2026-10-28, #68: the family and shape on a GLM's outcome beside its link, not on the `Prior`, and the shape None for its family's default, which each dataset draws
+amended: 2026-10-23, #41: the form's field is outcome_form; 2026-10-23, ADR 0007: the form is a model, `Glm` and `Glmm` configs of their own in `prior` reached as `outcome_form='glm'` and `'glmm'`, no `Hyperprior.glmm()`; the tokens are shares fields; the container is per model, the scm form's included; the deviation is the score every form gets; 2026-10-24, #47: the fixed block's share of var(η) from its own Beta and the rest split over the factors; a block's budget over its design's second moment, not its width; 2026-10-25, #51: the raw-scale Σ_k is A Σ_k A′ by the coding's map, not Σ_k scaled by the diagonal; 2026-10-25, #55: a Poisson count above numpy's limit saturates at int64's largest, s_ε is F's scale, and y has unit variance at the scales; 2026-10-25, the prior grill: the prior follows what brms users state (β's families, a located prior per slope, the intercept's location, per-slope scales as an override, σ_α's and σ_ε's families apart, the context draws its own parameters), and the contaminated families replace the residual seam; 2026-10-26, #56: `sd_alpha` is `sigma_alpha`, as σ_ε is `sigma_eps`, and the context names each hyperparameter by its parameter, a scale per random effect; 2026-10-26, #56: the scales vary per coefficient by default, β's and σ_α's alike; 2026-10-26, #56: `shape` is `family_shape`, as an unqualified family is y's; 2026-10-26, #56: the prior context is the `Prior`, drawn by `Glm.drawPrior`; 2026-10-26, #56: the prior's locations are ν and its scales τ (ν_β and τ_β, τ_α, τ_ε), τ unsubscripted the predictor sd they split, and the Student-t's degrees of freedom df; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares` and its shape `y_shape`, and `Glm.drawPrior(blocks, rng)` draws it first, the `Prior` holding it; 2026-10-27, #66: `drawPrior` draws each parameter's family with its locations and scales, β's after the split, the `Prior` holds y's shape and `Parameters` only what a fitter estimates; 2026-10-27, #56: `correlated_share` is the practice survey's share of models with slopes that correlate them, not of models with slopes; 2026-10-27, #56: y's families and links are `family`'s and the covariates `covariates`', modules of their own that `outcome` imports; 2026-10-27, #56: `family` is `likelihood`, the distribution y is drawn from, since family alone does not say whose; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: y's family is stated with no default, never drawn, `family` on `Glm` and the `Prior`, `y_family_shares` gone, and one `shape` field, its default per family in `likelihood`; 2026-10-28, #68: the family and shape on a GLM's outcome beside its link, not on the `Prior`, and the shape None for its family's default, which each dataset draws; 2026-10-28, #67: the glmm form is the GLMM, the form the outcome's source and its field `outcome_source`; `Hyperprior` is `Scm`, `draw` is `drawDataset`
 ---
 
-# 0006 - The glmm form: metabeta's prior envelope as the glmm form's defaults, the fit drawn jointly, no caps, the estimands returned
+# 0006 - The GLMM: metabeta's prior envelope as the GLMM's defaults, the fit drawn jointly, no caps, the estimands returned
 
-The outcome node's second form (ADR 0005) is a generalized linear mixed model
+The outcome's model-based source (ADR 0005) is a generalized linear mixed model
 (GLMM) on the design matrix, the datasets `metabeta.mixed` trains on and, with a deviation,
 the white-box misspecified ones. Grilled on 2026-10-22 with ADR 0005, the decision is: **the
-glmm form's prior fields default to metabeta's prior envelope, as ADR 0004 made its size rules
-the grouped preset's defaults (reached as `outcome_form='glmm'` on `grouped()`, ADR 0007); the
+GLMM's prior fields default to metabeta's prior envelope, as ADR 0004 made its size rules
+the grouped preset's defaults (reached as `outcome_source='glmm'` on `grouped()`, ADR 0007); the
 parameters are drawn from the stated prior families exactly, with the scales of a dataset's
 blocks drawn jointly so that the fit is spread instead of capped; nothing is clipped,
 rerolled or rescaled after the draw; the dataset returns the estimands on both scales and
-the prior they were drawn with.** The words are `CONTEXT.md`'s: form, deviation, prior,
+the prior they were drawn with.** The words are `CONTEXT.md`'s: outcome source, deviation, prior,
 random effect, design matrix.
 
 The witnesses: under metabeta's envelope drawn independently per block, 61 % of Normal
@@ -28,10 +28,10 @@ blocks at q = 2 and 3 of 18 above.
 
 ## Decisions
 
-- **The form's defaults.** `outcome_form = 'glmm'` on `grouped()` is the form with `Glmm()`'s
-  defaults, `deviation_scale = 0` among them (ADR 0007 replaced `Hyperprior.glmm()`). metabeta
-  calls `draw(seed, index, Hyperprior.grouped(outcome_form='glmm'))` and passes nothing else;
-  a one-family corpus is `outcome_form=Glmm(y_family_shares={'gaussian': 1})`, a study of that
+- **The GLMM's defaults.** `outcome_source = 'glmm'` on `grouped()` is the GLMM with `Glmm()`'s
+  defaults, `deviation_scale = 0` among them (ADR 0007 replaced `Scm.glmm()`). metabeta
+  calls `drawDataset(seed, index, Scm.grouped(outcome_source='glmm'))` and passes nothing else;
+  a one-family corpus is `outcome_source=Glmm(y_family_shares={'gaussian': 1})`, a study of that
   family (until 2026-10-28: the family is stated and the model called after the draw).
   The white-box misspecified study overrides `deviation_scale`.
 - **The prior fields, the envelope.** `y_family_shares` over {gaussian, bernoulli, poisson},
@@ -90,7 +90,7 @@ blocks at q = 2 and 3 of 18 above.
   columns z-scored by the population sd over the n rows, binary 0/1, k − 1 dummies dropping the
   first level in the codes' order. MixedBench's contract and metabeta's schema code it too;
   either may import this coder once it exists.
-- **What the dataset returns**, on `Dataset.outcome` (`GlmmOutcome`; the scm form returns a
+- **What the dataset returns**, on `Dataset.outcome` (`GlmmOutcome`; the SCM's y has a
   container of its own since ADR 0007): family, link, the
   fixed and random term names per factor, the prior (τ_β, τ_0, τ_α per factor, τ_ε, F,
   η, r, τ, φ), the parameters on the standardized scale as drawn (`beta` (d,), per factor
@@ -103,7 +103,7 @@ blocks at q = 2 and 3 of 18 above.
   columns compares against.
 - **Modules.** `prior` owns the GLMM's priors: the configs `Glm` and `Glmm` with the fields
   over them (ADR 0007), the joint scale draw, the LKJ sampler and the parameter draw, nothing
-  about columns; `outcome` owns the node: its forms, the design matrix, η, the deviation and
+  about columns; `outcome` owns the node: its models, the design matrix, η, the deviation and
   the containers, with the families and links in `family` and the covariates it reads in
   `covariates`. `prior` and `family` are imported by `outcome`, `outcome` by `draw`.
 
@@ -141,7 +141,7 @@ blocks at q = 2 and 3 of 18 above.
 ## Consequences
 
 - metabeta's `envelope.md`: rule 8's "q stays this package's" and its "q <= 4" give way to this
-  form's default (6, in columns); the prior table cites this ADR; rule 9 names the glmm form.
+  model's default (6, in columns); the prior table cites this ADR; rule 9 names the GLMM.
   mixed ADR 0003's consequence "log s log-uniform per block" becomes "jointly, so that the
   fit is spread"; the families, η and the envelope's range stand. Root ADR 0005's "until the
   node exists, `metabeta.mixed` draws its own parameters" closes: the family sampling, the
@@ -150,7 +150,7 @@ blocks at q = 2 and 3 of 18 above.
 - The IMH correction's prior density reads the dataset's prior; a corpus of one family
   is an override in metabeta's curriculum loop.
 - `prior` gains the prior fields as `Glm`'s and `Glmm`'s (ADR 0007); `prior` and `outcome` are
-  new modules; `Dataset` gains `outcome`. The proofs stay on `grouped()`; the glmm form's
+  new modules; `Dataset` gains `outcome`. The proofs stay on `grouped()`; the GLMM's
   covariates are certified by the same proofs, its response never.
 
 ## Amendment 2026-10-25: the prior follows what brms users state
@@ -158,7 +158,7 @@ blocks at q = 2 and 3 of 18 above.
 #56's read of `prior` paused on the prior's shape: β Normal at 0 with one scale per block,
 one sd family shared by σ_α and σ_ε. Grilled on 2026-10-25 against brms's `priors.R`, the
 practice survey's `priors.csv` (Tier P, 1,428 models) and metabeta-v2's `hypersample`, the
-decision is: **the glmm form's prior takes the shape a brms user states, families, locations
+decision is: **the GLMM's prior takes the shape a brms user states, families, locations
 and scales per block or per coefficient, drawn from the same joint budget; the prior
 is that stated prior and draws its own parameters; metabeta-v2's contaminated likelihoods
 become families of `y_family_shares` at share zero, so the residual seam goes.** The defaults
@@ -285,8 +285,8 @@ block's budget solves its scale exactly either way.**
 ### Consequences
 
 - `scale_spread`'s default moves from 0 to `Uniform(0, 2)` and `varying_scale_share` is new; the
-  glmm and glm draws move (the README's quickstart boxes with them), the scm and none forms'
-  stand.
+  GLMM and GLM draws move (the README's quickstart boxes with them), the draws under `scm` and
+  `none` stand.
 - metasurv's ADR 0008 and metabeta's `envelope.md` record that the default corpus varies per
   coefficient; a block-draw prototype passes `varying_scale_share=0`.
 

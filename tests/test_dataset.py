@@ -1,5 +1,5 @@
 """The dataset module's seams: what a Dataset guarantees on its own,
-and draw(seed, index, hyperprior), one dataset per key.
+and drawDataset(seed, index, scm), one dataset per key.
 """
 
 from __future__ import annotations
@@ -19,14 +19,14 @@ from hypothesis import strategies as st
 
 from tabdgp.column import Column
 from tabdgp.covariates import Covariates
-from tabdgp.dataset import Dataset, draw, modelOutcome
-from tabdgp.hyperprior import Hyperprior, UniformInt
+from tabdgp.dataset import Dataset, drawDataset, modelOutcome
 from tabdgp.outcome import (
     GlmmOutcome,
     GlmOutcome,
     Outcome,
 )
 from tabdgp.prior import Glm, Glmm
+from tabdgp.scm import Scm, UniformInt
 from tests.fixtures.build import Y, betweenShare, graphOf, groupingOf, point
 
 
@@ -48,7 +48,7 @@ def test_a_dataset_holds_its_arrays_without_copying() -> None:
         graph=graphOf([[], []]),
         latent={'z0': latent},
         outcome=Outcome(columns={'y': y}, metadata={'y': Y}),
-        hyperparameters=Hyperprior().resolveDataset(np.random.default_rng(0)),
+        hyperparameters=Scm().resolveDataset(np.random.default_rng(0)),
         seed=0,
         index=0,
         version='0.0.1',
@@ -104,7 +104,7 @@ def _assertIdentical(a: Dataset, b: Dataset) -> None:
 def test_a_negative_seed_or_index_fails(seed: int, index: int) -> None:
     """default_rng([seed, index]) rejects negative entries, so a bad key fails before any draw."""
     with pytest.raises(ValueError):
-        draw(seed, index, Hyperprior.grouped())
+        drawDataset(seed, index, Scm.grouped())
 
 
 SEEDS = st.integers(0, 2**32)
@@ -120,11 +120,11 @@ def test_a_dataset_is_bitwise_identical_alone_inside_two_index_sets_and_under_a_
     dataset i may not depend on what else a worker, batch or shard draws.
     On the grouped preset, so the grouping, the units, the two parts and y are covered.
     """
-    grouped = Hyperprior.grouped()
-    alone = draw(seed, index, grouped)
-    first_set = [draw(seed, i, grouped) for i in [*others, index]][-1]
-    second_set = [draw(seed, i, grouped) for i in [index, *reversed(others), index + 1]][0]
-    other_first = [draw(other_seed, index, grouped), draw(seed, index, grouped)][1]
+    grouped = Scm.grouped()
+    alone = drawDataset(seed, index, grouped)
+    first_set = [drawDataset(seed, i, grouped) for i in [*others, index]][-1]
+    second_set = [drawDataset(seed, i, grouped) for i in [index, *reversed(others), index + 1]][0]
+    other_first = [drawDataset(other_seed, index, grouped), drawDataset(seed, index, grouped)][1]
     for dataset in [first_set, second_set, other_first]:
         _assertIdentical(alone, dataset)
 
@@ -145,11 +145,11 @@ def test_scm_and_none_draw_0_3_0s_bits() -> None:
     The digest holds for the numpy that uv.lock pins, as the README's quickstart does.
     The resolved hyperparameters stay out: their repr is pydantic's.
     """
-    presets = [Hyperprior.grouped(), Hyperprior.flat(), Hyperprior.grouped(outcome_form='none')]
+    presets = [Scm.grouped(), Scm.flat(), Scm.grouped(outcome_source='none')]
     datasets = []
-    for hyperprior in presets:
+    for scm in presets:
         for index in range(5):
-            datasets.append(draw(3, index, hyperprior))
+            datasets.append(drawDataset(3, index, scm))
     assert _digest(datasets) == 'b749a156036d5573f7430318ac8928eca50cc121b334e51c21ce7af78f1e5aff'
 
 
@@ -158,7 +158,7 @@ def test_columns_metadata_graph_and_latent_agree_on_names_with_the_grouping_fact
     and finds the grouping factors before the covariates.
     """
     for index in range(20):
-        dataset = draw(0, index, Hyperprior.grouped(latent_nodes=2, factors=2))
+        dataset = drawDataset(0, index, Scm.grouped(latent_nodes=2, factors=2))
         graph = dataset.graph
         observed = [name for name, latent in zip(graph.names, graph.latent) if not latent]
         latent = [name for name, latent in zip(graph.names, graph.latent) if latent]
@@ -173,7 +173,7 @@ def test_outcome_none_gives_no_y_and_no_score() -> None:
     It never draws y's node, so its covariates have no score.
     """
     for index in range(20):
-        dataset = draw(0, index, Hyperprior.grouped(outcome_form='none'))
+        dataset = drawDataset(0, index, Scm.grouped(outcome_source='none'))
         assert dataset.outcome is None
         assert dataset.covariates.y_score is None
         assert 'y' not in dataset.columns
@@ -182,30 +182,30 @@ def test_outcome_none_gives_no_y_and_no_score() -> None:
         assert all(column.role != 'outcome' for column in dataset.metadata.values())
 
 
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
 def test_under_the_scm_the_covariates_carry_ys_score_z_scored(
-    preset: Callable[[], Hyperprior],
+    preset: Callable[[], Scm],
 ) -> None:
     """The SCM's ground truth is y's node before rank matching,
     z-scored over the rows like every row-unit node, and a model's deviation reads it.
     """
     for index in range(10):
-        score = draw(0, index, preset()).covariates.y_score
+        score = drawDataset(0, index, preset()).covariates.y_score
         assert score.dtype == np.float32
         np.testing.assert_allclose(score.mean(), 0, atol=1e-5)
         np.testing.assert_allclose(score.std(), 1, atol=1e-5)
 
 
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
 def test_y_is_the_last_column_and_node_with_role_outcome_and_one_array_with_the_outcomes(
-    preset: Callable[[], Hyperprior],
+    preset: Callable[[], Scm],
 ) -> None:
     """A consumer takes the last column as the outcome and the rest as its predictors,
     and no node reads y, so it is last in the graph too.
     The dataset and its outcome hold one y, not two copies.
     """
     for index in range(10):
-        dataset = draw(0, index, preset())
+        dataset = drawDataset(0, index, preset())
         assert list(dataset.columns)[-1] == 'y'
         assert list(dataset.metadata)[-1] == 'y'
         assert dataset.graph.names[-1] == 'y'
@@ -216,9 +216,9 @@ def test_y_is_the_last_column_and_node_with_role_outcome_and_one_array_with_the_
         assert dataset.outcome.metadata['y'] is dataset.metadata['y']
 
 
-@pytest.mark.parametrize('preset', [Hyperprior.grouped, Hyperprior.flat], ids=['grouped', 'flat'])
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
 def test_glm_returns_a_glm_outcome_and_on_grouped_the_pooled_ground_truth(
-    preset: Callable[[], Hyperprior],
+    preset: Callable[[], Scm],
 ) -> None:
     """A GLM corpus needs no grouping (flat),
     and on grouped covariates it is the pooled ground truth:
@@ -227,7 +227,7 @@ def test_glm_returns_a_glm_outcome_and_on_grouped_the_pooled_ground_truth(
     """
     glm = Glm(family='gaussian')
     for index in range(10):
-        dataset = draw(0, index, preset())
+        dataset = drawDataset(0, index, preset())
         outcome = modelOutcome(0, index, dataset.covariates, glm)
         assert type(outcome) is GlmOutcome
         assert len(_factors(dataset)) == dataset.hyperparameters.factors
@@ -241,7 +241,7 @@ def test_a_glmm_on_grouped_covariates_returns_a_glmm_outcome_of_one_block_per_fa
     """
     glmm = Glmm(family='gaussian')
     for index in range(10):
-        dataset = draw(0, index, Hyperprior.grouped())
+        dataset = drawDataset(0, index, Scm.grouped())
         outcome = modelOutcome(0, index, dataset.covariates, glmm)
         assert type(outcome) is GlmmOutcome
         factors = _factors(dataset)
@@ -262,7 +262,7 @@ GLM_FAMILIES = [
 
 @pytest.mark.parametrize(
     ('preset', 'config'),
-    [(Hyperprior.flat, Glm), (Hyperprior.grouped, Glmm)],
+    [(Scm.flat, Glm), (Scm.grouped, Glmm)],
     ids=['glm on flat', 'glmm on grouped'],
 )
 @pytest.mark.parametrize(('family', 'column_type', 'dtype'), GLM_FAMILIES)
@@ -270,7 +270,7 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     family: str,
     column_type: str,
     dtype: type,
-    preset: Callable[[], Hyperprior],
+    preset: Callable[[], Scm],
     config: type[Glm],
 ) -> None:
     """A corpus of one family is one model (ADR 0006),
@@ -278,7 +278,7 @@ def test_glm_or_glmm_with_one_family_draws_that_family_only_and_ys_dtype_follows
     """
     model = config(family=family)
     for index in range(10):
-        dataset = draw(0, index, preset())
+        dataset = drawDataset(0, index, preset())
         outcome = modelOutcome(0, index, dataset.covariates, model)
         assert outcome.family == family
         assert outcome.metadata['y'].type == column_type
@@ -298,7 +298,7 @@ def test_a_normal_glm_at_large_n_and_small_sigma_eps_is_recovered_by_least_squar
         signal_share=0.9999,
     )
     for index in range(5):
-        dataset = draw(0, index, Hyperprior.flat(rows=2000))
+        dataset = drawDataset(0, index, Scm.flat(rows=2000))
         outcome = modelOutcome(0, index, dataset.covariates, glm)
         design = dataset.covariates.toDesign()
         y = outcome.columns['y'].astype(np.float64)  # (n,)
@@ -336,7 +336,7 @@ def test_a_normal_glmms_y_minus_x_beta_every_factors_z_alpha_and_the_deviation_i
         deviation_scale=deviation_scale,
     )
     for index in range(5):
-        dataset = draw(0, index, Hyperprior.grouped(rows=2000))
+        dataset = drawDataset(0, index, Scm.grouped(rows=2000))
         outcome = modelOutcome(0, index, dataset.covariates, glmm)
         y = outcome.columns['y'].astype(np.float64)  # (n,)
         residual = y - _linearPart(dataset, outcome) - outcome.deviation  # (n,)
@@ -352,7 +352,7 @@ def test_glmm_with_a_deviation_scale_returns_a_deviation_of_the_stated_sd_and_th
     The score is z-scored over the rows, so the deviation's sd is λ times the linear part's.
     """
     for index in range(10):
-        dataset = draw(0, index, Hyperprior.grouped())
+        dataset = drawDataset(0, index, Scm.grouped())
         plain = modelOutcome(0, index, dataset.covariates, Glmm(family='gaussian'))
         deviated = Glmm(family='gaussian', deviation_scale=0.3)
         outcome = modelOutcome(0, index, dataset.covariates, deviated)
@@ -428,7 +428,7 @@ def test_to_pandas_leaves_the_latent_nodes_out() -> None:
     the latent nodes stay on the dataset, which keeps them white-box.
     """
     for index in range(5):
-        dataset = draw(0, index, Hyperprior.grouped(latent_nodes=2))
+        dataset = drawDataset(0, index, Scm.grouped(latent_nodes=2))
         table = dataset.toPandas()
         assert list(table.columns) == list(dataset.columns)
         assert len(table) == dataset.hyperparameters.rows
@@ -447,12 +447,12 @@ def test_to_pandas_codes_categoricals_ordered_when_ordered_continuous_float32_an
     A count y, the SCM's, is the dataset's count.
     """
     count = point('outcome_type_shares', 'count')
-    hyperprior = Hyperprior.grouped(
+    scm = Scm.grouped(
         rows=200, design_columns=12, type_shares=EVERY_TYPE, outcome_type_shares=count
     )
     types = set()
     for index in range(5):
-        dataset = draw(0, index, hyperprior)
+        dataset = drawDataset(0, index, scm)
         table = dataset.toPandas()
         for name, column in dataset.metadata.items():
             values = table[name]
@@ -475,9 +475,9 @@ def test_from_pandas_reads_a_datasets_table_with_its_metadata_into_its_columns_a
     Key (2, 90) draws a crossed factor with a group per row, which lies within every other's
     groups, so only its declared metadata tells that the draw did not nest it.
     """
-    hyperprior = Hyperprior.grouped(rows=200, design_columns=12, type_shares=EVERY_TYPE)
-    datasets = [draw(0, index, hyperprior) for index in range(10)]
-    datasets.append(draw(2, 90, Hyperprior.grouped()))
+    scm = Scm.grouped(rows=200, design_columns=12, type_shares=EVERY_TYPE)
+    datasets = [drawDataset(0, index, scm) for index in range(10)]
+    datasets.append(drawDataset(2, 90, Scm.grouped()))
     for dataset in datasets:
         covariates = Covariates.fromPandas(dataset.toPandas(), metadata=dataset.metadata)
         observed = [name for name, column in dataset.metadata.items() if column.role != 'outcome']
@@ -495,7 +495,7 @@ def test_to_design_is_the_coding_the_glm_used() -> None:
     """
     glm = Glm(family='gaussian', signal_share=1.0)
     for index in range(5):
-        dataset = draw(0, index, Hyperprior.grouped())
+        dataset = drawDataset(0, index, Scm.grouped())
         outcome = modelOutcome(0, index, dataset.covariates, glm)
         design = dataset.covariates.toDesign()
         assert design.names == outcome.fixed_terms
@@ -512,9 +512,9 @@ def test_a_count_y_is_int64_and_a_continuous_y_float32(outcome_type: str, dtype:
     not a code 0..k − 1, and a continuous y shares the covariates' dtype.
     """
     shares = point('outcome_type_shares', outcome_type)
-    hyperprior = Hyperprior.grouped(outcome_type_shares=shares)
+    scm = Scm.grouped(outcome_type_shares=shares)
     for index in range(5):
-        assert draw(0, index, hyperprior).columns['y'].dtype == dtype
+        assert drawDataset(0, index, scm).columns['y'].dtype == dtype
 
 
 # one latent root z0 and a sure linear edge from it to the one other node, in a flat table
@@ -549,7 +549,7 @@ def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at
     since the noise scale is relative to the z-scored output.
     A tie-free marginal, since a zero-inflated y's ties cost rank correlation on their own.
     """
-    hyperprior = Hyperprior.flat(
+    scm = Scm.flat(
         design_columns=0,
         outcome_noise_scale=outcome_noise_scale,
         outcome_type_shares=point('outcome_type_shares', 'continuous'),
@@ -557,7 +557,7 @@ def test_y_depends_on_its_parents_at_low_outcome_noise_and_is_near_pure_noise_at
         **SURE_EDGE,
     )
     for index in range(10):
-        dataset = draw(0, index, hyperprior)
+        dataset = drawDataset(0, index, scm)
         assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
         correlation = abs(_spearman(dataset.columns['y'], dataset.latent['z0']))
         assert low <= correlation <= high
@@ -593,7 +593,7 @@ GLMM_OVERRIDE = Glmm(family='gaussian', random_effects=1)  # every factor's inte
     group_level=st.booleans(),
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
     model=st.sampled_from(['scm', 'none', GLM_OVERRIDE, GLMM_OVERRIDE]),
-    outcome_type=st.sampled_from(Hyperprior.categories('outcome_type_shares')),
+    outcome_type=st.sampled_from(Scm.categories('outcome_type_shares')),
 )
 def test_every_override_is_honored(
     rows: int,
@@ -622,8 +622,8 @@ def test_every_override_is_honored(
     assume(groups >= factors + 1)  # the bottom factor of a chain of f needs f + 1 groups
     assume(model != GLMM_OVERRIDE or factors > 0)  # a GLMM needs a factor
     # a model draws on the SCM's covariates, whose score its deviation reads
-    form = model if isinstance(model, str) else 'scm'
-    hyperprior = Hyperprior.grouped(
+    source = model if isinstance(model, str) else 'scm'
+    scm = Scm.grouped(
         rows=rows,
         design_columns=design_columns,
         latent_nodes=latent_nodes,
@@ -637,11 +637,11 @@ def test_every_override_is_honored(
         size_alpha=2.0,
         group_level_share=1.0 if group_level else 0.0,
         group_share=group_share,
-        outcome_form=form,
+        outcome_source=source,
         outcome_type_shares=point('outcome_type_shares', outcome_type),
         poisson_log_rate=2.0,
     )
-    dataset = draw(0, 0, hyperprior)
+    dataset = drawDataset(0, 0, scm)
     metadata = dataset.metadata
     assert sum(column.design_columns for column in metadata.values()) == design_columns
     for array in [*dataset.columns.values(), *dataset.latent.values()]:
@@ -659,8 +659,8 @@ def test_every_override_is_honored(
         if column.role == 'covariate':
             assert column.levels is None or column.levels <= max_levels
     # the outcome's fields through y's column
-    assert ('y' in metadata) == (form != 'none')
-    if form == 'scm':
+    assert ('y' in metadata) == (source != 'none')
+    if source == 'scm':
         assert metadata['y'].type == outcome_type
         if outcome_type == 'count':
             assert metadata['y'].parameters == {'poisson_log_rate': 2.0}
@@ -700,12 +700,12 @@ def test_every_override_is_honored(
         float(group_level),
     )
     assert (resolved.groups, resolved.size_alpha, resolved.group_share) == (
-        hyperprior.groups,
+        scm.groups,
         2.0,
         group_share,
     )
-    assert (resolved.outcome_form, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
-        form,
+    assert (resolved.outcome_source, resolved.outcome_noise_scale, resolved.poisson_log_rate) == (
+        source,
         0.5,
         2.0,
     )
@@ -714,8 +714,8 @@ def test_every_override_is_honored(
 def test_a_distribution_override_is_honored() -> None:
     """A simulation study narrows one axis by a distribution; every draw stays inside it."""
     for index in range(20):
-        hyperprior = Hyperprior.flat(rows=UniformInt(30, 40), design_columns=1, outcome_form='none')
-        dataset = draw(0, index, hyperprior)
+        scm = Scm.flat(rows=UniformInt(30, 40), design_columns=1, outcome_source='none')
+        dataset = drawDataset(0, index, scm)
         [values] = dataset.columns.values()
         assert 30 <= len(values) <= 40
 
@@ -723,8 +723,8 @@ def test_a_distribution_override_is_honored() -> None:
 def test_a_budget_of_0_gives_no_columns() -> None:
     """metabeta's budget may be 0: a table of rows and no covariates, whose graph is latent only."""
     for index in range(10):
-        hyperprior = Hyperprior.flat(design_columns=0, latent_nodes=2, rows=50, outcome_form='none')
-        dataset = draw(0, index, hyperprior)
+        scm = Scm.flat(design_columns=0, latent_nodes=2, rows=50, outcome_source='none')
+        dataset = drawDataset(0, index, scm)
         assert dataset.columns == {}
         assert dataset.metadata == {}
         assert dataset.graph.latent.all()
@@ -737,9 +737,9 @@ def test_every_column_and_latent_node_is_finite() -> None:
     Zero noise lets a dead relu leave a node constant, the case most likely to break.
     """
     for noise_scale in [0.0, 0.5]:
-        hyperprior = Hyperprior(noise_scale=noise_scale, outcome_noise_scale=noise_scale)
+        scm = Scm(noise_scale=noise_scale, outcome_noise_scale=noise_scale)
         for index in range(50):
-            dataset = draw(0, index, hyperprior)
+            dataset = drawDataset(0, index, scm)
             for values in [*dataset.columns.values(), *dataset.latent.values()]:
                 assert np.isfinite(values).all()
 
@@ -751,7 +751,7 @@ def test_every_continuous_column_is_non_constant() -> None:
     in which a dead relu is the constant function and its column is constant.
     """
     for index in range(100):
-        dataset = draw(0, index, Hyperprior.grouped())
+        dataset = drawDataset(0, index, Scm.grouped())
         for name, values in dataset.columns.items():
             if dataset.metadata[name].type == 'continuous':
                 assert values.std() > 0
@@ -775,16 +775,16 @@ def test_each_binary_categorical_and_ordered_column_depends_on_its_parents_at_lo
     follow the root's values; flat, so that the edge is the graph's only one.
     """
     for type, design_columns in [('binary', 1), ('categorical', 2), ('ordered', 2)]:
-        hyperprior = Hyperprior.flat(
+        scm = Scm.flat(
             design_columns=design_columns,
             type_shares=point('type_shares', type),
             max_levels=3,
             level_alpha=5.0,
-            outcome_form='none',
+            outcome_source='none',
             **SURE_EDGE,
         )
         for index in range(10):
-            dataset = draw(0, index, hyperprior)
+            dataset = drawDataset(0, index, scm)
             assert dataset.graph.parents.tolist() == [[False, False], [True, False]]
             agreement = _neighborAgreement(dataset.columns['x0'], dataset.latent['z0'])
             assert agreement > 0.95
@@ -796,21 +796,21 @@ PYPROJECT = Path(__file__).parents[1] / 'pyproject.toml'
 def test_the_dataset_carries_the_installed_version() -> None:
     """A key reproduces a dataset only within one version, so the dataset names its own."""
     expected = tomllib.loads(PYPROJECT.read_text())['project']['version']
-    assert draw(0, 0, Hyperprior.grouped()).version == expected
+    assert drawDataset(0, 0, Scm.grouped()).version == expected
 
 
 def test_the_dataset_carries_the_installed_numpy_version() -> None:
     """numpy promises no stable streams across its releases, so the dataset names numpy's too."""
-    assert draw(0, 0, Hyperprior.grouped()).numpy_version == np.__version__
+    assert drawDataset(0, 0, Scm.grouped()).numpy_version == np.__version__
 
 
 def test_every_array_has_length_n() -> None:
     """A group-level column or latent node has one value per group until draw copies it to the rows,
     so a consumer stacks every array without looking at the units.
     """
-    hyperprior = Hyperprior.grouped(rows=80, group_level_share=0.8, latent_nodes=3)
+    scm = Scm.grouped(rows=80, group_level_share=0.8, latent_nodes=3)
     for index in range(20):
-        dataset = draw(0, index, hyperprior)
+        dataset = drawDataset(0, index, scm)
         assert 'y' in dataset.columns
         for array in [*dataset.columns.values(), *dataset.latent.values()]:
             assert array.shape == (80,)
@@ -819,7 +819,7 @@ def test_every_array_has_length_n() -> None:
 def test_each_g_column_is_int64_codes_0_to_g_minus_1_with_every_group_present() -> None:
     """metabeta indexes a random effect by the codes; a missing group would give an empty one."""
     for index in range(20):
-        dataset = draw(0, index, Hyperprior.grouped(factors=3))
+        dataset = drawDataset(0, index, Scm.grouped(factors=3))
         assert _factors(dataset) == ['g0', 'g1', 'g2']
         for name in _factors(dataset):
             codes = dataset.columns[name]
@@ -833,7 +833,7 @@ def test_every_level_of_a_covariate_appears() -> None:
     An override group_share = 1 is the known exception (ADR 0003), so the test draws the defaults.
     """
     for index in range(100):
-        dataset = draw(0, index, Hyperprior.grouped())
+        dataset = drawDataset(0, index, Scm.grouped())
         for name, column in dataset.metadata.items():
             if column.role == 'covariate' and column.levels is not None:
                 codes = dataset.columns[name]
@@ -854,9 +854,9 @@ def test_a_group_level_column_or_latent_node_is_constant_within_its_groups() -> 
     repeats its group's value over the group's rows, whatever its type.
     A broadcast through another factor's codes would break it.
     """
-    hyperprior = Hyperprior.grouped(rows=200, group_level_share=1.0, latent_nodes=3)
+    scm = Scm.grouped(rows=200, group_level_share=1.0, latent_nodes=3)
     for index in range(20):
-        dataset = draw(0, index, hyperprior)
+        dataset = drawDataset(0, index, scm)
         unit = _unitOf(dataset)
         for name, column in dataset.metadata.items():
             if column.role == 'covariate' and unit[name] == 'row':
@@ -871,14 +871,14 @@ def test_a_group_level_column_takes_its_marginals_values_at_g_distinct_ranks() -
     """Its marginal is sampled at m values, one per group, not at n values with ties;
     a tie-free family makes the count exact.
     """
-    hyperprior = Hyperprior.grouped(
+    scm = Scm.grouped(
         rows=200,
         group_level_share=1.0,
         type_shares=point('type_shares', 'continuous'),
         marginal_shares=point('marginal_shares', 'normal'),
     )
     for index in range(20):
-        dataset = draw(0, index, hyperprior)
+        dataset = drawDataset(0, index, scm)
         unit = _unitOf(dataset)
         for name, column in dataset.metadata.items():
             if column.role == 'covariate':
@@ -894,9 +894,9 @@ def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_bet
     group part and every row-unit node, a root or a child of a group-level parent, is i.i.d.
     over rows; the chance level is about (m − 1) / (n − 1), here 0.01.
     """
-    hyperprior = Hyperprior.grouped(rows=2000, factors=1, groups=20, group_share=0.0)
+    scm = Scm.grouped(rows=2000, factors=1, groups=20, group_share=0.0)
     for index in range(20):
-        dataset = draw(0, index, hyperprior)
+        dataset = drawDataset(0, index, scm)
         unit = _unitOf(dataset)
         codes = dataset.columns['g0']
         within_group = [
@@ -911,7 +911,7 @@ def test_group_share_0_under_one_factor_gives_every_within_group_covariate_a_bet
 def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:
     """A flat study changes nothing: spec #1's table, with the grouping fields idle."""
     for index in range(20):
-        dataset = draw(0, index, Hyperprior.flat())
+        dataset = drawDataset(0, index, Scm.flat())
         graph = dataset.graph
         assert all(column.role != 'grouping_factor' for column in dataset.metadata.values())
         assert not any(name.startswith('g') for name in graph.names)
@@ -921,10 +921,10 @@ def test_flat_gives_no_g_column_every_unit_row_and_no_two_part_field() -> None:
         assert dataset.hyperparameters.factors == 0
 
 
-def test_draw_without_a_hyperprior_fails() -> None:
+def test_a_draw_without_an_scm_fails() -> None:
     """No preset is the default: a caller names the kind of table it draws."""
     with pytest.raises(TypeError):
-        draw(0, 0)
+        drawDataset(0, 0)
 
 
 def test_group_share_1_gives_every_row_unit_column_constant_within_its_groups() -> None:
@@ -932,9 +932,9 @@ def test_group_share_1_gives_every_row_unit_column_constant_within_its_groups() 
     group factor; the column keeps its ties, so it is too, whatever its type.
     y is one of them, so group confounding reaches the outcome.
     """
-    hyperprior = Hyperprior.grouped(rows=600, factors=2, group_share=1.0, group_level_share=0.0)
+    scm = Scm.grouped(rows=600, factors=2, group_share=1.0, group_level_share=0.0)
     for index in range(20):
-        dataset = draw(0, index, hyperprior)
+        dataset = drawDataset(0, index, scm)
         group_factor = dict(zip(dataset.graph.names, dataset.graph.group_factor))
         for name, column in dataset.metadata.items():
             if column.role != 'grouping_factor':

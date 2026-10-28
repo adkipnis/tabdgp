@@ -67,7 +67,7 @@ def test_covariates_refuse_arrays_of_two_lengths_a_name_without_metadata_and_a_r
     change: dict, match: str
 ) -> None:
     """A model reads every array at the same rows and looks a column up by name in both dicts.
-    y is the name the form writes, so a covariate under it would be overwritten in the dataset.
+    y is the name the outcome writes, so a covariate under it would be overwritten in the dataset.
     intercept is the design matrix's first term, so a covariate under it would repeat the term,
     and fixed is the fixed block's name among the factors' blocks, so a factor under it would
     replace the fixed block's share and scale.

@@ -9,8 +9,8 @@ import pytest
 
 from tabdgp.column import Grouping
 from tabdgp.graph import Graph, connect
-from tabdgp.hyperprior import Hyperprior
 from tabdgp.mechanism import ACTIVATIONS, propagate
+from tabdgp.scm import Scm
 from tests.fixtures.build import betweenShare, columnsOf, graphOf, groupingOf, point
 
 OBSERVED = list('abcdefhijklm')  # no g, a grouping factor's prefix
@@ -58,7 +58,7 @@ def _propagateOver(
 ) -> dict[str, np.ndarray]:
     """Node values over a graph drawn by connect on the grouping, each at its unit, without y."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(rows=n, outcome_form='none', **overrides).resolveDataset(rng)
+    resolved = Scm(rows=n, outcome_source='none', **overrides).resolveDataset(rng)
     graph = connect(resolved, grouping, columnsOf(OBSERVED[:observed_nodes]), rng)
     return propagate(graph, resolved, grouping, rng)
 
@@ -74,7 +74,7 @@ def test_propagate_names_every_node_with_its_own_contiguous_array() -> None:
     A view into every node's values would keep them all alive and read strided.
     """
     rng = np.random.default_rng(0)
-    resolved = Hyperprior(rows=100, latent_nodes=2).resolveDataset(rng)
+    resolved = Scm(rows=100, latent_nodes=2).resolveDataset(rng)
     graph = connect(resolved, FLAT, columnsOf(OBSERVED[:4]), rng)
     nodes = propagate(graph, resolved, FLAT, rng)
     assert list(nodes) == graph.names
@@ -98,7 +98,7 @@ def _run(
 ) -> np.ndarray:
     """Node values over a hand-built graph, as one matrix."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
+    resolved = Scm(rows=n, **overrides).resolveDataset(rng)
     return _matrix(propagate(graph, resolved, grouping, rng))
 
 
@@ -199,7 +199,7 @@ def test_every_node_is_z_scored_at_its_unit_and_has_its_units_length() -> None:
     grouping = _balanced(600, [20, 60, 15], nests_in=[None, 'g0', None])
     for seed in range(10):
         rng = np.random.default_rng(seed)
-        resolved = Hyperprior(rows=600, latent_nodes=2, group_level_share=0.5).resolveDataset(rng)
+        resolved = Scm(rows=600, latent_nodes=2, group_level_share=0.5).resolveDataset(rng)
         graph = connect(resolved, grouping, columnsOf(OBSERVED[:8]), rng)
         nodes = propagate(graph, resolved, grouping, rng)
         assert list(nodes) == graph.names[3:]
@@ -216,7 +216,7 @@ def _nodes(
 ) -> dict[str, np.ndarray]:
     """Node values over a hand-built grouped graph, each at its unit."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(rows=n, **overrides).resolveDataset(rng)
+    resolved = Scm(rows=n, **overrides).resolveDataset(rng)
     return propagate(graph, resolved, grouping, rng)
 
 
@@ -351,7 +351,7 @@ def test_propagate_skips_the_grouping_factors() -> None:
     grouping = groupingOf([[0, 0, 1, 1], [0, 1, 0, 1]])
     graph = graphOf([[], [], [], [2]], unit=['g0', 'g1', 'g0', 'row'])
     rng = np.random.default_rng(0)
-    resolved = Hyperprior(rows=4).resolveDataset(rng)
+    resolved = Scm(rows=4).resolveDataset(rng)
     assert list(propagate(graph, resolved, grouping, rng)) == ['x2', 'x3']
 
 
@@ -416,7 +416,7 @@ def test_the_flat_case_is_spec_1s_propagation(seed: int) -> None:
 def test_an_empty_graph_propagates_to_no_nodes() -> None:
     """A budget of 0 with no latent nodes is a dataset of rows alone, as draw expects."""
     rng = np.random.default_rng(0)
-    resolved = Hyperprior(rows=50, latent_nodes=0, outcome_form='none').resolveDataset(rng)
+    resolved = Scm(rows=50, latent_nodes=0, outcome_source='none').resolveDataset(rng)
     graph = connect(resolved, FLAT, {}, rng)
     assert propagate(graph, resolved, FLAT, rng) == {}
 
