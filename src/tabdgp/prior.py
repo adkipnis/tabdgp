@@ -256,7 +256,7 @@ class Glm(Config):
 
     @model_validator(mode='after')
     def _checkShape(self) -> Glm:
-        """Checks that a shape is stated only for a family that has one."""
+        """y has a stated shape only where its family has one."""
         if self.shape is not None and self.family not in SHAPES:
             raise ValueError(
                 f"shape = {self.shape} does not fit family = '{self.family}': "
