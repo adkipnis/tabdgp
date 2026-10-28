@@ -274,6 +274,15 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 
 ### Modules
 
+The modules form layers: each arrow points to a module that imports it, and no import points back.
+
+```
+field -> scm -> column -> graph -> mechanism -> dataset
+                column -> covariates -> outcome -> dataset
+                column -> likelihood -> prior -> outcome
+fidelity (imported by nothing in src/)
+```
+
 | module | owns | imported by |
 |---|---|---|
 | `field` | `Hyperprior`, the base of `Scm`, `Glm` and `Glmm`: how a field is a point or a distribution, its kind and bounds, its resolution to a point within given bounds, shares over named categories in their default's order | prior, scm, likelihood, the package's `__init__` |
