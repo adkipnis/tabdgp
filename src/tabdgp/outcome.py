@@ -8,7 +8,7 @@ pipeline:
 ---------
 the covariates (from an SCM draw or a provided table)
 -> a model's outcome: its columns, their metadata and its ground truth: runModel
-   -> the design matrix (intercept first)                               codeDesign
+   -> the design matrix (intercept first)                               Covariates.toDesign
    -> each factor's block, its random terms within its budget           _buildRandomBlocks
    -> y's family, the stated prior over the blocks, then the parameters Glm.drawPrior,
                                                                         Prior.drawParameters
@@ -20,63 +20,16 @@ the covariates (from an SCM draw or a provided table)
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp import likelihood
 from tabdgp.column import Column, Grouping
-from tabdgp.covariates import Covariates, checkNames, checkSameLength
-from tabdgp.hyperprior import Model
+from tabdgp.covariates import Covariates, Design, checkNames, checkSameLength
 from tabdgp.prior import Block, Glm, Glmm, Parameters, Prior
-
-# =====================================================================================
-# the design matrix
-# =====================================================================================
-
-
-@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
-class Design:
-    """The design matrix: the covariates coded for a linear predictor, the intercept first."""
-
-    matrix: np.ndarray  # (n, d)
-    names: list[str]  # the terms: 'intercept', then each covariate's
-    positions: dict[str, list[int]]  # each covariate's columns of the matrix
-    means: dict[str, float]  # per column (continuous or count)
-    sds: dict[str, float]  # per column population sd over the n rows
-
-
-def codeDesign(columns: dict[str, np.ndarray], metadata: dict[str, Column], rows: int) -> Design:
-    """The design matrix of the covariates (in their order, after the intercept)."""
-    names = ['intercept']
-    # rows is n, which a table without a covariate cannot tell
-    coded = [np.ones(rows)]  # (n,) each
-    positions: dict[str, list[int]] = {}
-    means: dict[str, float] = {}
-    sds: dict[str, float] = {}
-    for name, column in metadata.items():
-        # a grouping factor and the outcome are left out by role
-        if column.role != 'covariate':
-            continue
-        start = len(names)
-        values = columns[name].astype(np.float64)  # (n,)
-        if column.type in ['continuous', 'count']:
-            means[name] = float(values.mean())
-            sds[name] = float(values.std())  # the population sd, over the n rows
-            names.append(name)
-            coded.append((values - means[name]) / sds[name])
-        elif column.type == 'binary':
-            names.append(name)
-            coded.append(values)
-        else:
-            # k − 1 dummies, the first level in the codes' order dropped
-            for level in range(1, column.levels):
-                names.append(f'{name}={level}')
-                coded.append((values == level).astype(np.float64))
-        positions[name] = list(range(start, len(names)))
-    matrix = np.stack(coded, axis=1)  # (n, d)
-    return Design(matrix=matrix, names=names, positions=positions, means=means, sds=sds)
-
 
 # =====================================================================================
 # the outcome and its ground truth
@@ -103,17 +56,6 @@ class Outcome:
                     f'the {column.type} column {name} is {dtype}, not {column.dtype.__name__}'
                 )
         checkSameLength(list(self.columns.values()), 'the outcome')
-
-
-@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
-class ScmOutcome(Outcome):
-    """The SCM's y and its ground truth, the score it rank-matched onto y's marginal."""
-
-    y_score: np.ndarray  # (n,)
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        checkSameLength([*self.columns.values(), self.y_score], 'the outcome')
 
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
@@ -234,6 +176,9 @@ class GlmmOutcome(GlmOutcome):
 # the model's call
 # =====================================================================================
 
+# a config of TabDGP's own, or a study's callable of the covariates and a generator
+Model = Glm | Callable[[Covariates, np.random.Generator], Outcome]
+
 
 def runModel(model: Model, covariates: Covariates, rng: np.random.Generator) -> Outcome:
     """Draws the outcome of TabDGP's own model, or calls a study's and checks what it returns."""
@@ -275,7 +220,7 @@ def _drawGlmm(
     rows = covariates.rows
 
     # the blocks: the fixed effects', then each factor's random effects'
-    design = codeDesign(covariates.columns, covariates.metadata, rows)
+    design = covariates.toDesign()
     # a fixed effect adds its column's variance to var(eta) at scale 1 (the intercept nothing)
     fixed_variances = design.matrix.var(axis=0)  # (d,)
     fixed = Block(name='fixed', variances=fixed_variances.tolist())
