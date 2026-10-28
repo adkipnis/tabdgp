@@ -25,8 +25,8 @@ generated it.
   binary, categorical, ordered or count.
 - **Model-based outcome.** Instead of the SCM's node, `outcome_form='glmm'` draws `y` from a
   generalized linear mixed model (GLMM) on the covariates.
-  Supported likelihoods are Gaussian, Bernoulli and Poisson,
-  Student-t, negative binomial, latent-noise Bernoulli, Gamma, and Beta.
+  Supported likelihoods are Gaussian, Bernoulli, Poisson, Student-t, negative binomial,
+  latent-noise Bernoulli, Gamma, and Beta.
   The true parameters are returned with the priors they were drawn from.
   `outcome_form='glm'` skips random effects,
   `Glmm(deviation_scale=0.3)` adds a known misspecification.
