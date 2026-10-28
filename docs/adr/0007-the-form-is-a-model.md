@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-23
-amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: a model's outcome is drawn after the dataset by `modelOutcome` (was `resampleOutcome`) on the key's child stream, `outcome_form` takes `'none'` or `'scm'`, `Dataset.covariates` holds the score, `ScmOutcome` folds into `Outcome`, and a deviation without a score fails
+amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: a model's outcome is drawn after the dataset by `modelOutcome` (was `resampleOutcome`) on the key's child stream, `outcome_form` takes `'none'` or `'scm'`, `Dataset.covariates` holds the score, `ScmOutcome` folds into `Outcome`, and a deviation without a score fails; 2026-10-28, #68: a fitter reads the covariates and a model's outcome as a pair, `toDesign` moves to `Covariates` and `toDict` goes
 ---
 
 # 0007 - The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
@@ -74,7 +74,8 @@ prior, dataset.
   latent nodes left out), `toDesign()` (the design matrix with its names and coding
   statistics, from the coder the GLM uses, so the user and the model see one coding; y and the
   grouping factors are not in it, by the glossary's definition) and `toDict()` (a JSON-ready
-  dict of the whole dataset, dtypes recorded, a user's model by its qualified name). pandas is
+  dict of the whole dataset, dtypes recorded, a user's model by its qualified name) (until
+  2026-10-28: `toDesign` is the covariates', and `toDict` goes). pandas is
   a dependency, not an extra: `fromPandas` is on the main path and both consumers carry it.
 
 ## Considered options
@@ -142,8 +143,13 @@ covariates, the score among them.**
 - **The covariates in the dataset.** `Dataset.covariates` holds the `Covariates` the draw
   built, the score among them (`None` under `'none'`, which never draws y's node). `columns`
   and `metadata` become properties that merge them with the outcome's, the grouping factors
-  first and y last. `ScmOutcome` folds into `Outcome`, since the score was its only addition,
-  and `toDict` records each array once.
+  first and y last. `ScmOutcome` folds into `Outcome`, since the score was its only addition.
+- **A fitter reads the pair.** A fitter reads an outcome on covariates, the same pair whether
+  the covariates were drawn or read from a table, so the dataset never holds a model's outcome:
+  `Dataset.outcome` is the SCM's y, or `None`. The design matrix is the covariates' view,
+  `Covariates.toDesign()`, since the glossary derives it from the covariates alone and a table's
+  covariates need it too. `toDict` goes: no consumer calls it, a dataset is never written to a
+  file, and a fitter in R reads `toPandas()` from parquet more easily than JSON's lists.
 - **The score, required.** The deviation needs only the score, λ · sd(Xβ + Σ_k Z_k α_k) ·
   score. A resolved λ > 0 on covariates without one fails in `runModel`, where it returned
   zeros, so a deviation needs covariates drawn under `'scm'`.
@@ -159,6 +165,12 @@ covariates, the score among them.**
 - **`Dataset.y_score`,** with `modelOutcome` taking a `Dataset` too: a union input that hides
   the conversion inside.
 - **Another seed by convention:** every caller has to remember it, and forgetting is silent.
+- **The dataset's outcome swapped for a model's** (`dataset.withOutcome(outcome)`): one object
+  for drawn tables only, since a table still gives the pair; its record would say
+  `outcome_form='scm'` above a GLMM's y, and a study's plain `Outcome` would look like the SCM's.
+- **The outcome holding its covariates:** every study's model would carry them, and `'none'`
+  would still need `Dataset.covariates`.
+- **`toDict` kept** for a later `Outcome.toDict`: speculative, as no consumer calls either.
 
 ### Consequences
 
@@ -172,3 +184,5 @@ covariates, the score among them.**
   states; its `envelope.md` and ADRs follow.
 - `outcome_form` now only switches y's node; its name, and `Hyperprior` as the SCM's config,
   stay #67's.
+- `Design` and its coder move from `outcome` to `covariates`; `Dataset.toDesign()` and
+  `Dataset.toDict()` go, neither released.
