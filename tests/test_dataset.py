@@ -1,4 +1,4 @@
-"""The draw module's seams: what a Dataset guarantees on its own,
+"""The dataset module's seams: what a Dataset guarantees on its own,
 and draw(seed, index, hyperprior), one dataset per key.
 """
 
@@ -17,7 +17,7 @@ from hypothesis import strategies as st
 
 from tabdgp.column import Column
 from tabdgp.covariates import Covariates
-from tabdgp.draw import Dataset, draw, modelOutcome
+from tabdgp.dataset import Dataset, draw, modelOutcome
 from tabdgp.hyperprior import Hyperprior, UniformInt
 from tabdgp.outcome import (
     GlmmOutcome,

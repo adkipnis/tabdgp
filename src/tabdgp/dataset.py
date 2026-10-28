@@ -1,4 +1,4 @@
-"""draw.py defines the pipeline and its output:
+"""dataset.py defines the pipeline and its output:
 one dataset as a pure function of its key and its SCM hyperprior.
 
 pipeline:
