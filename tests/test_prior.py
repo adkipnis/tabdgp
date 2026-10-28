@@ -54,13 +54,10 @@ def test_a_block_is_as_wide_as_its_variances_and_has_at_least_one() -> None:
 
 
 @pytest.mark.parametrize('config', [Glm, Glmm])
-def test_a_model_states_ys_family_and_its_prior_holds_it(config: type[Glm]) -> None:
+def test_a_model_states_ys_family(config: type[Glm]) -> None:
     """A model states y's family, as a fitter does, so one without a family cannot be written."""
     with pytest.raises(ValidationError, match='family'):
         config()
-    blocks = [Block(name='fixed', variances=[0.0, 1.0]), Block(name='g0', variances=[1.0])]
-    resolved = config(family='poisson').resolveDataset(np.random.default_rng(0))
-    assert resolved.drawPrior(blocks, np.random.default_rng(0)).family == 'poisson'
 
 
 def test_the_fields_take_their_defaults_and_an_override() -> None:
@@ -77,19 +74,33 @@ def test_the_fields_take_their_defaults_and_an_override() -> None:
     assert (glm.beta_family_shares['cauchy'], glm.signal_share) == (1.0, 0.5)
 
 
+def _resolveShapes(model: Glm) -> list[float]:
+    """y's shape as twenty datasets resolve it."""
+    shapes = []
+    for seed in range(20):
+        shapes.append(model.resolveDataset(np.random.default_rng(seed)).shape)
+    return shapes
+
+
 @pytest.mark.parametrize('family', SHAPES)
-def test_a_contaminated_family_takes_its_own_default_shape_and_an_override(family: str) -> None:
-    """y's second parameter is one field, so a model states the family alone
-    and gets that family's default, which a point or a distribution replaces.
+def test_a_contaminated_family_resolves_its_own_default_shape_per_dataset_and_an_override(
+    family: str,
+) -> None:
+    """y's second parameter is one field, so a model states the family alone,
+    or None for the same, and each dataset draws a point from that family's default,
+    which a point or a distribution replaces. A fitter of the family states the point as known.
     """
-    assert Glm(family=family).shape == SHAPES[family]
-    assert Glm(family=family, shape=4.0).shape == 4.0
-    assert Glmm(family=family, shape=Uniform(5, 6)).shape == Uniform(5, 6)
+    support = SHAPES[family]
+    for model in [Glm(family=family), Glmm(family=family, shape=None)]:
+        shapes = _resolveShapes(model)
+        assert support.low <= min(shapes) < max(shapes) <= support.high
+    assert set(_resolveShapes(Glm(family=family, shape=4.0))) == {4.0}
+    shapes = _resolveShapes(Glmm(family=family, shape=Uniform(5, 6)))
+    assert 5 <= min(shapes) < max(shapes) <= 6
 
 
 MISSHAPEN = [
     pytest.param('gaussian', 4.0, id='a shape on a family without one, which it would ignore'),
-    pytest.param('student_t', None, id='no shape on a family that draws with one'),
     pytest.param('gamma', 0.0, id='a shape of 0, where numpy fails'),
     pytest.param('latent_bernoulli', 0.0, id='a latent scale of 0, the bernoulli family stated'),
     pytest.param('beta', Uniform(-1, 2), id='a distribution reaching below 0'),
@@ -97,10 +108,10 @@ MISSHAPEN = [
 
 
 @pytest.mark.parametrize(('family', 'shape'), MISSHAPEN)
-def test_a_shape_exists_exactly_where_the_family_has_one_and_is_positive(
-    family: str, shape: float | Uniform | None
+def test_a_shape_is_stated_only_where_the_family_has_one_and_is_positive(
+    family: str, shape: float | Uniform
 ) -> None:
-    """A model that states a shape its family ignores, or none for one that needs it,
+    """A model that states a shape its family ignores, or one where numpy fails,
     fails where it is written, not at a draw.
     """
     with pytest.raises(ValidationError, match='shape'):
@@ -757,22 +768,6 @@ def test_the_draw_is_deterministic_under_a_fixed_generator_and_the_prior_draws_a
         assert first.sigma_alpha[name].tobytes() == second.sigma_alpha[name].tobytes()
         assert first.corr_alpha[name].tobytes() == second.corr_alpha[name].tobytes()
         assert first.alpha[name].tobytes() == second.alpha[name].tobytes()
-
-
-@pytest.mark.parametrize('family', SHAPES)
-def test_the_prior_holds_the_shape_each_dataset_resolved(family: str) -> None:
-    """A fitter of the family states its second parameter as known, so the prior holds it:
-    a point inside the default's support, drawn once per dataset, or the override's point.
-    """
-    support = SHAPES[family]
-    blocks = [Block(name='fixed', variances=[0.0, 1.0])]
-    shapes = []
-    for seed in range(20):
-        resolved = Glm(family=family).resolveDataset(np.random.default_rng(seed))
-        shapes.append(resolved.drawPrior(blocks, np.random.default_rng(0)).shape)
-    assert support.low <= min(shapes) < max(shapes) <= support.high
-    pointed = Glm(family=family, shape=4.0).resolveDataset(np.random.default_rng(0))
-    assert pointed.drawPrior(blocks, np.random.default_rng(0)).shape == 4.0
 
 
 @pytest.mark.parametrize('family', ['gaussian', 'bernoulli', 'poisson', *SHAPES])
