@@ -92,17 +92,14 @@ table = pd.DataFrame(
         'books': [3, 10, 0, 25, 7, 2, 14, 5, 8],  # integers: a count
     }
 )
-covariates = Covariates.fromPandas(table, factors=['school'])  # the types read from the dtypes
+covariates = Covariates.fromPandas(table, factors=['school'])
 outcome = resampleOutcome(seed=0, index=0, covariates=covariates, model=Glmm())
-print(f'family: {outcome.prior.y_family}')
 for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
     print(f'{term:9} {beta:5.2f}')
 ```
 
-This prints the drawn family and the true fixed effects:
-
+The true fixed effects:
 ```text
-family: gaussian
 intercept  1.01
 age        0.09
 female     0.45
