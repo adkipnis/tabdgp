@@ -26,12 +26,14 @@ generated it.
 - **Model-based outcome.** Instead of the SCM's node, `outcome_form='glmm'` draws `y` from a
   generalized linear mixed model (GLMM) on the covariates. The family is Normal, Bernoulli or
   Poisson (or, by overriding `y_family_shares`, Student-t, negative binomial, latent-noise
-  Bernoulli, Gamma or beta), with fixed effects and random effects per grouping factor. The true parameters are
-  returned with the priors they were drawn from.
-  `outcome_form='glm'` skips random effects, `Glmm(deviation_scale=0.3)` adds a known misspecification.
+  Bernoulli, Gamma or beta), with fixed effects and random effects per grouping factor.
+  The true parameters are returned with the priors they were drawn from.
+  `outcome_form='glm'` skips random effects,
+  `Glmm(deviation_scale=0.3)` adds a known misspecification.
   You can pass your own model as a function of the covariates by defining it as a Callable.
-- **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `resampleOutcome` draws a
-  model's outcome on it. You can use this semi-synthetic data for oracle tests or power analysis.
+- **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `resampleOutcome`
+  draws a model's outcome on it.
+  You can use this semi-synthetic data for oracle tests or power analysis.
 
 ## Install
 
