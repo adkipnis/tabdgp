@@ -283,9 +283,16 @@ _Avoid_: group effect, b (an earlier letter), random intercept for a latent grou
 
 ### The proofs
 
+**Summary tables**:
+A dataset's statistics in the shapes real tables are measured in: a row per column, per column
+and grouping factor, per pair of grouping factors, per grouping factor, and per dataset for its
+response and its fit.
+Generated and real tables are compared table against table, row for row.
+_Avoid_: measured files, measurement pass (the real tables' side), meta-features
+
 **Summary vector**:
-The statistics per dataset on which the proofs compare generated and real tables, one row per
-dataset.
+One row per dataset, aggregated from its summary tables (e.g. the median and the 90th
+percentile of each column statistic over its columns, the type mix as shares).
 A statistic that a table cannot show (e.g. the intraclass correlation of a second factor) is
 marked missing.
 _Avoid_: features (the classifier's view of it), meta-features, embedding
@@ -306,10 +313,20 @@ Tests whether the real tables' summary vectors lie inside the band of the genera
 generated 1st to 99th percentile per axis.
 Its result is the share of real tables inside the band on every axis.
 The share of generated tables inside the real tables' band shows what the widening costs.
-_Avoid_: coverage (the fitter's credible-interval property), support (the band is its estimate)
+_Avoid_: coverage (the fitter's credible-interval property, or the neighborhood test's), support
+(the band is its estimate)
+
+**Neighborhood test**:
+Precision, recall, density and coverage of two samples of summary vectors, each a ball around
+every row out to its k-th nearest neighbor of its own sample.
+Recall and coverage say how much of the real sample the generated balls reach, precision and
+density how much of the generated sample lies among the real.
+It is reported beside the containment test and never gated.
+_Avoid_: PRDC (its paper's acronym), support metric, k-NN coverage
 
 **Pairing**:
-Drawing one generated dataset per fit of a real table, at that table's sizes (rows, grouping
-factors, groups per factor).
-The two-sample test then measures the prior's mismatch and not the sizes'.
+Drawing generated datasets per real table, at that table's sizes (rows, design columns,
+grouping factors, groups per factor and their relation).
+The tests then measure the hyperprior's mismatch and not the sizes'.
+A real table whose sizes the preset cannot take is reported as outside its size range.
 _Avoid_: matching (the hyperprior's fit to the registry), conditioning
