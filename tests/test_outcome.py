@@ -305,6 +305,34 @@ def _covariance(sd: np.ndarray, corr: np.ndarray) -> np.ndarray:
     return corr * np.outer(sd, sd)  # (q, q)
 
 
+# six rows in three groups of g0 and a covariate of each type, of design width 1 but c's 2 and k's 3
+TYPED_GROUPING = groupingOf([[0, 0, 1, 1, 2, 2]])
+TYPED_COLUMNS = {
+    'x': np.array([1.5, -2, 3, 0.25, 7, 4], dtype=np.float32),
+    'b': np.array([0, 1, 1, 0, 1, 0]),
+    'c': np.array([0, 1, 2, 2, 1, 0]),
+    'k': np.array([0, 1, 2, 3, 1, 0]),
+    'n': np.array([3, 0, 5, 1, 2, 9]),
+}
+TYPED_METADATA = {
+    'x': Column(type='continuous'),
+    'b': Column(type='binary', levels=2),
+    'c': Column(type='categorical', levels=3),
+    'k': Column(type='categorical', levels=4),
+    'n': Column(type='count'),
+}
+
+
+def _typedCovariates(names: list[str]) -> Covariates:
+    """The grouping and these covariates of TYPED_COLUMNS, in this order."""
+    columns = dict(TYPED_GROUPING.codes)
+    metadata = dict(TYPED_GROUPING.metadata)
+    for name in names:
+        columns[name] = TYPED_COLUMNS[name]
+        metadata[name] = TYPED_METADATA[name]
+    return Covariates(columns=columns, metadata=metadata, grouping=TYPED_GROUPING, y_score=None)
+
+
 def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_up_to_float32() -> (
     None
 ):
@@ -316,25 +344,7 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
     The raw matrix here is built by hand, not by the coder.
     Both scales are float32, so they agree up to its rounding.
     """
-    columns = {
-        'x0': np.array([1.5, -2, 3, 0.25, 7, 4], dtype=np.float32),
-        'b': np.array([0, 1, 1, 0, 1, 0]),
-        'c': np.array([0, 1, 2, 2, 1, 0]),
-        'n': np.array([3, 0, 5, 1, 2, 9]),
-    }
-    metadata = {
-        'x0': Column(type='continuous'),
-        'b': Column(type='binary', levels=2),
-        'c': Column(type='categorical', levels=3),
-        'n': Column(type='count'),
-    }
-    grouping = groupingOf([[0, 0, 1, 1, 2, 2]])
-    covariates = Covariates(
-        columns={**grouping.codes, **columns},
-        metadata={**grouping.metadata, **metadata},
-        grouping=grouping,
-        y_score=None,
-    )
+    covariates = _typedCovariates(['x', 'b', 'c', 'n'])
     # at a budget of d every term is random too, the effects correlated
     glmm = Glmm(random_effects=6, correlated_share=1.0)
     outcome = runModel(glmm, covariates, np.random.default_rng(0))
@@ -342,19 +352,19 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
     raw = np.stack(
         [
             np.ones(6),
-            columns['x0'].astype(np.float64),
-            columns['b'],
-            columns['c'] == 1,
-            columns['c'] == 2,
-            columns['n'],
+            TYPED_COLUMNS['x'].astype(np.float64),
+            TYPED_COLUMNS['b'],
+            TYPED_COLUMNS['c'] == 1,
+            TYPED_COLUMNS['c'] == 2,
+            TYPED_COLUMNS['n'],
         ],
         axis=1,
     ).astype(np.float64)  # (n, d)
-    standardized = codeDesign(columns, metadata, rows=6).matrix  # (n, d)
+    standardized = codeDesign(covariates.columns, covariates.metadata, rows=6).matrix  # (n, d)
     np.testing.assert_allclose(raw @ outcome.beta_raw, standardized @ parameters.beta, rtol=1e-6)
     assert outcome.beta_raw[2:5].tolist() == parameters.beta[2:5].tolist()
     assert outcome.random_terms['g0'] == outcome.fixed_terms
-    codes = grouping.codes['g0']  # (n,)
+    codes = TYPED_GROUPING.codes['g0']  # (n,)
     random_raw = (raw * outcome.alpha_raw['g0'][codes]).sum(axis=1)  # (n,)
     random_standardized = (standardized * parameters.alpha['g0'][codes]).sum(axis=1)  # (n,)
     np.testing.assert_allclose(random_raw, random_standardized, rtol=1e-6, atol=1e-6)
@@ -405,34 +415,10 @@ def test_run_model_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() 
         assert len(outcome.parameters.alpha[factor]) == groups
 
 
-# six rows in three groups of g0, and covariates of design width 1, 2 and 3
-SLOPE_GROUPING = groupingOf([[0, 0, 1, 1, 2, 2]])
-SLOPE_COLUMNS = {
-    'x': np.array([1.5, -2, 3, 0.25, 7, 4], dtype=np.float32),
-    'c': np.array([0, 1, 2, 2, 1, 0]),
-    'k': np.array([0, 1, 2, 3, 1, 0]),
-}
-SLOPE_METADATA = {
-    'x': Column(type='continuous'),
-    'c': Column(type='categorical', levels=3),
-    'k': Column(type='categorical', levels=4),
-}
-
-
-def _slopeCovariates(names: list[str]) -> Covariates:
-    """The grouping and these covariates of SLOPE_COLUMNS."""
-    columns = dict(SLOPE_GROUPING.codes)
-    metadata = dict(SLOPE_GROUPING.metadata)
-    for name in names:
-        columns[name] = SLOPE_COLUMNS[name]
-        metadata[name] = SLOPE_METADATA[name]
-    return Covariates(columns=columns, metadata=metadata, grouping=SLOPE_GROUPING, y_score=None)
-
-
 def _randomTerms(names: list[str], random_effects: int, seed: int) -> list[str]:
     """g0's random terms under a budget, on the grouping and these covariates."""
     glmm = Glmm(random_effects=random_effects)
-    outcome = runModel(glmm, _slopeCovariates(names), np.random.default_rng(seed))
+    outcome = runModel(glmm, _typedCovariates(names), np.random.default_rng(seed))
     return outcome.random_terms['g0']
 
 
