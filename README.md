@@ -99,6 +99,8 @@ for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
     print(f'{term:9} {beta:5.2f}')
 ```
 
+This prints the drawn family and the true fixed effects of those covariates:
+
 ```text
 family: gaussian
 intercept  1.01
