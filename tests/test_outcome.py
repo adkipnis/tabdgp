@@ -23,7 +23,7 @@ from tabdgp.outcome import (
     runModel,
 )
 from tabdgp.prior import Glm, Glmm
-from tests.fixtures.build import Y, columnsOf, covariatesOf, groupingOf, point
+from tests.fixtures.build import Y, columnsOf, covariatesOf, groupingOf
 
 # four rows in two groups of g0
 GROUPING = groupingOf([[0, 0, 1, 1]])
@@ -223,27 +223,20 @@ def test_the_coder_leaves_out_a_grouping_factor_and_y_by_role() -> None:
     assert codeDesign(columns, metadata, rows=4).names == ['intercept', 'x0']
 
 
+# each family with its link, y's type and a shape as a point, so the shape a run records is known
 RUNS = [
-    pytest.param('gaussian', 'identity', 'continuous', id='gaussian'),
-    pytest.param('bernoulli', 'logit', 'binary', id='bernoulli'),
-    pytest.param('poisson', 'log', 'count', id='poisson'),
-    pytest.param('student_t', 'identity', 'continuous', id='student_t'),
-    pytest.param('negative_binomial', 'log', 'count', id='negative_binomial'),
-    pytest.param('latent_bernoulli', 'logit', 'binary', id='latent_bernoulli'),
-    pytest.param('gamma', 'log', 'continuous', id='gamma'),
-    pytest.param('beta', 'logit', 'continuous', id='beta'),
+    pytest.param('gaussian', 'identity', 'continuous', None, id='gaussian'),
+    pytest.param('bernoulli', 'logit', 'binary', None, id='bernoulli'),
+    pytest.param('poisson', 'log', 'count', None, id='poisson'),
+    pytest.param('student_t', 'identity', 'continuous', 4.0, id='student_t'),
+    pytest.param('negative_binomial', 'log', 'count', 4.0, id='negative_binomial'),
+    pytest.param('latent_bernoulli', 'logit', 'binary', 4.0, id='latent_bernoulli'),
+    pytest.param('gamma', 'log', 'continuous', 4.0, id='gamma'),
+    pytest.param('beta', 'logit', 'continuous', 4.0, id='beta'),
 ]
-# every shape field a point, so the shape a run records is known
-SHAPES = {
-    'residual_df': 4.0,
-    'dispersion': 4.0,
-    'latent_scale': 4.0,
-    'gamma_shape': 4.0,
-    'beta_precision': 4.0,
-}
 
 
-@pytest.mark.parametrize(('family', 'link', 'column_type'), RUNS)
+@pytest.mark.parametrize(('family', 'link', 'column_type', 'shape'), RUNS)
 @pytest.mark.parametrize(
     'covariates',
     [
@@ -252,7 +245,7 @@ SHAPES = {
     ],
 )
 def test_run_model_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
-    family: str, link: str, column_type: str, covariates: Covariates
+    family: str, link: str, column_type: str, shape: float | None, covariates: Covariates
 ) -> None:
     """A Glm is TabDGP's own model: runModel codes the covariates, draws the prior and writes y.
     On grouped covariates it is the pooled ground truth: the factors' codes are no term,
@@ -260,19 +253,17 @@ def test_run_model_on_a_glm_returns_a_glm_outcome_without_per_factor_fields(
     Only the Gaussian and Student-t families have a σ_ε, only the contaminated families have a
     shape, and the deviation is zero at λ = 0.
     """
-    glm = Glm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
+    glm = Glm(family=family, shape=shape)
     outcome = runModel(glm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmOutcome
-    assert (outcome.prior.y_family, outcome.link) == (family, link)
+    assert (outcome.prior.family, outcome.link) == (family, link)
     assert list(outcome.columns) == list(outcome.metadata) == ['y']
     assert (outcome.metadata['y'].type, outcome.metadata['y'].role) == (column_type, 'outcome')
     assert outcome.columns['y'].shape == (6,)
     assert outcome.fixed_terms == ['intercept', 'x0', 'x1']
     assert list(outcome.prior.split) == ['fixed']
     assert (outcome.parameters.sigma_eps is None) == (family not in ['gaussian', 'student_t'])
-    assert outcome.prior.y_shape == (
-        None if family in ['gaussian', 'bernoulli', 'poisson'] else 4.0
-    )
+    assert outcome.prior.shape == shape
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation_scale == 0.0
 
@@ -289,7 +280,9 @@ def test_a_glm_outcome_checks_its_shapes_against_n_and_d(change: dict, match: st
     """A consumer pairs beta with the terms by position and adds the deviation to η row by row,
     so a shape that disagrees fails where the outcome is built.
     """
-    outcome = runModel(Glm(), covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0))
+    outcome = runModel(
+        Glm(family='gaussian'), covariatesOf([[0, 0, 1, 1]], ['x0']), np.random.default_rng(0)
+    )
     with pytest.raises(ValidationError, match=match):
         _replaced(outcome, change)
 
@@ -348,7 +341,7 @@ def test_the_raw_scale_parameters_on_the_raw_columns_give_the_standardized_eta_u
     """
     covariates = _typedCovariates(['x', 'b', 'c', 'n'])
     # at a budget of d every term is random too, the effects correlated
-    glmm = Glmm(random_effects=6, correlated_share=1.0)
+    glmm = Glmm(family='gaussian', random_effects=6, correlated_share=1.0)
     outcome = runModel(glmm, covariates, np.random.default_rng(0))
     parameters = outcome.parameters
     raw = np.stack(
@@ -382,7 +375,7 @@ def test_the_ground_truths_arrays_are_float32_on_both_scales() -> None:
     on the raw columns too.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
-    outcome = runModel(Glmm(), covariates, np.random.default_rng(0))
+    outcome = runModel(Glmm(family='gaussian'), covariates, np.random.default_rng(0))
     parameters = outcome.parameters
     arrays = {
         'beta': parameters.beta,
@@ -406,7 +399,7 @@ def test_run_model_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() 
     The prior names the blocks fixed, then the factors in order.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]], ['x0', 'x1'])
-    outcome = runModel(Glmm(), covariates, np.random.default_rng(0))
+    outcome = runModel(Glmm(family='gaussian'), covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
     assert list(outcome.prior.split) == ['fixed', 'g0', 'g1']
     assert list(outcome.random_terms) == ['g0', 'g1']
@@ -419,7 +412,7 @@ def test_run_model_on_a_glmm_returns_a_glmm_outcome_with_one_block_per_factor() 
 
 def _randomTerms(names: list[str], random_effects: int, seed: int) -> list[str]:
     """g0's random terms under a budget, on the grouping and these covariates."""
-    glmm = Glmm(random_effects=random_effects)
+    glmm = Glmm(family='gaussian', random_effects=random_effects)
     outcome = runModel(glmm, _typedCovariates(names), np.random.default_rng(seed))
     return outcome.random_terms['g0']
 
@@ -476,7 +469,7 @@ def test_run_model_refuses_a_glmm_on_covariates_without_a_factor_naming_the_mode
     """
     covariates = covariatesOf([], ['x0'], rows=4)
     with pytest.raises(ValueError, match='Glmm'):
-        runModel(Glmm(), covariates, np.random.default_rng(0))
+        runModel(Glmm(family='gaussian'), covariates, np.random.default_rng(0))
 
 
 # changes of the parameters, which a GLMM's outcome checks against its random terms
@@ -498,7 +491,9 @@ def test_a_glmm_outcome_checks_each_factors_shapes_against_its_random_terms(
     The rows are the groups, which the outcome does not hold; the draw sizes them.
     """
     covariates = covariatesOf([[0, 0, 1, 1]], ['x0'])
-    outcome = runModel(Glmm(random_effects=2), covariates, np.random.default_rng(0))
+    outcome = runModel(
+        Glmm(family='gaussian', random_effects=2), covariates, np.random.default_rng(0)
+    )
     assert outcome.random_terms == {'g0': ['intercept', 'x0']}
     with pytest.raises(ValidationError, match=match):
         _replaced(outcome, {'parameters': change})
@@ -511,7 +506,7 @@ def test_the_deviation_is_lambda_times_the_sd_of_x_beta_plus_z_alpha_times_the_s
     The design matrix here is built by hand, not by the coder.
     """
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
-    glmm = Glmm(random_effects=2, deviation_scale=0.5)
+    glmm = Glmm(family='gaussian', random_effects=2, deviation_scale=0.5)
     outcome = runModel(glmm, covariates, np.random.default_rng(0))
     x0 = np.arange(6.0)  # (n,)
     design = np.stack([np.ones(6), (x0 - x0.mean()) / x0.std()], axis=1)  # (n, d)
@@ -541,33 +536,30 @@ def test_the_deviation_is_zeros_without_a_score_or_at_lambda_0_and_y_is_the_line
     scored_covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0'])
     plain = dataclasses.replace(scored_covariates, y_score=None)
     covariates = scored_covariates if scored else plain
-    gaussian = point('y_family_shares', 'gaussian', Glm)
-    glmm = Glmm(y_family_shares=gaussian, deviation_scale=deviation_scale)
+    glmm = Glmm(family='gaussian', deviation_scale=deviation_scale)
     outcome = runModel(glmm, covariates, np.random.default_rng(0))
-    reference = runModel(Glmm(y_family_shares=gaussian), plain, np.random.default_rng(0))
+    reference = runModel(Glmm(family='gaussian'), plain, np.random.default_rng(0))
     assert outcome.deviation.tolist() == [0.0] * 6
     assert outcome.deviation.dtype == np.float32
     assert outcome.deviation_scale == deviation_scale
     assert outcome.columns['y'].tobytes() == reference.columns['y'].tobytes()
 
 
-@pytest.mark.parametrize(('family', 'link', 'column_type'), RUNS)
+@pytest.mark.parametrize(('family', 'link', 'column_type', 'shape'), RUNS)
 def test_run_model_on_a_glmm_records_the_shape_beside_the_random_effects(
-    family: str, link: str, column_type: str
+    family: str, link: str, column_type: str, shape: float | None
 ) -> None:
     """The contaminated families draw on a GLMM as on a GLM: η holds the random effects,
     and the shape is the family's own, not a group's.
     """
-    glmm = Glmm(y_family_shares=point('y_family_shares', family, Glm), **SHAPES)
+    glmm = Glmm(family=family, shape=shape)
     covariates = covariatesOf([[0, 0, 1, 1, 2, 2]], ['x0', 'x1'])
     outcome = runModel(glmm, covariates, np.random.default_rng(0))
     assert type(outcome) is GlmmOutcome
-    assert (outcome.prior.y_family, outcome.link, outcome.metadata['y'].type) == (
+    assert (outcome.prior.family, outcome.link, outcome.metadata['y'].type) == (
         family,
         link,
         column_type,
     )
-    assert outcome.prior.y_shape == (
-        None if family in ['gaussian', 'bernoulli', 'poisson'] else 4.0
-    )
+    assert outcome.prior.shape == shape
     assert list(outcome.parameters.alpha) == ['g0']
