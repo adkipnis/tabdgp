@@ -138,7 +138,7 @@ _Avoid_: sample (a row or a value), generate, batch
 **Key**:
 A seed and an index, which identify one dataset.
 The same key, hyperprior and versions of TabDGP and numpy give the same dataset bit for bit, in
-any batch, worker or shard.
+any batch, worker or shard on one CPU type and numpy build.
 _Avoid_: rng, random state, seed alone
 
 **Dataset**:
