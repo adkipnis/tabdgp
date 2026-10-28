@@ -142,12 +142,12 @@ any batch, worker or shard.
 _Avoid_: rng, random state, seed alone
 
 **Dataset**:
-What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
-generating graph, the values of the latent nodes, the outcome, the resolved hyperparameters,
-and the key with the package versions.
-The outcome holds the columns its form wrote and the form's ground truth.
-The hyperparameters leave out the fields that each column, node, grouping factor or model draws
-for itself.
+What a draw returns: its covariates, the outcome, the generating graph, the values of the
+latent nodes, the resolved hyperparameters, and the key with the package versions.
+Its columns, named arrays in their natural dtype, are the covariates' and the outcome's.
+The outcome is y's column under `scm`, and none under `none`.
+The hyperparameters leave out the fields that each column, node or grouping factor draws for
+itself.
 A dataset is never padded and never written to a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
@@ -189,11 +189,8 @@ _Avoid_: target, label, response unqualified, dependent variable
 **Form**:
 How the outcome node turns its score into y, one per dataset.
 Under `scm`, the default, y is a node like the others, with a marginal or a post-hoc type.
-Otherwise the form is a model.
-The first two are `glm` and `glmm`, a generalized linear model (GLM) and a generalized linear
-mixed model (GLMM) on the design matrix.
-Both have a family, a link and fixed effects, the GLMM adds random effects per grouping factor,
-and both can add a deviation.
+Under `none`, the dataset has no y.
+A model draws a y of its own on a dataset's covariates.
 _Avoid_: mode, kind, outcome type (its column type)
 
 **Likelihood**:
@@ -205,36 +202,38 @@ _Avoid_: observation model, noise model, sampling distribution
 
 **Response family**:
 The likelihood's family, with its canonical link.
-Gaussian, Bernoulli and Poisson by default.
-Student-t, negative binomial, latent-noise Bernoulli, Gamma and beta at share zero, each with a
-shape of its own.
-A study that draws one makes the dataset misspecified for a fitter of the base family.
+A model states it, and it is never drawn.
+It is Gaussian, Bernoulli, Poisson, Student-t, negative binomial, latent-noise Bernoulli, Gamma
+or beta, the last five with a shape of their own.
+Student-t, negative binomial and latent-noise Bernoulli make a dataset misspecified for a fitter
+of their base family (Gaussian, Poisson, Bernoulli).
 _Avoid_: distribution unqualified, marginal (a covariate's)
 
 **Covariates**:
-What a form reads: the observed columns (the grouping factors and the covariates), their
+What a model reads: the observed columns (the grouping factors and the covariates), their
 metadata, how the rows are grouped, and the score.
-A draw's covariates come from its SCM.
+A dataset's covariates come from its SCM.
 A table's covariates are read from the table and have no score.
-A model's outcome on a table's covariates is called a **resampled outcome**, and is keyed like a
-dataset.
 _Avoid_: X (the design matrix), features, inputs
 
 **Model**:
-A form given as a function of the covariates and a generator.
+A function of the covariates and a generator, which draws an outcome on them.
 It returns the columns it writes, their metadata and its ground truth.
-The GLM and the GLMM are TabDGP's own models, and a study can pass its own (e.g. a Gaussian
-process, an MLP).
+TabDGP's own are the generalized linear model (GLM) and the generalized linear mixed model
+(GLMM) on the design matrix.
+Both state a response family and have fixed effects, the GLMM adds random effects per grouping
+factor, and both can add a deviation.
+A study can pass its own (e.g. a Gaussian process, an MLP).
+A model's outcome is keyed like a dataset, on a stream of its own.
 _Avoid_: likelihood (one part of it), head, outcome function, target function
 
 **Score**:
 The outcome node's value in the SCM, z-scored: its mechanism over its parents (latent ones
 included) plus its noise.
-Every form turns it into y.
-The scm form rank-matches it onto a marginal.
+Under `scm`, it is rank-matched onto a marginal, and the covariates carry it.
 A GLM or GLMM adds it to the linear predictor as the deviation.
 A study's model may ignore it.
-A real table has no score.
+A dataset drawn under `none` and a real table have no score.
 _Avoid_: latent outcome, y*, η (the linear predictor), f
 
 **Deviation**:
@@ -243,7 +242,7 @@ Its scale is zero by default.
 It makes the dataset misspecified for every GLMM, while the fixed and random effects stay the
 exact ground truth.
 If the outcome node has a latent group-level parent, the deviation is endogenous.
-A table without an SCM has no deviation.
+A nonzero deviation on covariates without a score fails.
 _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it), noise
 
 **Prior**:
