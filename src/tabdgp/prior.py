@@ -51,7 +51,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Annotated, ClassVar, Literal
+from typing import Annotated, ClassVar
 
 import numpy as np
 from pydantic import ConfigDict, Field, NonNegativeFloat, PositiveInt, model_validator
@@ -70,30 +70,11 @@ from tabdgp.field import (
     Uniform,
     UniformInt,
 )
+from tabdgp.likelihood import SHAPES, Family
 
 # =====================================================================================
 # what the draw reads and returns
 # =====================================================================================
-
-# y's families, each with its link and column in likelihood
-Family = Literal[
-    'gaussian',
-    'bernoulli',
-    'poisson',
-    'student_t',
-    'negative_binomial',
-    'latent_bernoulli',
-    'gamma',
-    'beta',
-]
-# the default shape of each family that has one, y's second parameter
-SHAPES = {
-    'student_t': LogUniform(3, 10),  # df
-    'negative_binomial': LogUniform(1, 10),  # φ, the variance μ + μ² / φ
-    'latent_bernoulli': LogUniform(0.5, 2),  # σ_c
-    'gamma': LogUniform(1, 10),  # k, the variance μ² / k
-    'beta': LogUniform(2, 50),  # φ, the precision
-}
 
 
 @pydantic_dataclass(frozen=True)
