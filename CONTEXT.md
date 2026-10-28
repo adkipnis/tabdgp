@@ -1,239 +1,309 @@
 # TabDGP
 
-A data-generating process for grouped and flat tables: what is drawn, how, and from which
-distributions. The covariate terms are those of metabeta's generalized linear mixed
-model (GLMM) glossary (`packages/mixed/CONTEXT.md` of metabeta-v3, a private repository),
-restated here in its words and adapted where TabDGP differs; statistical terms (grouping
-factor, family, link) are not redefined.
+A data-generating process for grouped and flat tables: what is drawn, under what structure,
+and from which distributions. TabDGP draws covariates from a Cauchy-SCM; the outcome is either
+another node in the SCM, or it is model-based (e.g. drawn according to a GLM/GLMM formula).
 
 ## Language
 
 ### Covariates
 
 **Covariate generator**:
-The process that draws a dataset's grouping structure and its typed covariate columns,
-continuous, binary, categorical or ordered, each within-group or group-level, with the quirks
-of real tables. TabDGP is one; it draws an outcome only as the outcome node.
+The process that draws a dataset's grouping structure and its typed covariate columns:
+continuous, binary, categorical, ordered. Each covariate varies within groups or is on
+the group-level.
 _Avoid_: predictor simulation, feature matrix, X generator, design-matrix generator
 
 **Design matrix**:
-The coding of the covariates the linear predictor sees: an intercept column, z-scored
-continuous columns, 0/1 binary columns, k − 1 treatment-coded columns per categorical.
-Derived from the covariates, never drawn; the hyperprior's design-column budget counts its
-columns besides the intercept.
+The numerical coding of the covariates that a linear predictor would see:
+an intercept column, z-scored continuous columns, 0/1 binary columns, k − 1 treatment-coded
+columns per categorical or ordered column.
+The design is strictly derived from covariates.
+The hyperprior's design-column budget counts its columns besides the intercept.
 _Avoid_: X for the uncoded covariates, features
 
 **Within-group covariate** / **group-level covariate**:
-A covariate that varies within the groups of a factor, versus one constant within each group
-of some factor (a school's size, a person's sex). A within-group covariate whose mean differs
-between groups is **group-confounded**.
+A covariate that varies within the groups of a factor, versus a constant within each group
+of some factor (e.g. a school's size, a person's sex). A within-group covariate whose mean differs
+between groups is called **group-confounded**.
 _Avoid_: level-1 and level-2 variable, cluster-level, contextual variable
 
 **Group share**:
-How much of a within-group node's variance comes from its group part, one value per group of
-one grouping factor, rather than its row part, one value per row: the strength of its group
-confounding. The between-group share measured on its values can be larger, since its row part
-may read group-confounded parents.
+How much of the variance of a within-group node is due to the group. This is one value per
+node, at one grouping factor, and measures the extent of group confounding.
+The between-group share can be larger, since the part of the node drawn per row may read
+group-confounded parents.
 _Avoid_: ICC unqualified (the fitter's, on the outcome), between-group share (what the
 measurement pass records), random-intercept variance
 
 **Quirk**:
 A property of real tables that an independent and identically distributed (i.i.d.) simulator
-lacks and on which an amortized posterior goes wrong: group confounding, empty cells, rare
-levels, ties, bounds, irregular time, near dependence, leverage points.
+lacks (e.g. group confounding, empty cells, rare levels, ties, bounds, irregular time, near dependence, leverage points).
 _Avoid_: edge case, noise, messiness
 
 ### The graph
 
 **Node**:
 One variable of a dataset's structural causal model (SCM): a grouping factor, a group-level or
-within-group covariate, a latent node, time, treatment, or the outcome node.
-A node has a parent set and a mechanism; a node without parents is a root.
+within-group covariate, a latent node or the outcome node (time and treatment later).
+A node has a parent set and a mechanism.
+A node without parents is called a root.
 _Avoid_: feature, variable unqualified, neuron (of an MLP)
 
 **Grouping factor**:
-A root node whose values assign every row to one of its m groups, in metabeta's words "a
-categorical variable whose levels index random effects"; a dataset has none (a flat table),
-one or several. Two grouping factors are **crossed** when their groups combine freely and
-**nested** when each group of the subordinate one lies within one group of the superior one,
-which has fewer groups.
+A root node or a table's categorical column, whose values assign every row to one of its m groups.
+In a mixed model, the groups broadcast the random effects.
+A dataset has none (a flat table) or at least one (a grouped table).
+Two grouping factors are **crossed** when their groups combine freely, and **nested** when each
+group of one lies within a single group of the other.
 _Avoid_: factor alone (a categorical column), cluster, subject (one kind of grouping factor),
 random-effects term
 
 **Superior** / **subordinate**:
-A grouping factor is superior to one nested in it, whose groups lie within its own; the nested
-one is subordinate. The row is subordinate to every factor.
+If the groups of factor A lie within the groups of factor B, B is superior and A is subordinate.
+The row is subordinate to every factor.
+The **immediate superior** of a factor is its superior with the most groups; its metadata
+names it.
+In a table, nesting is read from the codes, in whatever order the factors are named.
 _Avoid_: coarser and finer, parent and child (the graph's edges), higher and lower level
 
 **Unit**:
-What a node is drawn once per: the row, or one grouping factor, in which case the node takes
-one value per group of that factor, repeated across the group's rows (broadcast). A covariate at
-the row unit is within-group; one at a grouping factor's unit is group-level. A
-nested grouping factor is a unit subordinate to the one it nests in; crossed ones are units
-without an order between them.
+What a node is drawn once for: each row, or each group of one grouping factor.
+A node drawn per group repeats its value across the group's rows (broadcast).
+A covariate drawn per row is within-group, and one drawn per group is group-level.
+The unit of a nested factor is subordinate to the unit of its superior.
+The units of crossed factors have no order.
 _Avoid_: level (a factor level, or the multilevel literature's level 1 and 2), hierarchy
 level, grain, scope
 
 **Mechanism**:
-The function that computes a node's values from its parents' values and its own noise, drawn
-per node from a mechanism family (linear, a small MLP, a tree). A root's mechanism is its noise.
+The function that computes a node's values from its parents' values and its own noise.
+Each node draws one from a mechanism family: linear or a small multilayer perceptron (MLP).
+A root's mechanism is just its noise.
 _Avoid_: layer, activation (one part of it), edge function
 
 **Generating graph**:
-The directed acyclic graph of a dataset's nodes and their parent sets, returned with every
-dataset.
+The directed acyclic graph of a dataset's nodes and their parents.
+It is returned with every dataset.
 _Avoid_: causal graph unqualified, DAG (one property of it), architecture
 
 **Latent node**:
-A node of the generating graph that is not a column of the table, kept in the output so that
-the dataset stays white-box.
+A node of the generating graph that is not a column of the table.
+Its values are still returned, so the dataset stays white-box.
 _Avoid_: hidden unit, confounder (a role a latent node can play)
 
 **Column**:
-A node observed in the table, with its metadata: type (continuous, binary, categorical,
-ordered, count), levels, role (grouping factor, covariate, time, treatment, outcome), and the
-parameters its values were drawn with.
+A variable in the table: an observed node, a column written by a model, or a column of a given
+table.
+Its metadata holds its type (continuous, binary, categorical, ordered, count), its levels and
+its role (grouping factor, covariate or outcome; time and treatment later).
+A nested grouping factor also names its immediate superior.
+A drawn column also records its marginal and the parameters its values were drawn with.
+A table's metadata is either declared or inferred from the dtypes, and is checked against the
+values in both cases.
 _Avoid_: feature, variable unqualified
 
 **Count**:
-A column type for non-negative integers: a Poisson outcome's today, a covariate's once the
-measurement pass admits count covariates. In the design matrix a count is a continuous column.
+A column type for non-negative integers (e.g. a Poisson outcome, an integer covariate of a table).
+The hyperprior draws no count covariates yet.
+In the design matrix, a count is treated as a continuous column.
 _Avoid_: integer column, discrete column (an ordered one)
 
 **Factor level**:
-One of the k categories of a binary, categorical or ordered column, or one group of a
-grouping factor; R's `levels()`.
+One of the k categories of a binary, categorical or ordered column, or one group of a grouping
+factor (R's `levels()`).
 _Avoid_: level unqualified, category, class
 
 **Marginal**:
-The distribution a continuous or count column's values are mapped onto after the SCM, keeping
-their ranks: a family from a catalog (skewed, heavy-tailed, bounded, zero-inflated) for a
-continuous column, the Poisson for a count.
+The distribution that a continuous or count column's values are mapped onto after the SCM,
+keeping their ranks.
+A continuous column draws a family from a catalog (e.g. skewed, heavy-tailed, bounded,
+zero-inflated).
+A count column uses the Poisson.
 _Avoid_: noise distribution (the root's), prior
 
 **Post-hoc type**:
-The column type a continuous node is turned into after the SCM, by thresholds or bins on its
-values: binary, categorical, ordered.
+A binary, categorical or ordered type that a continuous node is turned into after the SCM, by
+thresholds or bins on its values.
 _Avoid_: dtype, encoding (the design matrix's)
 
 ### The draw
 
 **Draw**:
-The one public call: given a key and a hyperprior, one dataset, a pure function of both. Who
-draws many loops over indices.
+The public call that returns one dataset.
+It is a pure function of a key and a hyperprior.
+Many datasets are drawn by looping over indices.
 _Avoid_: sample (a row or a value), generate, batch
 
 **Key**:
-A seed and an index, the identity of one dataset: the same key, hyperprior and versions of
-TabDGP and numpy give the same dataset bitwise, whatever the batch, worker or shard it is
-drawn in.
+A seed and an index, which identify one dataset.
+The same key, hyperprior and versions of TabDGP and numpy give the same dataset bit for bit, in
+any batch, worker or shard on one CPU type and numpy build.
 _Avoid_: rng, random state, seed alone
 
 **Dataset**:
-What a draw returns: the columns as named arrays in their natural dtype, their metadata, the
-generating graph, the latent nodes' values, the outcome (the columns its form wrote and the
-form's truth), the hyperparameters every field resolved to except those each column, node or
-model draws for itself, and the key with the versions it reproduces under. Never padded, never
-a file.
+What a draw returns: its covariates, the outcome, the generating graph, the values of the
+latent nodes, the resolved hyperparameters, and the key with the package versions.
+Its columns, named arrays in their natural dtype, are the covariates' and the outcome's.
+The outcome is y's column under `scm`, and none under `none`.
+The hyperparameters leave unresolved the fields that each column, node or grouping factor draws
+for itself.
+A dataset is never padded and never written to a file.
 _Avoid_: batch, table (the columns alone), sample, corpus (the consumer's set of keys)
 
 **Hyperprior**:
-The one config of distributions from which every quantity of a dataset is drawn: sizes,
-graph, mechanisms, marginals, types, quirks, reached through a preset. The grouped preset's
-defaults are to be matched to mixedbench's registry and then widened; they are what the
-proofs certify.
+The config of distributions from which every quantity of a dataset is drawn (e.g. sizes, graph,
+mechanisms, marginals, types, quirks).
+It is reached through a preset.
+The defaults of the grouped preset are to be matched to real grouped tables and then widened.
+They are what the proofs certify.
 _Avoid_: prior (the fitter's, over parameters), config unqualified, meta-distribution
 
 **Preset**:
-A named hyperprior for one kind of table, grouped or flat today, item response, survival or
-causal later: a choice of fields, never a new mechanism. Every draw starts from one; metabeta
-draws from the grouped preset with the outcome node in its glmm form.
+A named hyperprior for one kind of table: grouped or flat today, item response, survival or
+causal later.
+A preset only sets defaults and never adds a mechanism.
+Every draw starts from one.
 _Avoid_: dataset type, kind, mode
 
 **Override**:
-A point value or a distribution passed for one field of a preset, replacing its default for
-that call. Neither a standalone user nor metabeta passes one by default; an override serves a
-study, an ablation or a size outside the preset.
+A point value or a distribution passed for one field of a preset, which replaces its default
+for that call.
+Overrides choose the outcome's form, or adapt a preset to a study, an ablation or a size outside
+its range.
 _Avoid_: setting, parameter, hyperparameter
 
 **Quirk axis**:
-One field of the hyperprior that controls one quirk of the catalog, granted only when
-mixedbench's measurement pass shows that real tables have the quirk strongly enough.
+A field of the hyperprior that controls one quirk.
+It is added only when measurements on real tables show the quirk strongly enough.
 _Avoid_: noise, perturbation, augmentation
 
 **Outcome node**:
-The node `y`, role `outcome`, drawn by default: a sink at the row unit, last in the generating
-graph, whose parents are drawn like any node's. Its form says how y follows from them. A
-dataset has at most one.
+The node `y` with role `outcome`.
+It is drawn by default, at the row unit, as the last node of the generating graph and without
+children.
+Its parents are drawn like any node's, and its form says how y follows from them.
+A dataset has at most one.
 _Avoid_: target, label, response unqualified, dependent variable
 
 **Form**:
-How the outcome node turns its score into y, one per dataset: `scm`, a node like the others
-with a marginal or a post-hoc type, matched to real responses; or a model, `glm` and `glmm`
-the first two, a generalized linear (mixed) model on the design matrix, with a family, a
-link, fixed effects, random effects per grouping factor and, when asked for, a deviation, what
-metabeta trains on and what builds white-box misspecified datasets.
+How the outcome node turns its score into y, one per dataset.
+Under `scm`, the default, y is a node like the others, with a marginal or a post-hoc type.
+Under `none`, the dataset has no y.
+A model draws a y of its own on a dataset's covariates.
 _Avoid_: mode, kind, outcome type (its column type)
 
+**Likelihood**:
+The distribution y is drawn from, given a function of the parameters and the covariates (the
+linear predictor in a GLM).
+Its response family and that family's shape define it.
+A fitter states a likelihood of its own, which may differ.
+_Avoid_: observation model, noise model, sampling distribution
+
+**Response family**:
+The likelihood's family, with its canonical link.
+A model states it, and it is never drawn.
+It is Gaussian, Bernoulli, Poisson, Student-t, negative binomial, latent-noise Bernoulli, Gamma
+or beta, the last five with a shape of their own.
+A model may state the shape, else each dataset draws it from the family's default.
+The shape is a point, which a fitter of that family states as known.
+Student-t, negative binomial and latent-noise Bernoulli make a dataset misspecified for a fitter
+of their base family (Gaussian, Poisson, Bernoulli).
+_Avoid_: distribution unqualified, marginal (a covariate's)
+
+**Covariates**:
+What a model reads: the observed columns (the grouping factors and the covariates), their
+metadata, how the rows are grouped, and the score.
+A dataset's covariates come from its SCM.
+A table's covariates are read from the table and have no score.
+_Avoid_: X (the design matrix), features, inputs
+
 **Model**:
-A form a study specifies: a function of the covariates and a generator that returns the
-columns it writes, their metadata and its truth. The GLM and the GLMM are TabDGP's own; a
-study passes its own (a Gaussian process, an MLP).
+A function of the covariates and a generator, which draws an outcome on them.
+It returns the columns it writes, their metadata and its ground truth.
+TabDGP's own are the generalized linear model (GLM) and the generalized linear mixed model
+(GLMM) on the design matrix.
+Both state a response family and have fixed effects, the GLMM adds random effects per grouping
+factor, and both can add a deviation.
+A study can pass its own (e.g. a Gaussian process, an MLP).
+A model's outcome is keyed like a dataset, on a stream of its own.
 _Avoid_: likelihood (one part of it), head, outcome function, target function
 
 **Score**:
-The outcome node's value in the SCM, its mechanism over its parents, latent ones included,
-plus its noise, z-scored: what every form turns into y. The scm form rank-matches it onto a
-marginal, a GLM or GLMM adds it to the linear predictor as the deviation, a model may ignore
-it. A real table has none.
+The outcome node's value in the SCM, z-scored: its mechanism over its parents (latent ones
+included) plus its noise.
+Under `scm`, it is rank-matched onto y's marginal or post-hoc type, and the covariates carry it.
+A GLM or GLMM adds it to the linear predictor as the deviation.
+A study's model may ignore it.
+A dataset drawn under `none` and a real table have no score.
 _Avoid_: latent outcome, y*, η (the linear predictor), f
 
 **Deviation**:
-The score added to a GLM's or GLMM's linear predictor at a drawn scale, zero by default: what
-makes a dataset misspecified for every GLMM while its fixed and random effects stay the exact
-truth. A latent group-level parent of the outcome node is an endogeneity. A table without an
-SCM has none.
+The score, scaled and added to the linear predictor of a GLM or GLMM.
+Its scale is zero by default.
+It makes the dataset misspecified for every GLMM, while the fixed and random effects stay the
+exact ground truth.
+If the outcome node has a latent group-level parent, the deviation is endogenous.
+A nonzero deviation on covariates without a score fails.
 _Avoid_: perturbation, nonlinearity, misspecification (the fitter's view of it), noise
 
-**Prior context**:
-The resolved hyperparameters of a GLM or GLMM form's priors, recorded with the dataset: the
-scales and families its fixed effects, random-effect standard deviations and residual scale
-were drawn with, the family chosen for the standard deviations and the residual law, the
-correlation prior's shape, and the signal share and split that set the scales. What
-metabeta's posterior is conditioned on.
-_Avoid_: hyperparameters unqualified (the hyperprior's), prior unqualified (the fitter's)
+**Prior**:
+The prior of a GLM's or GLMM's parameters, resolved per dataset and stored with it: what a
+well-specified fitter would state.
+A fitter may state another.
+It holds the family of the fixed effects, the location and scale of the intercept and of each
+slope, the family of the random-effect standard deviations, shared by the grouping factors, and
+the scale of each, the family and scale of the residual, and the shape of each correlation prior.
+By default, the slopes have a scale each in about half the datasets and share one in the rest, and so do each factor's random effects.
+A slope's location is zero for most slopes and a hypothesis for the rest.
+It also holds the linear predictor's standard deviation, the signal share and the split that set
+the scales.
+It draws the parameters on its own, so a ground truth can be resampled under a fixed prior.
+_Avoid_: prior context, hyperparameters unqualified (the hyperprior's)
+
+**Parameters**:
+What a GLM or GLMM draws from its prior per dataset, and what a fitter estimates.
+They are the fixed effects, the residual's standard deviation and, per grouping factor, the random effects with their standard deviations and correlation.
+They are drawn on the standardized scale.
+_Avoid_: hyperparameters (the prior's and the hyperprior's), coefficients (the fixed effects alone)
 
 **Random effect**:
-A per-group parameter of the outcome, α, an intercept or a slope, drawn jointly per group of a
-grouping factor in metabeta's parameterization and counted in design columns, a slope on a
-categorical column taking k − 1; metabeta's term. Only the outcome node draws random effects;
-a group-level node, latent or observed, is covariate structure, which a GLMM takes as given.
+A parameter α of the outcome per group of a grouping factor: an intercept or a slope.
+A group's random effects are drawn jointly.
+They are counted in design columns, so a slope on a categorical or ordered column takes k − 1.
+Only the outcome node draws random effects.
+A group-level node, latent or observed, is part of the covariates, which a GLMM takes as given.
 _Avoid_: group effect, b (an earlier letter), random intercept for a latent group-level node
 
 ### The proofs
 
 **Summary vector**:
-The per-dataset statistics the proofs compare generated and registry tables on, one row per
-dataset, a statistic the table cannot show (a second factor's ICC) marked missing.
+The statistics per dataset on which the proofs compare generated and real tables, one row per
+dataset.
+A statistic that a table cannot show (e.g. the intraclass correlation of a second factor) is
+marked missing.
 _Avoid_: features (the classifier's view of it), meta-features, embedding
 
 **Two-sample test**:
-A classifier two-sample test (C2ST) on the summary vectors of generated and registry tables:
-how well a classifier tells the two apart, read against its null.
+A classifier two-sample test (C2ST) on the summary vectors of generated and real tables.
+It measures how well a classifier tells the two apart, compared to its null.
 _Avoid_: discriminator, realism score
 
 **Null**:
-What a test's statistic looks like when the two samples come from one distribution, drawn by
-permuting which sample each row belongs to; a statistic is read as its place in the null.
+The distribution of a test's statistic when both samples come from one distribution.
+It is drawn by permuting the sample labels of the rows.
+A statistic is read by its position in the null.
 _Avoid_: baseline, chance level unqualified, significance
 
 **Containment test**:
-The test that the registry rows' summary vectors lie inside the band of the generated ones,
-the generated 1st to 99th percentile per axis; the share inside on every axis is its number,
-and the generated rows inside the registry's band are the cost of widening.
+Tests whether the real tables' summary vectors lie inside the band of the generated ones, the
+generated 1st to 99th percentile per axis.
+Its result is the share of real tables inside the band on every axis.
+The share of generated tables inside the real tables' band shows what the widening costs.
 _Avoid_: coverage (the fitter's credible-interval property), support (the band is its estimate)
 
 **Pairing**:
-Drawing one generated dataset per registry fit at its sizes, rows, grouping factors and groups
-per factor, so that a two-sample test reads the prior's mismatch and not the sizes'.
+Drawing one generated dataset per fit of a real table, at that table's sizes (rows, grouping
+factors, groups per factor).
+The two-sample test then measures the prior's mismatch and not the sizes'.
 _Avoid_: matching (the hyperprior's fit to the registry), conditioning

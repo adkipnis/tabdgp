@@ -1,31 +1,33 @@
 ---
 status: accepted
 date: 2026-10-23
+amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: a model's outcome is drawn after the dataset by `modelOutcome` (was `resampleOutcome`) on the key's child stream, `outcome_form` takes `'none'` or `'scm'`, `Dataset.covariates` holds the score, `ScmOutcome` folds into `Outcome`, and a deviation without a score fails; 2026-10-28, #68: a fitter reads the covariates and a model's outcome as a pair, `toDesign` moves to `Covariates` and `toDict` goes
 ---
 
 # 0007 - The form is a model: a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model
 
 ADR 0005 made the outcome one node with two forms; ADR 0006 made the glmm form read
 columns and a grouping, never the graph, so that a real table's covariates can carry a
-resampled outcome with a known truth. #41 then decided that the outcome may be any explicit
+resampled outcome with a known ground truth. #41 then decided that the outcome may be any explicit
 function of the covariates a study specifies, the glmm form its first case. Grilled on
 2026-10-23, the decision is: **a form is a model, a callable that reads the covariates and a
-generator and returns the columns it writes with their truth; the generalized linear model
+generator and returns the columns it writes with their ground truth; the generalized linear model
 (GLM) and the generalized linear mixed model (GLMM) are TabDGP's own models, configs of
 their own in `prior` with a shared skeleton, named by `outcome_form = 'glm'` and `'glmm'`;
 every form gets the outcome node's score from the SCM; `Dataset.outcome` holds the form's
 container, `None` only when no outcome is drawn; and any table can come in through
 `Covariates.fromPandas`.** The words are `CONTEXT.md`'s: form, model, score, deviation,
-prior context, dataset.
+prior, dataset.
 
 ## Decisions
 
 - **The form is a model.** `outcome_form` takes `'none'`, `'scm'`, `'glm'`, `'glmm'` or a
-  `Model`, a callable `(Covariates, numpy Generator) -> Outcome`: a function, a
+  `Model` (until 2026-10-28: a model is called after the draw), a callable
+  `(Covariates, numpy Generator) -> Outcome`: a function, a
   `functools.partial` with a study's settings bound, or an object with `__call__`. A string
   names a built-in model's default config, and a validator expands it (`'glm'` to `Glm()`,
   `'glmm'` to `Glmm()`), so the resolved hyperprior shows the object; an override of a model's
-  field is the object, `outcome_form=Glmm(family_shares={'normal': 1})`. There is no
+  field is the object, `outcome_form=Glmm(y_family_shares={'gaussian': 1})`. There is no
   `Hyperprior.glmm()`: `grouped()` already decides what a GLMM needs, and metabeta draws
   `Hyperprior.grouped(outcome_form='glmm')`, passing nothing else. The scm form stays the
   SCM's own: its three fields stay on `Hyperprior`, which is the SCM's config.
@@ -35,40 +37,45 @@ prior context, dataset.
   effects cannot be written. The difference is the list of blocks `prior` draws over,
   `[fixed]` or `[fixed, one per factor]`, so nothing is written twice. `'glmm'` on a
   hyperprior whose `factors` may be 0 fails at construction; `'glm'` on a grouped table is
-  allowed, the pooled truth over grouped covariates, a dataset where a fitter's random-effect
+  allowed, the pooled ground truth over grouped covariates, a dataset where a fitter's random-effect
   scale should go to zero. A user's model is checked at draw time only, on what it returns.
 - **A model resolves its own fields.** `Glm`'s fields are points or distributions of the
   kinds `Hyperprior` uses, resolved inside the call with the generator it is handed, as a
-  column resolves its own fields; the per-dataset values are its prior context. The field
+  column resolves its own fields; the per-dataset values are its prior. The field
   kinds and the resolution machinery (`resolveField`, the share ordering, `categories`) move
   from `hyperprior` into a module of their own, `field`, as a base class both configs inherit.
   ADR 0006's tokens, the standard deviations' family and the residual law, are shares fields
   of `Glm` with point defaults, chosen once per dataset by `Shares.choose` where `prior` reads
-  them, the chosen names recorded in the prior context. The marginal alias `Family` becomes
+  them, the chosen names recorded in the prior. The marginal alias `Family` becomes
   `Marginal`, the glossary's word, so that "family" means the response family throughout.
 - **One score for every form.** `draw` always propagates y's node through the SCM, as the scm
   form does today, and hands the z-scored value, the score, to the model in `Covariates`
-  with the observed columns, their metadata and the grouping. The scm form rank-matches the
+  with the observed columns, their metadata and the grouping (until 2026-10-28: the dataset
+  keeps them). The scm form rank-matches the
   score onto its marginal; a GLM or GLMM adds λ · sd(η) · z(score) to its linear predictor,
   ADR 0006's deviation; a user's model may ignore it. y stays one node of the graph under
   every form. A table without an SCM has no score and so no deviation: the returned deviation
-  is zeros and λ is recorded as given.
+  is zeros and λ is recorded as given (until 2026-10-28: a nonzero λ fails).
 - **The container.** `Outcome` holds the columns a form writes and their `Column` metadata,
   `y` today, a survival form's `time` and `event` later; `draw` merges them into the dataset's
-  columns without copying. Subclasses add the truth: `ScmOutcome` the score; `GlmOutcome`
-  ADR 0006's parameters on both scales and the prior context; `GlmmOutcome(GlmOutcome)` the
-  per-factor fields. `Dataset.outcome` is `None` only under `'none'`. A user's model may
+  columns without copying. Subclasses add the ground truth: `ScmOutcome` the score (until
+  2026-10-28: the covariates hold it); `GlmOutcome`
+  the prior and ADR 0006's parameters as drawn, with their raw-scale views;
+  `GlmmOutcome(GlmOutcome)` each factor's random terms. `Dataset.outcome` is `None` only
+  under `'none'`. A user's model may
   return the bare `Outcome`; TabDGP checks the shapes and dtypes of what comes back.
 - **Any table in.** `Covariates` is public. `Covariates.fromPandas(table, factors)` builds it
   from a DataFrame with categorical dtypes: types from dtypes, levels and codes from the
   categoricals, factor codes and nesting from the data. A resampled outcome is then the model
-  call with a generator from the key's rule, `default_rng([seed, index])`; the oracle test set
+  call with a generator from the key's rule, `default_rng([seed, index])` (until 2026-10-28:
+  the key's child stream); the oracle test set
   itself is built downstream.
 - **The dataset's views.** `Dataset.toPandas()` (coded columns as pandas categoricals, the
   latent nodes left out), `toDesign()` (the design matrix with its names and coding
   statistics, from the coder the GLM uses, so the user and the model see one coding; y and the
   grouping factors are not in it, by the glossary's definition) and `toDict()` (a JSON-ready
-  dict of the whole dataset, dtypes recorded, a user's model by its qualified name). pandas is
+  dict of the whole dataset, dtypes recorded, a user's model by its qualified name) (until
+  2026-10-28: `toDesign` is the covariates', and `toDict` goes). pandas is
   a dependency, not an extra: `fromPandas` is on the main path and both consumers carry it.
 
 ## Considered options
@@ -114,3 +121,68 @@ prior context, dataset.
 - A survival form later writes several columns, keeps its latent times and censoring in its
   container, and redraws its censoring inside its own call; a rejection that changes what a
   preset certifies stays refused for `grouped()` and `flat()`.
+
+## Amendment 2026-10-28: a model's outcome is drawn after the dataset
+
+Once y's family is stated (ADR 0006's amendment of the same day), `'glmm'` has no default to
+expand to. A model on a drawn dataset's covariates could also not be called apart from its
+draw, since the dataset did not keep them. Grilled on 2026-10-28, the decision is: **`draw`
+runs no model. `modelOutcome(seed, index, covariates, model)` draws a model's outcome after the
+dataset, on drawn and real covariates alike, from the key's child stream. The dataset keeps its
+covariates, the score among them.**
+
+- **Two values.** `outcome_form` takes `'none'` or `'scm'`, as 0.3.0 shipped it. `Model` moves
+  from `hyperprior` to `outcome`, beside `runModel`, so `hyperprior` no longer imports `prior`.
+  `runModel` refuses a GLMM on covariates without a grouping factor, as before.
+- **`modelOutcome`.** It replaces `resampleOutcome`, named for what it does, since it is the
+  only route to a model's outcome: a second y under `'scm'`, a first under `'none'`.
+- **The key's child stream.** `modelOutcome` draws from the first child of the key's seed
+  sequence (numpy's `SeedSequence.spawn`), so a dataset's own key gives an independent outcome.
+  At the key's root a model reused the draw's numbers: over 200 keys, Spearman's ρ between
+  `rows` and the intercept's location was 1.00, and 0.05 under another seed.
+- **The covariates in the dataset.** `Dataset.covariates` holds the `Covariates` the draw
+  built, the score among them (`None` under `'none'`, which never draws y's node). `columns`
+  and `metadata` become properties that merge them with the outcome's, the grouping factors
+  first and y last. `ScmOutcome` folds into `Outcome`, since the score was its only addition.
+- **A fitter reads the pair.** A fitter reads an outcome on covariates, the same pair whether
+  the covariates were drawn or read from a table, so the dataset never holds a model's outcome:
+  `Dataset.outcome` is the SCM's y, or `None`. The design matrix is the covariates' view,
+  `Covariates.toDesign()`, since the glossary derives it from the covariates alone and a table's
+  covariates need it too. `toDict` goes: no consumer calls it, a dataset is never written to a
+  file, and a fitter in R reads `toPandas()` from parquet more easily than JSON's lists.
+- **The score, required.** The deviation needs only the score, λ · sd(Xβ + Σ_k Z_k α_k) ·
+  score. A resolved λ > 0 on covariates without one fails in `runModel`, where it returned
+  zeros, so a deviation needs covariates drawn under `'scm'`.
+
+### Considered options
+
+- **The model kept in `draw`** (`outcome_form=Glmm(family=...)`): one call per dataset with the
+  score handed over inside, but two routes to a model's outcome where one serves both.
+- **The strings kept, failing with a message of their own:** a value that always fails, a case
+  the interface can rule out.
+- **`Dataset.toCovariates()`,** a view rebuilding them: a conversion where a field holds them
+  once.
+- **`Dataset.y_score`,** with `modelOutcome` taking a `Dataset` too: a union input that hides
+  the conversion inside.
+- **Another seed by convention:** every caller has to remember it, and forgetting is silent.
+- **The dataset's outcome swapped for a model's** (`dataset.withOutcome(outcome)`): one object
+  for drawn tables only, since a table still gives the pair; its record would say
+  `outcome_form='scm'` above a GLMM's y, and a study's plain `Outcome` would look like the SCM's.
+- **The outcome holding its covariates:** every study's model would carry them, and `'none'`
+  would still need `Dataset.covariates`.
+- **`toDict` kept** for a later `Outcome.toDict`: speculative, as no consumer calls either.
+
+### Consequences
+
+- ADR 0005: the forms are `'none'` and `'scm'` again, and a model is no form of the node but a
+  call on its covariates. ADR 0001: a model's outcome takes the key's child stream.
+- `CONTEXT.md`: Form, Model, Score, Deviation, Covariates and Dataset rewritten, and "resampled
+  outcome" goes.
+- The GLM and GLMM draws through `draw` go, and `modelOutcome`'s are pinned instead; the SCM's
+  draws under `grouped()` and `flat()`, and under `'none'`, stand bitwise.
+- metabeta draws a dataset and calls `modelOutcome` on its covariates with the family it
+  states; its `envelope.md` and ADRs follow.
+- `outcome_form` now only switches y's node; its name, and `Hyperprior` as the SCM's config,
+  stay #67's.
+- `Design` and its coder move from `outcome` to `covariates`; `Dataset.toDesign()` and
+  `Dataset.toDict()` go, neither released.

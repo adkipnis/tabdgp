@@ -1,6 +1,6 @@
 """hyperprior.py defines how every hyperparameter of the dataset is sampled.
 
-We save hyperparameters as fields of the Hyperprior class.
+We save hyperparameters as fields of the Hyperprior class (a Config in field.py).
 - Each field (a size, the column types' shares, a noise scale) defaults to a distribution,
   or to a point where one value serves every dataset (the outcome's form, its type shares).
 - An override replaces it by a point or, where the field's type allows, by another distribution,
@@ -24,23 +24,29 @@ the (optional) overrides
 
 from __future__ import annotations
 
-import math
 from typing import Annotated, Any, ClassVar, Literal
 
 import numpy as np
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    Field,
-    NonNegativeFloat,
-    PositiveFloat,
-    PositiveInt,
-    ValidationInfo,
-    field_validator,
-    model_validator,
+from pydantic import Field, model_validator
+
+from tabdgp.field import (
+    Beta,
+    Config,
+    Count,
+    Dirichlet,
+    Integer,
+    LogUniform,
+    LogUniformInt,
+    NonNegative,
+    Positive,
+    PositiveCount,
+    Real,
+    Share,
+    Simplex,
+    Uniform,
+    UniformInt,
+    within,
 )
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 MARGINAL_FIELDS = {
     'normal': [],
@@ -52,157 +58,8 @@ MARGINAL_FIELDS = {
     'normal_mixture': ['mixture_gap', 'mixture_weight'],
     'poisson': ['poisson_log_rate'],
 }  # based on scamd's marginals
-Family = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
-OutcomeForm = Literal['none', 'scm']  # how the outcome node draws y, or 'none' for no y
-
-# =====================================================================================
-# distributions
-# =====================================================================================
-# numpy has no distribution objects: these classes are the config's values.
-# They check their parameters when a hyperprior is built, not at a draw deep inside a run.
-
-
-class _Interval:
-    """A distribution on [low, high], validated when it is built."""
-
-    def __post_init__(self) -> None:
-        if not self.low < self.high:
-            raise ValueError(f'low {self.low} is not below high {self.high}')
-
-    def support(self) -> tuple[float, float]:
-        return self.low, self.high
-
-
-@pydantic_dataclass(frozen=True)
-class Uniform(_Interval):
-    low: float
-    high: float
-
-    def draw(self, rng: np.random.Generator) -> float:
-        out = rng.uniform(self.low, self.high)
-        return float(out)
-
-
-@pydantic_dataclass(frozen=True)
-class LogUniform(_Interval):
-    low: PositiveFloat  # its logarithm is drawn
-    high: float
-
-    def draw(self, rng: np.random.Generator) -> float:
-        log_low, log_high = math.log(self.low), math.log(self.high)
-        log_out = rng.uniform(log_low, log_high)
-        return math.exp(log_out)
-
-
-@pydantic_dataclass(frozen=True)
-class UniformInt(_Interval):
-    low: int
-    high: int
-
-    def draw(
-        self, rng: np.random.Generator, low: int | None = None, high: int | None = None
-    ) -> int:
-        bottom, top = _truncate(self.support(), low, high)
-        out = rng.integers(bottom, top, endpoint=True)
-        return int(out)
-
-
-def _truncate(ends: tuple[float, float], low: int | None, high: int | None) -> tuple[float, float]:
-    """The ends of a support truncated to [low, high]."""
-    bottom, top = ends
-    if low is not None:
-        bottom = max(low, bottom)
-    if high is not None:
-        top = min(high, top)
-    return bottom, top
-
-
-@pydantic_dataclass(frozen=True)
-class LogUniformInt(_Interval):
-    low: PositiveInt  # its logarithm is drawn
-    high: int
-
-    def draw(
-        self, rng: np.random.Generator, low: int | None = None, high: int | None = None
-    ) -> int:
-        # the floor of a log-uniform on [bottom, top + 1) gives each integer k the mass log(1 + 1/k);
-        bottom, top = _truncate(self.support(), low, high)
-        log_bottom, log_top_p1 = math.log(bottom), math.log(top + 1)
-        log_out = rng.uniform(log_bottom, log_top_p1)
-        out = math.exp(log_out)
-        return min(math.floor(out), top)  # catch exp rounding
-
-
-@pydantic_dataclass(frozen=True)
-class Beta:
-    a: PositiveFloat
-    b: PositiveFloat
-
-    def draw(self, rng: np.random.Generator) -> float:
-        return float(rng.beta(self.a, self.b))
-
-    def support(self) -> tuple[float, float]:
-        return 0.0, 1.0
-
-
-class Shares(dict[str, float]):
-    """A point on the simplex: each category's share, from which a category is chosen."""
-
-    def choose(self, rng: np.random.Generator) -> str:
-        p = list(self.values())
-        choice = rng.choice(list(self), p=p)
-        return str(choice)
-
-
-@pydantic_dataclass(frozen=True)
-class Dirichlet:
-    alpha: dict[str, PositiveFloat]  # concentration per category
-
-    @property
-    def values(self) -> list[float]:
-        return list(self.alpha.values())
-
-    def draw(self, rng: np.random.Generator) -> Shares:
-        shares = rng.dirichlet(self.values).tolist()
-        return Shares(zip(self.alpha, shares))
-
-
-# every distribution a field can take
-Distribution = Uniform | LogUniform | UniformInt | LogUniformInt | Beta | Dirichlet
-
-# the kinds of field: a point, or a distribution of points of that kind
-Integer = int | UniformInt | LogUniformInt
-Real = float | Uniform | LogUniform | Beta
-Simplex = dict[str, NonNegativeFloat] | Dirichlet
-
-
-def _within(
-    ge: float = -math.inf,  # >=
-    gt: float = -math.inf,  # >
-    le: float = math.inf,  # <=
-    lt: float = math.inf,  # <
-) -> AfterValidator:
-    """A field's bounds, checked on a point or on the closure of a distribution's support."""
-
-    def check(value: float | Distribution) -> float | Distribution:
-        # an open bound admits a support that touches it: the endpoint is drawn with probability 0
-        if isinstance(value, Distribution):
-            low, high = value.support()
-            inside = max(ge, gt) <= low and high <= min(le, lt)
-        else:
-            inside = ge <= value <= le and gt < value < lt
-        if not inside:
-            raise ValueError(f'{value} lies outside ge={ge}, gt={gt}, le={le}, lt={lt}')
-        return value
-
-    return AfterValidator(check)
-
-
-Count = Annotated[Integer, _within(ge=0)]
-PositiveCount = Annotated[Integer, _within(ge=1)]
-NonNegative = Annotated[Real, _within(ge=0)]
-Positive = Annotated[Real, _within(gt=0)]
-Share = Annotated[Real, _within(ge=0, le=1)]
+Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
+OutcomeForm = Literal['none', 'scm']
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
@@ -211,7 +68,7 @@ MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical 
 # =====================================================================================
 
 
-class Hyperprior(BaseModel):
+class Hyperprior(Config):
     """The hyperparameters of a dataset (grouped by when they're used).
 
     - Columns: a table has rows and typed columns.
@@ -242,11 +99,10 @@ class Hyperprior(BaseModel):
       marginal families, mechanisms and activations.
       Each column or node chooses its own, proportional to those shares.
     - Outcome: a single node y. No other node reads it.
-      y can either come from the SCM itself, or it is skipped.
-      It has its own type shares and noise scale.
+      Its form turns y's node (the score) into y under the SCM; under none, there is no y.
+      Its type shares and noise scale are the SCM's.
     """
 
-    model_config = ConfigDict(frozen=True, extra='forbid', validate_default=True)
     PER_NODE: ClassVar[tuple[str, ...]] = (
         'init_scale',
         'noise_scale',
@@ -267,7 +123,7 @@ class Hyperprior(BaseModel):
         'mixture_gap',
         'mixture_weight',
         'poisson_log_rate',
-    )  # columns are manifested (i.e. non-latent) nodes
+    )  # columns are observed (i.e. non-latent) nodes
     SHARES: ClassVar[tuple[str, ...]] = (
         'type_shares',
         'mechanism_shares',
@@ -282,13 +138,13 @@ class Hyperprior(BaseModel):
     type_shares: Simplex = Dirichlet(
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
     )  # column types
-    levels_p: Annotated[Real, _within(gt=0, le=1)] = Beta(2, 3)  # k is 2 + Geometric(levels_p)
+    levels_p: Annotated[Real, within(gt=0, le=1)] = Beta(2, 3)  # k is 2 + Geometric(levels_p)
     max_levels: MaxLevels | None = None  # optional upper bound for k
     level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
 
     # grouping
     factors: Count = UniformInt(1, 3)  # grouping factors; 0 is a flat table
-    groups: Annotated[Integer, _within(ge=2)] | tuple[Annotated[int, _within(ge=2)], ...] = (
+    groups: Annotated[Integer, within(ge=2)] | tuple[Annotated[int, within(ge=2)], ...] = (
         LogUniformInt(2, 400)
     )  # m per factor (at most n) or one point per factor
     balanced_share: Share = 1 / 3  # probability that a factor's groups are of equal size
@@ -326,16 +182,16 @@ class Hyperprior(BaseModel):
     )  # a continuous column's family
     student_df: Positive = LogUniform(2, 30)
     lognormal_sigma: Positive = LogUniform(0.25, 1.5)
-    zero_share: Annotated[Real, _within(ge=0, lt=1)] = Uniform(0.05, 0.6)  # zero-inflated lognormal
+    zero_share: Annotated[Real, within(ge=0, lt=1)] = Uniform(0.05, 0.6)  # zero-inflated lognormal
     beta_a: Positive = LogUniform(0.5, 5)
     beta_b: Positive = LogUniform(0.5, 5)
     mixture_gap: NonNegative = Uniform(1, 4)  # distance between two normal means (in SDs)
-    mixture_weight: Annotated[Real, _within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
-    poisson_log_rate: Annotated[Real, _within(le=40)] = Uniform(-1, 6)
+    mixture_weight: Annotated[Real, within(ge=0, le=0.5)] = Uniform(0.1, 0.5)  # 2nd normal's share
+    poisson_log_rate: Annotated[Real, within(le=40)] = Uniform(-1, 6)
 
     # outcome
     outcome_form: OutcomeForm = 'scm'
-    outcome_type_shares: Simplex = {
+    outcome_type_shares: Simplex = {  # noqa: RUF012, ruff cannot trace Config to BaseModel
         'continuous': 0.6,
         'binary': 0.2,
         'categorical': 0.05,
@@ -352,46 +208,6 @@ class Hyperprior(BaseModel):
     @classmethod
     def flat(cls, **overrides: Any) -> Hyperprior:
         return cls(factors=0, **overrides)
-
-    @classmethod
-    def categories(cls, field: str) -> list[str]:
-        """Lists the categories of a field in default order."""
-        default = cls.model_fields[field].default
-        shares = default.alpha if isinstance(default, Dirichlet) else default
-        return list(shares)
-
-    @field_validator(*SHARES)
-    @classmethod
-    def _orderShares(cls, value: Simplex, info: ValidationInfo) -> Simplex:
-        """Checks the categories named by an override and puts them in default order."""
-        categories = cls.categories(info.field_name)
-        if isinstance(value, Dirichlet):
-            return Dirichlet(cls._inOrder(value.alpha, categories))
-        if not math.isclose(sum(value.values()), 1):
-            raise ValueError(f'shares {value} do not sum to 1')
-        return Shares(cls._inOrder(value, categories))
-
-    @staticmethod
-    def _inOrder(shares: dict[str, float], categories: list[str]) -> dict[str, float]:
-        if shares.keys() != set(categories):
-            raise ValueError(f'shares name {list(shares)}, not {categories}')
-        return {name: shares[name] for name in categories}
-
-    def _floorGroups(self, depth: int) -> int:
-        """The smallest number of groups a factor can have at this depth.
-        Each factor above it (in its chain) has fewer groups.
-        """
-        lowest, _ = self._support(self.groups)
-        return lowest + depth
-
-    @staticmethod
-    def _support(value: Integer | Real) -> tuple[float, float]:
-        """The smallest and largest value a field can take.
-        A field holds a distribution or a point, and a point is its own smallest and largest value.
-        """
-        if isinstance(value, Distribution):
-            return value.support()
-        return value, value
 
     @model_validator(mode='after')
     def _checkOnePointPerFactor(self) -> Hyperprior:
@@ -428,22 +244,12 @@ class Hyperprior(BaseModel):
             )
         return self  # pydantic's after-validator returns the model
 
-    def resolveField(
-        self, field: str, rng: np.random.Generator, low: int | None = None, high: int | None = None
-    ) -> Any:
-        value = getattr(self, field)
-        bounded = low is not None or high is not None
-        if bounded:
-            self._checkBounds(field, value, low, high)
-        if isinstance(value, Distribution):
-            value = value.draw(rng, low, high) if bounded else value.draw(rng)
-        return value
-
-    @staticmethod
-    def _checkBounds(field: str, value: Integer, low: int | None, high: int | None) -> None:
-        bottom, top = _truncate(Hyperprior._support(value), low, high)
-        if bottom > top:
-            raise ValueError(f'{field} = {value} has no value from {bottom} to {top}')
+    def _floorGroups(self, depth: int) -> int:
+        """The smallest number of groups a factor can have at this depth.
+        Each factor above it (in its chain) has fewer groups.
+        """
+        lowest, _ = self._support(self.groups)
+        return lowest + depth
 
     def resolveDataset(self, rng: np.random.Generator) -> Hyperprior:
         """Resolves each field drawn once per dataset."""

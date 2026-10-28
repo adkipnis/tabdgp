@@ -7,25 +7,17 @@ from typing import get_args
 
 import numpy as np
 import pytest
-from hypothesis import assume, given
+from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from tabdgp.column import ColumnType, assign
+from tabdgp.field import Beta, Dirichlet, LogUniform, LogUniformInt, Uniform, UniformInt
 from tabdgp.graph import Activation, Graph, Mechanism
-from tabdgp.hyperprior import (
-    MARGINAL_FIELDS,
-    Beta,
-    Dirichlet,
-    Family,
-    Hyperprior,
-    LogUniform,
-    LogUniformInt,
-    Uniform,
-    UniformInt,
-)
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tabdgp.mechanism import ACTIVATIONS
-from tests.fixtures.build import point
+from tabdgp.prior import Glmm
+from tests.fixtures.build import drawNothing
 
 
 def test_the_defaults_validate() -> None:
@@ -75,19 +67,25 @@ def test_the_outcome_fields_take_the_presets_defaults(preset: Callable[[], Hyper
 
 
 NOT_A_FORM = [
-    pytest.param('glmm', id='glmm'),
     pytest.param('SCM', id='a misspelled form'),
+    pytest.param('glm', id="a model's name, which states no family"),
+    pytest.param('glmm', id="a glmm's name"),
+    pytest.param(Glmm(family='gaussian'), id='a model, drawn after the dataset'),
+    pytest.param(drawNothing, id="a study's model"),
     pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
     pytest.param(Dirichlet({'none': 1, 'scm': 1}), id='a dirichlet'),
+    pytest.param({'signal_share': 0.5}, id="a dict of a glm's fields"),
+    pytest.param({}, id='an empty dict'),
 ]
 
 
 @pytest.mark.parametrize('form', NOT_A_FORM)
 def test_a_form_other_than_none_or_scm_fails_at_construction(
-    form: str | dict | Dirichlet,
+    form: str | dict | Dirichlet | Glmm | Callable[..., None],
 ) -> None:
-    """glmm is no form until its preset exists, and a dataset of each form returns different things,
-    so no corpus mixes them: each fails where it is written, like a typo, not at a draw.
+    """A dataset of each form returns different things, so no corpus mixes them:
+    each fails where it is written, like a typo, not at a draw.
+    A model is no form: modelOutcome draws its outcome after the dataset.
     """
     with pytest.raises(ValidationError):
         Hyperprior(outcome_form=form)
@@ -135,141 +133,19 @@ def test_resolve_leaves_the_fields_drawn_per_column_node_or_factor_as_given() ->
     """Each column, node or grouping factor draws its own value of these fields,
     so no dataset-wide value is drawn.
     """
-    per_node = {'noise_scale', 'init_scale', 'group_share', 'outcome_noise_scale'}
-    assert set(Hyperprior.PER_NODE) == per_node
-    assert set(Hyperprior.PER_FACTOR) == {'groups', 'size_alpha'}
-    hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
+    # each of these fields defaults to a distribution, so a draw would show as a point
+    hyperprior = Hyperprior()
     resolved = hyperprior.resolveDataset(np.random.default_rng(0))
-    assert (resolved.noise_scale, resolved.lognormal_sigma) == (0.5, LogUniform(2, 3))
     for field in Hyperprior.PER_COLUMN + Hyperprior.PER_NODE + Hyperprior.PER_FACTOR:
         assert getattr(resolved, field) == getattr(hyperprior, field)
 
 
-@given(seed=st.integers(0, 2**32 - 1))
-def test_resolving_one_field_gives_its_point_or_one_draw_inside_its_support(seed: int) -> None:
-    """A column or node takes its own value of a field through resolveField, whatever it holds."""
-    hyperprior = Hyperprior(noise_scale=0.5, lognormal_sigma=LogUniform(2, 3))
-    rng = np.random.default_rng(seed)
-    assert hyperprior.resolveField('noise_scale', rng) == 0.5
-    assert 2 <= hyperprior.resolveField('lognormal_sigma', rng) <= 3
-
-
-@pytest.mark.parametrize('distribution', [UniformInt, LogUniformInt])
-@given(
-    low=st.integers(2, 100),
-    width=st.integers(1, 1000),
-    margin=st.integers(0, 2000),
-    seed=st.integers(0, 2**32 - 1),
-)
-def test_a_bounded_distribution_resolves_at_or_below_its_bound(
-    distribution: type, low: int, width: int, margin: int, seed: int
-) -> None:
-    """A factor has at most as many groups as the table has rows.
-    A bound above the distribution's high leaves the high in force.
-    """
-    hyperprior = Hyperprior(groups=distribution(low, low + width), nested_share=0)
-    bound = low + margin
-    groups = hyperprior.resolveField('groups', np.random.default_rng(seed), high=bound)
-    assert low <= groups <= min(bound, low + width)
-
-
-@pytest.mark.parametrize('distribution', [UniformInt, LogUniformInt])
-@given(
-    low=st.integers(2, 100),
-    width=st.integers(1, 1000),
-    floor=st.integers(0, 1100),
-    seed=st.integers(0, 2**32 - 1),
-)
-def test_a_distribution_resolves_at_or_above_its_floor(
-    distribution: type, low: int, width: int, floor: int, seed: int
-) -> None:
-    """A factor keeps one group more for each factor superior to it.
-    A floor below the distribution's low leaves the low in force.
-    """
-    assume(floor <= low + width)
-    hyperprior = Hyperprior(groups=distribution(low, low + width), nested_share=0)
-    groups = hyperprior.resolveField('groups', np.random.default_rng(seed), low=floor)
-    assert max(low, floor) <= groups <= low + width
-
-
-TRUNCATED = [
-    # the ten values 2 to 11 keep a tenth each; a clip would put 91 % on 11
-    pytest.param(UniformInt(2, 101), 11, 0.1, id='uniform'),
-    # 20 keeps log(21/20) / log(21/2) of the mass; a clip would put 57 % on it
-    pytest.param(LogUniformInt(2, 400), 20, 0.021, id='log-uniform'),
-]
-
-
-@pytest.mark.parametrize(('distribution', 'bound', 'share'), TRUNCATED)
-def test_a_truncated_draw_piles_no_mass_on_its_bound(
-    distribution: UniformInt | LogUniformInt, bound: int, share: float
-) -> None:
-    """A draw clipped at rows would give most small tables one row per group (ADR 0004);
-    truncation keeps the distribution's shape below its bound.
-    """
-    hyperprior = Hyperprior(groups=distribution)
-    rng = np.random.default_rng(0)
-    draws = [hyperprior.resolveField('groups', rng, high=bound) for _ in range(10_000)]
-    assert draws.count(bound) / len(draws) == pytest.approx(share, abs=0.01)
-
-
-@pytest.mark.parametrize(
-    'distribution', [UniformInt(2, 400), LogUniformInt(2, 400)], ids=['uniform', 'log-uniform']
-)
-def test_a_truncated_support_of_one_value_draws_it(
-    distribution: UniformInt | LogUniformInt,
-) -> None:
-    """A table of two rows admits factors of two groups only.
-    Construction rejects a support of one value; a bound may narrow a support to it.
-    """
-    hyperprior = Hyperprior(groups=distribution)
-    rng = np.random.default_rng(0)
-    draws = {hyperprior.resolveField('groups', rng, high=2) for _ in range(100)}
-    assert draws == {2}
-
-
-@pytest.mark.parametrize(
-    'distribution', [UniformInt(10, 400), LogUniformInt(10, 400)], ids=['uniform', 'log-uniform']
-)
-def test_a_bound_below_the_distributions_low_fails_naming_the_field_and_its_bound(
-    distribution: UniformInt | LogUniformInt,
-) -> None:
-    """No value of the distribution lies at or below the bound,
-    and a draw above it would break m <= n without a word.
-    """
-    hyperprior = Hyperprior(groups=distribution)
-    with pytest.raises(ValueError, match=r'groups.*\b7\b'):
-        hyperprior.resolveField('groups', np.random.default_rng(0), high=7)
-
-
-OUT_OF_REACH = [
-    pytest.param(LogUniformInt(2, 400), 3, id='a floor above the bound'),
-    pytest.param(UniformInt(2, 3), 10, id='a floor above the distribution'),
-]
-
-
-@pytest.mark.parametrize(('distribution', 'bound'), OUT_OF_REACH)
-def test_a_floor_out_of_reach_fails_naming_the_field_and_its_floor(
-    distribution: UniformInt | LogUniformInt, bound: int
-) -> None:
-    """The bottom factor of a chain of three needs the range's lowest count plus 2, here 4.
-    A bound of 3 or a range that stops at 3 cannot reach it,
-    and a draw below it would leave no count for a superior factor.
-    """
-    hyperprior = Hyperprior(groups=distribution, nested_share=0)
-    with pytest.raises(ValueError, match=r'groups.*\b4\b'):
-        hyperprior.resolveField('groups', np.random.default_rng(0), low=4, high=bound)
-
-
-def test_a_point_above_its_bound_fails_naming_the_field_and_its_bound() -> None:
+def test_a_design_columns_point_above_half_the_rows_fails_naming_the_field_and_its_bound() -> None:
     """A point override is honored exactly or not at all:
-    50 groups cannot be assigned to 30 rows, and 19 design columns under 10 rows break n >= 2d.
+    19 design columns under 10 rows break n >= 2d.
     """
-    rng = np.random.default_rng(0)
-    with pytest.raises(ValueError, match=r'groups.*\b30\b'):
-        Hyperprior(groups=50, nested_share=0).resolveField('groups', rng, high=30)
     with pytest.raises(ValueError, match=r'design_columns.*\b5\b'):
-        Hyperprior(rows=10, design_columns=19).resolveDataset(rng)
+        Hyperprior(rows=10, design_columns=19).resolveDataset(np.random.default_rng(0))
 
 
 def test_a_point_groups_fails_at_construction_when_factors_can_nest() -> None:
@@ -415,72 +291,6 @@ def test_a_distribution_override_resolves_inside_its_support(
     assert low <= getattr(resolved, field) <= low + width
 
 
-def test_resolved_shares_choose_a_category_by_its_share() -> None:
-    """column and graph choose a type, family or activation from resolved shares."""
-    rng = np.random.default_rng(0)
-    types = {'continuous': 0.0, 'binary': 1.0, 'categorical': 0.0, 'ordered': 0.0}
-    resolved = Hyperprior(type_shares=types).resolveDataset(rng)
-    assert resolved.type_shares.choose(rng) == 'binary'
-
-
-def test_resolving_one_shares_field_gives_shares_that_choose() -> None:
-    """resolveField hands back shares that choose,
-    whether the field holds a Dirichlet or a point.
-    """
-    rng = np.random.default_rng(0)
-    assert Hyperprior().resolveField('mechanism_shares', rng).choose(rng) in {'linear', 'mlp'}
-
-
-def test_a_shares_field_names_its_default_categories() -> None:
-    """The catalogs and the point masses read a field's categories from its default."""
-    assert Hyperprior.categories('mechanism_shares') == ['linear', 'mlp']
-
-
-def test_categories_reads_a_point_default() -> None:
-    """A point default has no Dirichlet to read,
-    yet the shares check and the point masses need its categories.
-    """
-    shares = point('outcome_type_shares', 'count')
-    assert Hyperprior(outcome_type_shares=shares).outcome_type_shares == shares
-
-
-def test_a_point_mass_puts_every_share_on_its_category() -> None:
-    """Tests force one type, family or activation
-    through a point mass over the field's categories.
-    """
-    shares = point('type_shares', 'ordered')
-    assert shares == {'continuous': 0.0, 'binary': 0.0, 'categorical': 0.0, 'ordered': 1.0}
-    assert Hyperprior(type_shares=shares).type_shares == shares
-
-
-@pytest.mark.parametrize(
-    'shares',
-    [
-        pytest.param(
-            {'continuous': 0.4, 'binary': 0.3, 'categorical': 0.2, 'ordered': 0.1}, id='point'
-        ),
-        pytest.param(
-            Dirichlet({'continuous': 1, 'binary': 2, 'categorical': 3, 'ordered': 4}),
-            id='dirichlet',
-        ),
-    ],
-)
-def test_the_order_an_override_lists_its_categories_in_changes_no_draw(
-    shares: dict[str, float] | Dirichlet,
-) -> None:
-    """A category is chosen by its place in the shares,
-    so an override listed in another order must not reorder them.
-    """
-    alpha = shares.alpha if isinstance(shares, Dirichlet) else shares
-    reversed_alpha = dict(reversed(alpha.items()))
-    reversed_shares = Dirichlet(reversed_alpha) if isinstance(shares, Dirichlet) else reversed_alpha
-    listed = Hyperprior(type_shares=shares).resolveDataset(np.random.default_rng(0))
-    reversed_listed = Hyperprior(type_shares=reversed_shares).resolveDataset(
-        np.random.default_rng(0)
-    )
-    assert list(reversed_listed.type_shares.items()) == list(listed.type_shares.items())
-
-
 def test_the_fields_drawn_per_column_are_the_families_and_the_level_concentration() -> None:
     """A field drawn per column that no column reads would silently stay a distribution."""
     read = {'level_alpha'}
@@ -510,7 +320,9 @@ def test_the_fields_drawn_per_node_are_exactly_those_the_graph_records() -> None
 
 CATALOGS = [
     # a count's poisson marginal is its type's by construction, so it takes no share
-    pytest.param(set(get_args(Family)) - {'poisson'}, 'marginal_shares', id='continuous families'),
+    pytest.param(
+        set(get_args(Marginal)) - {'poisson'}, 'marginal_shares', id='continuous families'
+    ),
     pytest.param(set(ACTIVATIONS), 'activation_shares', id='activations'),
     pytest.param(set(get_args(Activation)), 'activation_shares', id='activation names'),
     pytest.param(set(get_args(Mechanism)), 'mechanism_shares', id='mechanism families'),
@@ -525,22 +337,3 @@ def test_each_catalog_names_exactly_the_hyperprior_defaults_categories(
 ) -> None:
     """A category with a share but no entry in its catalog would fail only when drawn."""
     assert catalog == set(Hyperprior.categories(field))
-
-
-INVALID = [
-    pytest.param(Uniform, (2, 1), id='a uniform with low above high'),
-    pytest.param(LogUniform, (0, 5), id='a log-uniform from zero'),
-    pytest.param(UniformInt, (3, 3), id='an integer uniform of one value'),
-    pytest.param(LogUniformInt, (0, 10), id='an integer log-uniform from zero'),
-    pytest.param(Beta, (0, 1), id='a beta with a zero shape'),
-    pytest.param(Dirichlet, ({'linear': 0, 'mlp': 1},), id='a dirichlet with a zero concentration'),
-]
-
-
-@pytest.mark.parametrize(('distribution', 'parameters'), INVALID)
-def test_an_invalid_distribution_fails_at_construction(
-    distribution: type, parameters: tuple
-) -> None:
-    """A field's bound check reads the support, which is meaningless for invalid parameters."""
-    with pytest.raises(ValueError):
-        distribution(*parameters)

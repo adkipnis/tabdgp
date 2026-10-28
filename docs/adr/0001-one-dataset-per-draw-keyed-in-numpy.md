@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node
+amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node; 2026-10-25, #52: a GLM's or GLMM's ground truth is float32 too; 2026-10-27, #56: ground truth, not truth; 2026-10-28, ADR 0007: a model's outcome draws from the key's first child stream, so a dataset's own key gives an independent outcome; 2026-10-28, #56: bitwise per CPU type and numpy build, since numpy's float draws and functions differ in the last bit across them
 ---
 
 # 0001 - One dataset per draw, keyed by seed and index, in numpy
@@ -30,7 +30,11 @@ shapes. TabDGP never pads, never batches across datasets and never writes a file
   dataset no identity outside its batch, so bucketing by size or resharding changes the data.
   Per dataset, bitwise on CPU whatever the batch, worker or shard, is what a virtual corpus
   needs. Bitwise identity across devices is not promised: it is a promise no library keeps
-  across versions, and the draw runs on CPU.
+  across versions, and the draw runs on CPU. Nor across CPU types or numpy builds of one
+  version: `uniform` fuses its multiply-add on arm64, the beta and gamma samplers, `exp`,
+  `tanh`, `sin` and matrix products differ in the last bit, and a rejection sampler that
+  accepts on one machine and not the other shifts the rest of the dataset's stream. A
+  cluster's workers draw one corpus only on one CPU type.
 - **Batch layout: a loop over datasets, or one padded batch.** Datasets in a batch differ in
   rows, columns, groups and in their generating graph (node count, edges, mechanism per node,
   marginals, post-hoc types), so a padded batch means masks through every mechanism and a
@@ -81,7 +85,8 @@ shapes. TabDGP never pads, never batches across datasets and never writes a file
   so numpy holds; the draw is bound by arithmetic, not by the interpreter, so a padded torch
   batch on CPU buys nothing and one on the node's only GPU takes time from training. The
   bar was first set at 500 per core, before the consumer's numbers were known.
-- Continuous columns and latent values are float32, the precision the network trains in, so
+- Continuous columns, latent values and a GLM's or GLMM's ground truth (its parameters and
+  deviation) are float32, the precision the network trains in, so
   `torch.from_numpy` hands them over unconverted; single precision also runs the
   activations three to four times faster.
 - When online drawing falls behind, or several models (4 to 16) train at once, a consumer

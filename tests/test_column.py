@@ -14,8 +14,9 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from tabdgp.column import Column, Grouping, apply, assign, plan
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior, UniformInt
+from tabdgp.column import Column, Grouping, assign, plan, rankMatch
+from tabdgp.field import UniformInt
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 from tests.fixtures.build import groupingOf, point
 
 ALPHA = {'level_alpha': 1.0}
@@ -61,7 +62,6 @@ CONTRADICTING_MARGINALS = [
         {'type': 'binary', 'levels': 2, 'marginal': 'lognormal'},
         id='a binary column with a marginal',
     ),
-    pytest.param({'type': 'continuous'}, id='a continuous column without a marginal'),
     pytest.param(
         {'type': 'count', 'marginal': 'lognormal', 'parameters': {'lognormal_sigma': 0.5}},
         id='a count with a continuous family',
@@ -75,8 +75,7 @@ CONTRADICTING_MARGINALS = [
 
 @pytest.mark.parametrize('fields', CONTRADICTING_MARGINALS)
 def test_a_marginal_that_contradicts_the_type_fails(fields: dict) -> None:
-    """A discrete column's values are its codes.
-    A rank matched column's parameters are its family's, so it names one.
+    """A discrete column's values are its codes, so it has no marginal.
     A count's family is poisson, a continuous column's one of marginal_shares, which has no poisson:
     a Poisson sample cast to float32 would be a count typed as continuous.
     """
@@ -93,7 +92,13 @@ FOREIGN_PARAMETERS = [
         {'lognormal_sigma': 1.0},
         id='a normal with a lognormal sigma',
     ),
-    pytest.param({'type': 'binary', 'levels': 2}, {}, id='a binary without its concentration'),
+    pytest.param({'type': 'binary', 'levels': 2}, {'beta_a': 2.0}, id='a binary with a beta shape'),
+    pytest.param(
+        {'type': 'continuous'}, {'lognormal_sigma': 1.0}, id='no marginal with a lognormal sigma'
+    ),
+    pytest.param(
+        {'type': 'continuous'}, {'level_alpha': 1.0}, id='a continuous column with a concentration'
+    ),
     pytest.param(
         {'type': 'categorical', 'levels': 3},
         {'level_alpha': 1.0, 'beta_a': 2.0},
@@ -110,9 +115,27 @@ FOREIGN_PARAMETERS = [
 
 @pytest.mark.parametrize(('fields', 'parameters'), FOREIGN_PARAMETERS)
 def test_parameters_other_than_the_columns_own_fail(fields: dict, parameters: dict) -> None:
-    """A missing value hides a draw; an extra one claims a draw that played no part."""
+    """A marginal's parameters are exactly its fields, a coded column's at most its concentration:
+    a missing value hides a draw; an extra one claims a draw that played no part.
+    """
     with pytest.raises(ValidationError):
         Column(**fields, parameters=parameters)
+
+
+BARE = [
+    pytest.param({'type': 'continuous'}, id='continuous'),
+    pytest.param({'type': 'count'}, id='count'),
+    pytest.param({'type': 'binary', 'levels': 2}, id='binary'),
+    pytest.param({'type': 'categorical', 'levels': 3}, id='categorical'),
+]
+
+
+@pytest.mark.parametrize('fields', BARE)
+def test_a_column_without_a_marginal_or_parameters_validates(fields: dict) -> None:
+    """A model writes y without a marginal, and a real table's columns come with none;
+    only a column a plan draws carries a marginal or a level concentration.
+    """
+    Column(**fields)
 
 
 def test_an_unknown_marginal_family_fails_at_construction() -> None:
@@ -522,6 +545,16 @@ def test_a_point_override_gives_every_column_its_value() -> None:
         assert column.parameters == {'lognormal_sigma': 0.7}
 
 
+def test_plan_gives_every_column_its_marginal_or_level_alpha() -> None:
+    """rankMatch reads them, and Column admits a column without either,
+    so the guarantee is the plan's: every column it draws, y included, carries its draws.
+    """
+    for seed in range(20):
+        for column in _plan(seed).values():
+            drawn = column.marginal is not None or 'level_alpha' in column.parameters
+            assert drawn
+
+
 def test_plan_names_its_columns_x0_to_x_d_minus_1() -> None:
     """The one home of the rule that plan column i is node x{i};
     every later step reads the names.
@@ -593,11 +626,11 @@ def _apply(n: int, column: Column, seed: int) -> np.ndarray:
     """One column cut or matched from n standard normal values."""
     rng = np.random.default_rng(seed)
     values = rng.standard_normal(n)  # (n,)
-    return apply(values, column, rng)
+    return rankMatch(values, column, rng)
 
 
 @pytest.mark.parametrize('column', DISCRETE, ids=str)
-def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows(
+def test_rank_match_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows(
     column: Column,
 ) -> None:
     """A level no row has would not exist in a real table;
@@ -606,11 +639,10 @@ def test_apply_gives_codes_0_to_k_minus_1_with_every_level_present_when_n_allows
     for n in [column.levels, 100]:
         for seed in range(10):
             codes = _apply(n, column, seed)
-            assert codes.dtype == np.int64
             assert np.array_equal(np.unique(codes), np.arange(column.levels))
 
 
-def test_apply_gives_valid_codes_when_n_is_below_k() -> None:
+def test_rank_match_gives_valid_codes_when_n_is_below_k() -> None:
     """A small rows override can leave fewer rows than levels;
     each row still gets a code below k.
     """
@@ -625,7 +657,7 @@ def _monotone(n: int, column: Column, seed: int) -> bool:
     """Whether the codes never decrease as the values increase."""
     rng = np.random.default_rng(seed)
     values = rng.standard_normal(n)  # (n,)
-    codes = apply(values, column, rng)  # (n,)
+    codes = rankMatch(values, column, rng)  # (n,)
     return bool(np.all(np.diff(codes[np.argsort(values)]) >= 0))
 
 
@@ -667,11 +699,11 @@ def _node(seed: int) -> np.ndarray:
 
 def _applyTo(values: np.ndarray, column: Column, seed: int) -> np.ndarray:
     """The column cut or matched from given node values."""
-    return apply(values, column, np.random.default_rng(seed))
+    return rankMatch(values, column, np.random.default_rng(seed))
 
 
-@pytest.mark.parametrize('column', CONTINUOUS, ids=str)
-def test_a_continuous_column_has_exactly_its_marginal_samples_values(column: Column) -> None:
+@pytest.mark.parametrize('column', [*CONTINUOUS, COUNT], ids=str)
+def test_a_rank_matched_column_has_exactly_its_marginal_samples_values(column: Column) -> None:
     """Two different nodes under one generator get the same values, only in another order.
 
     So the values come from the sample alone and the node supplies only the order: a quantile
@@ -679,7 +711,6 @@ def test_a_continuous_column_has_exactly_its_marginal_samples_values(column: Col
     """
     values = _applyTo(_node(1), column, seed=0)
     other = _applyTo(_node(2), column, seed=0)
-    assert values.dtype == np.float32
     np.testing.assert_array_equal(np.sort(values), np.sort(other))
     assert not np.array_equal(values, other)
 
@@ -697,17 +728,6 @@ def test_a_rank_matched_column_has_the_nodes_ranks(column: Column) -> None:
     assert np.ptp(values) > 0
 
 
-def test_a_count_column_has_exactly_its_poisson_samples_integers() -> None:
-    """A count is rank matched like a continuous column but keeps its integers:
-    two nodes under one generator get the same Poisson sample, each in its own order.
-    """
-    values = _applyTo(_node(1), COUNT, seed=0)
-    other = _applyTo(_node(2), COUNT, seed=0)
-    assert values.dtype == np.int64
-    np.testing.assert_array_equal(np.sort(values), np.sort(other))
-    assert not np.array_equal(values, other)
-
-
 @pytest.mark.parametrize('column', [*CONTINUOUS, COUNT, *DISCRETE], ids=str)
 def test_tied_node_values_share_one_column_value(column: Column) -> None:
     """A row-unit node at group share 1 is constant within its group factor's groups,
@@ -719,6 +739,12 @@ def test_tied_node_values_share_one_column_value(column: Column) -> None:
     assert len(np.unique(values)) <= 50
     for value in np.unique(node):
         assert len(np.unique(values[node == value])) == 1
+
+
+@pytest.mark.parametrize('column', [*CONTINUOUS, COUNT, *DISCRETE], ids=str)
+def test_rank_match_gives_each_column_its_dtype(column: Column) -> None:
+    """An outcome checks its arrays against Column.dtype, so the plan's columns must meet it."""
+    assert _apply(50, column, 0).dtype == column.dtype
 
 
 FLOORED = [
@@ -758,7 +784,7 @@ def test_plan_is_deterministic_under_a_fixed_generator() -> None:
 @pytest.mark.parametrize(
     'column', [*CONTINUOUS, COUNT, Column(type='categorical', levels=6, parameters=ALPHA)], ids=str
 )
-def test_apply_is_deterministic_under_a_fixed_generator(column: Column) -> None:
+def test_rank_match_is_deterministic_under_a_fixed_generator(column: Column) -> None:
     """Every marginal family and the level codes draw from the generator alone."""
     node = _node(1)
     assert np.array_equal(_applyTo(node, column, 7), _applyTo(node, column, 7))
@@ -779,7 +805,7 @@ def _fromDefaults(family: str, n: int, seed: int) -> np.ndarray:
     hyperprior = Hyperprior()
     parameters = {field: hyperprior.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
     column = _matched(family, parameters)
-    return apply(rng.standard_normal(n), column, rng)
+    return rankMatch(rng.standard_normal(n), column, rng)
 
 
 SUPPORTS = {
@@ -794,7 +820,7 @@ SUPPORTS = {
 }
 
 
-@pytest.mark.parametrize('family', get_args(Family))
+@pytest.mark.parametrize('family', get_args(Marginal))
 def test_each_familys_values_lie_in_its_support(family: str) -> None:
     """A bounded column stays bounded and every column is finite, over many drawn parameters.
 

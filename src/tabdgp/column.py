@@ -9,9 +9,9 @@ resolved sizes, shares and budget
 -> per factor (top down), how many factors it nests in           _nestFactors
 -> per factor (bottom up), its m groups, their sizes and codes   _sampleSizes, assign
 -> per column, its type by its shares, then its k or marginal    plan, _resolveColumn
--> x0, x1, ... until the budget is met, then y if the form is scm  plan
+-> x0, x1, ... until the budget is met, then y under the SCM     plan
 -> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
--> placed by the node's ranks, tied values sharing one           apply
+-> placed by the node's ranks, tied values sharing one           rankMatch
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import numpy as np
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.hyperprior import MARGINAL_FIELDS, Family, Hyperprior
+from tabdgp.hyperprior import MARGINAL_FIELDS, Hyperprior, Marginal
 
 MarginalType = Literal['continuous', 'count']
 ColumnType = Literal[MarginalType, 'binary', 'categorical', 'ordered']
@@ -42,8 +42,8 @@ class Column:
     levels: int | None = None  # k
     role: Role = 'covariate'
     nests_in: str | None = None  # the superior grouping factor of a nested one
-    marginal: Family | None = None  # for continuous and count columns
-    parameters: dict[str, float] = Field(default_factory=dict)
+    marginal: Marginal | None = None  # a continuous or count column's family, if a plan drew it
+    parameters: dict[str, float] = Field(default_factory=dict)  # its drawn values, by field name
 
     def __post_init__(self) -> None:
         # a grouping factor's codes label its groups, unordered at any m
@@ -51,6 +51,7 @@ class Column:
             raise ValueError(f'a grouping factor cannot be {self.type}')
         if self.role != 'grouping_factor' and self.nests_in is not None:
             raise ValueError(f'a {self.role} cannot nest in {self.nests_in}')
+
         # a covariate or the outcome is binary at exactly k = 2, categorical or ordered from k = 3
         if self.type in get_args(MarginalType):
             agree = self.levels is None
@@ -61,25 +62,36 @@ class Column:
             agree = self.levels is not None and self.levels >= fewest
         if not agree:
             raise ValueError(f'a {self.type} column cannot have {self.levels} levels')
+
         # a count is poisson, a continuous column a family of marginal_shares, a coded one none
+        # (a column no plan drew has none either, e.g. a model's y or a real table's column)
         if self.type == 'count':
-            agree = self.marginal == 'poisson'
+            agree = self.marginal in [None, 'poisson']
         elif self.type == 'continuous':
-            agree = self.marginal in Hyperprior.categories('marginal_shares')
+            agree = self.marginal in [None, *Hyperprior.categories('marginal_shares')]
         else:
             agree = self.marginal is None
         if not agree:
             raise ValueError(f'a {self.type} column cannot have the marginal {self.marginal}')
-        # check that parameters hold exactly the fields this column drew
+
+        # parameters hold exactly the values this column drew from the hyperprior, by field name
+        # (a factor's size_alpha, a marginal's fields or a coded column's level_alpha)
         if self.role == 'grouping_factor':
             # an unbalanced factor draws the concentration of its sizes, a balanced one nothing
             own = ['size_alpha'] if 'size_alpha' in self.parameters else []
         elif self.marginal is not None:
             own = MARGINAL_FIELDS[self.marginal]
+        elif self.levels is not None and 'level_alpha' in self.parameters:
+            own = ['level_alpha']  # a planned coded column's concentration
         else:
-            own = ['level_alpha']
+            own = []  # a column no plan drew (e.g. the outcome or a real table's column)
         if self.parameters.keys() != set(own):
             raise ValueError(f'a {self.type} column draws {own}, not {list(self.parameters)}')
+
+    @property
+    def dtype(self) -> type[np.generic]:
+        # a continuous column shares the covariates' float32, a count or codes are integers
+        return np.float32 if self.type == 'continuous' else np.int64
 
     @property
     def design_columns(self) -> int:
@@ -136,8 +148,8 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
     # the rows, each row its own element, unless a subordinate factor nests in it
     unnested = resolved.rows, np.arange(resolved.rows), resolved.rows
     elements, element_of, high = unnested
-    metadata = {}
-    codes = {}
+    metadata: dict[str, Column] = {}
+    codes: dict[str, np.ndarray] = {}
     # bottom up, so that a superior factor splits the groups of the subordinate one nested in it
     for i in reversed(range(len(depths))):
         name = f'g{i}'
@@ -164,7 +176,7 @@ def assign(resolved: Hyperprior, rng: np.random.Generator) -> Grouping:
 
 def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
     """Each factor's depth (the number of factors superior to it)."""
-    depths = []
+    depths: list[int] = []
     for i in range(resolved.factors):
         nested = i > 0 and rng.random() < resolved.nested_share
         depths.append(depths[-1] + 1 if nested else 0)
@@ -174,7 +186,7 @@ def _nestFactors(resolved: Hyperprior, rng: np.random.Generator) -> list[int]:
 def _sampleSizes(
     elements: int, groups: int, resolved: Hyperprior, rng: np.random.Generator
 ) -> tuple[np.ndarray, dict[str, float]]:
-    """The group sizes and alphas over the elements, equal or Dirichlet-multinomial."""
+    """The group sizes over the elements (equal or Dirichlet-multinomial) and the fields drawn."""
     if rng.random() < resolved.balanced_share:
         # e // m each, the remainder one more for the first groups
         sizes = elements // groups + (np.arange(groups) < elements % groups)  # (m,)
@@ -194,9 +206,9 @@ def _sampleSizes(
 
 def plan(resolved: Hyperprior, rng: np.random.Generator) -> dict[str, Column]:
     """Columns x0, x1, ... are drawn one by one until their design columns fill the budget.
-    The outcome y is drawn last, if its form is scm.
+    The outcome y is drawn last, if its model is the SCM.
     """
-    columns = {}
+    columns: dict[str, Column] = {}
     remainder = resolved.design_columns
     while remainder > 0:
         type = resolved.type_shares.choose(rng)
@@ -243,7 +255,7 @@ def _resolveColumn(
 # =====================================================================================
 
 
-def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
+def rankMatch(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndarray:
     """Draws and sorts the column's values in its node's order:
     a marginal sample if continuous or a count, level codes otherwise.
     """
@@ -253,10 +265,8 @@ def apply(node: np.ndarray, column: Column, rng: np.random.Generator) -> np.ndar
         by_rank = _sampleCodes(u, column, rng)  # (u,)
     else:
         sample = _sampleMarginal(u, column, rng)  # (u,)
-        by_rank = np.sort(sample)  # (u,), int64 if a count
-        if column.type == 'continuous':
-            by_rank = by_rank.astype(np.float32)
-    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover, 1982)
+        by_rank = np.sort(sample).astype(column.dtype)  # (u,)
+    # the sorted values placed by the node's ranks are a permutation of them (Iman and Conover 1982)
     return by_rank[rank]
 
 
@@ -303,7 +313,7 @@ def _sampleCodes(size: int, column: Column, rng: np.random.Generator) -> np.ndar
     counts = np.diff(edges, prepend=0) + floor  # (k,)
     codes_by_rank = np.repeat(np.arange(k), counts)  # (size,)
     if column.type == 'categorical':
-        # nominal levels have no order along the node; permuting the labels is TabICL v1's idea
+        # nominal levels have no order along the node (permuting the labels is TabICL v1's idea)
         labels = rng.permutation(k)  # (k,)
         codes_by_rank = labels[codes_by_rank]
     return codes_by_rank

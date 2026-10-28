@@ -1,154 +1,159 @@
 <!-- shared conventions: generated, do not edit by hand; propose a change in an issue -->
 # Conventions
 
-The rules a change is reviewed against: the shared rules first, then this repository's own under
-the last heading. The words are the glossary's; the reasons behind the larger rules are in the
-[ADRs](adr).
+The rules a change is reviewed against: the shared ones first, this repository's own under the
+last heading. The [ADRs](adr) give the reasons behind the larger ones.
 
 ## Tooling
 
-- Python through `uv` only; `uv run` for everything, every command from the repository root,
-  without `cd`.
-- `ruff format` (100 columns, single quotes) and `pytest`, run by CI. Wrap `argparse` blocks in
-  `# fmt: off` / `# fmt: on`.
-- Open an issue before adding a heavyweight dependency.
+- **uv:** for all Python; `uv run` everything from the repository root, without `cd`.
+- **CI:** `ruff format` (100 columns, single quotes) and `pytest`.
+- **argparse:** blocks wrapped in `# fmt: off` / `# fmt: on`.
+- **Dependencies:** an issue before adding a heavyweight one.
 
 ## Design
 
-After Ousterhout, *A Philosophy of Software Design*: complexity is anything that makes code
-harder to understand or change; it accrues one small edit at a time.
+After Ousterhout, *A Philosophy of Software Design*.
 
-- **Deep modules.** A small interface over much functionality; an interface as complex as its
+- **Deep modules:** a small interface over much functionality; an interface as complex as its
   implementation folds into its caller or callee.
-- **Information hiding.** Each module owns one design decision (a file format, a tensor layout,
-  a prior's parameterization) that no other module depends on. Split code by what it knows, not
-  by the order it runs in.
-- **One home per fact**, in code as in the docs. A rule written out twice (a truncation, an
-  order, a loop's initial state) becomes one function, one named value, or a call to the module
-  that owns it. No utils module: a helper two modules need lives in the module that owns its
-  fact.
-- **No pass-throughs.** A method that forwards its arguments unchanged adds nothing; call the
-  target directly.
-- **Pull complexity down.** The module absorbs the awkward case so its callers stay simple. A
-  fixed sensible behavior beats a new config parameter.
-- **Define errors out of existence.** Shape the interface so the invalid case cannot arise
+- **Information hiding:** each module owns one design decision (a file format, a tensor layout,
+  a prior's parameterization) no other module depends on. Split code by what it knows, not by
+  when it runs.
+- **One home per fact:** in code and docs, linked from everywhere else. A rule written twice (a
+  truncation, an order, a loop's initial state) becomes one function, one named value or a call
+  to the module that owns it.
+- **No utils module:** a helper two modules need lives in the module that owns its fact.
+- **No pass-throughs:** call the target directly, not through a method that forwards its
+  arguments unchanged.
+- **Pull complexity down:** the module absorbs the awkward case so callers stay simple; a fixed
+  sensible behavior beats a new config parameter.
+- **Define errors out of existence:** shape the interface so the invalid case cannot arise
   (accept the empty set, validate once at construction). The rest fails loudly: no fallbacks,
-  no defensive `try`/`except`, no speculative generality. Branch only for a case observed on
-  real inputs; add the next branch when use hits it.
-- **Design it twice.** For a non-trivial interface, name two designs and why one wins before
-  writing code.
-- **Obvious over clever.** The simplest form a reader guesses right on first read, in code
-  written, reviewed or rewritten. If 200 lines could be 50, rewrite them.
+  defensive `try`/`except` or speculative generality.
+- **Observed cases only:** branch only for a case seen on real inputs; add the next when use
+  hits it.
+- **Design it twice:** for a non-trivial interface, name two designs and why one wins before
+  coding.
+- **Obvious over clever:** the simplest form a reader guesses right on first read. If 200 lines
+  could be 50, rewrite them.
 
 ## Changing code
 
-- The smallest change that solves the problem and meets the design bar, no unrequested extras.
-  Leave adjacent code, comments and formatting untouched.
-- A task that repeats, or is error-prone by hand, gets a `.py` or `.sh` script.
+- **Smallest change:** solves the problem and meets the design bar, no unrequested extras;
+  adjacent code, comments and formatting stay untouched.
+- **Scripts:** a `.py` or `.sh` script for a task that repeats or is error-prone by hand.
+- **Borrowed code:** cites its source in the docstring; copied verbatim or imported and wrapped.
+  A simplified rewrite gets a test that it matches the original up to numeric noise.
 
 ## Commits and issues
 
-- Work reaches `main` only through a pull request, squash-merged into one commit that names the
-  change and closes its issue. The branch keeps the steps: the failing test, the code, the fixes.
-- A change to behavior or to an interface starts as an issue: the problem, the decision and the
-  check that closes it, in a few lines.
-- An issue holds only what a contributor needs: the problem, the decision, the check and the
-  issues that block it. Who works it, with which tool, model or budget, is planning and stays
-  out of the tracker.
-- A spec of several tickets closes with two more: an automated simplification and code-review
-  pass over the branch (the debloat), then a guided manual review, one file per session, with
-  small refactors. Only then is the branch merged.
-- A release is a `vX.Y.Z` tag on `main` with release notes.
+- **Pull requests:** the only way to `main`, squash-merged into one commit that names the change
+  and closes its issue. The branch keeps the steps: failing test, code, fixes.
+- **Issues:** every change to behavior or an interface starts as one. An issue holds only what a
+  contributor needs, in a few lines: the problem, the decision, the check that closes it, the
+  blocking issues.
+- **Planning:** who works an issue, with which tool, model or budget, stays out of the tracker.
+- **Closing a spec:** a spec of several tickets ends with two more: an automated simplification
+  and code-review pass over the branch (the debloat), then a guided manual review, one file per
+  session, with small refactors. Only then is the branch merged.
+- **Releases:** a `vX.Y.Z` tag on `main` with release notes.
 
 ## Names
 
-- American spelling (`standardized`, `behavior`, `catalog`), in names as in prose. A released
-  name spelled otherwise is renamed in the next release; only a name an outside standard fixes
-  (R's own names, a library's) keeps its spelling.
-- A project's package, repository, paths and code are lowercase (`metabeta`, `import metabeta`);
-  prose names the project in capitals (MetaBeta), in READMEs, notebooks, docs and papers alike.
-  A release keeps the package name (metabeta 0.6.0), and a quote keeps its source's spelling.
-- A module is one lowercase word. A package's `__init__.py` holds no code of its own:
-  it imports the public names from the modules that define them and lists them in `__all__`.
-- `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and methods,
-  `snake_case` for variables, fields and a `Literal`'s values (`'grouping_factor'`),
+- **Spelling:** American (`standardized`, `behavior`, `catalog`) in names and prose; a released
+  name spelled otherwise is renamed in the next release. Only a name an outside standard fixes
+  (R's, a library's) keeps its spelling.
+- **Project names:** lowercase in package, repository, paths and code (`metabeta`); capitalized
+  in all prose (MetaBeta). A release keeps the package name (metabeta 0.6.0); a quote keeps its
+  source's spelling.
+- **Modules:** one lowercase word.
+- **Case:** `PascalCase` for classes and `Literal` aliases, `camelCase` for functions and
+  methods, `snake_case` for variables, fields and `Literal` values (`'grouping_factor'`),
   `UPPER_SNAKE_CASE` for constants.
-- A function is named for what it does, a verb and its object (`_resolveColumn`), not for what
-  it returns (`_column`). A test helper is read inside an assert, so it may name what it returns
+- **Functions:** named for what they do, verb and object (`_resolveColumn`), not what they
+  return (`_column`). A test helper, read inside an assert, may name what it returns
   (`_density`).
-- One thing at different scopes keeps one name. Methods share its verb and each names its scope
-  (`resolveDataset` for every field drawn once per dataset, `resolveField` for one); a counted
-  quantity keeps its noun at every scope.
-- A config field that counts is a plural noun (`rows`, `latent_nodes`), without an `n_` prefix.
-- A directory is `dir`, not `folder`. A DataFrame is a `table`, several are `tables`, never `df`
-  or `frame`.
-- A leading `_` marks a pipeline step and anything no other module imports.
+- **Scopes:** one thing keeps one name at every scope: its methods share a verb and each names
+  its scope (`resolveDataset` for every field drawn once per dataset, `resolveField` for one); a
+  counted quantity keeps its noun.
+- **Counts:** a config field that counts is a plural noun (`rows`, `latent_nodes`), no `n_`
+  prefix.
+- **Directories:** `dir`, not `folder`.
+- **DataFrames:** `table` and `tables`, never `df` or `frame`.
+- **Leading underscore:** a pipeline step, or anything no other module imports.
 
 ## Code
 
 ### Imports and types
 
-- Absolute imports, never relative ones: `from <package>.<module> import name`.
-- Import a library's names when they are unmistakable (`BaseModel`), rename one that shadows a
-  standard-library name (`dataclass as pydantic_dataclass`), and alias a module only by its
+- **Absolute imports:** `from <package>.<module> import name`, never relative.
+- **Library names:** imported directly when unmistakable (`BaseModel`), renamed when they shadow
+  the standard library (`dataclass as pydantic_dataclass`); a module aliased only by its
   community's convention (`np`, `pd`).
-- Modern typing: `X | Y`, built-in generics, `from __future__ import annotations`.
-  `Literal[...]` for an argument with a fixed set of options, a type alias once it repeats.
-- Config models are Pydantic: a check a type can state is its constraint (`PositiveFloat`,
-  `Field(ge=3)`), and `__post_init__` or a model validator holds only the checks across fields.
+- **Whole modules:** a module that names nothing by its caller (`likelihood.draw`) is imported
+  whole, `from <package> import <module>`, so each call says whose it is.
+- **Packages:** `__init__.py` holds no code: it imports the public names from their modules and
+  lists them in `__all__`.
+- **Modern typing:** `X | Y`, built-in generics, `from __future__ import annotations`.
+- **Fixed options:** `Literal[...]`, a type alias once it repeats.
+- **Config models:** Pydantic. A check a type can state is a constraint (`PositiveFloat`,
+  `Field(ge=3)`); `__post_init__` or a model validator holds only the checks across fields.
 
 ### Control flow
 
-- f-strings, one statement per line, a long expression named on the line before.
-- Readable over compact, unless runtime efficiency pays for it: one operation per line, each
-  meaningful intermediate value named on its own line, and a loop where a comprehension would
-  nest.
-- A method lists its steps in the order you would describe them; a step with its own `if`
-  ladder or loop becomes a method. A search is a plain loop with an explicit check after it,
-  not `for`/`else`, `while True` or `next()` on a generator. A loop fills its result as it goes;
-  a second loop that only repackages the first one's output folds into it.
-- `a if c else b` only on a short line. Lookup tables are literal dicts or `if` chains, not
-  built with comprehensions, `dict.fromkeys` or `|`. Cases that read different arguments are a
-  `match` over their `Literal`, not a dict of wrappers that share one signature.
+- **Statements:** one per line; f-strings.
+- **Readable over compact:** unless runtime efficiency pays, one operation per line, each long
+  expression or meaningful intermediate named on the line before, a loop where a comprehension
+  would nest.
+- **Method order:** steps in the order you would describe them; a step with its own `if` ladder
+  or loop becomes a method.
+- **Searches:** a plain loop with an explicit check after it, not `for`/`else`, `while True` or
+  `next()` on a generator.
+- **One loop:** fills its result as it goes; a second loop that only repackages the first one's
+  output folds into it.
+- **Conditional expressions:** `a if c else b` only on a short line.
+- **Lookup tables:** literal dicts or `if` chains, not built by comprehension, `dict.fromkeys`
+  or `|`.
+- **Dispatch:** cases that read different arguments are a `match` over their `Literal`, not a
+  dict of wrappers with one signature.
+- **Conditions:** tested once: one `if`/`else` sets every value it decides, not a conditional
+  expression per value or a second `if` on the same test. A flag naming the test (`bounded`) may
+  be read again on the next line.
 
 ### Classes
 
-- A class per concept a reader should hold apart (a format family, a distribution), static
-  methods where it holds no state. A helper or constant used by one class lives on it; module
-  functions are for what spans classes.
-- A pipeline that holds state (a cache, a run directory) is a class; a pipeline without state is
-  module functions.
-- A data class holds its fields and the checks across them; the function that builds it is a
-  module function beside it, not a method of the class.
-- A base class holds a skeleton its subclasses inherit: fields, methods or checks. Classes that
-  only an `isinstance` check groups are a union alias, not an empty base.
+- **Concepts:** one class per concept a reader should hold apart (a format family, a
+  distribution).
+- **Methods:** take `self` if they call another method of the class or read instance state,
+  unless they run before an instance exists (a validator); otherwise class or static, as use
+  needs.
+- **Helpers:** a helper or constant used by one class lives on it; module functions are for what
+  spans classes.
+- **Pipelines:** a class if it holds state (a cache, a run directory), else module functions.
+- **Data classes:** hold their fields and the checks across them; their builder is a module
+  function beside them, unless it is an alternate constructor from an outside format
+  (`fromPandas`), which is a classmethod.
+- **Base classes:** hold a skeleton their subclasses inherit: fields, methods or checks. Classes
+  grouped only by an `isinstance` check are a union alias, not an empty base.
 
 ### Arrays and tensors
 
-- Annotate a shape inline on the line that returns it (`# (b, n, d)` for b datasets of n rows
-  and d columns), never in a docstring. Reshape with `einops` where the package depends on it,
-  never mutate a reused array in place. Vectorize with broadcasting and advanced indexing, not
-  loops; batch over datasets.
-- One lowercase letter per counted quantity, in shape comments and in the variables that hold
-  the count:
-
-  | letter | counts |
-  |---|---|
-  | `b` | the batch: datasets |
-  | `n` | rows |
-  | `m` | groups |
-  | `s` | draws |
-  | `d` | columns, or fixed effects |
-  | `q` | random effects |
-  | `p` | model parameters |
-  | `k` | a categorical column's levels |
-
-  No letter counts two quantities; a repository's own letters are listed in its part. A name
-  that a file format or an outside convention fixes (Stan's `N` and `J`, a file's `K` column)
-  keeps its spelling.
-- Every draw takes an explicit generator or key; nothing reads global random state.
-- A scalar that a config holds or an array computation reads is a Python `int` or `float`, its
-  arithmetic `math`'s: a numpy float64 scalar would promote a float32 array to float64.
+- **Shapes:** commented inline on the line that returns them (`# (b, n, d)` for b datasets of n
+  rows and d columns), never in a docstring.
+- **Reshaping:** `einops` where the package depends on it; never mutate a reused array in place.
+- **Vectorization:** broadcasting and advanced indexing, not loops; batch over datasets.
+- **Shape letters:** one lowercase letter per counted quantity, in shape comments and count
+  variables: `b` datasets (the batch), `n` rows, `m` groups, `s` draws, `d` columns or fixed
+  effects, `q` random effects, `p` model parameters, `k` a categorical column's levels. No
+  letter counts two quantities; a repository lists its own letters in its part. A name a file
+  format or outside convention fixes (Stan's `N` and `J`, a file's `K` column) keeps its
+  spelling.
+- **Randomness:** every draw takes an explicit generator or key; nothing reads global random
+  state.
+- **Scalars:** a scalar a config holds or an array computation reads is a Python `int` or
+  `float` with `math` arithmetic, since a numpy float64 scalar promotes a float32 array to
+  float64.
 
 ## File layout
 
@@ -168,90 +173,93 @@ a model specification
 # the scales every prior falls back to when the specification names none.
 ```
 
-- The module docstring: one sentence on what the module defines, optionally a short paragraph
-  on how, then the pipeline in run order, one `-> result` line per step with its function on the
-  right. Who imports the module is the [map](#modules)'s.
-- `# ====` banners separate globals, classes and main, `# ----` banners subsections. Each is
-  named in plain words, with one comment line on why the section exists where neither the name
-  nor a class docstring below says it.
-- The constants, aliases and data classes the steps use come first, each after any function it
-  is built from. Then each public function or method, followed by the steps it calls in run
-  order, under a `# ----` banner naming the pipeline or its stage (`url -> archive -> tree`). A
-  step that two public functions call goes after its first caller.
-- A script's `__main__` reads as the run's table of contents; for a pipeline class, it creates
+- **Module docstring:** one sentence on what the module defines, optionally a short paragraph on
+  how, then the pipeline in run order, one `-> result` line per step with its function on the
+  right. A module whose why is not obvious replaces the paragraph with a short pyramid for a
+  newcomer to the repository: what it offers and why, then how. Who imports it is the
+  [map](#modules)'s.
+- **Banners:** `# ====` for globals, classes and main, `# ----` for subsections, named in plain
+  words, plus one comment line on why the section exists if neither the name nor a class
+  docstring below says it.
+- **Order:** the constants, aliases and data classes the steps use come first, each after any
+  function it is built from. Then each public function or method, followed by the steps it calls
+  in run order, under a `# ----` banner naming the pipeline or its stage
+  (`url -> archive -> tree`). A step two public functions call follows its first caller.
+- **Scripts:** `__main__` reads as the run's table of contents; for a pipeline class it creates
   the class and calls its steps (`puller = Puller(); puller.getSurvset(); ...; puller.flush()`).
 
 ## Comments and docstrings
 
-- Comments start in lower case; docstrings are capitalized sentences. Break the lines of both at
-  sentence or clause boundaries, not at the column limit.
-- Short, plain sentences, one idea each, with a subject and a verb.
-- A docstring only where the behavior or design is not obvious: one or two plain sentences that
-  start with what the function does or returns and leave out what the code already shows. None
-  on a method its name and body already explain, never a chain of `;` clauses. Detail goes into
-  inline comments that say why.
-- A comment names its source: a paper link, or the authors, year and equation number for a
-  formula from a paper; a link for code or a method it follows.
-- A config or data class's docstring introduces the concepts its fields name, a short bullet
-  each. A field's detail goes into a short trailing comment, which every field whose name does
-  not say what it is carries.
-- A block of checks opens with one plain sentence on what it checks.
-- A comment explains the code, not its history: the case behind a rule goes to the test that
-  pins it, a definition to `CONTEXT.md`, how it was decided to an ADR. Code states its rules
-  without citing an ADR; the ADR keeps the reason.
-- An embedded script (an R snippet) gets a one-sentence comment above it, one statement per
-  line.
+- **Sentences:** short and plain, one idea each, with a subject and a verb. Comments start in
+  lower case; docstrings are capitalized.
+- **Line breaks:** at sentence or clause boundaries, not the column limit.
+- **Docstrings:** only where behavior or design is not obvious: one or two plain sentences that
+  start with what the function does or returns and leave out what the code shows, never a chain
+  of `;` clauses. Detail goes into inline comments that say why.
+- **Sources:** cited in a comment: a paper link, or the authors, year and equation number for a
+  formula; a link for code or a method it follows.
+- **Config docstrings:** a config or data class's docstring introduces the concepts its fields
+  name, a short bullet each. A field's detail goes into a short trailing comment, required where
+  its name does not say what it is.
+- **Checks:** a block of checks opens with one plain sentence on what it checks.
+- **No history:** comments explain the code, not its history: the case behind a rule goes to the
+  test that pins it, a definition to `CONTEXT.md`, how it was decided to an ADR. Code states its
+  rules without citing an ADR.
+- **Embedded scripts** (an R snippet): a one-sentence comment above, one statement per line.
 
 ## Tests
 
-- Test first: the failing test, then the minimal code. `hypothesis` for property tests.
-- The tests mirror the source: one `test_<module>.py` per module, each test named as a sentence
-  (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
-- Each test says in a sentence or two why it exists, unless obvious. Bind the object under test,
-  then call it; small named helpers, not lambdas or repeated comprehensions.
-- Cases of one check are one parametrized table, each case's reason in its id, not one test
-  per case.
-- Names listed in two modules (a `Literal`, a catalog, a table's columns) are checked against
-  each other by a test; the code checks nothing at import.
-- No coverage gate.
+- **Test first:** the failing test, then the minimal code.
+- **Property tests:** `hypothesis`.
+- **Layout:** mirrors the source: one `test_<module>.py` per module, each test named as a
+  sentence (`test_<what_holds>`), fixtures in a `fixtures/` beside them.
+- **Purpose:** a sentence or two on why each test exists, unless obvious.
+- **Body:** bind the object under test, then call it; small named helpers, not lambdas or
+  repeated comprehensions.
+- **No self-checks:** assert nothing the object checks itself: no shape its data class
+  validates, no control that rebuilds what the call just built.
+- **Tables:** cases of one check are one parametrized table, each case's reason in its id.
+- **Cross-checks:** names listed in two modules (a `Literal`, a catalog, a table's columns) are
+  checked against each other by a test, never at import.
+- **Coverage:** no gate.
 
 ## Docs
 
-Markdown meets the same bar as code: simple, and read top to bottom.
+Markdown meets the same bar as code: simple, read top to bottom.
 
-- Short bullets, the essentials first, detail in an appendix or a linked file.
-- One home per fact, links everywhere else; a living rule sits with the method it governs.
-  Counts live in generated files (a `SUMMARY.md`), never in prose.
-- `README.md` is for users and fits one screen. Its links are absolute to `main`, so they render
-  off GitHub too (on PyPI).
+- **Bullets:** short, essentials first, detail in an appendix or a linked file.
+- **Living rules:** next to the method they govern.
+- **Counts:** in generated files (a `SUMMARY.md`), never in prose.
+- **README:** for users, one screen. Its links are absolute to `main`, so they render off GitHub
+  too (on PyPI).
 
 ## Data
 
-- Never overwrite raw data.
-- A default, an edge or a share is read off the data collections and surveys already at hand
-  (a registry, a practice survey) before it is guessed, and cites its witness. Where no witness
+- **Raw data:** never overwritten.
+- **Witnesses:** a default, an edge or a share is read off the data collections and surveys at
+  hand (a registry, a practice survey) before it is guessed, and cites its witness. Where none
   exists and one pays off, gather the data first.
-- Stream or lazily load data that would not fit in memory.
-- Figures are PDFs, never PNG or JPG. Existing vector files convert to SVG; a PDF is never
+- **Large data:** streamed or lazily loaded if it would not fit in memory.
+- **Figures:** PDF, never PNG or JPG. Existing vector files convert to SVG; a PDF is never
   rasterized.
 
 ## Lab notes and experiments
 
-- `lab/YYYY-MM-DD-slug/`: one small design choice, its notebook with outputs and any PDFs,
-  indexed in `lab/README.md` with the decision. Lab notes are private: `lab/` is in
-  `.gitignore`, and nothing imports from it.
-- `experiments/`: rerunnable scripted studies, tracked and public. A lab note moves here once
-  something public rests on it: a released behavior, an ADR's reason or a paper's number.
-  Rerun with flags; never one-off.
+- **Lab notes:** `lab/YYYY-MM-DD-slug/`, one small design choice: its notebook with outputs and
+  any PDFs, indexed in `lab/README.md` with the decision. Private: `lab/` is in `.gitignore` and
+  nothing imports from it.
+- **Experiments:** `experiments/`, rerunnable scripted studies, tracked and public, rerun with
+  flags, never one-off. A lab note moves here once something public rests on it: a released
+  behavior, an ADR's reason or a paper's number.
 
 ## Notebooks
 
-- The text speaks to a reader who knows the field but not the repository: no project
-  vocabulary, and every abbreviation spelled out at first use.
-- It holds only what the figures and the decision need. Implementation details, fixed bugs and
+- **Reader:** knows the field but not the repository: no project vocabulary, every abbreviation
+  spelled out at first use.
+- **Scope:** only what the figures and the decision need; implementation details, fixed bugs and
   caveats that leave the result unchanged belong in the code or the issue.
-- Short plain sentences, one per line, with `<br>` between them in a paragraph. A bullet is a
-  bold label and one fact; a second fact is a second bullet, never a `<br>`.
+- **Sentences:** short and plain, one per line, `<br>` between them in a paragraph.
+- **Bullets:** a bold label and one fact; a second fact is a second bullet, never a `<br>`.
 <!-- end of shared conventions -->
 
 ## In tabdgp
@@ -268,11 +276,16 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 
 | module | owns | imported by |
 |---|---|---|
-| `hyperprior` | how a field is a point or a distribution, its bounds, its resolution to points, an integer truncated at another field's value, the presets, the outcome's form, type shares and noise scale, and which fields each column, node or grouping factor draws, by marginal family for a continuous or count column | every module |
-| `column` | the design-column budget, the post-hoc types and the type `count` with its `poisson` marginal: each column's name, type, k and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks; the outcome as the column `y` with role `outcome`, minted last outside the budget; the grouping factor as a column, its relation, size draw and codes, and `Grouping`, the unit arithmetic (a unit's chain, the broadcast between units) | graph, mechanism, draw |
-| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, the block bonus, each node's unit and the mask on edges out of its chain, the order (the grouping factors, then the units in the factors' order, the row last, latent before observed within a unit, the outcome last of all at the row), each node's family, activation and scales, the outcome's noise scale from its own field, a row-unit node's group share and group factor, and what the graph guarantees | mechanism, draw |
-| `mechanism` | how a node's values follow from its parents and its noise, at a unit: linear and MLP families, the parents read at the unit, relative noise, the z-score at the node's own unit, and a row-unit node's group part and row part mixed by its group share | draw |
-| `draw` | the pipeline and its output: the key's generator, threaded through the modules in a fixed order, the grouping before the graph, nodes joined to columns by name, every column and latent node broadcast to the rows last, and what one draw returns, the grouping factors first and the outcome last | the package's `__init__` |
+| `field` | how a field is a point or a distribution, its kind and bounds, its resolution to a point within given bounds, shares over named categories in their default's order | prior, hyperprior, likelihood, the package's `__init__` |
+| `prior` | the configs `Glm` and `Glmm`, their fields and their defaults and which fields each factor resolves, y's family as stated and its shape, the family's default shape drawn per dataset unless one is stated, the stated prior drawn over named blocks (a block's variance per coefficient at scale 1 and its groups): β's family, the intercept's location, each slope's location, each block's scales from its budget, shared or per coefficient by a gate per block, the split between the fixed block and the factors, the families of σ_α and σ_ε apart, each factor's LKJ shape, each parameter's family drawn with its locations and scales; `Prior`, which draws the parameters from that prior without the config, the sd families' draws and the LKJ C-vine; nothing about columns | outcome, the package's `__init__` |
+| `hyperprior` | the dataset's fields and their defaults, an integer truncated at another field's value, the presets, whether the SCM draws y, y's type shares and noise scale, and which fields each column, node or grouping factor draws, by marginal family for a continuous or count column | column, graph, mechanism, dataset, the package's `__init__` |
+| `column` | the design-column budget, the post-hoc types and the type `count` with its `poisson` marginal: each column's name, type, k and own parameters, what its metadata guarantees, and its values: a sample of its marginal family or its codes, placed by its node's ranks; the outcome as the column `y` with role `outcome`, minted last outside the budget under the SCM; a column a model wrote or a table brought, without a marginal or parameters; the grouping factor as a column, its relation, size draw and codes, and `Grouping`, the unit arithmetic (a unit's chain, the broadcast between units) | graph, mechanism, covariates, likelihood, outcome, dataset |
+| `graph` | the generating graph: the Cauchy DAG over latent and observed nodes, the block bonus, each node's unit and the mask on edges out of its chain, the order (the grouping factors, then the units in the factors' order, the row last, latent before observed within a unit, the outcome last of all at the row), each node's family, activation and scales, the outcome's noise scale from its own field, a row-unit node's group share and group factor, and what the graph guarantees | mechanism, dataset |
+| `mechanism` | how a node's values follow from its parents and its noise, at a unit: linear and MLP families, the parents read at the unit, relative noise, the z-score at the node's own unit, and a row-unit node's group part and row part mixed by its group share | dataset |
+| `covariates` | what a model reads: `Covariates` (the observed columns at the rows, their metadata, the grouping and the score), what they guarantee, their design matrix `Design` by `toDesign`, the covariate columns coded by type, and a table's through `fromPandas`, each column's metadata inferred or declared and checked against its values; the checks that a set of columns has one length and each column its metadata | outcome, dataset, the package's `__init__` |
+| `likelihood` | the distribution y is drawn from: y's families, `Family`, each with its canonical link and y's column: Gaussian, Bernoulli and Poisson, and Student-t, negative binomial, latent-noise Bernoulli, Gamma and beta, each drawn with its shape, whose default `SHAPES` holds; a draw at any η without failing, a count saturated at int64's largest, y of a Gamma or beta held inside float32's open range | prior, outcome |
+| `outcome` | what the SCM or a model returns: `Outcome` (the columns it writes and their metadata, a model's subclass adding its ground truth), what it guarantees, `Model`, and a model's outcome through `runModel`: a study's model called and its result checked at the covariates' rows, or the GLM or GLMM drawn (a GLMM only on covariates with a factor), on the covariates' design matrix, each factor's random terms within its budget, η, a deviation only on covariates with a score, and `GlmOutcome` or `GlmmOutcome`, holding y's family, link and shape, the prior and the parameters, with the parameters' raw-scale views | dataset, the package's `__init__` |
+| `dataset` | the pipeline and its output: the key's seed sequence and its generator, threaded through the modules in a fixed order, the grouping before the graph, nodes joined to columns by name, every column and latent node broadcast to the rows last, and what one draw returns, its covariates with the score and the SCM's outcome, its columns the grouping factors first and y last, with the view `toPandas`; `modelOutcome`, a model's outcome on drawn or given covariates from the key's first child stream | the package's `__init__` |
 | `fidelity` | how two samples of summary vectors are compared: pooled ranks (missing value coded as −1), the permutation null, random-forest C2ST, Wasserstein-1 distance over ranks per axis, containment bands | the caller, outside `src/` |
 
 ### Changing code
@@ -309,7 +322,8 @@ The words are [`CONTEXT.md`](../CONTEXT.md)'s.
 ### Docs
 
 - `README.md`: badges, a tagline, a short what and why, highlights of what the release does,
-  install, one quickstart box and its output, planned, contributing, license.
+  install, a quickstart box and its output per entry point (a draw, a model's outcome),
+  planned, contributing, license.
 
 ### Explaining the design
 

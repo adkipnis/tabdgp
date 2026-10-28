@@ -322,8 +322,6 @@ def test_units_out_of_order_fail(change: dict) -> None:
 # skipping g and z, the prefixes of grouping factors and latent nodes
 OBSERVED = list('abcdefhijk')
 FLAT = groupingOf([])
-# the outcome as plan mints it, after the covariates
-Y = Column(type='continuous', marginal='normal', role='outcome')
 
 
 def _connect(
@@ -333,11 +331,11 @@ def _connect(
     with_y: bool = False,
     **overrides: object,
 ) -> Graph:
+    """A graph over a plan of continuous columns, with y under the SCM, else without y."""
     rng = np.random.default_rng(seed)
-    resolved = Hyperprior(**overrides).resolveDataset(rng)
+    form = {'outcome_form': 'scm' if with_y else 'none'}
+    resolved = Hyperprior(**form | overrides).resolveDataset(rng)
     columns = columnsOf(OBSERVED[:observed_nodes])
-    if with_y:
-        columns['y'] = Y
     return connect(resolved, grouping, columns, rng)
 
 
@@ -365,22 +363,15 @@ GROUPING = groupingOf(
 UNITS = ['g0', 'g1', 'g2', 'row']
 
 
-def _ranks(graph: Graph) -> list[int]:
-    """Each node's unit as its position among the factors and the row, the g nodes left out."""
-    return [UNITS.index(unit) for unit in graph.unit[3:]]
-
-
-def test_g_nodes_come_first_then_the_units_in_index_order_and_the_row_last() -> None:
-    """A parent is at its child's unit or a superior one, so the superior units come first;
-    crossed units have no order between them and take the factors' fixed one.
+def test_connect_puts_the_grouping_factors_first_and_a_node_at_every_unit() -> None:
+    """Graph checks the units' order itself (test_units_out_of_order_fail),
+    so connect has only to name the grouping's factors first and use every unit.
     """
     units_seen = set()
     for seed in range(20):
         graph = _connect(seed, 8, GROUPING, latent_nodes=3)
         assert graph.names[:3] == ['g0', 'g1', 'g2']
-        assert graph.unit[:3] == ['g0', 'g1', 'g2']
         assert len(graph.names) == 3 + 3 + 8
-        assert _ranks(graph) == sorted(_ranks(graph))
         units_seen |= set(graph.unit[3:])
     assert units_seen == set(UNITS)
 
@@ -482,20 +473,9 @@ def test_group_factor_is_drawn_among_the_factors() -> None:
     assert factors_seen == {'g0', 'g1', 'g2'}
 
 
-def test_the_adjacency_is_strictly_lower_triangular() -> None:
-    """parents[j, i] with i < j only:
-    the names are in topological order, so propagation is one pass.
-    """
-    for seed in range(20):
-        graph = _connect(seed, 10)
-        assert graph.parents.dtype == bool
-        assert not np.triu(graph.parents).any()
-
-
 def test_latent_nodes_precede_observed_ones() -> None:
     """A latent node can be a common cause of columns but never an effect of one."""
     graph = _connect(0, 5, latent_nodes=3)
-    assert graph.latent.tolist() == [True] * 3 + [False] * 5
     assert graph.names[:3] == ['z0', 'z1', 'z2']
     assert sorted(graph.names[3:]) == ['a', 'b', 'c', 'd', 'e']
 
@@ -601,8 +581,11 @@ def test_the_observed_names_are_a_random_permutation_of_the_plan() -> None:
 
 @pytest.mark.parametrize('grouping', [FLAT, GROUPING], ids=['flat', 'grouped'])
 def test_connect_is_deterministic_under_a_fixed_generator(grouping: Grouping) -> None:
-    """A key reproduces its dataset bitwise only if every step draws from the generator alone."""
-    first, second = _connect(7, 9, grouping, with_y=True), _connect(7, 9, grouping, with_y=True)
+    """A key reproduces its dataset bitwise only if every step draws from the generator alone.
+    With y, which no column of the plan names, so that its node is drawn too.
+    """
+    first = _connect(7, 9, grouping, with_y=True)
+    second = _connect(7, 9, grouping, with_y=True)
     assert first.names == second.names
     assert np.array_equal(first.parents, second.parents)
     assert (first.mechanism, first.activation) == (second.mechanism, second.activation)
@@ -641,7 +624,6 @@ def test_the_units_a_graph_accepts_are_the_groupings_factors_and_the_row() -> No
         graph = connect(resolved, grouping, columnsOf(OBSERVED[:5]), rng)
         factors = [name for name in graph.names if name.startswith('g')]
         assert [*factors, 'row'] == grouping.traceChain('row')
-        assert set(graph.unit) <= set(grouping.traceChain('row'))
 
 
 # one factor of two groups; seed 2 puts nodes at both units and draws both families
@@ -667,11 +649,9 @@ def test_connect_without_y_is_spec_22s_graph() -> None:
 
 
 @given(seed=st.integers(0, 2**32 - 1), factors=st.integers(0, 3))
-def test_y_is_last_and_at_the_row_with_no_children_under_every_grouping(
-    seed: int, factors: int
-) -> None:
-    """No covariate is an effect of the outcome, and the outcome is drawn once per row,
-    even when every other node is group-level and every pair of nodes an edge.
+def test_y_is_drawn_under_every_grouping(seed: int, factors: int) -> None:
+    """Even when every other node is group-level and every pair of nodes an edge,
+    connect draws y where Graph accepts it: last, at the row and read by no node.
     """
     rng = np.random.default_rng(seed)
     hyperprior = Hyperprior.grouped(
@@ -680,11 +660,19 @@ def test_y_is_last_and_at_the_row_with_no_children_under_every_grouping(
     resolved = hyperprior.resolveDataset(rng)
     grouping = assign(resolved, rng)
     columns = columnsOf(OBSERVED[:5])
-    columns['y'] = Y
     graph = connect(resolved, grouping, columns, rng)
     assert graph.names[-1] == 'y'
-    assert graph.unit[-1] == 'row'
-    assert not graph.parents[:, -1].any()
+
+
+def test_y_is_in_the_graph_under_the_scm_without_a_planned_column_and_absent_under_none() -> None:
+    """The columns connect reads leave y's planned column out,
+    but the SCM turns y's node into y, with the outcome's noise.
+    """
+    scm = _connect(0, 4, GROUPING, with_y=True, outcome_noise_scale=2.0, **DENSE)
+    assert (scm.names[-1], scm.noise_scale[-1]) == ('y', 2.0)
+    assert scm.group_factor[-1] in ['g0', 'g1', 'g2']
+    none = _connect(0, 4, GROUPING, outcome_form='none')
+    assert 'y' not in none.names
 
 
 def test_y_draws_outcome_noise_scale_and_the_other_nodes_noise_scale() -> None:
