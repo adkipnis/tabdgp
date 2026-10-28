@@ -45,6 +45,8 @@ axis, outcome node) and the covariate terms it shares with metabeta's glossary.
 - Add a test with each change; mark a test that draws thousands of datasets `slow`.
 - Run `uv run ruff format .` and `uv run pytest`. CI runs both.
 - Please follow the style [conventions](docs/conventions.md).
+- No AI slop allowed. If you use AI to assist you in coding (which you are welcome to), always
+  make sure that you have read, reviewed, and understood your code.
 
 Three rules keep the generator trustworthy:
 
