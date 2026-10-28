@@ -205,7 +205,7 @@ _Avoid_: observation model, noise model, sampling distribution
 
 **Response family**:
 The likelihood's family, with its canonical link.
-Normal, Bernoulli and Poisson by default.
+Gaussian, Bernoulli and Poisson by default.
 Student-t, negative binomial, latent-noise Bernoulli, Gamma and beta at share zero, each with a
 shape of its own.
 A study that draws one makes the dataset misspecified for a fitter of the base family.
