@@ -9,7 +9,9 @@ stay the joint draw's, and two candidates differ by their scales alone.
 
 pipeline:
 ---------
-the joint prior, y's family and a generator
+an arm
+-> its candidate                                                    buildCandidate
+-> per dataset, the joint prior, y's family and a generator
 -> the scales, by candidate                                         Joint, R2d2m2, Stated
    -> one survey model's stated scales, a blank block filled        Survey.drawModel
    -> what each coefficient adds to var(eta) at scale 1, by block   _measureVariances
@@ -113,17 +115,17 @@ class R2d2m2:
 
         # σ², y's variance around eta, linearized at the intercept's location on the logit
         # and the log link (Yanchenko, Bondell and Reich 2024, eq. 9-10)
-        intercept = prior.beta_locations[0]
+        intercept_location = prior.beta_locations[0]
         sigma_eps_scale = None
         match family:
             case 'gaussian':
                 noise = 1 - signal_share  # y at unit variance, as under the joint draw
                 sigma_eps_scale = math.sqrt(noise)
             case 'bernoulli':
-                p0 = 1 / (1 + math.exp(-intercept))
+                p0 = 1 / (1 + math.exp(-intercept_location))
                 noise = 1 / (p0 * (1 - p0))
             case 'poisson':
-                noise = math.exp(-intercept)
+                noise = math.exp(-intercept_location)
         budget = noise * signal_share / (1 - signal_share)  # σ² τ², var(eta) without the intercept
 
         # one Dirichlet over every coefficient's share of the budget, the intercept outside
