@@ -3,9 +3,12 @@
 TabDGP draws a GLMM's prior scales jointly from one budget, the variance of eta.
 Its rivals are R2D2M2, which spreads an R²-induced budget over every coefficient by one Dirichlet,
 and the budget-free scales a user states per block.
-Each candidate rewrites only the scales of the prior `Glmm.drawPrior` drew,
-so the families, the intercept, the slopes' offsets δ_j, the LKJ shapes and the random terms
-stay the joint draw's, and two candidates differ by their scales alone.
+Each candidate takes the prior `Glmm.drawPrior` drew and replaces its scales
+(the slopes', σ_α's and σ_ε's) before the parameters are drawn from it.
+The families, the intercept, the slopes' offsets δ_j, the LKJ shapes and the random terms
+stay the joint draw's, so two candidates differ by their scales alone.
+A slope's location follows its new scale (δ_j times it),
+and τ, the split and r are recomputed from what the new scales spend.
 
 pipeline:
 ---------
@@ -101,9 +104,11 @@ class Joint:
 
 @pydantic_dataclass(frozen=True)
 class R2d2m2:
-    """The R2D2M2 prior (Aguilar and Bürkner 2023, eq. 7 and 10-11), without the joint draw's gate:
-    R² drawn afresh from the joint draw's prior on r, τ² = R² / (1 − R²),
-    and coefficient j's scale √(σ² τ² φ_j / v_j), φ ~ Dirichlet(a) over every slope and random term.
+    """The R2D2M2 prior (Aguilar and Bürkner 2023, eq. 7 and 10-11):
+    R² drawn afresh from the joint draw's prior on r, τ² = R² / (1 − R²) and σ² by y's family,
+    φ ~ Dirichlet(a) over every slope and random term,
+    and coefficient j's scale √(σ² τ² φ_j / v_j), so that j adds σ² τ² φ_j to var(eta).
+    The joint draw's split and gate are dropped, so a block's share follows its count of terms.
     """
 
     SIGNAL_SHARE: ClassVar[Distribution] = Glmm.model_fields['signal_share'].default  # R²'s prior
@@ -138,15 +143,22 @@ class R2d2m2:
             block_shares = shares[start : start + len(block_variances)]
             scales[name] = np.sqrt(budget * block_shares / block_variances)
             start += len(block_variances)
+
+        # the joint draw's families stay, where the paper has a Normal β and σ_α at its scale,
+        # so heavy tails overshoot this budget as they overshoot the joint's
         return _replaceScales(prior, scales, sigma_eps_scale)
 
 
 @pydantic_dataclass(frozen=True)
 class Stated:
-    """The budget-free draw: each block at the scale a user states,
-    one survey model's per dataset (1 everywhere without a survey).
+    """The budget-free draw: each block at the scale a user states
+    (one survey model's per dataset, 1 everywhere without a survey),
+    and σ_ε's scale at the stated dispersion.
+    A block adds what it would if every coefficient had the stated scale, whatever d and q.
     """
 
+    # a stand-in for independent scales per coefficient, since var(eta) grows alike with each term
+    # (more spread across datasets, as one scale moves a whole block, and the same on every link)
     UNIT_SCALES: ClassVar[dict[str, float]] = {'beta': 1.0, 'sd': 1.0, 'dispersion': 1.0}
 
     survey: Survey | None = None
@@ -176,7 +188,8 @@ class Stated:
     @staticmethod
     def _spreadScale(joint_scales: list[float], variances: np.ndarray, scale: float) -> np.ndarray:
         """A block's scales at one stated scale, spread by the joint draw's weights (its gate),
-        so the block adds to var(eta) what the stated scale would add if every coefficient shared it.
+        so the block adds to var(eta) what the stated scale would add if every coefficient shared it
+        (each coefficient exactly at the stated scale when the gate's weights are constant).
         """
         joint = np.array(joint_scales)  # (d − 1,) or (q,)
         spent = float((joint**2 * variances).sum())
@@ -228,7 +241,7 @@ def _recoverOffsets(prior: Prior) -> np.ndarray:
 def _replaceScales(
     prior: Prior, scales: dict[str, np.ndarray], sigma_eps_scale: float | None
 ) -> Prior:
-    """The prior at a candidate's scales by block, with the budget fields they realize."""
+    """The prior at a candidate's scales by block, with the budget fields they realize (τ, φ, r)."""
     fixed, *factors = prior.blocks
 
     # each block's part of var(eta) at a Normal draw, and y's share at the scales
