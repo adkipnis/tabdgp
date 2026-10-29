@@ -72,7 +72,7 @@ date: 2026-10-11
   - An override is a point or a distribution on a field; the resolved hyperparameter is a point on the same field.
   - A field each column or node draws for itself keeps its override there; the column metadata and the graph record what it drew (#16).
 - **Throughput:** a node's CPU workers draw datasets at least as fast as its GPU trains on them.
-  - For MetaBeta (4 to 8 cores and one GPU per node, epochs of 4,192 datasets in minibatches of 16 to 64), that is at least 1,000 datasets per second on 4 workers.
+  - For MetaBeta (4 to 8 cores and one GPU per node, epochs of 4,096 datasets in minibatches of 16 to 64), that is at least 1,000 datasets per second on 4 workers.
   - NumPy meets this criterion at about 250 float32 draws per second per core on a MacBook M3.
 - **float32:** continuous columns, latent values and the ground truth of a likelihood-based model (its parameters and deviation) are float32, which is the precision used in PyTorch.
   - Single precision also runs the activations three to four times faster.
