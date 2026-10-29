@@ -30,15 +30,18 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from candidates import ARMS, Candidate, buildCandidate
+from candidates import ARMS, FAMILIES, Candidate, Family, buildCandidate
 
 from tabdgp import Covariates, Glmm, LogUniformInt, Scm, UniformInt, drawDataset, modelOutcome
 from tabdgp.column import Grouping
 from tabdgp.covariates import Design
 from tabdgp.prior import Parameters
 
+# =====================================================================================
+# the cells and the bounds
+# =====================================================================================
+
 SEED = 2026
-FAMILIES = ['gaussian', 'bernoulli', 'poisson']
 SWEEP = {
     'design_columns': [1, 2, 4, 8, 16, 32],
     'factors': [1, 2, 3],
@@ -59,11 +62,11 @@ def sweep(candidates: dict[str, Candidate], datasets: int) -> pd.DataFrame:
     for field, values in SWEEP.items():
         for value in values:
             hyperpriors = _buildHyperpriors(field, value)
+            cell = {'field': field, 'value': value}
             for index in range(datasets):
                 covariates = drawDataset(SEED, index, hyperpriors['scm']).covariates
-                arms = _measureArms(covariates, index, hyperpriors['glmm'], candidates)
-                for record in arms:
-                    records.append({'field': field, 'value': value, 'index': index, **record})
+                arms = _measureArms(cell, index, covariates, hyperpriors['glmm'], candidates)
+                records.extend(arms)
     return pd.DataFrame(records)
 
 
@@ -87,9 +90,15 @@ def _buildHyperpriors(field: str, value: int) -> dict:
 
 
 def _measureArms(
-    covariates: Covariates, index: int, overrides: dict, candidates: dict[str, Candidate]
+    cell: dict,
+    index: int,
+    covariates: Covariates,
+    overrides: dict,
+    candidates: dict[str, Candidate],
 ) -> list[dict]:
-    """Each family's joint prior on the covariates, rescaled by each arm, and its measures."""
+    """Each family's joint prior on the covariates, rescaled by each arm, and its measures,
+    one row per family and arm.
+    """
     design = covariates.toDesign()
     records = []
     for family in FAMILIES:
@@ -99,12 +108,12 @@ def _measureArms(
             prior = candidate.rescale(joint.prior, family, np.random.default_rng([SEED, index, 1]))
             parameters = prior.drawParameters(np.random.default_rng([SEED, index, 2]))
             measures = _measure(family, design, covariates.grouping, joint.random_terms, parameters)
-            records.append({'family': family, 'arm': arm, **measures})
+            records.append({**cell, 'index': index, 'family': family, 'arm': arm, **measures})
     return records
 
 
 def _measure(
-    family: str,
+    family: Family,
     design: Design,
     grouping: Grouping,
     random_terms: dict[str, list[str]],
