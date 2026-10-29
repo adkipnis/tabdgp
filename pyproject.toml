@@ -39,6 +39,9 @@ dev = [
     "ipykernel",
     "tabdgp[fidelity]",
 ]
+experiments = [
+    "matplotlib>=3.11.2",
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]  # PEP 639 license expression and license files
