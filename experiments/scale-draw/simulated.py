@@ -10,7 +10,8 @@ simulated.ipynb reads the records and draws the curves.
 pipeline:
 ---------
 the arms, the survey's data directory and the datasets per cell
--> each cell's SCM hyperprior and GLMM overrides, one size at a point     _buildHyperpriors
+-> each arm's candidate                                                 buildCandidate
+-> each cell's SCM hyperprior and GLMM overrides, one size at a point    _buildHyperpriors
 -> per dataset, the covariates                                           drawDataset
 -> per family, the joint prior over the covariates' blocks               modelOutcome
 -> per arm, the prior at its scales and the parameters drawn from it     _measureArms
@@ -47,7 +48,7 @@ SWEEP = {
     'factors': [1, 2, 3],
     'random_effects': [1, 3, 6],  # Glmm's, the most design columns a factor's terms take
 }
-GROUPED = Scm.grouped(outcome_source='none')  # the covariates alone, the GLMM draws y
+GROUPED = Scm.grouped()  # the preset's sizes, whose tops a raised floor keeps
 LOGIT_BOUND = 10  # some |eta| above it saturates the logit
 RATE_BOUND = 1e6  # some Poisson rate above it saturates the log link
 
@@ -57,7 +58,7 @@ RATE_BOUND = 1e6  # some Poisson rate above it saturates the log link
 
 
 def sweep(candidates: dict[str, Candidate], datasets: int) -> pd.DataFrame:
-    """Every arm's measures, one row per cell, dataset and family."""
+    """Every arm's measures, one row per cell, dataset, family and arm."""
     records = []
     for field, values in SWEEP.items():
         for value in values:
@@ -65,8 +66,10 @@ def sweep(candidates: dict[str, Candidate], datasets: int) -> pd.DataFrame:
             cell = {'field': field, 'value': value}
             for index in range(datasets):
                 covariates = drawDataset(SEED, index, hyperpriors['scm']).covariates
-                arms = _measureArms(cell, index, covariates, hyperpriors['glmm'], candidates)
-                records.extend(arms)
+                dataset_records = _measureArms(
+                    cell, index, covariates, hyperpriors['glmm'], candidates
+                )
+                records.extend(dataset_records)
     return pd.DataFrame(records)
 
 
@@ -86,6 +89,7 @@ def _buildHyperpriors(field: str, value: int) -> dict:
             narrowest = max(SWEEP['random_effects']) - 1  # without the intercept
             scm = {'design_columns': UniformInt(narrowest, GROUPED.design_columns.high)}
             glmm = {'random_effects': value}
+    # the covariates alone, the GLMM draws y
     return {'scm': Scm.grouped(outcome_source='none', **scm), 'glmm': glmm}
 
 
@@ -96,9 +100,7 @@ def _measureArms(
     overrides: dict,
     candidates: dict[str, Candidate],
 ) -> list[dict]:
-    """Each family's joint prior on the covariates, rescaled by each arm, and its measures,
-    one row per family and arm.
-    """
+    """Each family's joint prior rescaled by each arm and measured, one row per family and arm."""
     design = covariates.toDesign()
     records = []
     for family in FAMILIES:
@@ -108,7 +110,7 @@ def _measureArms(
             prior = candidate.rescale(joint.prior, family, np.random.default_rng([SEED, index, 1]))
             parameters = prior.drawParameters(np.random.default_rng([SEED, index, 2]))
             measures = _measure(family, design, covariates.grouping, joint.random_terms, parameters)
-            # what the prior drew, so that a curve can be read by family, τ or the intercept
+            # what the prior drew, so that a curve splits by tail, τ or the intercept
             drawn = {
                 'beta_family': prior.beta_family,
                 'sigma_alpha_family': prior.sigma_alpha_family,
@@ -128,8 +130,8 @@ def _measure(
     random_terms: dict[str, list[str]],
     parameters: Parameters,
 ) -> dict[str, float]:
-    """eta's saturation and the variance partition on the link scale
-    (Nakagawa, Johnson and Schielzeth 2017), as the registry reads it off a fit.
+    """The saturation of eta and the variance partition on the link scale
+    (Nakagawa, Johnson and Schielzeth 2017, as the registry reads it off a fit).
     """
     # the fixed part's variance, by n − 1 as the registry takes it
     eta = design.matrix @ parameters.beta  # (n,)
@@ -142,7 +144,8 @@ def _measure(
         z = design.matrix[:, positions]  # (n, q)
         sd = parameters.sigma_alpha[factor]
         covariance = parameters.corr_alpha[factor] * np.outer(sd, sd)  # (q, q)
-        sigma2_factors.append(float(((z @ covariance) * z).sum(axis=1).mean()))
+        row_variances = ((z @ covariance) * z).sum(axis=1)  # (n,) z'Σz
+        sigma2_factors.append(float(row_variances.mean()))
         alpha = grouping.broadcast(parameters.alpha[factor], factor, 'row')  # (n, q)
         eta = eta + (z * alpha).sum(axis=1)
 
@@ -155,8 +158,9 @@ def _measure(
             sigma2_noise = math.pi**2 / 3
             saturated = float(np.abs(eta).max() > LOGIT_BOUND)
         case 'poisson':
-            # ln(1 + 1/λ), λ the mean rate over the rows, which the registry's null model
-            # estimates as exp(β_0 + σ²_0 / 2); summed in logs, so a rate past float64 is no NaN
+            # ln(1 + 1/λ), λ the mean rate over the rows,
+            # which the registry's null model estimates as exp(β_0 + σ²_0 / 2)
+            # (summed in logs, so that a rate past float64 is no NaN)
             log_rate = float(np.logaddexp.reduce(eta)) - math.log(len(eta))
             sigma2_noise = float(np.logaddexp(0, -log_rate))
             saturated = float(eta.max() > math.log(RATE_BOUND))
