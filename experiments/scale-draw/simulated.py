@@ -15,7 +15,7 @@ the arms, the survey's data directory and the datasets per cell
 -> per family, the joint prior over the covariates' blocks               modelOutcome
 -> per arm, the prior at its scales and the parameters drawn from it     _measureArms
 -> eta's saturation and the variance partition                           _measure
--> simulated.csv.gz, one row per cell, dataset, family and arm
+-> simulated.csv.gz, one row per cell, dataset, family and arm, with what the prior drew
 
 Run from the repository root:
 
@@ -108,7 +108,16 @@ def _measureArms(
             prior = candidate.rescale(joint.prior, family, np.random.default_rng([SEED, index, 1]))
             parameters = prior.drawParameters(np.random.default_rng([SEED, index, 2]))
             measures = _measure(family, design, covariates.grouping, joint.random_terms, parameters)
-            records.append({**cell, 'index': index, 'family': family, 'arm': arm, **measures})
+            # what the prior drew, so that a curve can be read by family, τ or the intercept
+            drawn = {
+                'beta_family': prior.beta_family,
+                'sigma_alpha_family': prior.sigma_alpha_family,
+                'predictor_sd': prior.predictor_sd,
+                'intercept': float(parameters.beta[0]),
+            }
+            records.append(
+                {**cell, 'index': index, 'family': family, 'arm': arm, **drawn, **measures}
+            )
     return records
 
 
@@ -146,11 +155,9 @@ def _measure(
             sigma2_noise = math.pi**2 / 3
             saturated = float(np.abs(eta).max() > LOGIT_BOUND)
         case 'poisson':
-            # ln(1 + 1/λ), λ = exp(β_0 + σ²_0 / 2) with σ²_0 the random intercepts' variances
-            intercept_variance = 0.0
-            for sd in parameters.sigma_alpha.values():
-                intercept_variance += float(sd[0]) ** 2
-            log_rate = float(parameters.beta[0]) + intercept_variance / 2
+            # ln(1 + 1/λ), λ the mean rate over the rows, which the registry's null model
+            # estimates as exp(β_0 + σ²_0 / 2); summed in logs, so a rate past float64 is no NaN
+            log_rate = float(np.logaddexp.reduce(eta)) - math.log(len(eta))
             sigma2_noise = float(np.logaddexp(0, -log_rate))
             saturated = float(eta.max() > math.log(RATE_BOUND))
 
