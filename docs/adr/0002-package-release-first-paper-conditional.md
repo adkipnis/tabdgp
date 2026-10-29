@@ -1,7 +1,6 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-15, cut to the decision and its consequences
 ---
 
 # 0002 - Package release first; a paper only with a finding of its own

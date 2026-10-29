@@ -1,7 +1,6 @@
 ---
 status: accepted
 date: 2026-10-14
-amended: 2026-10-14, #28: a column with more levels than its factor has groups stays at the row; #29: the role is spelled `grouping_factor`, a nested pair is superior and subordinate, not coarser and finer, and an override `group_share = 1` is the known exception to every level appearing; 2026-10-22, ADR 0005: the endogeneity switch is `latent_nodes` and the deviation, and time and treatment go to their own item; 2026-10-28, #67: the module `hyperprior` is `scm`
 ---
 
 # 0003 - Grouping factors are edgeless roots; every node has a unit; confounding is a two-part mechanism

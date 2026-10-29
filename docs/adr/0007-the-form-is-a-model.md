@@ -1,7 +1,6 @@
 ---
 status: accepted
 date: 2026-10-23
-amended: 2026-10-26, #56: the prior context is the `Prior`, `GlmOutcome`'s field `prior`; 2026-10-27, #65: y's family is `y_family`, as β's is `beta_family`, its shares `y_family_shares`; 2026-10-27, #66: `GlmOutcome` holds the `Prior` and the `Parameters` as drawn, and `GlmmOutcome` adds its random terms; 2026-10-27, #56: ground truth, not truth; 2026-10-28, #68: a model's outcome is drawn after the dataset by `modelOutcome` (was `resampleOutcome`) on the key's child stream, `outcome_form` takes `'none'` or `'scm'`, `Dataset.covariates` holds the score, `ScmOutcome` folds into `Outcome`, and a deviation without a score fails; 2026-10-28, #68: a fitter reads the covariates and a model's outcome as a pair, `toDesign` moves to `Covariates` and `toDict` goes; 2026-10-28, #67: the form is the outcome's source and its field `outcome_source`, the glmm form the GLMM, and the title follows; `Hyperprior` is `Scm`, the base of every config `Hyperprior`, `draw` is `drawDataset`
 ---
 
 # 0007 - A model is a callable over the covariates, the GLM and the GLMM its first cases, the outcome a container per model

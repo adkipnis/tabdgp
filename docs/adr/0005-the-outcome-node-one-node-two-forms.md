@@ -1,7 +1,6 @@
 ---
 status: accepted
 date: 2026-10-22
-amended: 2026-10-23, #41: the form is a point, never drawn, and its field is outcome_form; 2026-10-23, ADR 0007: a form is a model, `'glm'` and `'glmm'` the built-in models' names, no `Hyperprior.glmm()`; 2026-10-27, #65: `family_shares` is `y_family_shares`; 2026-10-28, ADR 0007: the forms are `'none'` and `'scm'` again, a model is called on the covariates after the draw; 2026-10-28, #67: the form is the outcome's source and its field `outcome_source`, the scm form y from the SCM, the glmm form the GLMM; the module `hyperprior` is `scm`, `draw` is `drawDataset`
 ---
 
 # 0005 - The outcome node: one node, from the SCM or a model, the SCM by default

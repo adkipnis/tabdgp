@@ -1,7 +1,6 @@
 ---
 status: accepted
 date: 2026-10-24
-amended: 2026-10-24, #58: the p-value counts the statistic among its null, (k + 1)/(B + 1); the ranks are scaled as (r − ½)/N; the band ends at observed values; sbi's c2st runs plain folds and accuracy on z-scores, so the recipe follows it, not copies it; 2026-10-27, #56: ground truth, not truth
 ---
 
 # 0008 - The fidelity module: how generated and registry summaries are compared
