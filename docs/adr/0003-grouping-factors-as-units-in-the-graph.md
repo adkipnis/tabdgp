@@ -5,33 +5,33 @@ date: 2026-10-14
 
 # 0003 - Grouping factors are edgeless roots. Every node has a unit. Group confounding is a two-part mechanism.
 
-- Grouping turns the flat SCM (structural causal model) of #1 into a grouped one (#22).
-- A grouping factor is a root node without edges:
-  - its values are its group codes, which assign each row to one of its m groups.
-  - the size draw (ADR 0004) acts as its noise: it draws the m group sizes, then shuffles the rows into them.
-- Each subsequent grouping factor nests in its predecessor with the per-dataset share `nested_share`; otherwise it is crossed with every earlier one:
-  - precedent: in MixedBench 1.0.1 (714 tables), 56 % have one grouping factor, 20 % crossed ones, 16 % nested ones and 8 % both.
-  - crossed grouping assignments are independent, so a cell stays empty only by chance.
-  - a nested factor runs the size draw twice, bottom-up: the rows into its groups (pupils into classes), then its groups into the superior factor's fewer groups (classes into schools).
-- A grouping factor is a column with int64 codes, has the type `categorical`, role `grouping_factor` and `levels = m`. It is outside the design-column budget (`design_columns`, the design matrix's width, ADR 0004).
-- Every other node has a unit of observation (`unit`), which is `'row'` or a grouping factor's name:
-  - each node, latent or observed, draws a grouping factor's unit with the per-dataset share `group_level_share`, else the row (see RDB-PFN's latent parent units).
-  - the factor is drawn uniformly.
-  - a column with more levels than the number of groups stays at the row unit, otherwise it would leave a level no row has.
-  - one unit per node suffices, since a node at a superior factor's unit is constant within each subordinate group too.
-- A parent is at its child's unit or at a superior one (the row is subordinate to every factor):
-  - no edge links the units of crossed factors, nor a row-unit parent to a group-level child.
-  - the rule is a mask on the Cauchy logits; the edge draw is otherwise #1's.
-  - the node order is the grouping factors, then the units (superior first, crossed ones in a fixed order), the row last, and latent before observed within a unit (see PluRel).
-- A node at a factor's unit is drawn once per group, from its parents' values to its column's, then broadcast to the n rows, so every array of a dataset (latent ones included) has length n.
-- A row-unit node's group confounding is an explicit share (`group_share`), which mixes a group part and a row part:
-  - the node is `z(sqrt(s) · z(g) + sqrt(1 − s) · z(r))`, with s its `group_share`.
-  - the group part reads one grouping factor, drawn uniformly per node.
-  - g is its mechanism over its parents at that factor's unit or a superior one, computed there and broadcast; without such a parent, g is group-level noise.
-  - r is its mechanism over its other parents plus its own noise.
-  - every z-score runs at the unit of the node being computed, so s is the node's between-group variance share over rows (up to what its row-unit parents carry).
-- Random effects belong to a GLMM (generalized linear mixed model, ADR 0007), not the SCM: a group-level node is covariate structure, which a GLMM takes as given.
-- Time and treatment are deferred until a model reads them, because the questions a treatment raises (positivity, randomized or confounded) are causal-design questions.
+1. Grouping turns the flat SCM (structural causal model) of #1 into a grouped one (#22).
+2. A grouping factor is a root node without edges:
+   - its values are its group codes, which assign each row to one of its m groups.
+   - the size draw (ADR 0004) acts as its noise: it draws the m group sizes, then shuffles the rows into them.
+3. Each subsequent grouping factor nests in its predecessor with the per-dataset share `nested_share`; otherwise it is crossed with every earlier one:
+   - precedent: in MixedBench 1.0.1 (714 tables), 56 % have one grouping factor, 20 % crossed ones, 16 % nested ones and 8 % both.
+   - crossed grouping assignments are independent, so a cell stays empty only by chance.
+   - a nested factor runs the size draw twice, bottom-up: the rows into its groups (pupils into classes), then its groups into the superior factor's fewer groups (classes into schools).
+4. A grouping factor is a column with int64 codes, has the type `categorical`, role `grouping_factor` and `levels = m`. It is outside the design-column budget (`design_columns`, the design matrix's width, ADR 0004).
+5. Every other node has a unit of observation (`unit`), which is `'row'` or a grouping factor's name:
+   - each node, latent or observed, draws a grouping factor's unit with the per-dataset share `group_level_share`, else the row (see RDB-PFN's latent parent units).
+   - the factor is drawn uniformly.
+   - a column with more levels than the number of groups stays at the row unit, otherwise it would leave a level no row has.
+   - one unit per node suffices, since a node at a superior factor's unit is constant within each subordinate group too.
+6. A parent is at its child's unit or at a superior one (the row is subordinate to every factor):
+   - no edge links the units of crossed factors, nor a row-unit parent to a group-level child.
+   - the rule is a mask on the Cauchy logits; the edge draw is otherwise #1's.
+   - the node order is the grouping factors, then the units (superior first, crossed ones in a fixed order), the row last, and latent before observed within a unit (see PluRel).
+7. A node at a factor's unit is drawn once per group, from its parents' values to its column's, then broadcast to the n rows, so every array of a dataset (latent ones included) has length n.
+8. A row-unit node's group confounding is an explicit share (`group_share`), which mixes a group part and a row part:
+   - the node is `z(sqrt(s) · z(g) + sqrt(1 − s) · z(r))`, with s its `group_share`.
+   - the group part reads one grouping factor, drawn uniformly per node.
+   - g is its mechanism over its parents at that factor's unit or a superior one, computed there and broadcast; without such a parent, g is group-level noise.
+   - r is its mechanism over its other parents plus its own noise.
+   - every z-score runs at the unit of the node being computed, so s is the node's between-group variance share over rows (up to what its row-unit parents carry).
+9. Random effects belong to a GLMM (generalized linear mixed model, ADR 0007), not the SCM: a group-level node is covariate structure, which a GLMM takes as given.
+10. Time and treatment are deferred until a model reads them, because the questions a treatment raises (positivity, randomized or confounded) are causal-design questions.
 
 ## Considered options
 

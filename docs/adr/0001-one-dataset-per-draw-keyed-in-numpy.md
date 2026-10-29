@@ -5,21 +5,21 @@ date: 2026-10-11
 
 # 0001 - One dataset per draw. Each draw is keyed by a seed and an index. The backend is NumPy.
 
-- TabDGP is an SCM-based (structural causal model) tabular dataset simulator for simulation-based inference models.
-- Its first target space is grouped data.
-- TabDGP draws covariates and outcome; a consumer pads, masks, collates and stores them: TabDGP never pads, never batches across datasets and never writes a file.
-- A dataset is a pure function of its key `(seed, index)`:
-  - the installed versions of TabDGP and NumPy are recorded for reproducibility.
-  - a key reproduces its dataset bitwise on one CPU type and NumPy build (regardless of the batch, worker or shard).
-  - the SCM hyperprior can be overridden at runtime.
-- `drawDataset(seed, index, scm) -> Dataset` draws one dataset in NumPy. It can be flat or grouped. It can have no outcome or a node-based outcome.
-- `modelOutcome(seed, index, covariates, model)` draws a model's outcome conditioned on the covariates (ADR 0007).
-- A `Dataset` holds:
-  - covariates as named one-dimensional arrays
-  - the node-based outcome (if present)
-  - metadata per column (type, levels, role, marginal and drawn parameters)
-  - the generating graph with every node and the latent nodes' values
-  - the resolved hyperparameters
+1. TabDGP is an SCM-based (structural causal model) tabular dataset simulator for simulation-based inference models.
+2. Its first target space is grouped data.
+3. TabDGP draws covariates and outcome; a consumer pads, masks, collates and stores them: TabDGP never pads, never batches across datasets and never writes a file.
+4. A dataset is a pure function of its key `(seed, index)`:
+   - the installed versions of TabDGP and NumPy are recorded for reproducibility.
+   - a key reproduces its dataset bitwise on one CPU type and NumPy build (regardless of the batch, worker or shard).
+   - the SCM hyperprior can be overridden at runtime.
+5. `drawDataset(seed, index, scm) -> Dataset` draws one dataset in NumPy. It can be flat or grouped. It can have no outcome or a node-based outcome.
+6. `modelOutcome(seed, index, covariates, model)` draws a model's outcome conditioned on the covariates (ADR 0007).
+7. A `Dataset` holds:
+   - covariates as named one-dimensional arrays
+   - the node-based outcome (if present)
+   - metadata per column (type, levels, role, marginal and drawn parameters)
+   - the generating graph with every node and the latent nodes' values
+   - the resolved hyperparameters
 
 ## Considered options
 
