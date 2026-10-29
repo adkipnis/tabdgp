@@ -1,99 +1,84 @@
 ---
 status: accepted
 date: 2026-10-11
-amended: 2026-10-11, after the throughput lab note; 2026-10-12, after the column-pooling lab note (#16); 2026-10-12, numpy's version recorded beside TabDGP's; 2026-10-14, ADR 0004: metabeta passes no sizes, `draw` takes a preset and has no default; 2026-10-22, the outcome metabeta trains on comes from TabDGP's outcome node; 2026-10-25, #52: a GLM's or GLMM's ground truth is float32 too; 2026-10-27, #56: ground truth, not truth; 2026-10-28, ADR 0007: a model's outcome draws from the key's first child stream, so a dataset's own key gives an independent outcome; 2026-10-28, #56: bitwise per CPU type and numpy build, since numpy's float draws and functions differ in the last bit across them; 2026-10-28, #67: `draw` is `drawDataset`, its hyperprior `Scm`
 ---
 
-# 0001 - One dataset per draw, keyed by seed and index, in numpy
+# 0001 - One dataset per draw, keyed, in NumPy
 
-TabDGP's first consumer, `metabeta.mixed` in the private repository metabeta-v3, trains on
-simulated datasets whose sizes, groups and columns all vary; its roadmap puts padding,
-masking, collate and the `.npz` corpus on `metabeta.core`, and TabDGP's optional outcome node
-draws the outcome before anything is written. Grilled on
-2026-10-11 (storage, batch layout, tensor library, the flat SCM of #1), the decision is:
-**the seed is the corpus.** Dataset `i` is a pure function of its key `(seed, index)`, the
-hyperprior with its overrides and the installed versions of TabDGP and numpy, whose generator
-promises no stable streams across its releases; the dataset records both. The public call
-draws one dataset, `drawDataset(seed, index, scm) -> Dataset`, in numpy, at the dataset's own
-shapes. TabDGP never pads, never batches across datasets and never writes a file.
+TabDGP is an SCM-based (structural causal model) tabular dataset simulator for simulation-based inference models.
+Each dataset is a pure function of its key `(seed, index)`.
+`drawDataset` draws one dataset in NumPy, and `modelOutcome` draws a model's outcome on its covariates (ADR 0007).
+TabDGP never pads, never batches across datasets and never writes a file.
+A consumer (a package that trains on the datasets) can draw them online instead of storing them.
+
+## Decisions
+
+1. TabDGP's first target space is grouped data.
+2. A dataset is a pure function of its key `(seed, index)`:
+   - the installed versions of TabDGP and NumPy are recorded for reproducibility.
+   - a key reproduces its dataset bitwise on one CPU (central processing unit) type and NumPy build (regardless of the batch, worker or shard).
+   - the SCM's hyperprior can be overridden at runtime.
+3. `drawDataset(seed, index, scm) -> Dataset` draws one dataset in NumPy. It can be flat or grouped. It can have no outcome or an outcome node.
+4. A `Dataset` holds:
+   - covariates as named one-dimensional arrays
+   - the outcome node's y (if present)
+   - metadata per column (type, levels, role, marginal and drawn parameters)
+   - the generating graph with every node and the latent nodes' values
+   - the resolved hyperparameters
 
 ## Considered options
 
-- **Online generation or a stored corpus.** A stored corpus buys reproducibility and a frozen
-  schema at the cost of disk, plumbing and an incompatibility that stays hidden until the next
-  regeneration. With a deterministic generator the two are the same data: a consumer
-  generates per epoch from `(seed, index)`, keeps variety by changing the seed and snapshots
-  only what carries expensive references (its validation and test sets). Trimming stored full
-  tables was rejected: subsampling rows breaks the imbalance draw and the group-level
-  structure, and a draw at the needed size is cheap.
-- **Determinism per dataset or per batch.** Per batch, `(seed, batch)`, is cheaper but gives a
-  dataset no identity outside its batch, so bucketing by size or resharding changes the data.
-  Per dataset, bitwise on CPU whatever the batch, worker or shard, is what a virtual corpus
-  needs. Bitwise identity across devices is not promised: it is a promise no library keeps
-  across versions, and the draw runs on CPU. Nor across CPU types or numpy builds of one
-  version: `uniform` fuses its multiply-add on arm64, the beta and gamma samplers, `exp`,
-  `tanh`, `sin` and matrix products differ in the last bit, and a rejection sampler that
-  accepts on one machine and not the other shifts the rest of the dataset's stream. A
-  cluster's workers draw one corpus only on one CPU type.
-- **Batch layout: a loop over datasets, or one padded batch.** Datasets in a batch differ in
-  rows, columns, groups and in their generating graph (node count, edges, mechanism per node,
-  marginals, post-hoc types), so a padded batch means masks through every mechanism and a
-  padded adjacency, TabICL's road, which TabICL itself left. A padded batch also breaks
-  per-dataset determinism on a GPU, where matrix kernels are chosen by shape. A loop over
-  datasets, each vectorized over its own rows, groups and columns, has no masks and no way for
-  dataset `i` to depend on its neighbors. GPU generation was weighed and rejected for the
-  same reason: a dataset of about 2,000 rows by 20 columns is launch-bound, scatter and
-  index-add (group aggregations) are non-deterministic on CUDA by default, and a GPU node's
-  idle CPU cores draw in parallel instead.
-- **Tensor library.** JAX's `vmap` and `jit` are what this layout does not use, and shapes
-  that differ per dataset leave it eager and slow. torch buys metabeta's stack at the cost of a
-  heavy dependency on every standalone user, a keyed sampler catalog to maintain (its
-  `distributions` take no generator except `Gamma`), and five to ten times numpy's
-  per-operation overhead on small CPU arrays. numpy's `Generator` is a complete keyed
-  catalog, `default_rng([seed, index])` is the key, dynamic shapes are free, and metabeta's
-  tensors are `torch.from_numpy`, zero copy. scipy may be added when it supplies a sampler
-  numpy lacks.
-- **Public call: a batch or a dataset.** A stateful generator argument makes dataset 256
-  depend on how much randomness datasets 0 to 255 consumed, so the key must be in the
-  signature. A `Batch` indexable to a `Dataset` is a list comprehension the caller writes as
-  well as we do, and the consumer that buckets by size calls per dataset anyway, with its
-  sizes as point overrides on a copied hyperprior.
-- **Container: named arrays or one matrix.** One `(N, p)` float matrix stores categoricals and
-  group indices as floats, and both consumers derive what they need from the metadata anyway.
-  `Dataset` holds the columns as named one-dimensional arrays in their natural dtype, the
-  column metadata, the generating graph with every node including the latent ones, the latent
-  nodes' values, the hyperparameters every field resolved to, and the key. A field each column
-  or node draws for itself is recorded with that column or in the graph instead (#16).
+| question | chosen | rejected |
+|---|---|---|
+| storage | drawn online from the key | a stored corpus |
+| determinism | per dataset | per batch |
+| batch layout | a loop over datasets | one padded batch |
+| tensor library | NumPy | PyTorch, JAX |
+| public call | one dataset | a batch |
+| container | named arrays | one float matrix |
+
+1. **Storage:**
+   - A stored corpus buys reproducibility and a frozen schema, but costs disk and plumbing.
+   - Inconsistency with the current code stays hidden until the next regeneration.
+   - With a deterministic draw both (online and stored) are the same data. A consumer draws per epoch from `(seed, index)`, changes the seed for variety and stores only what carries expensive references (its validation and test sets).
+   - Trimming stored tables to smaller subsets breaks the imbalance draw (of the group sizes) and the group structure; a draw at the needed size is cheap.
+2. **Determinism:**
+   - A key per batch, `(seed, batch)`, is cheaper, but gives a dataset no identity outside its batch, so bucketing by size or resharding changes the data.
+   - Bitwise identity across devices cannot be promised, since no library keeps that promise across versions, and since the draw runs on CPU.
+   - Bitwise identity across CPU types cannot be promised either: NumPy builds of one version differ in the last bit (e.g. `uniform` fuses its multiply-add on arm64, and the beta and gamma samplers, `exp`, `tanh`, `sin` and matrix products differ).
+3. **Batch layout:**
+   - Datasets in a batch differ in rows, columns, groups and generating graph (node count, edges, mechanism per node, marginals, post-hoc types).
+   - A padded batch needs masks through every mechanism and a padded adjacency (see TabICL v1).
+   - On a GPU (graphics processing unit), a padded batch also breaks per-dataset determinism, because matrix kernels are chosen by shape.
+   - A loop over datasets needs no mask and no dataset can depend on its neighbors.
+   - GPU generation is rejected too due to the non-determinism of CUDA (Compute Unified Device Architecture). A GPU node's idle CPU cores can draw the datasets in parallel instead.
+4. **Tensor library:**
+   - JAX's `vmap` and `jit` are not useful for this layout; varying shapes per dataset would prevent compilation.
+   - PyTorch would share a typical consumer's stack, but its `distributions` take no generator.
+   - On small CPU arrays PyTorch costs five to ten times NumPy's overhead per operation.
+   - NumPy's `Generator` is a complete keyed catalog (each sampler draws from the keyed generator), `SeedSequence([seed, index])` is the key, and shapes that differ per dataset cost nothing.
+   - A consumer reads the arrays as tensors through `torch.from_numpy`, without a copy.
+   - SciPy may be added if it adds required functionality that NumPy lacks.
+5. **Public call:**
+   - A stateful generator argument makes dataset 256 depend on how much randomness datasets 0 to 255 consumed, so the key is in the signature.
+   - A `Batch` indexable to a `Dataset` is a list comprehension the caller writes.
+   - A consumer that buckets by size calls per dataset anyway.
+6. **Container:**
+   - One float matrix stores categoricals and group codes as floats.
+   - A consumer derives what it needs from the metadata anyway.
 
 ## Consequences
 
-- One public function, one container, no batch object, no storage code, no padding code and
-  no parallelism inside TabDGP: a draw is a pure function of its key, so a process pool over
-  indices is the caller's one line, and nesting a pool inside a consumer's dataloader workers
-  would be wrong.
-- The end-to-end test draws dataset `i` alone and inside two different index sets and asserts
-  bitwise equality; the proofs draw their fixed-seed datasets by index and store nothing.
-- The hyperprior and its resolution share one Pydantic type: an override is a point value or
-  a distribution on a field, a resolved hyperparameter a point value on the same field. A
-  field each column or node draws for itself keeps its override there, and the column
-  metadata and the graph record the values drawn (#16).
-- Throughput is a bar, not a hope: a node's CPU workers draw datasets at least as fast as its
-  GPU trains on them. For metabeta (4 to 8 cores and one GPU per node, epochs of 4,192
-  datasets in minibatches of 16 to 64) that is at least 1,000 datasets per second on 4
-  workers at the mean v1 size, about 1 ms per dataset. The unpublished throughput lab note
-  (`lab/2026-10-11-throughput/`) measured about 250 per second per core in float32 on an M3,
-  so numpy holds; the draw is bound by arithmetic, not by the interpreter, so a padded torch
-  batch on CPU buys nothing and one on the node's only GPU takes time from training. The
-  bar was first set at 500 per core, before the consumer's numbers were known.
-- Continuous columns, latent values and a GLM's or GLMM's ground truth (its parameters and
-  deviation) are float32, the precision the network trains in, so
-  `torch.from_numpy` hands them over unconverted; single precision also runs the
-  activations three to four times faster.
-- When online drawing falls behind, or several models (4 to 16) train at once, a consumer
-  draws a corpus once, stores it and lets every run read it, dividing the cost; storage
-  stays the consumer's, TabDGP still writes no file.
-- A DataFrame is `pandas.DataFrame(dataset.columns)` and needs no dependency here.
-- For `metabeta.mixed`'s slice A1: generate per epoch from `(seed, index)` in dataloader
-  workers, pin TabDGP, snapshot validation and test sets, draw an epoch's sizes first (its
-  envelope rule 8) and bucket by them before drawing contents, and keep a contract test on the
-  schema at the boundary. These are its decisions to record.
+- **No batching inside TabDGP:** no batch object, storage, padding or parallelism.
+  - Parallelism is the caller's (e.g. a process pool over indices, one line).
+  - A pool inside TabDGP would nest inside a consumer's dataloader workers.
+- **Tests:** the end-to-end test asserts that dataset `i` is bitwise identical when drawn alone and inside two different index sets. The proofs (the tests that compare generated and real tables) draw their datasets by index under fixed seeds and store none.
+- **One type for both:** the hyperprior and its resolved version (with all distributions drawn from) share one Pydantic type.
+  - An override is a point or a distribution on a field; the resolved hyperparameter is a point on the same field.
+  - A field each column or node draws for itself keeps its override there; the column metadata and the graph record what it drew (#16).
+- **Throughput:** a compute node's CPU workers draw datasets at least as fast as its GPU trains on them.
+  - For MetaBeta (4 to 8 cores and one GPU per compute node, epochs of 4,096 datasets in minibatches of 16 to 64), that is at least 1,000 datasets per second on 4 workers.
+  - NumPy meets this criterion at about 250 float32 draws per second per core on a MacBook M3.
+- **float32:** continuous columns, latent values and the ground truth of a likelihood-based model (its parameters and deviation) are float32, which is the precision used in PyTorch.
+  - Single precision also runs the activations three to four times faster.
+- **Stored corpus:** when online drawing falls behind or several models (4 to 16) train at once, a consumer may store a corpus once, such that every run reads it (but this work is delegated entirely to the consumer).
