@@ -108,7 +108,7 @@ class R2d2m2:
 
     SIGNAL_SHARE: ClassVar[Distribution] = Glmm.model_fields['signal_share'].default  # R²'s prior
 
-    concentration: PositiveFloat  # a
+    concentration: PositiveFloat  # Dirichlet
 
     def rescale(self, prior: Prior, family: Family, rng: np.random.Generator) -> Prior:
         signal_share = self.SIGNAL_SHARE.draw(rng)  # R²
