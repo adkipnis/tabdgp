@@ -5,6 +5,7 @@ and how often eta saturates the logit and the log link.
 The registry fixes each table's design, so only simulated datasets show how a scale draw behaves
 as the design grows: each cell sets one size of the grouped preset to a point and draws the rest.
 Every measure is read off the ground truth, so no fit stands between a prior and its curve.
+simulated.ipynb reads the records and draws the curves.
 
 pipeline:
 ---------
@@ -14,7 +15,11 @@ the arms, the survey's data directory and the datasets per cell
 -> per family, the joint prior over the covariates' blocks               modelOutcome
 -> per arm, the prior at its scales and the parameters drawn from it     _measureArms
 -> eta's saturation and the variance partition                           _measure
--> per family, each measure's curves over each swept size as a PDF       _plotCurves
+-> simulated.csv.gz, one row per cell, dataset, family and arm
+
+Run from the repository root:
+
+    uv run python experiments/scale-draw/simulated.py --survey <the survey's data directory>
 """
 
 from __future__ import annotations
@@ -23,7 +28,6 @@ import argparse
 import math
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from candidates import ARMS, Candidate, buildCandidate
@@ -43,23 +47,6 @@ SWEEP = {
 GROUPED = Scm.grouped(outcome_source='none')  # the covariates alone, the GLMM draws y
 LOGIT_BOUND = 10  # some |eta| above it saturates the logit
 RATE_BOUND = 1e6  # some Poisson rate above it saturates the log link
-MEASURES = {
-    'saturated': 'saturated share',
-    'r2_marginal': '$R^2_m$',
-    'r2_conditional': '$R^2_c$',
-    'fixed_share': '$R^2_m / R^2_c$',
-    'icc_1': 'ICC of factor 1',
-    'icc_2': 'ICC of factor 2',
-    'icc_3': 'ICC of factor 3',
-}
-# three hues (joint, R2D2M2, budget-free), a dashed line for each one's second variant
-ARM_STYLES = {
-    'joint': {'color': '#2a78d6', 'linestyle': '-'},
-    'r2d2m2-0.5': {'color': '#eb6834', 'linestyle': '-'},
-    'r2d2m2-1': {'color': '#eb6834', 'linestyle': '--'},
-    'survey': {'color': '#1baf7a', 'linestyle': '-'},
-    'unit': {'color': '#1baf7a', 'linestyle': '--'},
-}
 
 # =====================================================================================
 # the sweep
@@ -174,64 +161,6 @@ def _measure(
 
 
 # =====================================================================================
-# the curves
-# =====================================================================================
-
-
-def _plotCurves(records: pd.DataFrame, family: str, path: Path) -> None:
-    """One family's measures over each swept size: per arm the median and its 10-90 % band
-    (the saturated share alone, a share of datasets)."""
-    table = records[records['family'] == family]
-    measures = []
-    for measure in MEASURES:
-        if table[measure].notna().any():  # a Gaussian y never saturates
-            measures.append(measure)
-    figure, axes = plt.subplots(
-        len(measures),
-        len(SWEEP),
-        figsize=(11, 2.1 * len(measures)),
-        sharey='row',
-        squeeze=False,
-        layout='constrained',
-    )
-    for row, measure in enumerate(measures):
-        for column, field in enumerate(SWEEP):
-            ax = axes[row, column]
-            cells = table[table['field'] == field].groupby(['arm', 'value'])[measure]
-            for arm in table['arm'].unique():
-                # a marker per cell, so a measure with one cell (a third factor's ICC) shows
-                style = {
-                    **ARM_STYLES[arm],
-                    'label': arm,
-                    'linewidth': 2,
-                    'marker': 'o',
-                    'markersize': 4,
-                }
-                if measure == 'saturated':
-                    ax.plot(cells.mean()[arm], **style)
-                else:
-                    ax.plot(cells.median()[arm], **style)
-                    low = cells.quantile(0.1)[arm]
-                    high = cells.quantile(0.9)[arm]
-                    ax.fill_between(low.index, low, high, color=style['color'], alpha=0.12)
-            ax.set_xticks(SWEEP[field])
-            if field == 'design_columns':
-                ax.set_xscale('log', base=2)
-                ax.set_xticks(SWEEP[field], [str(value) for value in SWEEP[field]])
-            ax.grid(color='#e4e3df', linewidth=0.6)
-            ax.spines[['top', 'right']].set_visible(False)
-            if row == len(measures) - 1:
-                ax.set_xlabel(field)
-            if column == 0:
-                ax.set_ylabel(MEASURES[measure])
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    figure.legend(handles, labels, loc='outside lower center', ncol=len(labels), frameon=False)
-    figure.suptitle(f'{family} y')
-    figure.savefig(path, metadata={'CreationDate': None})
-    plt.close(figure)
-
-
-# =====================================================================================
 # main
 # =====================================================================================
 
@@ -244,7 +173,7 @@ if __name__ == '__main__':
                         help="the practice survey's data directory, read by the survey arm")
     parser.add_argument('--datasets', type=int, default=1000, help='per cell')
     parser.add_argument('--out', type=Path, default=Path(__file__).parent,
-                        help='the directory of the PDFs')
+                        help='the directory of the records')
     # fmt: on
     args = parser.parse_args()
     if 'survey' in args.arms and args.survey is None:
@@ -254,5 +183,6 @@ if __name__ == '__main__':
     for arm in args.arms:
         candidates[arm] = buildCandidate(arm, args.survey)
     records = sweep(candidates, args.datasets)
-    for family in FAMILIES:
-        _plotCurves(records, family, args.out / f'simulated-{family}.pdf')
+    # gzip's header at a fixed time, so that a rerun writes the same bytes
+    compression = {'method': 'gzip', 'mtime': 0}
+    records.round(4).to_csv(args.out / 'simulated.csv.gz', index=False, compression=compression)
