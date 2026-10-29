@@ -1,6 +1,6 @@
 """candidates.py defines the scale draws a GLMM's prior is compared under (#76, #77).
 
-ADR 0006 draws a GLMM's prior scales jointly from one budget, the variance of eta.
+TabDGP draws a GLMM's prior scales jointly from one budget, the variance of eta.
 Its rivals are R2D2M2, which spreads an R²-induced budget over every coefficient by one Dirichlet,
 and the budget-free scales a user states per block.
 Each candidate rewrites only the scales of the prior `Glmm.drawPrior` drew,
@@ -12,7 +12,7 @@ pipeline:
 the joint prior, y's family and a generator
 -> the scales, by candidate                                         Joint, R2d2m2, Stated
    -> one survey model's stated scales, a blank block filled        Survey.drawModel
--> what each coefficient adds to var(eta) at scale 1, by block      _measureVariances
+   -> what each coefficient adds to var(eta) at scale 1, by block   _measureVariances
 -> the prior at those scales, with the budget fields they realize   _replaceScales
 """
 
@@ -21,21 +21,24 @@ from __future__ import annotations
 import dataclasses
 import math
 from pathlib import Path
-from typing import Literal, get_args
+from typing import ClassVar, Literal, get_args
 
 import numpy as np
 import pandas as pd
 from pydantic import ConfigDict, PositiveFloat
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from tabdgp.field import Distribution
 from tabdgp.prior import Glmm, Prior
+
+# =====================================================================================
+# the arms and y's families
+# =====================================================================================
 
 Arm = Literal['joint', 'r2d2m2-0.5', 'r2d2m2-1', 'survey', 'unit']
 ARMS: list[Arm] = list(get_args(Arm))
-SIGNAL_SHARE = Glmm.model_fields['signal_share'].default  # R²'s prior, the joint draw's r
-SURVEY_BLOCKS = ['beta', 'sd', 'dispersion']  # the survey's blocks whose scales a candidate reads
-FLAT_SCALE = 100  # a stated scale this large is flat, read as blank
-UNIT_SCALES = {'beta': 1.0, 'sd': 1.0, 'dispersion': 1.0}
+Family = Literal['gaussian', 'bernoulli', 'poisson']  # the families whose y's variance is known
+FAMILIES: list[Family] = list(get_args(Family))
 
 # =====================================================================================
 # the practice survey
@@ -46,7 +49,10 @@ UNIT_SCALES = {'beta': 1.0, 'sd': 1.0, 'dispersion': 1.0}
 class Survey:
     """The scales the practice survey's models state, one row per model that states one."""
 
-    table: pd.DataFrame  # a column per block in SURVEY_BLOCKS, NaN where the model states none
+    BLOCKS: ClassVar[list[str]] = ['beta', 'sd', 'dispersion']  # the blocks a candidate reads
+    FLAT_SCALE: ClassVar[int] = 100  # a stated scale this large is flat, read as blank
+
+    table: pd.DataFrame  # a column per block in BLOCKS, NaN where the model states none
 
     @classmethod
     def fromDir(cls, data_dir: Path) -> Survey:
@@ -56,12 +62,12 @@ class Survey:
         # sd_normalized holds the scale as an sd where it was computable, else words
         priors['scale'] = pd.to_numeric(priors['sd_normalized'], errors='coerce')
         table = priors.pivot(index=['paper_id', 'model_index'], columns='block', values='scale')
-        table = table[SURVEY_BLOCKS]
+        table = table[cls.BLOCKS]
         # another family's dispersion is a shape, not σ_ε's scale
         family = models.set_index(['paper_id', 'model_index'])['family']
         normal = family.reindex(table.index) == 'Normal'
         table['dispersion'] = table['dispersion'].where(normal)
-        table = table.where(table < FLAT_SCALE)
+        table = table.where(table < cls.FLAT_SCALE)
         stating = table.notna().any(axis=1)
         return cls(table=table[stating].reset_index(drop=True))
 
@@ -69,7 +75,7 @@ class Survey:
         """One model's stated scale per block, a blank one drawn from the block's stated scales."""
         row = self.table.iloc[rng.integers(len(self.table))]
         scales = {}
-        for block in SURVEY_BLOCKS:
+        for block in self.BLOCKS:
             scale = row[block]
             if math.isnan(scale):
                 stated = self.table[block].dropna()
@@ -85,23 +91,25 @@ class Survey:
 
 @pydantic_dataclass(frozen=True)
 class Joint:
-    """ADR 0006's joint draw, the prior as `Glmm.drawPrior` drew it."""
+    """The joint draw, the prior as `Glmm.drawPrior` drew it."""
 
-    def rescale(self, prior: Prior, family: str, rng: np.random.Generator) -> Prior:
+    def rescale(self, prior: Prior, family: Family, rng: np.random.Generator) -> Prior:
         return prior
 
 
 @pydantic_dataclass(frozen=True)
 class R2d2m2:
     """The R2D2M2 prior (Aguilar and Bürkner 2023, eq. 7 and 10-11), without the joint draw's gate:
-    R² from the joint draw's signal share, τ² = R² / (1 − R²),
+    R² drawn afresh from the joint draw's prior on r, τ² = R² / (1 − R²),
     and coefficient j's scale √(σ² τ² φ_j / v_j), φ ~ Dirichlet(a) over every slope and random term.
     """
 
+    SIGNAL_SHARE: ClassVar[Distribution] = Glmm.model_fields['signal_share'].default  # R²'s prior
+
     concentration: PositiveFloat  # a
 
-    def rescale(self, prior: Prior, family: str, rng: np.random.Generator) -> Prior:
-        signal_share = SIGNAL_SHARE.draw(rng)  # R²
+    def rescale(self, prior: Prior, family: Family, rng: np.random.Generator) -> Prior:
+        signal_share = self.SIGNAL_SHARE.draw(rng)  # R²
 
         # σ², y's variance around eta, linearized at the intercept's location on the logit
         # and the log link (Yanchenko, Bondell and Reich 2024, eq. 9-10)
@@ -137,10 +145,12 @@ class Stated:
     one survey model's per dataset (1 everywhere without a survey).
     """
 
+    UNIT_SCALES: ClassVar[dict[str, float]] = {'beta': 1.0, 'sd': 1.0, 'dispersion': 1.0}
+
     survey: Survey | None = None
 
-    def rescale(self, prior: Prior, family: str, rng: np.random.Generator) -> Prior:
-        stated = UNIT_SCALES
+    def rescale(self, prior: Prior, family: Family, rng: np.random.Generator) -> Prior:
+        stated = self.UNIT_SCALES
         if self.survey is not None:
             stated = self.survey.drawModel(rng)
 
