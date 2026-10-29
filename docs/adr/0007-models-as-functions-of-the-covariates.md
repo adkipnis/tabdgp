@@ -3,34 +3,44 @@ status: accepted
 date: 2026-10-23
 ---
 
-# 0007 - A model is a function of the covariates. The GLM and the GLMM are its first cases. It draws after the dataset.
+# 0007 - Models as functions of the covariates
 
-1. A model (e.g. a generalized linear model (GLM) or a generalized linear mixed model (GLMM)) draws a y of its own on a dataset's or a table's covariates after the draw (ADR 0005), with a known ground truth (#46).
-2. A model reads covariates (`Covariates`), drawn or a table's:
+A model is a function of the covariates.
+The generalized linear model (GLM) and the generalized linear mixed model (GLMM) are its first cases.
+It draws a y of its own after the dataset, on a dataset's or a table's covariates, with a known ground truth (#46).
+The ground truth is what a fitter (a method that estimates a model's parameters from a table) should recover.
+`modelOutcome` draws a model's outcome on a stream of its own, keyed like a dataset.
+A study's own model is checked only on what it returns.
+The GLM and the GLMM read the covariates as their design matrix.
+A dataset never holds a model's outcome.
+
+## Decisions
+
+1. A model reads covariates (`Covariates`), drawn or a table's:
    - a dataset keeps the ones its draw built (`Dataset.covariates`), the score among them under `'scm'`.
    - `Covariates.fromPandas(table, factors)` reads a table's, infers each column's metadata from its dtype (or takes it declared) and checks it against the values; a table has no score.
-3. `modelOutcome(seed, index, covariates, model)` draws a model's outcome from the key's first child stream (NumPy's `SeedSequence.spawn`), so at a dataset's own key it reads other numbers than the draw (#68):
+2. `modelOutcome(seed, index, covariates, model)` draws a model's outcome from the key's first child stream (the first of the independent streams the key's seed sequence spawns, NumPy's `SeedSequence.spawn`), so at a dataset's own key it reads other numbers than the draw (#68):
    - it is the only route to a model's outcome: a second y on covariates drawn under `'scm'`, a first one otherwise.
-4. A model (`Model`) is a function of the covariates and a generator that returns an `Outcome` (a function, a `functools.partial` with a study's settings bound, or an object with `__call__`):
+3. A model (`Model`) is a function of the covariates and a generator that returns an `Outcome` (a function, a `functools.partial` with a study's settings bound, or an object with `__call__`):
    - a study's model is checked only on what it returns: an `Outcome` of the covariates' length that writes none of their names.
-5. The GLM and the GLMM are TabDGP's own models, two configs in `prior` with one skeleton (ADR 0006):
+4. The GLM and the GLMM are TabDGP's own models, two configs in `prior` with one skeleton (the fields and the draw they share, ADR 0006):
    - `Glmm(Glm)` adds the random blocks and `random_effects`, a positive count, so a GLMM without random effects cannot be written.
-   - the prior draws over the fixed block alone, or one more per grouping factor, so nothing is written twice.
-   - a GLMM on covariates without a grouping factor fails; a GLM on grouped ones draws the pooled ground truth, where a fitter's random-effect scale should go to zero.
-6. `Scm`, `Glm` and `Glmm` share one base, `Hyperprior` (`field`), whose fields are each a point or a distribution:
+   - the prior draws over the fixed block (the fixed effects) alone, or one more block (its random effects) per grouping factor, so nothing is written twice.
+   - a GLMM on covariates without a grouping factor fails; a GLM on grouped ones draws the pooled ground truth (one set of fixed effects for every group), where a fitter's random-effect scale should go to zero.
+5. `Scm`, `Glm` and `Glmm` share one base, `Hyperprior` (`field`), whose fields are each a point or a distribution:
    - a model resolves its fields inside its call, with the generator it is handed.
    - a field per factor (`random_effects`, `lkj_eta`) resolves once per grouping factor, as a column resolves its own.
-7. A model reads the covariates as their design matrix (`Covariates.toDesign()`):
-   - the intercept comes first, continuous and count columns are z-scored by the population sd over the n rows, and binary ones stay 0/1.
-   - a categorical or ordered column gives k − 1 dummies, the first level in the codes' order dropped (`track` of three levels gives `track=1` and `track=2`).
+6. The GLM and the GLMM read the covariates as their design matrix (`Covariates.toDesign()`):
+   - the intercept comes first, and a z-score divides by the population standard deviation (sd) over the n rows.
+   - a coded column drops its first level in the codes' order (`track` of three levels gives `track=1` and `track=2`).
    - the grouping factors and y are left out.
-8. The outcome (`Outcome`) holds the columns a model writes (`y` today, a survival model's `time` and `event` later) and their metadata, each with the role `outcome` and its type's dtype:
+7. The outcome (`Outcome`) holds the columns a model writes (`y` today, a survival model's `time` and `event` later) and their metadata, each with the role `outcome` and its type's dtype:
    - `GlmOutcome` adds y's family, link and shape, the prior, the parameters and the deviation (ADR 0006), and `GlmmOutcome` each factor's random terms.
    - y's family and shape are the model's specification, which a fitter states, so they sit beside the link, not on the `Prior`.
-9. A fitter reads a model's outcome on its covariates, so a dataset never holds one:
-   - `Dataset.outcome` is the SCM's (structural causal model's) y, or `None` under `'none'`.
+8. A fitter reads a model's outcome on its covariates, so a dataset never holds one:
+   - `Dataset.outcome` holds only the outcome node's y (ADR 0005).
    - `Dataset.columns` and `Dataset.metadata` merge the covariates' with it, the grouping factors first and y last.
-10. `Dataset.toPandas()` returns the table, with coded columns as pandas categoricals and without the latent nodes.
+9. `Dataset.toPandas()` returns the table, with coded columns as pandas categoricals and without the latent nodes.
 
 ## Considered options
 
@@ -64,7 +74,7 @@ date: 2026-10-23
    - On the dataset, a table's covariates would lack it, though the glossary derives it from the covariates alone.
    - Codes as floats (`toNumpy()`) hide the coding the design matrix states.
 7. **The outcome:**
-   - Dicts (`model`, `truth`, `context`) have no checks at construction, and string keys a consumer has to know.
+   - Dicts (`model`, `truth`, `context`) have no checks at construction, and string keys a consumer (a package that trains on the datasets) has to know.
 8. **y's family and shape:**
    - On the `Prior`, they would mix the model's specification into a prior over its parameters.
    - The resolved config on the outcome carries every field a fitter does not need.
@@ -72,10 +82,10 @@ date: 2026-10-23
    - Swapped into the dataset (`dataset.withOutcome(outcome)`), its record would say `outcome_source='scm'` above a GLMM's y.
 10. **The table:**
    - pandas as an extra cannot serve `fromPandas`, which is on the main path.
-   - JSON (`toDict`) has no caller, since a dataset is never written to a file and a fitter in R reads `toPandas()` from parquet more easily than JSON's lists.
+   - JSON (JavaScript Object Notation, `toDict`) has no caller, since a dataset is never written to a file and a fitter in R reads `toPandas()` from parquet (a columnar file format) more easily than JSON's lists.
 
 ## Consequences
 
-- **Oracle sets:** a study builds them downstream, one `modelOutcome` per key on a table's covariates, reproducible per key.
+- **Oracle sets:** a study builds an oracle set (many outcomes on one table's covariates, each with its ground truth) downstream, one `modelOutcome` per key, reproducible per key.
 - **One coding:** a user's fitter reads the design matrix the model drew on, and the outcome's means and sds map its parameters onto the raw columns (ADR 0006).
-- **Later models, none built:** a survival model writes several columns (`time`, `event`), keeps its latent times and censoring in its container, and redraws its censoring inside its own call.
+- **Later models, none built:** a survival model writes several columns (`time`, `event`), keeps its latent times and censoring in its outcome, and redraws its censoring inside its own call.
