@@ -1,4 +1,5 @@
-"""candidates.py defines the scale draws a GLMM's prior is compared under (#76, #77).
+"""candidates.py defines the scale draws a GLMM's prior is compared under (#76, #77),
+and the measures both experiments read off the ground truth.
 
 TabDGP draws a GLMM's prior scales jointly from one budget, the variance of eta.
 Its rivals are R2D2M2, which spreads an R²-induced budget over every coefficient by one Dirichlet,
@@ -19,6 +20,9 @@ an arm
    -> one survey model's stated scales, a blank block filled        Survey.drawModel
    -> what each coefficient adds to var(eta) at scale 1, by block   _measureVariances
 -> the prior at those scales, with the budget fields they realize   _replaceScales
+the parameters drawn from it
+-> eta at the rows                                                  buildEta
+-> eta's saturation and sd, and the variance partition              measureTruth
 """
 
 from __future__ import annotations
@@ -34,16 +38,20 @@ from pydantic import ConfigDict, PositiveFloat
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tabdgp.field import Distribution
-from tabdgp.prior import Glmm, Prior
+from tabdgp.prior import Glmm, Parameters, Prior
 
 # =====================================================================================
-# the arms and y's families
+# the arms, y's families and the bounds
 # =====================================================================================
 
 Arm = Literal['joint', 'r2d2m2-0.5', 'r2d2m2-1', 'survey', 'unit']
 ARMS: list[Arm] = list(get_args(Arm))
 Family = Literal['gaussian', 'bernoulli', 'poisson']  # the families whose y's variance is known
 FAMILIES: list[Family] = list(get_args(Family))
+LOGIT_BOUND = 10  # some |eta| above it saturates the logit
+RATE_BOUND = 1e6  # some Poisson rate above it saturates the log link
+# each factor's random columns (n, q) and each row's group (n,), by factor
+Factors = dict[str, tuple[np.ndarray, np.ndarray]]
 
 # =====================================================================================
 # the practice survey
@@ -275,3 +283,72 @@ def _replaceScales(
         predictor_sd=math.sqrt(predictor_variance),
         split=split,
     )
+
+
+# =====================================================================================
+# the ground truth's measures
+# =====================================================================================
+
+
+def buildEta(matrix: np.ndarray, factors: Factors, parameters: Parameters) -> np.ndarray:
+    """eta = Xβ + Σ_k Z_k α_k, each row with its own group's random effects."""
+    eta = matrix @ parameters.beta  # (n,)
+    for factor, (z, codes) in factors.items():
+        alpha = parameters.alpha[factor][codes]  # (n, q)
+        eta = eta + (z * alpha).sum(axis=1)
+    return eta
+
+
+def measureTruth(
+    family: Family,
+    matrix: np.ndarray,
+    factors: Factors,
+    parameters: Parameters,
+    icc_columns: int,
+) -> dict[str, float]:
+    """The saturation and sd of eta and the variance partition on the link scale
+    (Nakagawa, Johnson and Schielzeth 2017, as the registry reads it off a fit),
+    an ICC per factor in `icc_columns` columns, NaN past the dataset's factors.
+    """
+    # the fixed part's variance, by n − 1 as the registry takes it
+    sigma2_fixed = float((matrix @ parameters.beta).var(ddof=1))
+
+    # each factor's variance, the mean over rows of z'Σz (Johnson 2014)
+    sigma2_factors = []
+    for factor, (z, _) in factors.items():
+        sd = parameters.sigma_alpha[factor]
+        covariance = parameters.corr_alpha[factor] * np.outer(sd, sd)  # (q, q)
+        row_variances = ((z @ covariance) * z).sum(axis=1)  # (n,) z'Σz
+        sigma2_factors.append(float(row_variances.mean()))
+
+    # y's variance around eta: the residual's, or the link's distribution-specific one
+    eta = buildEta(matrix, factors, parameters)
+    match family:
+        case 'gaussian':
+            sigma2_noise = parameters.sigma_eps**2
+            saturated = math.nan  # the identity link never saturates
+        case 'bernoulli':
+            sigma2_noise = math.pi**2 / 3
+            saturated = float(np.abs(eta).max() > LOGIT_BOUND)
+        case 'poisson':
+            # ln(1 + 1/λ), λ the mean rate over the rows,
+            # which the registry's null model estimates as exp(β_0 + σ²_0 / 2)
+            # (summed in logs, so that a rate past float64 is no NaN)
+            log_rate = float(np.logaddexp.reduce(eta)) - math.log(len(eta))
+            sigma2_noise = float(np.logaddexp(0, -log_rate))
+            saturated = float(eta.max() > math.log(RATE_BOUND))
+
+    sigma2_random = sum(sigma2_factors)
+    total = sigma2_fixed + sigma2_random + sigma2_noise
+    measures = {
+        'saturated': saturated,
+        'sd_eta': float(eta.std(ddof=1)),  # by n − 1, as R's sd
+        'r2_marginal': sigma2_fixed / total,
+        'r2_conditional': (sigma2_fixed + sigma2_random) / total,
+        'fixed_share': sigma2_fixed / (sigma2_fixed + sigma2_random),
+    }
+    for k in range(icc_columns):
+        measures[f'icc_{k + 1}'] = math.nan  # a factor the dataset lacks
+        if k < len(sigma2_factors):
+            measures[f'icc_{k + 1}'] = sigma2_factors[k] / total
+    return measures
