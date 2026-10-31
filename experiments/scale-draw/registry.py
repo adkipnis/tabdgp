@@ -1,9 +1,10 @@
-"""registry.py compares the scale draws of a GLMM's prior on the registry's designs (#77).
+"""registry.py compares the scale draws of a GLMM's prior on the registry's designs (#77, #78).
 
 simulated.py reads each measure off the ground truth on TabDGP's own covariates.
-Here each registry fit lends its design (X and Z, as mixedbench's contract codes them),
-each candidate draws a y on it, and lme4 refits that y as the registry fitted the real one,
-so the refits and the registry's fits are both lme4 estimates.
+Here each registry fit lends its design as lme4 builds it from the documented formula
+(X, Z, the rows it keeps and the offset), each candidate draws a y on it,
+and lme4 refits the documented formula with y as its left side,
+so each refit is its registry fit with y swapped, and both are lme4 estimates.
 The ground truth is logged beside each refit.
 registry.ipynb reads the records against the registry's fits.
 
@@ -13,8 +14,10 @@ the registry's fits
 -> a task per kept fit, a reason per dropped one                      select, _screenFit
 -> registry-fits.csv, the array job's tasks
 per task:
--> its problem's standardized design, blocks, table and formula       run, _readDesign
--> per draw, the joint prior, each factor correlated as fitted        _drawJointPrior
+-> lme4's design of the documented formula (registry.R),
+   X standardized                                                      run, _readDesign
+-> the blocks TabDGP's draw builds on it                              _measureBlocks
+-> per draw, the joint prior, each factor correlated as lme4 fits it  _drawJointPrior
 -> per arm, the prior at its scales, the parameters, y
    and the ground truth's measures                                     measureTruth
 -> lme4's refit of y and its measures                                  _measureFit
@@ -36,17 +39,16 @@ import argparse
 import dataclasses
 import json
 import math
-import re
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from candidates import ARMS, Candidate, Factors, buildCandidate, buildEta, measureTruth
 from mixedbench import frequentist, registry
-from mixedbench.contract import Problem, Refused
-from mixedbench.frequentist import Fit
-from mixedbench.references.handoff import Handoff
+from mixedbench.frequentist import Fit, lme4
 from mixedbench.registry.row import Row, readCsv
 
 from tabdgp import Glmm, likelihood
@@ -62,8 +64,9 @@ SEED = 2026
 DRAWS = 10  # per fit and arm
 TIMEOUT = 30 * 60  # seconds per refit
 ESTIMATED = ['ok', 'singular', 'warning']  # the statuses of a fit with estimates
-CALL = re.compile(r'[A-Za-z_.][A-Za-z0-9_.]*\s*\(')  # a function call in a formula
-QUOTED = re.compile(r'`[^`]*`')  # a backquoted column name, which may hold parentheses
+# the drawn y's column, beside the documented response, which a covariate may read
+# (rabe_hesketh's pups counts it per dam), and named apart from a covariate y (SASmixed's Demand)
+RESPONSE = 'y_drawn'
 
 # =====================================================================================
 # the tasks
@@ -103,26 +106,22 @@ def _screenFit(row: Row, fit: dict, tables: registry.Tables) -> dict:
     # a fit without estimates (an error, a model in words) leaves nothing to compare
     if fit['status'] not in ESTIMATED:
         return {'reason': 'no estimates'}
-    # the contract codes the raw columns, not I(x^2) or factor(year),
-    # but a transform of y does not matter, since each draw replaces y
-    [_, covariates] = QUOTED.sub('', row.formula).split('~', 1)
-    if CALL.search(covariates):
-        return {'reason': 'a transform of a covariate'}
-    try:
-        problem = Problem.build(row, tables.load(row))
-    except Refused as refused:
-        return {'reason': f'refused: {refused.reason}'}
-    # a fit of a subset or of weighted copies of the rows, which the contract leaves out
-    if len(problem.table) != int(fit['n_obs']):
+    with tempfile.TemporaryDirectory() as dir:
+        design = _readDesign(tables.load(row), row.formula, fit['family'], Path(dir) / 'design')
+    # a fit of a subset or of weighted copies of the rows, which the loaded table lacks
+    if len(design['rows']) != int(fit['n_obs']):
         return {'reason': "rows unlike the fit's"}
+    # the prior's fixed block opens with the intercept
+    if design['columns'][:1] != ['(Intercept)']:
+        return {'reason': 'no intercept'}
     random_effects = 0
-    for factor in problem.factors:
-        random_effects += 1 + len(problem.slopes(factor))  # the intercept and the slopes
+    for z, _ in design['factors'].values():
+        random_effects += z.shape[1]
     return {
         'reason': None,
-        'rows': len(problem.table),
-        'rank': len(problem.design),  # d, the intercept included
-        'factors': len(problem.factors),
+        'rows': len(design['rows']),
+        'rank': len(design['columns']),  # d, the intercept included
+        'factors': len(design['factors']),
         'random_effects': random_effects,
     }
 
@@ -137,38 +136,53 @@ def run(task: int, tables: registry.Tables, candidates: dict[str, Candidate], ru
     the records in the task's run directory, which replace an earlier run's."""
     fits = pd.read_csv(FITS)
     kept = fits[fits['task'].notna()]
-    [id] = kept.loc[kept['task'] == task, 'id']
-    rows = {row.id: row for row in registry.rows()}
-    problem = Problem.build(rows[id], tables.load(rows[id]))
-    family = problem.family
-    design = _readDesign(problem)
-    icc_columns = int(kept['factors'].max())  # an ICC per factor of the widest fit
+    [fit] = kept[kept['task'] == task].to_dict('records')
+    row = {row.id: row for row in registry.rows()}[fit['id']]
+    table = tables.load(row)
+    family = fit['family']
     dir = runs / str(task)
     if dir.exists():  # no file of an earlier run stays beside this run's records
         shutil.rmtree(dir)
+    design = _readDesign(table, row.formula, family, dir / 'design')
+    blocks = _measureBlocks(design)
+    formula = f'{RESPONSE} ~' + row.formula.split('~', 1)[1]  # the documented right side
+    icc_columns = int(kept['factors'].max())  # an ICC per factor of the widest fit
 
     records = []
     for draw in range(DRAWS):
         streams = [SEED, task, draw]
-        joint = _drawJointPrior(problem, design['blocks'], np.random.default_rng([*streams, 0]))
+        joint = _drawJointPrior(
+            family, blocks, design['correlated'], np.random.default_rng([*streams, 0])
+        )
         for arm, candidate in candidates.items():
             # every arm draws from the same streams, so arms differ by their scales
             prior = candidate.rescale(joint, family, np.random.default_rng([*streams, 1]))
             parameters = prior.drawParameters(np.random.default_rng([*streams, 2]))
-            eta = buildEta(design['matrix'], design['factors'], parameters)  # (n,)
+            eta = buildEta(
+                design['matrix'], design['factors'], parameters, design['offset']
+            )  # (n,)
             scale = None
             if parameters.sigma_eps is not None:
                 scale = np.full(len(eta), parameters.sigma_eps)  # (n,)
             # y's three families have no shape
             y = likelihood.draw(family, eta, scale, None, np.random.default_rng([*streams, 3]))
             truth = measureTruth(
-                family, design['matrix'], design['factors'], parameters, icc_columns
+                family,
+                design['matrix'],
+                design['factors'],
+                parameters,
+                icc_columns,
+                design['offset'],
             )
 
-            # lme4's refit, its files kept but the table, which the streams draw again
+            # lme4's refit on the raw table, y missing on the rows lme4 dropped,
+            # its files kept but the table, which the streams draw again
             refit_dir = dir / f'{arm}-{draw}'
-            table = design['table'].assign(y=y)
-            fitted = frequentist.fit(table, design['formula'], family, refit_dir, TIMEOUT)
+            response = np.full(len(table), math.nan)  # (N,) the loaded rows
+            response[design['rows']] = y
+            fitted = frequentist.fit(
+                table.assign(**{RESPONSE: response}), formula, family, refit_dir, TIMEOUT
+            )
             (refit_dir / 'table.csv').unlink()
             measured = _measureFit(fitted, icc_columns)
 
@@ -192,46 +206,77 @@ def run(task: int, tables: registry.Tables, candidates: dict[str, Candidate], ru
     (dir / 'records.json').write_text(json.dumps(records, indent=2))
 
 
-def _readDesign(problem: Problem) -> dict:
-    """The standardized design matrix, each factor's random columns and codes, the blocks
-    TabDGP's draw builds from them, and the table and formula lme4 refits."""
-    standardized = problem.standardized('full')  # continuous columns z-scored over the rows
-    matrix = standardized[list(problem.design)].to_numpy(dtype=np.float64)  # (n, d)
-    # a fixed effect adds its column's variance to var(eta) at scale 1 (the intercept nothing)
-    blocks = [Block(name='fixed', variances=matrix.var(axis=0).tolist())]
-    factors: Factors = {}
-    for factor in problem.factors:
-        # the intercept, then the slopes the reference formula gives the factor
-        positions = [0]
-        for slope in problem.slopes(factor):
-            positions.append(problem.design.index(slope))
-        z = matrix[:, positions]  # (n, q)
-        factors[factor] = (z, standardized[factor].to_numpy())
-        # a random effect adds E[z²] to var(eta) at scale 1 (the intercept 1)
-        variances = (z**2).mean(axis=0)  # (q,)
-        groups = len(problem.levels[factor])
-        blocks.append(Block(name=factor, variances=variances.tolist(), groups=groups))
+def _readDesign(table: pd.DataFrame, formula: str, family: str, dir: Path) -> dict:
+    """lme4's design of the formula on the table, read by registry.R in `dir`:
+    the rows it keeps, X's column names and X standardized, the offset,
+    and per factor in lme4's order its random columns and codes, its groups,
+    and whether lme4 correlates its random effects."""
+    # the table written as the refit writes it, so that R reads both alike
+    dir.mkdir(parents=True)
+    lme4._write(table, formula, family, dir, TIMEOUT)
+    with open(dir / 'R.log', 'w') as log:
+        subprocess.run(
+            ['Rscript', HERE / 'registry.R', dir], stdout=log, stderr=subprocess.STDOUT, check=True
+        )
+    (dir / 'table.csv').unlink()
+    built = json.loads((dir / 'design.json').read_text())
+    (dir / 'design.json').unlink()
 
-    # the reference formula on aliases R reads as plain names (y, x1, g1, ...)
-    handoff = Handoff(problem)
-    table = standardized[list(handoff.aliases.values())].set_axis(list(handoff.aliases), axis=1)
+    # a continuous column, a transform or a product z-scored over the rows, as the contract
+    # scales a continuous covariate, and a 0/1 column (the intercept, a dummy) as is,
+    # so that the refit's intercept and slopes absorb the change
+    raw = np.array(built['X'], dtype=np.float64)  # (n, d)
+    continuous = ~np.isin(raw, [0, 1]).all(axis=0)  # (d,)
+    matrix = raw.copy()
+    values = raw[:, continuous]
+    matrix[:, continuous] = (values - values.mean(axis=0)) / values.std(axis=0, ddof=1)
+
+    factors: Factors = {}
+    groups = {}
+    correlated = []
+    for factor in built['factors']:
+        name = factor['name']
+        z = np.array(factor['z'], dtype=np.float64)  # (n, q) as lme4 builds it
+        codes = np.array(factor['codes']) - 1  # (n,) R counts levels from 1
+        factors[name] = (z, codes)
+        groups[name] = factor['levels']
+        # `(1 + x || g)` is two terms of g, whose random effects lme4 leaves uncorrelated
+        if factor['terms'] == 1:
+            correlated.append(name)
     return {
+        'rows': np.array(built['rows']) - 1,  # (n,) positions in the table
+        'columns': built['columns'],
         'matrix': matrix,
+        'offset': np.array(built['offset'], dtype=np.float64),  # (n,)
         'factors': factors,
-        'blocks': blocks,
-        'table': table,
-        'formula': handoff._formula(),
+        'groups': groups,
+        'correlated': correlated,
     }
 
 
-def _drawJointPrior(problem: Problem, blocks: list[Block], rng: np.random.Generator) -> Prior:
+def _measureBlocks(design: dict) -> list[Block]:
+    """The blocks TabDGP's draw builds on the design, from what each coefficient adds
+    to var(eta) at scale 1."""
+    # a fixed effect adds its column's variance (the intercept nothing)
+    blocks = [Block(name='fixed', variances=design['matrix'].var(axis=0).tolist())]
+    for factor, (z, _) in design['factors'].items():
+        # a random effect adds E[z²] (an intercept 1)
+        variances = (z**2).mean(axis=0)  # (q,)
+        groups = design['groups'][factor]
+        blocks.append(Block(name=factor, variances=variances.tolist(), groups=groups))
+    return blocks
+
+
+def _drawJointPrior(
+    family: str, blocks: list[Block], correlated: list[str], rng: np.random.Generator
+) -> Prior:
     """The joint draw's prior over the blocks, each factor's random effects correlated
-    as the reference formula fits them: an LKJ for `(x | g)`, independent for `(x || g)`."""
-    hyperprior = Glmm(family=problem.family, correlated_share=1.0)
+    as lme4 fits them: an LKJ for a factor in one term, independent for `(x || g)`."""
+    hyperprior = Glmm(family=family, correlated_share=1.0)
     prior = hyperprior.resolveDataset(rng).drawPrior(blocks, rng)
     lkj_eta = {}
     for factor, shape in prior.lkj_eta.items():
-        lkj_eta[factor] = shape if factor in problem.correlations else None
+        lkj_eta[factor] = shape if factor in correlated else None
     return dataclasses.replace(prior, lkj_eta=lkj_eta)
 
 
@@ -264,9 +309,9 @@ def _measureFit(fitted: Fit, icc_columns: int) -> dict:
     # a singular intercept-only fit explains nothing, so it has no fixed share
     if explained > 0:
         measures['fixed_share'] = fitted.sigma2_fixed / explained
-    # lme4 orders the factors by their groups, so each is read by its alias g1, g2, ...
-    for k in range(len(fitted.variances)):
-        measures[f'icc_{k + 1}'] = fitted.variances[f'g{k + 1}'] / total
+    # the factors in lme4's order, the design's and that of the fit's rows in fits.csv
+    for k, variance in enumerate(fitted.variances.values()):
+        measures[f'icc_{k + 1}'] = variance / total
     return measures
 
 
