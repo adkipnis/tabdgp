@@ -290,9 +290,11 @@ def _replaceScales(
 # =====================================================================================
 
 
-def buildEta(matrix: np.ndarray, factors: Factors, parameters: Parameters) -> np.ndarray:
-    """eta = Xβ + Σ_k Z_k α_k, each row with its own group's random effects."""
-    eta = matrix @ parameters.beta  # (n,)
+def buildEta(
+    matrix: np.ndarray, factors: Factors, parameters: Parameters, offset: np.ndarray | float = 0.0
+) -> np.ndarray:
+    """eta = Xβ + Σ_k Z_k α_k + offset, each row with its own group's random effects."""
+    eta = matrix @ parameters.beta + offset  # (n,)
     for factor, (z, codes) in factors.items():
         alpha = parameters.alpha[factor][codes]  # (n, q)
         eta = eta + (z * alpha).sum(axis=1)
@@ -305,10 +307,12 @@ def measureTruth(
     factors: Factors,
     parameters: Parameters,
     icc_columns: int,
+    offset: np.ndarray | float = 0.0,
 ) -> dict[str, float]:
     """The saturation and sd of eta and the variance partition on the link scale
     (Nakagawa, Johnson and Schielzeth 2017, as the registry reads it off a fit),
     an ICC per factor in `icc_columns` columns, NaN past the dataset's factors.
+    eta holds the offset, Xβ's variance does not.
     """
     # the fixed part's variance, by n − 1 as the registry takes it
     sigma2_fixed = float((matrix @ parameters.beta).var(ddof=1))
@@ -322,7 +326,7 @@ def measureTruth(
         sigma2_factors.append(float(row_variances.mean()))
 
     # y's variance around eta: the residual's, or the link's distribution-specific one
-    eta = buildEta(matrix, factors, parameters)
+    eta = buildEta(matrix, factors, parameters, offset)
     match family:
         case 'gaussian':
             sigma2_noise = parameters.sigma_eps**2
@@ -331,10 +335,10 @@ def measureTruth(
             sigma2_noise = math.pi**2 / 3
             saturated = float(np.abs(eta).max() > LOGIT_BOUND)
         case 'poisson':
-            # ln(1 + 1/λ), λ the mean rate over the rows,
-            # which the registry's null model estimates as exp(β_0 + σ²_0 / 2)
+            # ln(1 + 1/λ), λ the mean rate per unit of the offset over the rows,
+            # which the registry's null model, the offset in it, estimates as exp(β_0 + σ²_0 / 2)
             # (summed in logs, so that a rate past float64 is no NaN)
-            log_rate = float(np.logaddexp.reduce(eta)) - math.log(len(eta))
+            log_rate = float(np.logaddexp.reduce(eta - offset)) - math.log(len(eta))
             sigma2_noise = float(np.logaddexp(0, -log_rate))
             saturated = float(eta.max() > math.log(RATE_BOUND))
 
