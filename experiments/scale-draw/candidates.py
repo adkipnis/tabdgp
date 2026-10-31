@@ -192,6 +192,8 @@ class Stated:
         (each coefficient exactly at the stated scale when the gate's weights are constant).
         """
         joint = np.array(joint_scales)  # (d − 1,) or (q,)
+        if joint.size == 0:
+            return joint  # an intercept-only fixed block has no slope to scale
         spent = float((joint**2 * variances).sum())
         stated = scale**2 * float(variances.sum())
         return joint * math.sqrt(stated / spent)
