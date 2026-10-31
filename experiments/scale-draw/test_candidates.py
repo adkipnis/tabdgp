@@ -20,11 +20,15 @@ from tabdgp.prior import Prior
 
 SEED = 2026
 INDICES = range(3)
+CANDIDATES = [
+    pytest.param(R2d2m2(concentration=0.5), id='r2d2m2'),
+    pytest.param(Stated(), id='unit'),
+]
 
 
-def _drawJointPrior(family: str, index: int) -> Prior:
-    """The joint draw's prior on a grouped dataset's covariates."""
-    covariates = drawDataset(SEED, index, Scm.grouped(outcome_source='none')).covariates
+def _drawJointPrior(family: str, index: int, **sizes) -> Prior:
+    """The joint draw's prior on a grouped dataset's covariates, with some sizes set to a point."""
+    covariates = drawDataset(SEED, index, Scm.grouped(outcome_source='none', **sizes)).covariates
     return modelOutcome(SEED, index, covariates, Glmm(family=family)).prior
 
 
@@ -41,13 +45,7 @@ def test_r2d2m2_keeps_a_gaussian_y_at_unit_variance(index):
 
 @pytest.mark.parametrize('index', INDICES)
 @pytest.mark.parametrize('family', FAMILIES)
-@pytest.mark.parametrize(
-    'candidate',
-    [
-        pytest.param(R2d2m2(concentration=0.5), id='r2d2m2'),
-        pytest.param(Stated(), id='unit'),
-    ],
-)
+@pytest.mark.parametrize('candidate', CANDIDATES)
 def test_a_candidate_rewrites_only_the_scales(candidate, family, index):
     """Two candidates differ by their scales alone, so all else stays the joint draw's."""
     joint = _drawJointPrior(family, index)
@@ -80,3 +78,14 @@ def test_the_joint_scales_spend_the_joint_budget(family, index):
 
     assert prior.predictor_sd == pytest.approx(joint.predictor_sd, rel=1e-12)
     assert prior.split == pytest.approx(joint.split, rel=1e-12, abs=1e-15)
+
+
+@pytest.mark.parametrize('family', FAMILIES)
+@pytest.mark.parametrize('candidate', CANDIDATES)
+def test_a_candidate_keeps_an_intercept_only_design_without_slopes(candidate, family):
+    """At d = 1 the fixed block holds only the intercept, so a candidate has no slope to scale."""
+    joint = _drawJointPrior(family, 0, design_columns=0)
+
+    prior = candidate.rescale(joint, family, np.random.default_rng(0))
+
+    assert prior.beta_scales == joint.beta_scales
