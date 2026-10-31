@@ -140,7 +140,7 @@ class Scm(Hyperprior):
 
     # sizes and columns
     rows: PositiveCount = LogUniformInt(20, 15000)  # n, the table's length
-    design_columns: Count = UniformInt(1, 19)  # design-matrix width
+    design_columns: Count = UniformInt(1, 19)  # d − 1, the columns besides the intercept
     type_shares: Simplex = Dirichlet(
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
     )  # column types
