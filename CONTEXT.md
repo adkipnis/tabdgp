@@ -19,7 +19,8 @@ The numerical coding of the covariates that a linear predictor would see:
 an intercept column, z-scored continuous columns, 0/1 binary columns, k − 1 treatment-coded
 columns per categorical or ordered column.
 The design is strictly derived from covariates.
-The design-column budget of the SCM's hyperprior counts its columns besides the intercept.
+Its rank d counts the intercept, so d = 1 is an intercept-only model.
+The design-column budget of the SCM's hyperprior counts its columns besides the intercept, d − 1.
 _Avoid_: X for the uncoded covariates, features
 
 **Within-group covariate** / **group-level covariate**:
