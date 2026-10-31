@@ -169,7 +169,8 @@ def run(task: int, tables: registry.Tables, candidates: dict[str, Candidate], ru
             (refit_dir / 'table.csv').unlink()
             measured = _measureFit(fitted, icc_columns)
 
-            # what the prior drew, so that a margin splits by tail, τ or the intercept
+            # what the prior drew, so that a margin splits by tail, τ or the intercept,
+            # and y's mean, which flags a y of a few ones or counts that lme4 cannot refit
             record = {
                 'task': task,
                 'draw': draw,
@@ -178,6 +179,7 @@ def run(task: int, tables: registry.Tables, candidates: dict[str, Candidate], ru
                 'sigma_alpha_family': prior.sigma_alpha_family,
                 'predictor_sd': prior.predictor_sd,
                 'intercept': float(parameters.beta[0]),
+                'y_mean': float(y.mean()),
             }
             for name, value in truth.items():
                 record[f'truth_{name}'] = value
