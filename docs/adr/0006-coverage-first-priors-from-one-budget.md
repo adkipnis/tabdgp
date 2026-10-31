@@ -112,15 +112,22 @@ The parameters are returned on the standardized scale and on the raw columns.
 
 | question | chosen | rejected |
 |---|---|---|
-| the scales | one budget per dataset | independent per block, R2D2M2 |
+| the scales | one budget per dataset | stated per block, R2D2M2 |
 | a block's divisor | each coefficient's variance | its width |
 | heavy tails | recorded | the budget divided by df / (df − 2) |
 | a block's scales | a gate per block | one scale, a continuous spread |
 
 1. **The scales:**
-   - Independent scales per block, log-uniform on [0.1, 10], give 61 % of Gaussian datasets R² > 0.9, 60 % of logit ones some |η| > 10 and overflow NumPy's Poisson sampler in 16 % of log-link ones (20,000 draws); a scale of 2.5 everywhere gives 61 %, 94 % and 6 %.
-   - Realistic models sit at that range's lower edge (the worked example's 0.11).
-   - R2D2M2 (the R²-induced Dirichlet decomposition prior for multilevel models; Aguilar and Bürkner 2023; Yanchenko, Bondell and Reich 2024 for GLMMs) derives every effect from a Beta R² and a Dirichlet over the terms, which never lets one random intercept carry most of the variance, as it does in the registry's most grouped tables (#47).
+   - Two experiments compare the joint draw with stated scales and with R2D2M2 (the R²-induced Dirichlet decomposition prior for multilevel models; Aguilar and Bürkner 2023; Yanchenko, Bondell and Reich 2024 for GLMMs).
+   - The stated scales are one published model's from the practice survey, or 1 for every coefficient.
+   - The first experiment draws on the grouped preset's covariates and sweeps d, f and q (#76).
+   - The second draws y on the registry's designs and refits it by lme4, as the registry fitted the real y. It ranks each registry fit among its ten refits under each option (#77).
+   - Stated scales let var(η) grow with every term, so 92 % to 96 % of the logit datasets saturate at d = 32 (#76).
+   - On the registry's designs, stated scales leave 36 % to 45 % of the logit fits outside their refits' range on the conditional R², where uniform ranks leave 19 % (#77).
+   - R2D2M2 ties the fixed share to the number of terms, from about 0.1 at d = 2 to 0.8 at d = 32. It leaves a lone random intercept an intraclass correlation of about 0.01 (#76).
+   - On the registry's designs, R2D2M2 leaves 25 % to 32 % of the logit fits outside its refits' range on the marginal and conditional R² and on sd(η) (#77).
+   - The joint draw leaves fewer registry fits outside its refits' range than uniform ranks on every measure and link. No other option leaves significantly fewer at no larger distance (#77).
+   - Its random effects explain less than the registry's on the logit and log links (#77).
 2. **A block's divisor:**
    - Dividing by the width realizes a third of the budget, since dummies and 0/1 columns have variance below 1 and the intercept none (#47).
 3. **Heavy tails:**
