@@ -63,6 +63,7 @@ DRAWS = 10  # per fit and arm
 TIMEOUT = 30 * 60  # seconds per refit
 ESTIMATED = ['ok', 'singular', 'warning']  # the statuses of a fit with estimates
 CALL = re.compile(r'[A-Za-z_.][A-Za-z0-9_.]*\s*\(')  # a function call in a formula
+QUOTED = re.compile(r'`[^`]*`')  # a backquoted column name, which may hold parentheses
 
 # =====================================================================================
 # the tasks
@@ -102,9 +103,11 @@ def _screenFit(row: Row, fit: dict, tables: registry.Tables) -> dict:
     # a fit without estimates (an error, a model in words) leaves nothing to compare
     if fit['status'] not in ESTIMATED:
         return {'reason': 'no estimates'}
-    # the contract codes the raw columns, not log(y), I(x^2) or factor(year)
-    if CALL.search(row.formula):
-        return {'reason': 'a transform in the formula'}
+    # the contract codes the raw columns, not I(x^2) or factor(year),
+    # but a transform of y does not matter, since each draw replaces y
+    [_, covariates] = QUOTED.sub('', row.formula).split('~', 1)
+    if CALL.search(covariates):
+        return {'reason': 'a transform of a covariate'}
     try:
         problem = Problem.build(row, tables.load(row))
     except Refused as refused:
