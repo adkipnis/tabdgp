@@ -17,8 +17,9 @@ the arms, the survey's data directory and the datasets per cell
 -> per arm, the prior at its scales and the parameters drawn from it     _measureArms
 -> eta's saturation and the variance partition                           _measure
 -> simulated.csv.gz, one row per cell, dataset, family and arm, with what the prior drew
+   (simulated-light.csv.gz under light tails)
 
-Run from the repository root:
+Run from the repository root, once with and once without --light-tails:
 
     uv run python experiments/scale-draw/simulated.py --survey <the survey's data directory>
 """
@@ -44,31 +45,42 @@ from tabdgp.prior import Parameters
 
 SEED = 2026
 SWEEP = {
-    'design_columns': [1, 2, 4, 8, 16, 32],
+    'rank': [1, 2, 4, 8, 16, 32],  # d, the design matrix's, the intercept included
     'factors': [1, 2, 3],
     'random_effects': [1, 3, 6],  # Glmm's, the most design columns a factor's terms take
 }
 GROUPED = Scm.grouped()  # the preset's sizes, whose tops a raised floor keeps
 LOGIT_BOUND = 10  # some |eta| above it saturates the logit
 RATE_BOUND = 1e6  # some Poisson rate above it saturates the log link
+# the GLMM overrides of a light-tailed run, where each budget holds for Normal effects
+LIGHT_TAILS = {
+    'beta_family_shares': {'normal': 1.0, 'student_t': 0.0, 'cauchy': 0.0},
+    'sigma_alpha_family_shares': {
+        'half_normal': 1.0,
+        'half_student_t': 0.0,
+        'half_cauchy': 0.0,
+        'exponential': 0.0,
+    },
+}
 
 # =====================================================================================
 # the sweep
 # =====================================================================================
 
 
-def sweep(candidates: dict[str, Candidate], datasets: int) -> pd.DataFrame:
-    """Every arm's measures, one row per cell, dataset, family and arm."""
+def sweep(candidates: dict[str, Candidate], datasets: int, tails: dict) -> pd.DataFrame:
+    """Every arm's measures, one row per cell, dataset, family and arm,
+    with the GLMM overrides `tails` in every cell.
+    """
     records = []
     for field, values in SWEEP.items():
         for value in values:
             hyperpriors = _buildHyperpriors(field, value)
+            overrides = {**hyperpriors['glmm'], **tails}
             cell = {'field': field, 'value': value}
             for index in range(datasets):
                 covariates = drawDataset(SEED, index, hyperpriors['scm']).covariates
-                dataset_records = _measureArms(
-                    cell, index, covariates, hyperpriors['glmm'], candidates
-                )
+                dataset_records = _measureArms(cell, index, covariates, overrides, candidates)
                 records.extend(dataset_records)
     return pd.DataFrame(records)
 
@@ -76,10 +88,10 @@ def sweep(candidates: dict[str, Candidate], datasets: int) -> pd.DataFrame:
 def _buildHyperpriors(field: str, value: int) -> dict:
     """The cell's SCM hyperprior and GLMM overrides, one size set to a point."""
     match field:
-        case 'design_columns':
+        case 'rank':
             # n >= 2d at the widest point, the same rows at every point
-            rows = LogUniformInt(2 * max(SWEEP['design_columns']), GROUPED.rows.high)
-            scm = {'design_columns': value, 'rows': rows}
+            rows = LogUniformInt(2 * max(SWEEP['rank']), GROUPED.rows.high)
+            scm = {'design_columns': value - 1, 'rows': rows}  # besides the intercept
             glmm = {}
         case 'factors':
             scm = {'factors': value}
@@ -192,6 +204,8 @@ if __name__ == '__main__':
     parser.add_argument('--survey', type=Path,
                         help="the practice survey's data directory, read by the survey arm")
     parser.add_argument('--datasets', type=int, default=1000, help='per cell')
+    parser.add_argument('--light-tails', action='store_true',
+                        help='Normal β and half-normal σ_α only, written to simulated-light.csv.gz')
     parser.add_argument('--out', type=Path, default=Path(__file__).parent,
                         help='the directory of the records')
     # fmt: on
@@ -202,7 +216,12 @@ if __name__ == '__main__':
     candidates = {}
     for arm in args.arms:
         candidates[arm] = buildCandidate(arm, args.survey)
-    records = sweep(candidates, args.datasets)
+    tails = {}
+    name = 'simulated.csv.gz'
+    if args.light_tails:
+        tails = LIGHT_TAILS
+        name = 'simulated-light.csv.gz'
+    records = sweep(candidates, args.datasets, tails)
     # gzip's header at a fixed time, so that a rerun writes the same bytes
     compression = {'method': 'gzip', 'mtime': 0}
-    records.round(4).to_csv(args.out / 'simulated.csv.gz', index=False, compression=compression)
+    records.round(4).to_csv(args.out / name, index=False, compression=compression)
