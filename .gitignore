@@ -21,4 +21,4 @@ docs/frontier-priors.md
 # the model reports the survey read, kept local for their licenses
 docs/reports/
 # the refits of the registry experiment, regenerable from their seeds
-experiments/scale-draw/registry-runs/
+experiments/scale-draw/registry-runs
