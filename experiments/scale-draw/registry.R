@@ -1,45 +1,43 @@
-# registry.R builds a registry fit's design from its documented formula, as lme4 builds it.
+# registry.R builds a registry fit's design from its documented formula, as lme4 builds it,
+# or refits a formula as mixedbench's lme4.R fits it, with the max |eta| lme4.R leaves out.
 #
-# Usage: Rscript registry.R <dir>
-# <dir> holds table.csv and input.json, as mixedbench's frequentist.fit writes them.
+# Usage: Rscript registry.R design|refit <dir> <lme4.R>
+# <dir> holds table.csv and input.json, as mixedbench's frequentist.fit writes them,
+# and <lme4.R> is mixedbench's own script, whose definitions registry.R loads as they are.
 # registry.R writes back into <dir>:
-#   design.json  the rows lme4 keeps (1-based), X and its column names, the offset (0 without one),
-#                and per factor in lme4's order its name, terms and levels,
+#   design.json  (design) the rows lme4 keeps (1-based), X and its column names, the offset
+#                (0 without one), and per factor in lme4's order its name, terms and levels,
 #                each row's random columns and each row's level (1-based)
+#   output.json  (refit) what lme4.R writes
+#   eta.json     (refit) the max |eta| over the rows, where the fit has estimates
 #
 # pipeline:
 # ---------
 # <dir>
-# -> the table, its categorical columns coded         readTable
-# -> lme4's model frame, X and random terms           buildDesign
-# -> per factor, each row's random columns and level  describeFactors
+# -> lme4.R's definitions                                loadLme4
+# -> the table, its categorical columns coded           readTable (lme4.R's)
+# design:
+# -> lme4's model frame, X and random terms             buildDesign
+# -> per factor, each row's random columns and level    describeFactors
 # -> design.json
-
-suppressPackageStartupMessages(library(lme4))
-
-FAMILY <- list(bernoulli = binomial(), poisson = poisson())
+# refit:
+# -> lme4.R's fit, its description with max |eta|       fitWithin (lme4.R's), describeWithEta
+# -> output.json, eta.json
 
 # =====================================================================================
 # the steps
 # =====================================================================================
 
-# copied from mixedbench 1.0.12's frequentist/lme4.R, so that the design reads the table
-# as the refit will:
-# a categorical column is read as text, then coded by its levels;
-# a value that is no level would be lost as a missing value
-readTable <- function(dir, input) {
-  columns <- names(input$levels)
-  classes <- setNames(rep("character", length(columns)), columns)
-  table <- read.csv(
-    file.path(dir, "table.csv"), check.names = FALSE, colClasses = classes, na.strings = ""
-  )
-  for (column in columns) {
-    levels <- unlist(input$levels[[column]])
-    coded <- factor(table[[column]], levels = levels, ordered = column %in% unlist(input$ordered))
-    stopifnot(identical(is.na(coded), is.na(table[[column]])))
-    table[[column]] <- coded
+# every definition of mixedbench's lme4.R, lme4 attached: its expressions before its main block,
+# which opens on sessionInfo()
+loadLme4 <- function(path) {
+  expressions <- parse(path, keep.source = FALSE)
+  main <- NULL
+  for (i in seq_along(expressions)) {
+    if (identical(expressions[[i]], quote(print(sessionInfo())))) main <- c(main, i)
   }
-  table
+  stopifnot(length(main) == 1)
+  for (i in seq_len(main - 1)) eval(expressions[[i]], globalenv())
 }
 
 # lmer's and glmer's own parse of the formula, with their checks and the columns they drop
@@ -73,21 +71,51 @@ describeFactors <- function(reTrms) {
   factors
 }
 
+# lme4.R's description of a fit, with the max |eta| over the rows (the offset in it, as in sd_eta)
+describeWithEta <- function(model, table, family) {
+  eta <- predict(model, type = "link")
+  c(describeLme4(model, table, family), list(max_abs_eta = max(abs(eta))))
+}
+
 # =====================================================================================
 # main
 # =====================================================================================
 
-dir <- commandArgs(trailingOnly = TRUE)[[1]]
+args <- commandArgs(trailingOnly = TRUE)
+mode <- args[[1]]
+stopifnot(mode %in% c("design", "refit"))
+dir <- args[[2]]
+loadLme4(args[[3]])
 input <- jsonlite::read_json(file.path(dir, "input.json"))
-table <- readTable(dir, input)
-design <- buildDesign(table, input)
-offset <- model.offset(design$fr)
-if (is.null(offset)) offset <- rep(0, nrow(design$fr))
-output <- list(
-  rows = as.integer(rownames(design$fr)),
-  columns = I(as.character(colnames(design$X))),  # none for `0 + (1 | g)`
-  X = matrix(design$X, nrow(design$X)),
-  offset = offset,
-  factors = describeFactors(design$reTrms)
-)
-jsonlite::write_json(output, file.path(dir, "design.json"), auto_unbox = TRUE, digits = NA)
+
+if (mode == "design") {
+  table <- readTable(dir, input)
+  design <- buildDesign(table, input)
+  offset <- model.offset(design$fr)
+  if (is.null(offset)) offset <- rep(0, nrow(design$fr))
+  output <- list(
+    rows = as.integer(rownames(design$fr)),
+    columns = I(as.character(colnames(design$X))),  # none for `0 + (1 | g)`
+    X = matrix(design$X, nrow(design$X)),
+    offset = offset,
+    factors = describeFactors(design$reTrms)
+  )
+  jsonlite::write_json(output, file.path(dir, "design.json"), auto_unbox = TRUE, digits = NA)
+} else {
+  # first, so that R.log names the R and lme4 versions, as lme4.R's own does
+  print(sessionInfo())
+  table <- readTable(dir, input)
+  # lme4.R's fit within its limit, which describes the fit by the name describeFit
+  describeLme4 <- describeFit
+  describeFit <- describeWithEta
+  output <- c(fitWithin(table, input), list(lme4 = as.character(packageVersion("lme4"))))
+  # max |eta| in a file of its own, since mixedbench reads output.json into its fixed fields
+  if (!is.null(output[["max_abs_eta"]])) {
+    eta <- list(max_abs_eta = output[["max_abs_eta"]])
+    jsonlite::write_json(eta, file.path(dir, "eta.json"), auto_unbox = TRUE, digits = NA)
+  }
+  output[["max_abs_eta"]] <- NULL
+  jsonlite::write_json(
+    output, file.path(dir, "output.json"), auto_unbox = TRUE, digits = NA, na = "null"
+  )
+}
