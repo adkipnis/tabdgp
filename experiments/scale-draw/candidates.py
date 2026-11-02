@@ -6,6 +6,7 @@ Its rivals are R2D2M2, which spreads an R²-induced budget over every coefficien
 and the budget-free scales a user states per block.
 Each candidate takes the prior `Glmm.drawPrior` drew and replaces its scales
 (the slopes', σ_α's and σ_ε's) before the parameters are drawn from it.
+An arm may also override Glmm's defaults (#79), and then draws the joint prior under them.
 The families, the intercept, the slopes' offsets δ_j, the LKJ shapes and the random terms
 stay the joint draw's, so two candidates differ by their scales alone.
 A slope's location follows its new scale (δ_j times it),
@@ -14,7 +15,7 @@ and τ, the split and r are recomputed from what the new scales spend.
 pipeline:
 ---------
 an arm
--> its candidate                                                    buildCandidate
+-> its candidate, and its overrides of Glmm's defaults              buildCandidate, OVERRIDES
 -> per dataset, the joint prior, y's family and a generator
 -> the scales, by candidate                                         Joint, R2d2m2, Stated
    -> one survey model's stated scales, a blank block filled        Survey.drawModel
@@ -37,15 +38,17 @@ import pandas as pd
 from pydantic import ConfigDict, PositiveFloat
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.field import Distribution
+from tabdgp.field import Beta, Distribution
 from tabdgp.prior import Glmm, Parameters, Prior
 
 # =====================================================================================
 # the arms, y's families and the bounds
 # =====================================================================================
 
-Arm = Literal['joint', 'r2d2m2-0.5', 'r2d2m2-1', 'survey', 'unit']
+Arm = Literal['joint', 'joint-phi', 'r2d2m2-0.5', 'r2d2m2-1', 'survey', 'unit']
 ARMS: list[Arm] = list(get_args(Arm))
+# each arm's overrides of Glmm's defaults, which every arm not named keeps
+OVERRIDES: dict[Arm, dict[str, Distribution]] = {'joint-phi': {'fixed_share': Beta(2, 3)}}
 Family = Literal['gaussian', 'bernoulli', 'poisson']  # the families whose y's variance is known
 FAMILIES: list[Family] = list(get_args(Family))
 LOGIT_BOUND = 10  # some |eta| above it saturates the logit
@@ -104,7 +107,7 @@ class Survey:
 
 @pydantic_dataclass(frozen=True)
 class Joint:
-    """The joint draw, the prior as `Glmm.drawPrior` drew it."""
+    """The joint draw, the prior as `Glmm.drawPrior` drew it (under the arm's overrides)."""
 
     def rescale(self, prior: Prior, family: Family, rng: np.random.Generator) -> Prior:
         return prior
@@ -213,7 +216,7 @@ Candidate = Joint | R2d2m2 | Stated
 def buildCandidate(arm: Arm, survey_dir: Path | None) -> Candidate:
     """The candidate an arm names (the survey arm reads the practice survey's data directory)."""
     match arm:
-        case 'joint':
+        case 'joint' | 'joint-phi':
             return Joint()
         case 'r2d2m2-0.5':
             return R2d2m2(concentration=0.5)
