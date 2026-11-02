@@ -94,8 +94,10 @@ if (mode == "design") {
   design <- buildDesign(table, input)
   offset <- model.offset(design$fr)
   if (is.null(offset)) offset <- rep(0, nrow(design$fr))
-  # y as glmer reads it: a factor's first level is 0, every other level 1
+  # y as glmer reads it: text as a factor, as lme4.R's fitModel codes it,
+  # and a factor's first level as 0, every other level as 1
   y <- model.response(design$fr)
+  if (is.character(y)) y <- factor(y)
   if (is.factor(y)) y <- y != levels(y)[1]
   output <- list(
     rows = as.integer(rownames(design$fr)),
