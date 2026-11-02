@@ -7,27 +7,30 @@ and lme4 refits the documented formula with y as its left side,
 so each refit is its registry fit with y swapped, and both are lme4 estimates.
 The registry holds only fits with estimates, so each candidate draws until REFITS refits have them.
 The ground truth and what the prior drew are logged beside each refit,
-and each fit's real y is refitted once, for the max |eta| that fits.csv lacks.
+and each fit's real y is refitted once, for the max |eta| that fits.csv lacks,
+and the real y's mean is kept beside the design's sizes, which fits.csv also lacks.
 registry.ipynb reads the records against the registry's fits.
 
 pipeline:
 ---------
 the registry's fits
 -> a task per kept fit, a reason per dropped one                      select, _screenFit
--> registry-fits.csv, the array job's tasks
+-> registry-fits.csv, the array job's tasks, with the real y's mean
 per task and range of draws:
 -> each arm's refits with estimates before the range                  run
--> the real y's refit, in the range from draw 0                       _refit
--> lme4's design of the documented formula (registry.R),
+-> the real y's refit, in the range from draw 0 if none ran yet       _refit
+-> lme4's design of the documented formula and y's mean (registry.R),
    X standardized                                                      _readDesign
 -> the blocks TabDGP's draw builds on it                              _measureBlocks
--> per draw, the joint prior, each factor correlated as lme4 fits it  _drawJointPrior
--> per arm still short, the prior at its scales, the parameters, y
+-> per draw and arm still short, the joint prior under the arm's
+   overrides, each factor correlated as lme4 fits it                   _drawJointPrior
+-> the prior at the arm's scales, the parameters, y
    and the ground truth's measures                                     measureTruth
 -> lme4's refit of y, its measures and max |eta| (registry.R)         _refit, _measureFit
 -> what the prior drew                                                 _describePrior
 -> a record per refit, in its run directory
 -> registry.csv.gz, each arm's draws until REFITS refits have estimates,
+   the arms not collected as registry.csv.gz held them,
    and registry-real.csv, the real y's refits                          collect
 
 Run from the repository root: select once, the tasks as cluster array jobs
@@ -36,7 +39,7 @@ Run from the repository root: select once, the tasks as cluster array jobs
     uv run --group registry python experiments/scale-draw/registry.py select --cache <dir>
     uv run --group registry python experiments/scale-draw/registry.py run <task> \
         --cache <dir> --survey <dir> [--draws <first> <stop>] [--arms <arm> ...]
-    uv run --group registry python experiments/scale-draw/registry.py collect
+    uv run --group registry python experiments/scale-draw/registry.py collect [--arms <arm> ...]
 """
 
 from __future__ import annotations
@@ -53,12 +56,22 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-from candidates import ARMS, Candidate, Factors, buildCandidate, buildEta, measureTruth
+from candidates import (
+    ARMS,
+    OVERRIDES,
+    Arm,
+    Candidate,
+    Factors,
+    buildCandidate,
+    buildEta,
+    measureTruth,
+)
 from mixedbench import registry
 from mixedbench.frequentist import lme4
 from mixedbench.registry.row import Row, readCsv
 
 from tabdgp import Glmm, likelihood
+from tabdgp.field import Distribution
 from tabdgp.prior import Block, Prior
 
 # =====================================================================================
@@ -87,8 +100,8 @@ RECORD = 'record.json'  # a refit's record, in its run directory
 
 
 def select(tables: registry.Tables) -> pd.DataFrame:
-    """Every model the registry fitted, a task and the design's sizes per kept fit,
-    a reason per dropped one."""
+    """Every model the registry fitted, a task, the design's sizes and the real y's mean
+    per kept fit, a reason per dropped one."""
     fits = readCsv(registry.path('fits.csv'))
     # fits.csv has a row per factor
     models = fits.drop_duplicates(['source', 'object', 'model_index'])
@@ -115,7 +128,7 @@ def select(tables: registry.Tables) -> pd.DataFrame:
 
 
 def _screenFit(row: Row, fit: dict, tables: registry.Tables) -> dict:
-    """Why a fit is dropped (None if kept), and a kept fit's sizes."""
+    """Why a fit is dropped (None if kept), and a kept fit's sizes and real y's mean."""
     # a fit without estimates (an error, a model in words) leaves nothing to compare
     if fit['status'] not in ESTIMATED:
         return {'reason': 'no estimates'}
@@ -135,6 +148,7 @@ def _screenFit(row: Row, fit: dict, tables: registry.Tables) -> dict:
         'rank': len(design['columns']),  # d, the intercept included
         'factors': len(design['factors']),
         'random_effects': random_effects,
+        'y_mean': design['y_mean'],  # over the rows, as lme4 reads y
     }
 
 
@@ -144,12 +158,12 @@ def _screenFit(row: Row, fit: dict, tables: registry.Tables) -> dict:
 
 
 def run(
-    task: int, draws: range, tables: registry.Tables, candidates: dict[str, Candidate], runs: Path
+    task: int, draws: range, tables: registry.Tables, candidates: dict[Arm, Candidate], runs: Path
 ) -> None:
     """Draws each arm's y on the task's fit at `draws` and refits each by lme4,
     a record per refit in its own run directory, which replaces an earlier run's.
     Past the first REFITS draws, an arm draws only while short of REFITS refits with estimates.
-    The range from draw 0 also refits the real y."""
+    The range from draw 0 also refits the real y, unless an earlier run did."""
     fits = pd.read_csv(FITS)
     kept = fits[fits['task'].notna()]
     [fit] = kept[kept['task'] == task].to_dict('records')
@@ -171,23 +185,29 @@ def run(
     table = tables.load(row)
     family = fit['family']
     factor_columns = int(kept['factors'].max())  # a column per factor of the widest fit
-    if draws.start == 0:
+    # the real y's refit is the same for every arm, so a later arm's run keeps it
+    real_record = dir / 'real' / RECORD
+    if draws.start == 0 and not real_record.exists():
         real = _refit(table, row.formula, family, dir / 'real', factor_columns)
-        (dir / 'real' / RECORD).write_text(json.dumps({'task': task} | real, indent=2))
+        real_record.write_text(json.dumps({'task': task} | real, indent=2))
     design = _readDesign(table, row.formula, family)
     blocks = _measureBlocks(design)
     formula = f'{RESPONSE} ~' + row.formula.split('~', 1)[1]  # the documented right side
 
     for draw in draws:
         streams = [SEED, task, draw]
-        joint = _drawJointPrior(
-            family, blocks, design['correlated'], np.random.default_rng([*streams, 0])
-        )
         for arm, candidate in candidates.items():
             if draw >= REFITS and estimated[arm] >= REFITS:
                 continue  # the arm has its refits
 
-            # every arm draws from the same streams, so arms differ by their scales
+            # every arm draws from the same streams, so arms differ by their overrides and scales
+            joint = _drawJointPrior(
+                family,
+                blocks,
+                design['correlated'],
+                OVERRIDES.get(arm, {}),
+                np.random.default_rng([*streams, 0]),
+            )
             prior = candidate.rescale(joint, family, np.random.default_rng([*streams, 1]))
             parameters = prior.drawParameters(np.random.default_rng([*streams, 2]))
             eta = buildEta(
@@ -300,7 +320,7 @@ def _measureFit(dir: Path, factor_columns: int) -> dict:
 
 def _readDesign(table: pd.DataFrame, formula: str, family: str) -> dict:
     """lme4's design of the formula on the table, read by registry.R:
-    the rows it keeps, X's column names and X standardized, the offset,
+    the rows it keeps, y's mean over them, X's column names and X standardized, the offset,
     and per factor in lme4's order its random columns and codes, its groups,
     and whether lme4 correlates its random effects."""
     with tempfile.TemporaryDirectory() as temporary:
@@ -331,6 +351,7 @@ def _readDesign(table: pd.DataFrame, formula: str, family: str) -> dict:
             correlated.append(name)
     return {
         'rows': np.array(built['rows']) - 1,  # (n,) positions in the table
+        'y_mean': built['y_mean'],
         'columns': built['columns'],
         'matrix': matrix,
         'offset': np.array(built['offset'], dtype=np.float64),  # (n,)
@@ -354,11 +375,16 @@ def _measureBlocks(design: dict) -> list[Block]:
 
 
 def _drawJointPrior(
-    family: str, blocks: list[Block], correlated: list[str], rng: np.random.Generator
+    family: str,
+    blocks: list[Block],
+    correlated: list[str],
+    overrides: dict[str, Distribution],
+    rng: np.random.Generator,
 ) -> Prior:
-    """The joint draw's prior over the blocks, each factor's random effects correlated
-    as lme4 fits them: an LKJ for a factor in one term, independent for `(x || g)`."""
-    hyperprior = Glmm(family=family, correlated_share=1.0)
+    """The joint draw's prior over the blocks under an arm's overrides of Glmm's defaults,
+    each factor's random effects correlated as lme4 fits them:
+    an LKJ for a factor in one term, independent for `(x || g)`."""
+    hyperprior = Glmm(family=family, correlated_share=1.0, **overrides)
     prior = hyperprior.resolveDataset(rng).drawPrior(blocks, rng)
     lkj_eta = {}
     for factor, shape in prior.lkj_eta.items():
@@ -398,16 +424,19 @@ def _describePrior(prior: Prior, factor_columns: int) -> dict:
 # =====================================================================================
 
 
-def collect(runs: Path) -> dict[str, pd.DataFrame]:
-    """Each arm's records on each task until REFITS refits have estimates (all DRAWS if fewer do),
-    in task order, and each task's real refit; raises where a draw it keeps never ran."""
+def collect(runs: Path, arms: list[Arm]) -> dict[str, pd.DataFrame]:
+    """The arms' records on each task until REFITS refits have estimates (all DRAWS if fewer do),
+    in task order, and each task's real refit.
+    It skips a task an arm never ran on, and raises where a draw it keeps never ran."""
     fits = pd.read_csv(FITS)
     records = []
     real = []
     for task in fits['task'].dropna().astype(int):
         dir = runs / str(task)
         real.append(json.loads((dir / 'real' / RECORD).read_text()))
-        for arm in ARMS:
+        for arm in arms:
+            if not (dir / f'{arm}-0').exists():
+                continue  # a task the arm never ran on
             estimated = 0
             for draw in range(DRAWS):
                 record = _readRecord(dir, arm, draw)
@@ -432,7 +461,7 @@ if __name__ == '__main__':
     parser.add_argument('--draws', type=int, nargs=2, default=[0, DRAWS], metavar=('FIRST', 'STOP'),
                         help='the draws to run, FIRST to STOP - 1')
     parser.add_argument('--arms', nargs='+', choices=ARMS, default=ARMS,
-                        help='the candidates to compare')
+                        help='the arms to run, or to collect beside the others in registry.csv.gz')
     parser.add_argument('--survey', type=Path,
                         help="the practice survey's data directory, read by the survey arm")
     parser.add_argument('--runs', type=Path, default=HERE / 'registry-runs',
@@ -445,7 +474,7 @@ if __name__ == '__main__':
     match args.command:
         case 'select':
             fits = select(registry.Tables(args.cache))
-            fits.to_csv(FITS, index=False)
+            fits.round(4).to_csv(FITS, index=False)  # y's mean at the records' 4 decimals
         case 'run':
             if args.task is None:
                 parser.error('run reads a task')
@@ -456,10 +485,17 @@ if __name__ == '__main__':
                 candidates[arm] = buildCandidate(arm, args.survey)
             run(args.task, range(*args.draws), registry.Tables(args.cache), candidates, args.runs)
         case 'collect':
-            collected = collect(args.runs)
+            collected = collect(args.runs, args.arms)
+            records = collected['records']
+            # the arms not collected as registry.csv.gz held them,
+            # each task's arms in ARMS' order and each arm's draws in order
+            if set(args.arms) != set(ARMS):
+                earlier = pd.read_csv(HERE / 'registry.csv.gz')
+                kept = earlier[~earlier['arm'].isin(args.arms)]
+                records = pd.concat([kept, records])
+                arm_order = records['arm'].map(ARMS.index)
+                records = records.iloc[np.lexsort([arm_order, records['task']])]
             # gzip's header at a fixed time, so that a rerun writes the same bytes
             compression = {'method': 'gzip', 'mtime': 0}
-            collected['records'].round(4).to_csv(
-                HERE / 'registry.csv.gz', index=False, compression=compression
-            )
+            records.round(4).to_csv(HERE / 'registry.csv.gz', index=False, compression=compression)
             collected['real'].round(4).to_csv(HERE / 'registry-real.csv', index=False)
