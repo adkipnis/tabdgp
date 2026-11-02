@@ -31,7 +31,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from candidates import ARMS, FAMILIES, Candidate, Factors, buildCandidate, measureTruth
+from candidates import (
+    ARMS,
+    FAMILIES,
+    OVERRIDES,
+    Candidate,
+    Factors,
+    buildCandidate,
+    measureTruth,
+)
 
 from tabdgp import Covariates, Glmm, LogUniformInt, Scm, UniformInt, drawDataset, modelOutcome
 
@@ -47,6 +55,8 @@ SWEEP = {
 }
 GROUPED = Scm.grouped()  # the preset's sizes, whose tops a raised floor keeps
 ICC_COLUMNS = max(SWEEP['factors'])  # an ICC per factor of the widest cell
+# the arms without overrides of Glmm's defaults, since a dataset rescales one joint prior per family
+SWEPT_ARMS = [arm for arm in ARMS if arm not in OVERRIDES]
 # the GLMM overrides of a light-tailed run, where each budget holds for Normal effects
 LIGHT_TAILS = {
     'beta_family_shares': {'normal': 1.0, 'student_t': 0.0, 'cauchy': 0.0},
@@ -141,7 +151,7 @@ def _measureArms(
 if __name__ == '__main__':
     # fmt: off
     parser = argparse.ArgumentParser(description='Compares the scale draws on simulated datasets.')
-    parser.add_argument('--arms', nargs='+', choices=ARMS, default=ARMS,
+    parser.add_argument('--arms', nargs='+', choices=SWEPT_ARMS, default=SWEPT_ARMS,
                         help='the candidates to compare')
     parser.add_argument('--survey', type=Path,
                         help="the practice survey's data directory, read by the survey arm")
