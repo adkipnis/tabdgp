@@ -6,7 +6,8 @@ Its rivals are R2D2M2, which spreads an R²-induced budget over every coefficien
 and the budget-free scales a user states per block.
 Each candidate takes the prior `Glmm.drawPrior` drew and replaces its scales
 (the slopes', σ_α's and σ_ε's) before the parameters are drawn from it.
-An arm may also override Glmm's defaults (#79), and then draws the joint prior under them.
+Each arm overrides Glmm's defaults with those its records were drawn at (#79),
+and draws the joint prior under them.
 The families, the intercept, the slopes' offsets δ_j, the LKJ shapes and the random terms
 stay the joint draw's, so two candidates differ by their scales alone.
 A slope's location follows its new scale (δ_j times it),
@@ -57,21 +58,25 @@ Arm = Literal[
     'unit',
 ]
 ARMS: list[Arm] = list(get_args(Arm))
-# each arm's overrides of Glmm's defaults, which every arm not named keeps
+# Glmm's defaults before #79, at which the joint prior and its rivals drew their records
+JOINT_DEFAULTS = {
+    'fixed_share': Beta(1, 1),
+    'intercept_scale': LogUniform(0.1, 10),
+    'predictor_sd': LogUniform(0.25, 4),
+}
+# each arm's overrides of Glmm's defaults, so that it draws at the defaults of its records
 OVERRIDES: dict[Arm, dict[str, Distribution]] = {
-    'joint-phi': {'fixed_share': Beta(2, 3)},
-    'joint-phi-tau0': {'fixed_share': Beta(2, 3), 'intercept_scale': LogUniform(0.1, 3)},
+    'joint': JOINT_DEFAULTS,
+    'joint-phi': {'intercept_scale': LogUniform(0.1, 10), 'predictor_sd': LogUniform(0.25, 4)},
+    'joint-phi-tau0': {'predictor_sd': LogUniform(0.25, 4)},
     # τ per link, each run only on its own family's fits
-    'joint-phi-tau0-logit': {
-        'fixed_share': Beta(2, 3),
-        'intercept_scale': LogUniform(0.1, 3),
-        'predictor_sd': LogUniform(0.5, 3),
-    },
-    'joint-phi-tau0-log': {
-        'fixed_share': Beta(2, 3),
-        'intercept_scale': LogUniform(0.1, 3),
-        'predictor_sd': LogUniform(0.1, 3),
-    },
+    'joint-phi-tau0-logit': {},
+    'joint-phi-tau0-log': {'predictor_sd': LogUniform(0.1, 3)},
+    # the rivals rescale the joint prior, its intercept kept
+    'r2d2m2-0.5': JOINT_DEFAULTS,
+    'r2d2m2-1': JOINT_DEFAULTS,
+    'survey': JOINT_DEFAULTS,
+    'unit': JOINT_DEFAULTS,
 }
 Family = Literal['gaussian', 'bernoulli', 'poisson']  # the families whose y's variance is known
 FAMILIES: list[Family] = list(get_args(Family))
