@@ -38,17 +38,20 @@ import pandas as pd
 from pydantic import ConfigDict, PositiveFloat
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.field import Beta, Distribution
+from tabdgp.field import Beta, Distribution, LogUniform
 from tabdgp.prior import Glmm, Parameters, Prior
 
 # =====================================================================================
 # the arms, y's families and the bounds
 # =====================================================================================
 
-Arm = Literal['joint', 'joint-phi', 'r2d2m2-0.5', 'r2d2m2-1', 'survey', 'unit']
+Arm = Literal['joint', 'joint-phi', 'joint-phi-tau0', 'r2d2m2-0.5', 'r2d2m2-1', 'survey', 'unit']
 ARMS: list[Arm] = list(get_args(Arm))
 # each arm's overrides of Glmm's defaults, which every arm not named keeps
-OVERRIDES: dict[Arm, dict[str, Distribution]] = {'joint-phi': {'fixed_share': Beta(2, 3)}}
+OVERRIDES: dict[Arm, dict[str, Distribution]] = {
+    'joint-phi': {'fixed_share': Beta(2, 3)},
+    'joint-phi-tau0': {'fixed_share': Beta(2, 3), 'intercept_scale': LogUniform(0.1, 3)},
+}
 Family = Literal['gaussian', 'bernoulli', 'poisson']  # the families whose y's variance is known
 FAMILIES: list[Family] = list(get_args(Family))
 LOGIT_BOUND = 10  # some |eta| above it saturates the logit
@@ -216,7 +219,7 @@ Candidate = Joint | R2d2m2 | Stated
 def buildCandidate(arm: Arm, survey_dir: Path | None) -> Candidate:
     """The candidate an arm names (the survey arm reads the practice survey's data directory)."""
     match arm:
-        case 'joint' | 'joint-phi':
+        case 'joint' | 'joint-phi' | 'joint-phi-tau0':
             return Joint()
         case 'r2d2m2-0.5':
             return R2d2m2(concentration=0.5)
