@@ -71,9 +71,9 @@ x3 binary      per row [0 0 1]
 x4 binary      per g2  [0 0 1]
 y  continuous  per row [0.76 0.62 0.93]
 fixed: intercept + x0 + x1 + x2 + x3 + x4
-random per g0: intercept + x1 + x3 + x4
-random per g1: intercept + x0 + x1 + x2 + x3 + x4
-random per g2: intercept
+random per g0: intercept + x2
+random per g1: intercept
+random per g2: intercept + x1
 ```
 
 An outcome `y` can also be sampled based on a model and the table's covariates.
@@ -100,10 +100,10 @@ for term, beta in zip(outcome.fixed_terms, outcome.parameters.beta):
 
 The true fixed effects:
 ```text
-intercept  2.77
-age        0.04
-female     0.08
-books      0.27
+intercept  2.63
+age       -0.00
+female     0.01
+books      0.30
 ```
 
 ## Planned
