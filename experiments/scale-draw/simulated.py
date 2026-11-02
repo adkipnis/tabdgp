@@ -11,7 +11,8 @@ pipeline:
 ---------
 the arms, the survey's data directory and the datasets per cell
 -> each arm's candidate                                                 buildCandidate
--> each cell's SCM hyperprior and GLMM overrides, one size at a point    _buildHyperpriors
+-> each cell's SCM hyperprior and GLMM overrides, one size at a point,
+   at the joint arm's defaults                                           _buildHyperpriors
 -> per dataset, the covariates                                           drawDataset
 -> per family, the joint prior over the covariates' blocks               modelOutcome
 -> per arm, the prior at its scales and the parameters drawn from it     _measureArms
@@ -55,8 +56,9 @@ SWEEP = {
 }
 GROUPED = Scm.grouped()  # the preset's sizes, whose tops a raised floor keeps
 ICC_COLUMNS = max(SWEEP['factors'])  # an ICC per factor of the widest cell
-# the arms without overrides of Glmm's defaults, since a dataset rescales one joint prior per family
-SWEPT_ARMS = [arm for arm in ARMS if arm not in OVERRIDES]
+# the arms at the joint arm's overrides of Glmm's defaults,
+# since a dataset rescales one joint prior per family
+SWEPT_ARMS = [arm for arm in ARMS if OVERRIDES[arm] == OVERRIDES['joint']]
 # the GLMM overrides of a light-tailed run, where each budget holds for Normal effects
 LIGHT_TAILS = {
     'beta_family_shares': {'normal': 1.0, 'student_t': 0.0, 'cauchy': 0.0},
@@ -75,13 +77,13 @@ LIGHT_TAILS = {
 
 def sweep(candidates: dict[str, Candidate], datasets: int, tails: dict) -> pd.DataFrame:
     """Every arm's measures, one row per cell, dataset, family and arm,
-    with the GLMM overrides `tails` in every cell.
+    at the joint arm's defaults with the GLMM overrides `tails` in every cell.
     """
     records = []
     for field, values in SWEEP.items():
         for value in values:
             hyperpriors = _buildHyperpriors(field, value)
-            overrides = {**hyperpriors['glmm'], **tails}
+            overrides = {**OVERRIDES['joint'], **hyperpriors['glmm'], **tails}
             cell = {'field': field, 'value': value}
             for index in range(datasets):
                 covariates = drawDataset(SEED, index, hyperpriors['scm']).covariates
