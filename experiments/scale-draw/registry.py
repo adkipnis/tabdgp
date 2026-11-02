@@ -205,7 +205,7 @@ def run(
                 family,
                 blocks,
                 design['correlated'],
-                OVERRIDES.get(arm, {}),
+                OVERRIDES[arm],
                 np.random.default_rng([*streams, 0]),
             )
             prior = candidate.rescale(joint, family, np.random.default_rng([*streams, 1]))
