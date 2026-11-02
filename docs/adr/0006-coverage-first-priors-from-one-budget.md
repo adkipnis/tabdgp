@@ -34,7 +34,9 @@ The parameters are returned on the standardized scale and on the raw columns.
 1. The prior is stated as a user of brms (R's package for Bayesian mixed models) states it: a family per parameter, and a location and a scale per coefficient.
 2. The fixed effects' family (β's, `beta_family_shares`) is Normal 0.68, Student-t(3) 0.30 or Cauchy 0.02, a guess, shared by the intercept and the slopes (precedent: 18 of the practice survey's 31 stated df are 3).
 3. The families of the random effects' sd σ_α and the residual's sd σ_ε (`sigma_alpha_family_shares`, `sigma_eps_family_shares`) are each uniform over half-Normal, half-Student-t(3), half-Cauchy and exponential, and drawn apart (precedent: brms states `sd` and `sigma` apart, and 24 of the survey's 132 stated pairs differ).
-4. The intercept's location (`intercept_location`) is `Uniform(-3, 3)` on the link scale (η's, before the inverse link maps it to y's mean), a guess, and its scale τ_0 (`intercept_scale`) is `LogUniform(0.1, 10)`.
+4. The intercept's location (`intercept_location`) is `Uniform(-3, 3)` on the link scale (η's, before the inverse link maps it to y's mean), a guess, and its scale τ_0 (`intercept_scale`) is `LogUniform(0.1, 3)`:
+   - precedent: on the registry's designs, a top of 3 rather than 10, beside φ_fixed's `Beta(2, 3)`, cuts the drawn y that lme4 cannot fit from 6.0 % to 1.2 % on the logit link and from 8.2 % to 4.5 % on the log link (#79).
+   - it also cuts the refits with some |η̂| above 10 from 24 % to 19 % and from 22 % to 16 %, against the registry's 11 % and 1.4 %.
 5. A slope's location is a multiple of its scale, ν_j = δ_j τ_j:
    - δ_j is zero with the share 1 − `location_share` (0.1); otherwise δ_j ~ N(0, `location_scale`) (2.0), a guess.
    - precedent: the survey's stated hypotheses sit two to three scales out.
@@ -44,8 +46,14 @@ The parameters are returned on the standardized scale and on the raw columns.
 
 1. The scales are drawn jointly per dataset from one budget, the variance τ² of η without the intercept:
    - with a residual (Gaussian, Student-t), τ² is the signal share (`signal_share`, r, the share of y's variance that η explains), `Beta(2, 2)`, and σ_ε's scale is τ_ε = √(1 − r), so a Gaussian y has unit variance at the scales.
-   - otherwise τ (`predictor_sd`) is `LogUniform(0.25, 4)` on the link scale.
-2. The fixed block (the fixed effects) takes the share φ_fixed (`fixed_share`), `Beta(1, 1)`, and the factors' blocks (each factor's random effects) split the rest by a Dirichlet at `split_alpha` (1) (precedent: the registry's fixed share of the explained variance is close to uniform whatever the number of factors, #47).
+   - otherwise τ (`predictor_sd`) is drawn on the link scale from its link's default, `LogUniform(0.5, 3)` on the logit link and `LogUniform(0.25, 4)` on the log link.
+   - precedent: on the registry's Bernoulli designs, 0.5 to 3 brings the registry fits' mean rank among their refits to 0.50 to 0.52 on the marginal and conditional R² and on sd(η), where 0.5 would match, and the singular refits to 24 %, against the registry's 23 % (#79).
+   - on the log link, a floor of 0.1 cuts the fits outside their refits' range on sd(η) from 14 % to 8.6 %, but its refits explain less than real tables and leave 5.5 % outside on the ICC, so the log link keeps 0.25 to 4.
+2. The fixed block (the fixed effects) takes the share φ_fixed (`fixed_share`), `Beta(2, 3)`, and the factors' blocks (each factor's random effects) split the rest by a Dirichlet at `split_alpha` (1):
+   - precedent: the registry's fixed share of the explained variance does not depend on the number of factors (#47).
+   - on the registry's designs, `Beta(1, 1)` leaves the grouping factors' intraclass correlation (ICC) below real tables' on every family, as the registry fits rank at 0.57, 0.62 and 0.56 on average among their refits (Gaussian, Bernoulli, Poisson).
+   - `Beta(2, 3)` brings these ranks to 0.53, 0.59 and 0.54, and cuts the singular refits by 2.2 to 2.5 points (#79).
+   - a Dirichlet at 3 moves the ICC's rank by less than 0.01, scored by reweighting the refits alone, so it stays at 1.
 3. Each block's scales spend its part of τ² exactly, over what each coefficient adds to var(η) at scale 1:
    - a slope adds its column's variance (times 1 + δ_j² when located), a random effect its column's second moment (the random intercept 1).
    - e.g. a Gaussian y at r = 0.5 and φ_fixed = 0.5 with 19 z-scored slopes of one shared scale gives each slope τ_j = √(0.5 · 0.5 / 19) ≈ 0.11.
@@ -128,6 +136,7 @@ The parameters are returned on the standardized scale and on the raw columns.
    - On the registry's designs, R2D2M2's refits explain more than the logit fits. Its Wasserstein-1 distance to them is 0.25 to 0.29 on the marginal and conditional R² and on sd(η), where the joint draw's is 0.07 to 0.08 (#77).
    - The joint draw leaves fewer registry fits outside its refits' range than uniform ranks on every measure and link but the log link's sd(η), where it leaves 7 %. There no other option leaves significantly fewer at no larger distance (#77).
    - Its random effects explain less than the registry's on every link, and its refits are singular and saturated more often than the registry's fits (#77).
+   - The defaults of φ_fixed, τ_0 and the logit link's τ narrow that gap, but leave 14 % of the log link's fits outside on sd(η) (#79).
 2. **A block's divisor:**
    - Dividing by the width realizes a third of the budget, since dummies and 0/1 columns have variance below 1 and the intercept none (#47).
 3. **Heavy tails:**
@@ -155,7 +164,7 @@ The parameters are returned on the standardized scale and on the raw columns.
 - **A corpus of several families:** states one per index (`Glmm(family=FAMILIES[index % 3])`), so the same index under two families reads the same covariates.
 - **A white-box misspecified study:** a study that knows its exact misspecification sets `deviation_scale` or states a family that misspecifies its base family, and the ground truth stays exact either way.
 - **One scale per block:** one override (`varying_scale_share=0`).
-- **Absurd tables:** a log-link intercept at scale 10 draws counts no real table has, the cost of one range for every family.
+- **Absurd tables:** a log-link intercept at scale 3 can still draw counts no real table has, the cost of one range for every family.
 - **Later families, none built:**
   - ordinal and binomial, each with a column of its own to design.
   - a family per random effect (one survey model states two).
