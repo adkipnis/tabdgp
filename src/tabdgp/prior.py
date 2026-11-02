@@ -221,6 +221,11 @@ SD_FAMILY_SHARES = {
     'half_cauchy': 0.25,
     'exponential': 0.25,
 }
+# τ's default per link, read off the registry's refits (#79); with a residual, τ is √r
+PREDICTOR_SDS = {
+    'logit': LogUniform(0.5, 3),
+    'log': LogUniform(0.25, 4),
+}
 
 
 class Glm(Hyperprior):
@@ -231,7 +236,7 @@ class Glm(Hyperprior):
     - Locations: of intercept and slopes
     - Scales: shared or per coefficient within a block
     - Shape: y's second parameter (e.g. Student-t's df)
-    - Budget: τ², the variance of eta without the intercept
+    - Budget: τ², the variance of eta without the intercept (τ's default per link)
     - Deviation (outside the prior): the score added to eta, scaled by λ * sd(Xβ + Σ_k Z_k α_k)
     """
 
@@ -243,13 +248,13 @@ class Glm(Hyperprior):
     beta_family_shares: Simplex = {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02}  # noqa: RUF012
     sigma_eps_family_shares: Simplex = SD_FAMILY_SHARES  # σ_ε's family
     intercept_location: Real = Uniform(-3, 3)  # ν_0 on the link scale
-    intercept_scale: NonNegative = LogUniform(0.1, 10)  # τ_0
+    intercept_scale: NonNegative = LogUniform(0.1, 3)  # τ_0
     location_share: Share = 0.1  # the probability that a slope has a location
     location_scale: NonNegative = 2.0  # the sd of a located slope's δ_j = ν_j / τ_j
     varying_scale_share: Share = 0.5  # the probability that a block's scales vary per coefficient
     scale_spread: NonNegative = Uniform(0, 2)  # the sd of a log weight in a varying block
     signal_share: Share = Beta(2, 2)  # r
-    predictor_sd: NonNegative = LogUniform(0.25, 4)  # τ (unless y is Gaussian or Student-t)
+    predictor_sd: NonNegative | None = None  # τ, None for its link's default (√r with a residual)
     # for misspecification
     deviation_scale: NonNegative = 0.0  # λ
 
@@ -269,6 +274,13 @@ class Glm(Hyperprior):
             return likelihood.SHAPES[self.family].draw(rng)
         return self.resolveField('shape', rng)
 
+    def _resolvePredictorSd(self, rng: np.random.Generator) -> float | None:
+        """τ, its link's default drawn where none is stated (None where y has a residual)."""
+        link = likelihood.LINKS[self.family]
+        if self.predictor_sd is None and link in PREDICTOR_SDS:
+            return PREDICTOR_SDS[link].draw(rng)
+        return self.resolveField('predictor_sd', rng)
+
     def resolveDataset(self, rng: np.random.Generator) -> Glm:
         """Resolves each field that is drawn once per dataset."""
         points = {}
@@ -277,6 +289,8 @@ class Glm(Hyperprior):
                 points[name] = getattr(self, name)
             elif name == 'shape':
                 points[name] = self._resolveShape(rng)
+            elif name == 'predictor_sd':
+                points[name] = self._resolvePredictorSd(rng)
             else:
                 points[name] = self.resolveField(name, rng)
         return type(self)(**points)
@@ -376,7 +390,7 @@ class Glmm(Glm):
     PER_FACTOR: ClassVar[tuple[str, ...]] = ('random_effects', 'lkj_eta')
 
     sigma_alpha_family_shares: Simplex = SD_FAMILY_SHARES  # σ_α's family
-    fixed_share: Share = Beta(1, 1)  # φ_fixed
+    fixed_share: Share = Beta(2, 3)  # φ_fixed
     split_alpha: Positive = 1.0  # the Dirichlet's concentration over the factors' blocks
     random_effects: PositiveCount = UniformInt(1, 6)  # q_k per factor, truncated at d
     correlated_share: Share = 0.55  # conservative lower bound based on MixedSurvey
