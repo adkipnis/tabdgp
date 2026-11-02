@@ -5,7 +5,8 @@
 # <dir> holds table.csv and input.json, as mixedbench's frequentist.fit writes them,
 # and <lme4.R> is mixedbench's own script, whose definitions registry.R loads as they are.
 # registry.R writes back into <dir>:
-#   design.json  (design) the rows lme4 keeps (1-based), X and its column names, the offset
+#   design.json  (design) the rows lme4 keeps (1-based), y's mean over them as glmer reads y,
+#                X and its column names, the offset
 #                (0 without one), and per factor in lme4's order its name, terms and levels,
 #                each row's random columns and each row's level (1-based)
 #   output.json  (refit) what lme4.R writes
@@ -93,8 +94,12 @@ if (mode == "design") {
   design <- buildDesign(table, input)
   offset <- model.offset(design$fr)
   if (is.null(offset)) offset <- rep(0, nrow(design$fr))
+  # y as glmer reads it: a factor's first level is 0, every other level 1
+  y <- model.response(design$fr)
+  if (is.factor(y)) y <- y != levels(y)[1]
   output <- list(
     rows = as.integer(rownames(design$fr)),
+    y_mean = mean(y),
     columns = I(as.character(colnames(design$X))),  # none for `0 + (1 | g)`
     X = matrix(design$X, nrow(design$X)),
     offset = offset,
