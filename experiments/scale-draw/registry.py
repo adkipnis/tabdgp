@@ -7,8 +7,7 @@ and lme4 refits the documented formula with y as its left side,
 so each refit is its registry fit with y swapped, and both are lme4 estimates.
 The registry holds only fits with estimates, so each candidate draws until REFITS refits have them.
 The ground truth and what the prior drew are logged beside each refit,
-and each fit's real y is refitted once, for the max |eta| that fits.csv lacks,
-and the real y's mean is kept beside the design's sizes, which fits.csv also lacks.
+and the real y's mean is kept beside the design's sizes, which fits.csv lacks.
 registry.ipynb reads the records against the registry's fits.
 
 pipeline:
@@ -18,20 +17,17 @@ the registry's fits
 -> registry-fits.csv, the array job's tasks, with the real y's mean
 per task and range of draws:
 -> each arm's refits with estimates before the range                  run
--> the real y's refit, in the range from draw 0 if none ran yet       _refit
--> lme4's design of the documented formula and y's mean (registry.R),
-   X standardized                                                      _readDesign
+-> lme4's design of the documented formula, X standardized            _readDesign
 -> the blocks TabDGP's draw builds on it                              _measureBlocks
 -> per draw and arm still short, the joint prior under the arm's
    overrides, each factor correlated as lme4 fits it                   _drawJointPrior
 -> the prior at the arm's scales, the parameters, y
    and the ground truth's measures                                     measureTruth
--> lme4's refit of y, its measures and max |eta| (registry.R)         _refit, _measureFit
+-> lme4's refit of y and its measures                                  _refit
 -> what the prior drew                                                 _describePrior
--> a record per refit, in its run directory
+-> a record per refit, in the task's run directory
 -> registry.csv.gz, each arm's draws until REFITS refits have estimates,
-   the arms not collected as registry.csv.gz held them,
-   and registry-real.csv, the real y's refits                          collect
+   the arms not collected as registry.csv.gz held them                 collect
 
 Run from the repository root: select once, the tasks as cluster array jobs
 (registry.sbatch), then collect:
@@ -48,11 +44,8 @@ import argparse
 import dataclasses
 import json
 import math
-import shutil
-import subprocess
 import tempfile
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -90,9 +83,7 @@ ESTIMATED = ['ok', 'singular', 'warning']  # the statuses of a fit with estimate
 # the drawn y's column, beside the documented response, which a covariate may read
 # (rabe_hesketh's pups counts it per dam), and named apart from a covariate y (SASmixed's Demand)
 RESPONSE = 'y_drawn'
-# mixedbench's script of a fit, whose definitions registry.R loads
-LME4_R = Path(lme4.__file__).with_name('lme4.R')
-RECORD = 'record.json'  # a refit's record, in its run directory
+NO_COLUMNS = ['rethinking/data/PrussianHorses.csv/1']  # `kicks ~ 0 + (1 | corps) + (1 | year)`
 
 # =====================================================================================
 # the tasks
@@ -132,10 +123,15 @@ def _screenFit(row: Row, fit: dict, tables: registry.Tables) -> dict:
     # a fit without estimates (an error, a model in words) leaves nothing to compare
     if fit['status'] not in ESTIMATED:
         return {'reason': 'no estimates'}
-    design = _readDesign(tables.load(row), row.formula, fit['family'])
-    # a fit of a subset or of weighted copies of the rows, which the loaded table lacks
+    # mixedbench 1.0.13's design fails on an X without columns, which has no intercept
+    if row.id in NO_COLUMNS:
+        return {'reason': 'no intercept'}
+    design = _readDesign(tables.loadFitted(row), row.formula, fit['family'])
+    # the design holds the rows the registry's fit read (a subset or weighted copies included)
     if len(design['rows']) != int(fit['n_obs']):
-        return {'reason': "rows unlike the fit's"}
+        raise ValueError(
+            f'{row.id}: the design has {len(design["rows"])} rows, the fit {fit["n_obs"]}'
+        )
     # the prior's fixed block opens with the intercept
     if design['columns'][:1] != ['(Intercept)']:
         return {'reason': 'no intercept'}
@@ -161,9 +157,8 @@ def run(
     task: int, draws: range, tables: registry.Tables, candidates: dict[Arm, Candidate], runs: Path
 ) -> None:
     """Draws each arm's y on the task's fit at `draws` and refits each by lme4,
-    a record per refit in its own run directory, which replaces an earlier run's.
-    Past the first REFITS draws, an arm draws only while short of REFITS refits with estimates.
-    The range from draw 0 also refits the real y, unless an earlier run did."""
+    a record per refit in the task's run directory, which replaces an earlier run's.
+    Past the first REFITS draws, an arm draws only while short of REFITS refits with estimates."""
     fits = pd.read_csv(FITS)
     kept = fits[fits['task'].notna()]
     [fit] = kept[kept['task'] == task].to_dict('records')
@@ -182,14 +177,10 @@ def run(
         return  # every arm has its refits
 
     row = {row.id: row for row in registry.rows()}[fit['id']]
-    table = tables.load(row)
+    table = tables.loadFitted(row)
     family = fit['family']
     factor_columns = int(kept['factors'].max())  # a column per factor of the widest fit
-    # the real y's refit is the same for every arm, so a later arm's run keeps it
-    real_record = dir / 'real' / RECORD
-    if draws.start == 0 and not real_record.exists():
-        real = _refit(table, row.formula, family, dir / 'real', factor_columns)
-        real_record.write_text(json.dumps({'task': task} | real, indent=2))
+    dir.mkdir(parents=True, exist_ok=True)
     design = _readDesign(table, row.formula, family)
     blocks = _measureBlocks(design)
     formula = f'{RESPONSE} ~' + row.formula.split('~', 1)[1]  # the documented right side
@@ -228,11 +219,10 @@ def run(
             )
 
             # lme4's refit on the raw table, y missing on the rows lme4 dropped
-            refit_dir = dir / f'{arm}-{draw}'
             response = np.full(len(table), math.nan)  # (N,) the loaded rows
             response[design['rows']] = y
             refit_table = table.assign(**{RESPONSE: response})
-            measured = _refit(refit_table, formula, family, refit_dir, factor_columns)
+            measured = _refit(refit_table, formula, family, factor_columns)
             estimated[arm] += measured['status'] in ESTIMATED
 
             # what the prior drew, so that a margin splits by any of its draws,
@@ -245,45 +235,21 @@ def run(
                 record[f'truth_{name}'] = value
             for name, value in measured.items():
                 record[f'fit_{name}'] = value
-            (refit_dir / RECORD).write_text(json.dumps(record, indent=2))
+            (dir / f'{arm}-{draw}.json').write_text(json.dumps(record, indent=2))
 
 
 def _readRecord(dir: Path, arm: str, draw: int) -> dict:
     """An arm's record at a draw in the task's run directory; raises where it never ran."""
-    return json.loads((dir / f'{arm}-{draw}' / RECORD).read_text())
+    return json.loads((dir / f'{arm}-{draw}.json').read_text())
 
 
-def _refit(table: pd.DataFrame, formula: str, family: str, dir: Path, factor_columns: int) -> dict:
-    """lme4's fit of the formula as mixedbench fits it, its files in `dir` but the table,
-    which replace an earlier run's, and its measures."""
-    if dir.exists():
-        shutil.rmtree(dir)
-    dir.mkdir(parents=True)
-    _runR('refit', table, formula, family, dir)
-    return _measureFit(dir, factor_columns)
-
-
-def _runR(
-    mode: Literal['design', 'refit'], table: pd.DataFrame, formula: str, family: str, dir: Path
-) -> None:
-    """registry.R in `mode` on the table and the formula, in the files mixedbench writes for R,
-    the table deleted once R ran."""
-    lme4._write(table, formula, family, dir, TIMEOUT)
-    with open(dir / 'R.log', 'w') as log:
-        subprocess.run(
-            ['Rscript', HERE / 'registry.R', mode, dir, LME4_R],
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
-    (dir / 'table.csv').unlink()
-
-
-def _measureFit(dir: Path, factor_columns: int) -> dict:
-    """How the refit in `dir` ended, its sd and max |eta|,
+def _refit(table: pd.DataFrame, formula: str, family: str, factor_columns: int) -> dict:
+    """How lme4's fit of the formula ended, its sd and max |eta|,
     and its variance partition as fits.csv reads a fit's,
     an ICC per factor in `factor_columns` columns, NaN where the fit has no estimates."""
-    fitted = lme4._read(dir)
+    # the fit's files (the table among them) go once it is read
+    with tempfile.TemporaryDirectory() as temporary:
+        fitted = lme4.fit(table, formula, family, Path(temporary), TIMEOUT)
     measures = {
         'status': fitted.status,
         'seconds': fitted.seconds,
@@ -299,62 +265,49 @@ def _measureFit(dir: Path, factor_columns: int) -> dict:
     if fitted.status not in ESTIMATED:
         return measures
 
-    # σ̂² of a Gaussian fit, the link's variance of a Bernoulli or Poisson one
-    residual = 0.0
-    if fitted.sigma is not None:
-        residual = fitted.sigma**2
-    explained = fitted.sigma2_fixed + sum(fitted.variances.values())
-    total = explained + residual + fitted.sigma2_distribution
     measures['sd_eta'] = fitted.sd_eta
-    measures['max_abs_eta'] = json.loads((dir / 'eta.json').read_text())['max_abs_eta']
-    measures['r2_marginal'] = fitted.sigma2_fixed / total
-    measures['r2_conditional'] = explained / total
+    measures['max_abs_eta'] = fitted.max_abs_eta
+    measures['r2_marginal'] = fitted.r2_marginal
+    measures['r2_conditional'] = fitted.r2_conditional
     # a singular intercept-only fit explains nothing, so it has no fixed share
+    explained = fitted.sigma2_fixed + fitted.sigma2_random
     if explained > 0:
         measures['fixed_share'] = fitted.sigma2_fixed / explained
     # the factors in lme4's order, the design's and that of the fit's rows in fits.csv
-    for k, variance in enumerate(fitted.variances.values()):
-        measures[f'icc_{k + 1}'] = variance / total
+    for k, icc in enumerate(fitted.icc.values()):
+        measures[f'icc_{k + 1}'] = icc
     return measures
 
 
 def _readDesign(table: pd.DataFrame, formula: str, family: str) -> dict:
-    """lme4's design of the formula on the table, read by registry.R:
-    the rows it keeps, y's mean over them, X's column names and X standardized, the offset,
-    and per factor in lme4's order its random columns and codes, its groups,
-    and whether lme4 correlates its random effects."""
-    with tempfile.TemporaryDirectory() as temporary:
-        dir = Path(temporary)
-        _runR('design', table, formula, family, dir)
-        built = json.loads((dir / 'design.json').read_text())
+    """lme4's design of the formula on the table: the rows it keeps, y's mean over them,
+    X's column names and X standardized, the offset, and per factor in lme4's order
+    its random columns and codes, its groups, and whether lme4 correlates its random effects."""
+    built = lme4.buildDesign(table, formula, family)
 
     # a continuous column, a transform or a product z-scored over the rows, as the contract
     # scales a continuous covariate, and a 0/1 column (the intercept, a dummy) as is,
     # so that the refit's intercept and slopes absorb the change
-    raw = np.array(built['X'], dtype=np.float64)  # (n, d)
-    continuous = ~np.isin(raw, [0, 1]).all(axis=0)  # (d,)
-    matrix = raw.copy()
-    values = raw[:, continuous]
+    continuous = ~np.isin(built.X, [0, 1]).all(axis=0)  # (d,)
+    matrix = built.X.copy()  # (n, d)
+    values = built.X[:, continuous]
     matrix[:, continuous] = (values - values.mean(axis=0)) / values.std(axis=0, ddof=1)
 
     factors: Factors = {}
     groups = {}
     correlated = []
-    for factor in built['factors']:
-        name = factor['name']
-        z = np.array(factor['z'], dtype=np.float64)  # (n, q) as lme4 builds it
-        codes = np.array(factor['codes']) - 1  # (n,) R counts levels from 1
-        factors[name] = (z, codes)
-        groups[name] = factor['levels']
+    for factor in built.factors:
+        factors[factor.name] = (factor.Z, factor.codes)
+        groups[factor.name] = len(factor.levels)
         # `(1 + x || g)` is two terms of g, whose random effects lme4 leaves uncorrelated
-        if factor['terms'] == 1:
-            correlated.append(name)
+        if len(factor.terms) == 1:
+            correlated.append(factor.name)
     return {
-        'rows': np.array(built['rows']) - 1,  # (n,) positions in the table
-        'y_mean': built['y_mean'],
-        'columns': built['columns'],
+        'rows': built.rows,
+        'y_mean': float(built.y.mean()),  # as lme4 reads y
+        'columns': list(built.columns),
         'matrix': matrix,
-        'offset': np.array(built['offset'], dtype=np.float64),  # (n,)
+        'offset': built.offset,
         'factors': factors,
         'groups': groups,
         'correlated': correlated,
@@ -426,16 +379,14 @@ def _describePrior(prior: Prior, factor_columns: int) -> dict:
 
 def collect(runs: Path, arms: list[Arm]) -> dict[str, pd.DataFrame]:
     """The arms' records on each task until REFITS refits have estimates (all DRAWS if fewer do),
-    in task order, and each task's real refit.
+    in task order.
     It skips a task an arm never ran on, and raises where a draw it keeps never ran."""
     fits = pd.read_csv(FITS)
     records = []
-    real = []
     for task in fits['task'].dropna().astype(int):
         dir = runs / str(task)
-        real.append(json.loads((dir / 'real' / RECORD).read_text()))
         for arm in arms:
-            if not (dir / f'{arm}-0').exists():
+            if not (dir / f'{arm}-0.json').exists():
                 continue  # a task the arm never ran on
             estimated = 0
             for draw in range(DRAWS):
@@ -444,7 +395,7 @@ def collect(runs: Path, arms: list[Arm]) -> dict[str, pd.DataFrame]:
                 estimated += record['fit_status'] in ESTIMATED
                 if estimated == REFITS:
                     break
-    return {'records': pd.DataFrame(records), 'real': pd.DataFrame(real)}
+    return pd.DataFrame(records)
 
 
 # =====================================================================================
@@ -485,8 +436,7 @@ if __name__ == '__main__':
                 candidates[arm] = buildCandidate(arm, args.survey)
             run(args.task, range(*args.draws), registry.Tables(args.cache), candidates, args.runs)
         case 'collect':
-            collected = collect(args.runs, args.arms)
-            records = collected['records']
+            records = collect(args.runs, args.arms)
             # the arms not collected as registry.csv.gz held them,
             # each task's arms in ARMS' order and each arm's draws in order
             if set(args.arms) != set(ARMS):
@@ -498,4 +448,3 @@ if __name__ == '__main__':
             # gzip's header at a fixed time, so that a rerun writes the same bytes
             compression = {'method': 'gzip', 'mtime': 0}
             records.round(4).to_csv(HERE / 'registry.csv.gz', index=False, compression=compression)
-            collected['real'].round(4).to_csv(HERE / 'registry-real.csv', index=False)
