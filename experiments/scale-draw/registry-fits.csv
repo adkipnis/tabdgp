@@ -20,505 +20,459 @@ task,id,family,status,reason,rows,rank,factors,random_effects,y_mean
 18,mlmRev/Exam/1,gaussian,ok,,4059,5,1,1,-0.0001
 19,mlmRev/Exam/2,gaussian,ok,,4059,6,1,1,-0.0001
 20,mlmRev/Gcsemv/1,gaussian,ok,,1703,2,1,1,46.3652
-21,mlmRev/Hsb82/1,gaussian,ok,,7185,4,1,2,12.7479
-22,mlmRev/Mmmec/1,poisson,ok,,354,2,1,1,27.8277
-23,mlmRev/ScotsSec/1,gaussian,ok,,3435,4,2,2,5.6786
-24,mlmRev/egsingle/1,gaussian,warning,,7230,5,2,2,-0.5369
-25,mlmRev/guImmun/1,bernoulli,warning,,2159,16,2,2,0.4465
-26,mlmRev/guPrenat/1,bernoulli,warning,,2449,22,2,2,0.45
-27,mlmRev/star/1,gaussian,ok,,24578,12,3,3,553.6714
-28,nlme/Alfalfa/1,gaussian,ok,,72,12,2,2,1.5968
-29,nlme/Assay/1,gaussian,warning,,60,30,3,3,0.273
-30,nlme/BodyWeight/1,gaussian,warning,,176,6,1,2,384.483
+21,mlmRev/Mmmec/1,poisson,ok,,354,2,1,1,27.8277
+22,mlmRev/ScotsSec/1,gaussian,ok,,3435,4,2,2,5.6786
+23,mlmRev/egsingle/1,gaussian,warning,,7230,5,2,2,-0.5369
+24,mlmRev/guImmun/1,bernoulli,warning,,2159,16,2,2,0.4465
+25,mlmRev/guPrenat/1,bernoulli,warning,,2449,22,2,2,0.45
+26,mlmRev/star/1,gaussian,ok,,24578,12,3,3,553.6714
+27,nlme/Alfalfa/1,gaussian,ok,,72,12,2,2,1.5968
+28,nlme/Assay/1,gaussian,warning,,60,30,3,3,0.273
+29,nlme/BodyWeight/1,gaussian,warning,,176,6,1,2,384.483
 ,nlme/Cefamandole/1,gaussian,error,no estimates,,,,,
-31,nlme/Dialyzer/1,gaussian,ok,,140,10,1,3,37.3976
-32,nlme/Earthquake/1,gaussian,ok,,182,3,1,1,-2.4254
-33,nlme/Fatigue/1,gaussian,ok,,262,2,1,1,1.2796
-34,nlme/Gasoline/1,gaussian,ok,,32,2,1,1,19.6594
-35,nlme/Glucose/1,gaussian,singular,,376,2,1,1,5.5109
-36,nlme/Glucose2/1,gaussian,ok,,196,4,1,1,4.3485
-37,nlme/Gun/1,gaussian,ok,,36,2,2,2,19.3333
+30,nlme/Dialyzer/1,gaussian,ok,,140,10,1,3,37.3976
+31,nlme/Earthquake/1,gaussian,ok,,182,3,1,1,-2.4254
+32,nlme/Fatigue/1,gaussian,ok,,262,2,1,1,1.2796
+33,nlme/Gasoline/1,gaussian,ok,,32,2,1,1,19.6594
+34,nlme/Glucose/1,gaussian,singular,,376,2,1,1,5.5109
+35,nlme/Glucose2/1,gaussian,ok,,196,4,1,1,4.3485
+36,nlme/Gun/1,gaussian,ok,,36,2,2,2,19.3333
 ,nlme/IGF/1,gaussian,error,no estimates,,,,,
-38,nlme/Machines/1,gaussian,ok,,54,3,2,2,59.65
-39,nlme/Machines/2,gaussian,ok,,54,3,1,1,59.65
-40,nlme/MathAchieve/1,gaussian,ok,,7185,4,1,2,12.7479
-41,nlme/Meat/1,gaussian,ok,,30,6,2,2,25.6333
-42,nlme/Milk/1,gaussian,ok,,1337,4,1,1,3.4224
+37,nlme/Machines/1,gaussian,ok,,54,3,2,2,59.65
+38,nlme/Machines/2,gaussian,ok,,54,3,1,1,59.65
+39,nlme/MathAchieve/1,gaussian,ok,,7185,4,1,2,12.7479
+40,nlme/Meat/1,gaussian,ok,,30,6,2,2,25.6333
+41,nlme/Milk/1,gaussian,ok,,1337,4,1,1,3.4224
 ,nlme/Muscle/1,gaussian,error,no estimates,,,,,
-43,nlme/Oats/1,gaussian,ok,,72,6,2,2,103.9722
-44,nlme/Orthodont/1,gaussian,ok,,108,4,1,2,24.0231
-45,nlme/Ovary/1,poisson,ok,,308,3,1,2,12.0357
-46,nlme/Oxboys/1,gaussian,ok,,234,2,1,2,149.5194
-47,nlme/Oxide/1,gaussian,ok,,72,1,2,2,2000.1528
-48,nlme/PBG/1,gaussian,ok,,60,4,1,1,11.2183
+42,nlme/Oats/1,gaussian,ok,,72,6,2,2,103.9722
+43,nlme/Orthodont/1,gaussian,ok,,108,4,1,2,24.0231
+44,nlme/Ovary/1,poisson,ok,,308,3,1,2,12.0357
+45,nlme/Oxboys/1,gaussian,ok,,234,2,1,2,149.5194
+46,nlme/Oxide/1,gaussian,ok,,72,1,2,2,2000.1528
+47,nlme/PBG/1,gaussian,ok,,60,4,1,1,11.2183
 ,nlme/Phenobarb/1,gaussian,no_formula,no estimates,,,,,
-49,nlme/Pixel/1,gaussian,ok,,102,3,2,3,1086.8716
+48,nlme/Pixel/1,gaussian,ok,,102,3,2,3,1086.8716
 ,nlme/Quinidine/1,gaussian,no_formula,no estimates,,,,,
-50,nlme/Rail/1,gaussian,ok,,18,1,1,1,66.5
-51,nlme/RatPupWeight/1,gaussian,ok,,322,7,1,1,6.081
-52,nlme/Relaxin/1,gaussian,ok,,198,2,1,1,43.7117
+49,nlme/Rail/1,gaussian,ok,,18,1,1,1,66.5
+50,nlme/RatPupWeight/1,gaussian,ok,,322,7,1,1,6.081
+51,nlme/Relaxin/1,gaussian,ok,,198,2,1,1,43.7117
 ,nlme/Remifentanil/1,gaussian,no_formula,no estimates,,,,,
 ,nlme/Soybean/1,gaussian,error,no estimates,,,,,
-53,nlme/Spruce/1,gaussian,ok,,1027,2,2,2,5.5484
+52,nlme/Spruce/1,gaussian,ok,,1027,2,2,2,5.5484
 ,nlme/Tetracycline1/1,gaussian,no_formula,no estimates,,,,,
 ,nlme/Tetracycline2/1,gaussian,no_formula,no estimates,,,,,
-54,nlme/Wafer/1,gaussian,singular,,400,3,2,6,8.355
-55,nlme/Wheat/1,gaussian,ok,,48,3,1,1,8.4502
-56,nlme/Wheat2/1,gaussian,ok,,224,56,1,1,25.527
-57,nlme/bdf/1,gaussian,ok,,2287,3,1,1,40.9348
-58,nlme/ergoStool/1,gaussian,ok,,36,4,1,1,10.25
+53,nlme/Wafer/1,gaussian,singular,,400,3,2,6,8.355
+54,nlme/Wheat/1,gaussian,ok,,48,3,1,1,8.4502
+55,nlme/Wheat2/1,gaussian,ok,,224,56,1,1,25.527
+56,nlme/bdf/1,gaussian,ok,,2287,3,1,1,40.9348
+57,nlme/ergoStool/1,gaussian,ok,,36,4,1,1,10.25
 ,MEMSS/CO2/1,gaussian,no_formula,no estimates,,,,,
 ,MEMSS/Orange/1,gaussian,no_formula,no estimates,,,,,
 ,MEMSS/Theoph/1,gaussian,no_formula,no estimates,,,,,
-59,SASmixed/Animal/1,gaussian,ok,,20,1,2,2,2.33
+58,SASmixed/Animal/1,gaussian,ok,,20,1,2,2,2.33
 ,SASmixed/AvgDailyGain/1,gaussian,ok,no intercept,,,,,
-60,SASmixed/BIB/1,gaussian,ok,,24,8,1,1,34.1667
-61,SASmixed/Bond/1,gaussian,ok,,21,3,1,1,72.3952
-62,SASmixed/Cultivation/1,gaussian,ok,,24,6,2,2,30.4167
-63,SASmixed/Demand/1,gaussian,ok,,77,5,2,2,6.6335
-64,SASmixed/Genetics/1,gaussian,ok,,60,5,2,2,209.1333
-65,SASmixed/HR/1,gaussian,ok,,120,7,1,2,80.0
-66,SASmixed/IncBlk/1,gaussian,ok,,24,5,1,1,0.3783
-67,SASmixed/Mississippi/1,gaussian,ok,,37,1,1,1,20.973
-68,SASmixed/Multilocation/1,gaussian,ok,,108,36,1,1,2.8542
-69,SASmixed/PBIB/1,gaussian,ok,,60,15,1,1,2.7367
-70,SASmixed/SIMS/1,gaussian,warning,,3691,2,1,2,4.1688
-71,SASmixed/Semiconductor/1,gaussian,ok,,48,16,1,1,6.0029
-72,SASmixed/TeachingI/1,gaussian,ok,,96,5,1,1,21.4062
-73,SASmixed/TeachingII/1,gaussian,ok,,96,5,1,1,71.2188
-74,SASmixed/WWheat/1,gaussian,ok,,60,2,1,2,56.9
-75,SASmixed/WaferTypes/1,gaussian,ok,,144,8,1,1,317.7222
-76,SASmixed/Weights/1,gaussian,ok,,399,6,1,1,80.9799
-77,nlmeU/SIIdata/1,gaussian,ok,,1081,9,2,2,57.8437
-78,nlmeU/armd/1,gaussian,ok,,867,5,1,1,48.4487
-79,nlmeU/fcat/1,poisson,ok,,4851,1,2,2,3.9033
-80,nlmeU/prt/1,gaussian,ok,,2471,7,1,1,157.2135
-81,HLMdiag/ahd/1,gaussian,ok,,288,4,1,2,217.8082
-82,HLMdiag/autism/1,gaussian,warning,,604,7,1,2,26.2781
-83,HLMdiag/radon/1,gaussian,ok,,919,3,1,1,1.2246
-84,HLMdiag/wages/1,gaussian,warning,,6402,2,1,2,1.8967
-85,glmmTMB/Owls/1,poisson,ok,,599,4,1,1,6.7195
+59,SASmixed/BIB/1,gaussian,ok,,24,8,1,1,34.1667
+60,SASmixed/Bond/1,gaussian,ok,,21,3,1,1,72.3952
+61,SASmixed/Cultivation/1,gaussian,ok,,24,6,2,2,30.4167
+62,SASmixed/Demand/1,gaussian,ok,,77,5,2,2,6.6335
+63,SASmixed/Genetics/1,gaussian,ok,,60,5,2,2,209.1333
+64,SASmixed/HR/1,gaussian,ok,,120,7,1,2,80.0
+65,SASmixed/IncBlk/1,gaussian,ok,,24,5,1,1,0.3783
+66,SASmixed/Mississippi/1,gaussian,ok,,37,1,1,1,20.973
+67,SASmixed/Multilocation/1,gaussian,ok,,108,36,1,1,2.8542
+68,SASmixed/PBIB/1,gaussian,ok,,60,15,1,1,2.7367
+69,SASmixed/SIMS/1,gaussian,warning,,3691,2,1,2,4.1688
+70,SASmixed/Semiconductor/1,gaussian,ok,,48,16,1,1,6.0029
+71,SASmixed/TeachingI/1,gaussian,ok,,96,5,1,1,21.4062
+72,SASmixed/TeachingII/1,gaussian,ok,,96,5,1,1,71.2188
+73,SASmixed/WWheat/1,gaussian,ok,,60,2,1,2,56.9
+74,SASmixed/WaferTypes/1,gaussian,ok,,144,8,1,1,317.7222
+75,SASmixed/Weights/1,gaussian,ok,,399,6,1,1,80.9799
+76,nlmeU/SIIdata/1,gaussian,ok,,1081,9,2,2,57.8437
+77,nlmeU/armd/1,gaussian,ok,,867,5,1,1,48.4487
+78,nlmeU/fcat/1,poisson,ok,,4851,1,2,2,3.9033
+79,nlmeU/prt/1,gaussian,ok,,2471,7,1,1,157.2135
+80,HLMdiag/ahd/1,gaussian,ok,,288,4,1,2,217.8082
+81,HLMdiag/autism/1,gaussian,warning,,604,7,1,2,26.2781
+82,HLMdiag/radon/1,gaussian,ok,,919,3,1,1,1.2246
+83,HLMdiag/wages/1,gaussian,warning,,6402,2,1,2,1.8967
+84,glmmTMB/Owls/1,poisson,ok,,599,4,1,1,6.7195
 ,glmmTMB/Salamanders/1,poisson,error,no estimates,,,,,
-86,glmmTMB/epil2/1,poisson,warning,,236,6,1,2,8.2542
-87,glmmTMB/spider_long/1,poisson,ok,,336,7,2,2,9.9315
-88,brms/epilepsy/1,poisson,ok,,236,5,1,1,8.2542
+85,glmmTMB/epil2/1,poisson,warning,,236,6,1,2,8.2542
+86,glmmTMB/spider_long/1,poisson,ok,,336,7,2,2,9.9315
+87,brms/epilepsy/1,poisson,ok,,236,5,1,1,8.2542
 ,brms/kidney/1,gaussian,error,no estimates,,,,,
 ,brms/loss/1,gaussian,error,no estimates,,,,,
-89,geepack/muscatine/1,bernoulli,ok,,9856,6,1,1,0.2143
-90,geepack/ohio/1,bernoulli,ok,,2148,4,1,1,0.1518
-91,geepack/respiratory/1,bernoulli,ok,,444,5,1,1,0.5586
-92,geepack/spruce/1,gaussian,singular,,1027,15,2,2,5.5474
-93,geepack/dietox/1,gaussian,ok,,861,6,2,2,60.7258
+88,geepack/muscatine/1,bernoulli,ok,,9856,6,1,1,0.2143
+89,geepack/ohio/1,bernoulli,ok,,2148,4,1,1,0.1518
+90,geepack/respiratory/1,bernoulli,ok,,444,5,1,1,0.5586
+91,geepack/spruce/1,gaussian,singular,,1027,15,2,2,5.5474
+92,geepack/dietox/1,gaussian,ok,,861,6,2,2,60.7258
 ,agridat/archbold.apple/1,gaussian,ok,no intercept,,,,,
-94,agridat/buntaran.wheat/1,gaussian,ok,,1069,3,4,4,849.886
-95,agridat/burgueno.alpha/1,gaussian,ok,,48,16,2,2,1330.8542
+93,agridat/buntaran.wheat/1,gaussian,ok,,1069,3,4,4,849.886
+94,agridat/burgueno.alpha/1,gaussian,ok,,48,16,2,2,1330.8542
 ,agridat/burgueno.unreplicated/1,gaussian,error,no estimates,,,,,
-96,agridat/butron.maize/1,gaussian,ok,,245,5,1,1,6.5958
-97,agridat/cox.stripsplit/1,gaussian,ok,,96,24,4,4,5.4273
-98,agridat/gomez.splitplot.subsample/1,gaussian,ok,,192,32,3,3,103.4208
-99,agridat/gomez.splitsplit/1,gaussian,singular,,135,45,3,3,6.5544
+95,agridat/butron.maize/1,gaussian,ok,,245,5,1,1,6.5958
+96,agridat/cox.stripsplit/1,gaussian,ok,,96,24,4,4,5.4273
+97,agridat/gomez.splitplot.subsample/1,gaussian,ok,,192,32,3,3,103.4208
+98,agridat/gomez.splitsplit/1,gaussian,singular,,135,45,3,3,6.5544
 ,agridat/harris.wateruse/1,gaussian,ok,no intercept,,,,,
-100,agridat/harvey.lsmeans/1,gaussian,ok,,65,11,1,1,2.4114
-101,agridat/kirk.potato/1,gaussian,ok,,375,1,1,1,9.0477
-102,agridat/piepho.barley.uniformity/1,gaussian,ok,,1076,1,2,2,53.7851
-103,agridat/ortiz.tomato.yield/1,gaussian,ok,,266,1,2,2,28.1346
-104,agridat/salmon.bunt/1,gaussian,ok,,400,11,2,2,32.2895
-105,agridat/senshu.rice/1,gaussian,ok,,40,3,2,2,3.8325
-106,agridat/snedecor.asparagus/1,gaussian,singular,,80,8,2,2,267.525
-107,agridat/tai.potato/1,gaussian,ok,,48,8,1,1,13.8594
-108,agridat/vargas.wheat2.yield/1,gaussian,singular,,168,8,1,1,0.0003
-109,agridat/weiss.lattice/1,gaussian,ok,,196,52,2,2,25.4974
-110,agridat/yates.oats/1,gaussian,ok,,72,12,2,2,103.9722
-111,agridat/yates.oats/2,gaussian,ok,,72,13,2,2,103.9722
-112,agridat/lillemo.wheat/1,gaussian,ok,,408,1,2,2,12.2699
-113,agridat/nass.sorghum/1,gaussian,ok,,1637,2,1,1,45.2167
-114,boot/amis/1,gaussian,ok,,8437,3,1,1,37.8242
-115,boot/gravity/1,gaussian,ok,,81,1,1,1,78.8889
-116,lattice/barley/1,gaussian,ok,,120,11,1,1,34.4206
-117,carData/OBrienKaiserLong/1,gaussian,ok,,240,10,1,1,5.5
-118,carData/Wong/1,gaussian,warning,,331,5,1,1,87.5559
-119,gamlss.data/LGAclaims/1,poisson,ok,,176,5,1,1,586.6875
-120,gamlss.data/Leukemia/1,gaussian,ok,,1988,4,1,1,124.6831
-121,gamlss.data/hodges/1,gaussian,warning,,341,2,1,1,166.6244
+99,agridat/harvey.lsmeans/1,gaussian,ok,,65,11,1,1,2.4114
+100,agridat/kirk.potato/1,gaussian,ok,,375,1,1,1,9.0477
+101,agridat/piepho.barley.uniformity/1,gaussian,ok,,1076,1,2,2,53.7851
+102,agridat/ortiz.tomato.yield/1,gaussian,ok,,266,1,2,2,28.1346
+103,agridat/salmon.bunt/1,gaussian,ok,,400,11,2,2,32.2895
+104,agridat/senshu.rice/1,gaussian,ok,,40,3,2,2,3.8325
+105,agridat/snedecor.asparagus/1,gaussian,singular,,80,8,2,2,267.525
+106,agridat/tai.potato/1,gaussian,ok,,48,8,1,1,13.8594
+107,agridat/vargas.wheat2.yield/1,gaussian,singular,,168,8,1,1,0.0003
+108,agridat/weiss.lattice/1,gaussian,ok,,196,52,2,2,25.4974
+109,agridat/yates.oats/1,gaussian,ok,,72,12,2,2,103.9722
+110,agridat/yates.oats/2,gaussian,ok,,72,13,2,2,103.9722
+111,agridat/lillemo.wheat/1,gaussian,ok,,408,1,2,2,12.2699
+112,agridat/nass.sorghum/1,gaussian,ok,,1637,2,1,1,45.2167
+113,boot/amis/1,gaussian,ok,,8437,3,1,1,37.8242
+114,boot/gravity/1,gaussian,ok,,81,1,1,1,78.8889
+115,lattice/barley/1,gaussian,ok,,120,11,1,1,34.4206
+116,carData/Wong/1,gaussian,warning,,331,5,1,1,87.5559
+117,gamlss.data/LGAclaims/1,poisson,ok,,176,5,1,1,586.6875
+118,gamlss.data/Leukemia/1,gaussian,ok,,1988,4,1,1,124.6831
+119,gamlss.data/hodges/1,gaussian,warning,,341,2,1,1,166.6244
 ,gamlss.data/rent99/1,gaussian,no_formula,no estimates,,,,,
-122,gamlss.data/respInf/1,bernoulli,warning,,1200,8,1,1,0.0892
-123,carData/Blackmore/1,gaussian,ok,,945,4,1,2,0.3174
-124,carData/Greene/1,bernoulli,ok,,384,21,1,1,0.2969
-125,carData/KosteckiDillon/1,bernoulli,warning,,4152,5,1,3,0.6421
-126,MASS/gehan/1,gaussian,ok,,42,2,1,1,12.881
-127,MASS/immer/1,gaussian,ok,,30,5,1,1,109.0467
-128,MASS/michelson/1,gaussian,ok,,100,1,1,1,852.4
-129,MASS/nlschools/1,gaussian,ok,,2287,6,1,2,40.9348
-130,MASS/npk/1,gaussian,ok,,24,8,1,1,54.875
-131,HSAUR3/backpain/1,bernoulli,singular,,434,3,1,1,0.5
-132,HSAUR3/epilepsy/1,poisson,ok,,236,4,1,1,8.2627
-133,HSAUR3/respiratory/1,bernoulli,warning,,555,9,1,1,0.5387
-134,HSAUR3/schizophrenia2/1,bernoulli,ok,,204,3,1,1,0.3529
-135,faraway/pulp/1,gaussian,ok,,20,1,1,1,60.4
-136,faraway/rabbit/1,gaussian,ok,,30,6,1,1,38.4667
-137,faraway/ratdrink/1,gaussian,ok,,135,6,1,2,100.8074
-138,faraway/psid/1,gaussian,warning,,1661,6,1,2,8.9862
-139,faraway/vision/1,gaussian,ok,,56,4,2,2,113.4107
-140,faraway/soybean/1,poisson,ok,,25,5,1,1,7.52
-141,faraway/stepping/1,gaussian,ok,,30,4,1,1,107.4
-142,MASS/Sitka/1,gaussian,ok,,395,4,1,1,4.8408
-143,MASS/Sitka89/1,gaussian,ok,,632,4,1,1,5.9907
-144,MASS/bacteria/1,bernoulli,ok,,220,4,1,1,0.8045
-145,MASS/epil/1,poisson,ok,,236,6,1,1,8.2627
-146,MASS/coop/1,gaussian,ok,,252,7,2,2,1.9215
-147,MASS/Traffic/1,poisson,warning,,184,3,1,1,21.5489
-148,faraway/abrasion/1,gaussian,ok,,16,4,2,2,239.5
-149,faraway/amlxray/1,bernoulli,singular,,238,10,1,1,0.4664
-150,faraway/broccoli/1,gaussian,singular,,36,1,2,2,358.1667
-151,faraway/choccake/1,gaussian,ok,,270,18,1,1,32.1222
-152,faraway/eggs/1,gaussian,ok,,48,1,3,3,0.3875
-153,faraway/epilepsy/1,poisson,ok,,295,4,1,1,12.8644
-154,faraway/hips/1,gaussian,ok,,78,4,1,1,120.8333
-155,faraway/hprice/1,gaussian,warning,,324,7,1,1,4.4842
-156,faraway/irrigation/1,gaussian,ok,,16,8,1,1,40.225
-157,faraway/leafblotch/1,gaussian,ok,,90,10,1,1,0.2072
-158,faraway/oatvar/1,gaussian,ok,,40,8,1,1,354.125
-159,faraway/penicillin/1,gaussian,ok,,20,4,1,1,86.0
-160,faraway/pipeline/1,gaussian,ok,,107,2,1,1,39.0991
+120,gamlss.data/respInf/1,bernoulli,warning,,1200,8,1,1,0.0892
+121,carData/Blackmore/1,gaussian,ok,,945,4,1,2,0.3174
+122,carData/Greene/1,bernoulli,ok,,384,21,1,1,0.2969
+123,carData/KosteckiDillon/1,bernoulli,warning,,4152,5,1,3,0.6421
+124,MASS/gehan/1,gaussian,ok,,42,2,1,1,12.881
+125,MASS/immer/1,gaussian,ok,,30,5,1,1,109.0467
+126,MASS/michelson/1,gaussian,ok,,100,1,1,1,852.4
+127,MASS/nlschools/1,gaussian,ok,,2287,6,1,2,40.9348
+128,MASS/npk/1,gaussian,ok,,24,8,1,1,54.875
+129,HSAUR3/backpain/1,bernoulli,singular,,434,3,1,1,0.5
+130,HSAUR3/epilepsy/1,poisson,ok,,236,4,1,1,8.2627
+131,HSAUR3/respiratory/1,bernoulli,warning,,555,9,1,1,0.5387
+132,HSAUR3/schizophrenia2/1,bernoulli,ok,,204,3,1,1,0.3529
+133,faraway/pulp/1,gaussian,ok,,20,1,1,1,60.4
+134,faraway/rabbit/1,gaussian,ok,,30,6,1,1,38.4667
+135,faraway/ratdrink/1,gaussian,ok,,135,6,1,2,100.8074
+136,faraway/psid/1,gaussian,warning,,1661,6,1,2,8.9862
+137,faraway/vision/1,gaussian,ok,,56,4,2,2,113.4107
+138,faraway/soybean/1,poisson,ok,,25,5,1,1,7.52
+139,faraway/stepping/1,gaussian,ok,,30,4,1,1,107.4
+140,MASS/Sitka/1,gaussian,ok,,395,4,1,1,4.8408
+141,MASS/Sitka89/1,gaussian,ok,,632,4,1,1,5.9907
+142,MASS/bacteria/1,bernoulli,ok,,220,4,1,1,0.8045
+143,MASS/coop/1,gaussian,ok,,252,7,2,2,1.9215
+144,MASS/Traffic/1,poisson,warning,,184,3,1,1,21.5489
+145,faraway/abrasion/1,gaussian,ok,,16,4,2,2,239.5
+146,faraway/amlxray/1,bernoulli,singular,,238,10,1,1,0.4664
+147,faraway/broccoli/1,gaussian,singular,,36,1,2,2,358.1667
+148,faraway/choccake/1,gaussian,ok,,270,18,1,1,32.1222
+149,faraway/eggs/1,gaussian,ok,,48,1,3,3,0.3875
+150,faraway/epilepsy/1,poisson,ok,,295,4,1,1,12.8644
+151,faraway/hips/1,gaussian,ok,,78,4,1,1,120.8333
+152,faraway/hprice/1,gaussian,warning,,324,7,1,1,4.4842
+153,faraway/irrigation/1,gaussian,ok,,16,8,1,1,40.225
+154,faraway/leafblotch/1,gaussian,ok,,90,10,1,1,0.2072
+155,faraway/oatvar/1,gaussian,ok,,40,8,1,1,354.125
+156,faraway/penicillin/1,gaussian,ok,,20,4,1,1,86.0
+157,faraway/pipeline/1,gaussian,ok,,107,2,1,1,39.0991
 ,medicaldata/indometh/1,gaussian,no_formula,no estimates,,,,,
 ,datasets/ChickWeight/1,gaussian,no_formula,no estimates,,,,,
 ,datasets/DNase/1,gaussian,no_formula,no estimates,,,,,
 ,datasets/Loblolly/1,gaussian,error,no estimates,,,,,
-161,datasets/OrchardSprays/1,gaussian,ok,,64,8,2,2,45.4219
-162,datasets/attenu/1,gaussian,ok,,182,3,1,1,0.1542
-163,datasets/infert/1,bernoulli,singular,,248,3,1,1,0.3347
-164,datasets/sleep/1,gaussian,ok,,20,2,1,1,1.54
-165,languageR/beginningReaders/1,gaussian,warning,,7923,9,2,5,7.318
-166,languageR/danish/1,gaussian,ok,,3326,18,3,3,6.7698
-167,languageR/dative/1,bernoulli,warning,,3263,16,1,1,0.2602
-168,languageR/durationsGe/1,gaussian,ok,,427,3,1,1,0.1253
-169,languageR/durationsOnt/1,gaussian,ok,,102,6,1,1,0.1488
+158,datasets/OrchardSprays/1,gaussian,ok,,64,8,2,2,45.4219
+159,datasets/attenu/1,gaussian,ok,,182,3,1,1,0.1542
+160,datasets/infert/1,bernoulli,singular,,248,3,1,1,0.3347
+161,datasets/sleep/1,gaussian,ok,,20,2,1,1,1.54
+162,languageR/beginningReaders/1,gaussian,warning,,7923,9,2,5,7.318
+163,languageR/danish/1,gaussian,ok,,3326,18,3,3,6.7698
+164,languageR/dative/1,bernoulli,warning,,3263,16,1,1,0.2602
+165,languageR/durationsGe/1,gaussian,ok,,427,3,1,1,0.1253
+166,languageR/durationsOnt/1,gaussian,ok,,102,6,1,1,0.1488
 ,languageR/english/1,gaussian,error,no estimates,,,,,
-170,languageR/lexdec/1,gaussian,ok,,1659,10,2,2,6.3851
-171,languageR/primingHeid/1,gaussian,ok,,832,5,2,2,6.5815
-172,languageR/selfPacedReadingHeid/1,gaussian,ok,,1280,6,2,2,5.9613
-173,languageR/warlpiri/1,bernoulli,ok,,347,5,2,2,0.1585
-174,languageR/writtenVariationLijk/1,poisson,ok,,560,6,1,1,73.6643
-175,faraway/nepali/1,gaussian,ok,,877,5,1,1,11.1885
-176,faraway/eggprod/1,poisson,ok,,12,3,1,1,332.75
-177,HSAUR3/pottery/1,gaussian,ok,,45,1,1,1,15.7089
-178,HSAUR3/pottery/2,gaussian,ok,,45,1,1,1,5.7562
-179,HSAUR3/pottery/3,gaussian,ok,,45,1,1,1,2.4884
-180,carData/MplsStops/1,bernoulli,ok,,43638,11,1,1,0.1199
-181,faraway/worldcup/1,poisson,warning,,595,5,1,1,84.521
-182,faraway/lawn/1,gaussian,ok,,24,4,2,2,230.0833
-183,faraway/jsp/1,gaussian,ok,,3236,11,2,2,26.6619
+167,languageR/lexdec/1,gaussian,ok,,1659,10,2,2,6.3851
+168,languageR/primingHeid/1,gaussian,ok,,832,5,2,2,6.5815
+169,languageR/selfPacedReadingHeid/1,gaussian,ok,,1280,6,2,2,5.9613
+170,languageR/warlpiri/1,bernoulli,ok,,347,5,2,2,0.1585
+171,languageR/writtenVariationLijk/1,poisson,ok,,560,6,1,1,73.6643
+172,faraway/nepali/1,gaussian,ok,,877,5,1,1,11.1885
+173,faraway/eggprod/1,poisson,ok,,12,3,1,1,332.75
+174,HSAUR3/pottery/1,gaussian,ok,,45,1,1,1,15.7089
+175,HSAUR3/pottery/2,gaussian,ok,,45,1,1,1,5.7562
+176,HSAUR3/pottery/3,gaussian,ok,,45,1,1,1,2.4884
+177,carData/MplsStops/1,bernoulli,ok,,43638,11,1,1,0.1199
+178,faraway/worldcup/1,poisson,warning,,595,5,1,1,84.521
+179,faraway/lawn/1,gaussian,ok,,24,4,2,2,230.0833
+180,faraway/jsp/1,gaussian,ok,,3236,11,2,2,26.6619
 ,stan_bugs/bugs_examples/vol2/schools/schools.data.json/1,gaussian,error,no estimates,,,,,
-184,stan_bugs/bugs_examples/vol3/hepatitis/hepatitis.data.json/1,gaussian,singular,,288,2,1,2,6.1148
-185,posteriordb/posterior_database/data/data/radon_all.json.zip/1,gaussian,ok,,12573,2,1,2,0.8813
-186,posteriordb/posterior_database/data/data/radon_mod.json.zip/1,gaussian,ok,,12573,1,1,1,0.8813
-187,posteriordb/posterior_database/data/data/rats_data.json.zip/1,gaussian,ok,,150,2,1,2,242.6533
-188,posteriordb/posterior_database/data/data/election88.json.zip/1,bernoulli,singular,,11566,5,5,5,0.5616
-189,posteriordb/posterior_database/data/data/pilots.json.zip/1,gaussian,singular,,40,1,2,2,0.4418
+181,stan_bugs/bugs_examples/vol3/hepatitis/hepatitis.data.json/1,gaussian,singular,,288,2,1,2,6.1148
+182,posteriordb/posterior_database/data/data/radon_all.json.zip/1,gaussian,ok,,12573,2,1,2,0.8813
+183,posteriordb/posterior_database/data/data/rats_data.json.zip/1,gaussian,ok,,150,2,1,2,242.6533
+184,posteriordb/posterior_database/data/data/election88.json.zip/1,bernoulli,singular,,11566,5,5,5,0.5616
+185,posteriordb/posterior_database/data/data/pilots.json.zip/1,gaussian,singular,,40,1,2,2,0.4418
 ,posteriordb/posterior_database/data/data/sat.json.zip/1,bernoulli,no_formula,no estimates,,,,,
 ,posteriordb/posterior_database/data/data/fims_Aus_Jpn_irt.json.zip/1,bernoulli,no_formula,no estimates,,,,,
 ,posteriordb/posterior_database/data/data/state_wide_presidential_votes.json.zip/1,gaussian,no_formula,no estimates,,,,,
-190,stata_clogitid/clogitid.dta/1,bernoulli,singular,,369,3,1,1,0.2493
-191,stata_xtdatasmpl/xtdatasmpl.dta/1,gaussian,ok,,28091,8,1,1,1.6771
-192,stata_nlswork2/nlswork2.dta/1,gaussian,ok,,15798,9,1,1,1.5801
-193,stata_nlswork5/nlswork5.dta/1,gaussian,ok,,28091,9,1,1,1.6771
-194,stata_airacc/airacc.dta/1,poisson,ok,,80,2,1,1,23.9375
-195,stata_psidextract/psidextract.dta/1,gaussian,ok,,4165,12,1,1,6.6763
-196,stata_grunfeld/grunfeld.dta/1,gaussian,warning,,200,3,1,3,145.9582
-197,stata_ships/ships.dta/1,poisson,ok,,34,5,1,1,10.4706
-198,stata_gymdata/gymdata.dta/1,gaussian,ok,,296,2,1,1,162.6385
-199,stata_xtfrontier1/xtfrontier1.dta/1,gaussian,ok,,948,3,1,1,0.3584
-200,mixedmodels_jl/kb07.arrow/1,gaussian,ok,,1789,8,2,3,2226.242
-201,mixedmodels_jl/mrk17_exp1.arrow/1,gaussian,ok,,16409,6,2,2,647.1734
-202,stata_angina/angina.dta/1,gaussian,ok,,168,4,1,1,281.3512
-203,stata_bangladesh/bangladesh.dta/1,bernoulli,ok,,1934,6,1,1,0.3925
-204,stata_childweight/childweight.dta/1,gaussian,ok,,198,4,1,2,8.8371
-205,stata_clippings/clippings.dta/1,gaussian,ok,,24,13,1,1,6.3542
-,stata_dialyzer/dialyzer.dta/1,gaussian,no_formula,no estimates,,,,,
-206,stata_drvisits/drvisits.dta/1,poisson,warning,,2227,7,1,1,2.5891
+186,stata_clogitid/clogitid.dta/1,bernoulli,singular,,369,3,1,1,0.2493
+187,stata_airacc/airacc.dta/1,poisson,ok,,80,2,1,1,23.9375
+188,stata_gymdata/gymdata.dta/1,gaussian,ok,,296,2,1,1,162.6385
+189,stata_xtfrontier1/xtfrontier1.dta/1,gaussian,ok,,948,3,1,1,0.3584
+190,mixedmodels_jl/kb07.arrow/1,gaussian,ok,,1789,8,2,3,2226.242
+191,mixedmodels_jl/mrk17_exp1.arrow/1,gaussian,ok,,16409,6,2,2,647.1734
+192,stata_angina/angina.dta/1,gaussian,ok,,168,4,1,1,281.3512
+193,stata_bangladesh/bangladesh.dta/1,bernoulli,ok,,1934,6,1,1,0.3925
+194,stata_childweight/childweight.dta/1,gaussian,ok,,198,4,1,2,8.8371
+195,stata_clippings/clippings.dta/1,gaussian,ok,,24,13,1,1,6.3542
+196,stata_drvisits/drvisits.dta/1,poisson,warning,,2227,7,1,1,2.5891
 ,stata_earthquake/earthquake.dta/1,gaussian,no_formula,no estimates,,,,,
-207,stata_epilepsy/epilepsy.dta/1,poisson,ok,,236,6,1,1,8.2627
-208,stata_exercise/exercise.dta/1,gaussian,ok,,239,14,1,1,81.5063
-209,stata_jobhistory/jobhistory.dta/1,gaussian,ok,,600,5,1,1,836.61
-210,stata_nlswork/nlswork.dta/1,gaussian,ok,,19224,6,1,1,1.7546
-,stata_nlswork3/nlswork3.dta/1,gaussian,error,no estimates,,,,,
-211,stata_ovary/ovary.dta/1,poisson,ok,,308,3,1,1,12.0357
-212,stata_pefrate/pefrate.dta/1,gaussian,ok,,34,1,1,1,453.9118
-,stata_phenobarb/phenobarb.dta/1,gaussian,no_formula,no estimates,,,,,
-213,stata_productivity/productivity.dta/1,gaussian,ok,,816,7,2,2,10.5088
-214,stata_salamander/salamander.dta/1,bernoulli,ok,,360,4,2,2,0.525
-215,stata_t43/t43.dta/1,gaussian,ok,,20,4,1,1,24.9
-216,stata_toenail/toenail.dta/1,bernoulli,ok,,1908,4,1,1,0.2138
-217,stata_towerlondon/towerlondon.dta/1,bernoulli,ok,,677,4,2,2,0.2408
-218,stata_union/union.dta/1,bernoulli,ok,,26200,7,1,1,0.2218
-219,stata_veneer/veneer.dta/1,gaussian,ok,,110,5,2,3,23.5909
-220,stata_vptscores/vptscores.dta/1,gaussian,ok,,30,8,1,1,5.1333
+197,stata_exercise/exercise.dta/1,gaussian,ok,,239,14,1,1,81.5063
+198,stata_jobhistory/jobhistory.dta/1,gaussian,ok,,600,5,1,1,836.61
+199,stata_nlswork/nlswork.dta/1,gaussian,ok,,19224,6,1,1,1.7546
+200,stata_pefrate/pefrate.dta/1,gaussian,ok,,34,1,1,1,453.9118
+201,stata_salamander/salamander.dta/1,bernoulli,ok,,360,4,2,2,0.525
+202,stata_t43/t43.dta/1,gaussian,ok,,20,4,1,1,24.9
+203,stata_towerlondon/towerlondon.dta/1,bernoulli,ok,,677,4,2,2,0.2408
+204,stata_union/union.dta/1,bernoulli,ok,,26200,7,1,1,0.2218
+205,stata_veneer/veneer.dta/1,gaussian,ok,,110,5,2,3,23.5909
+206,stata_vptscores/vptscores.dta/1,gaussian,ok,,30,8,1,1,5.1333
 ,stan_arm/ARM/Ch.14/polls.dta/1,bernoulli,error,no estimates,,,,,
-221,stan_arm/ARM/Ch.17/flight_simulator_17.3.data.json/1,gaussian,singular,,281,1,2,2,0.4377
-222,stan_arm/ARM/Ch.17/latent_glm_17.7.data.json/1,bernoulli,singular,,2015,4,4,4,0.5578
-223,stan_arm/ARM/Ch.17/multilevel_logistic_17.4.data.json/1,bernoulli,singular,,2015,4,4,4,0.5578
-,stan_arm/ARM/Ch.17/multilevel_poisson_17.5.data.json/1,poisson,ok,rows unlike the fit's,,,,,
-224,stan_arm/ARM/Ch.19/election88.data.json/1,bernoulli,singular,,2015,4,4,4,0.5578
-225,stan_arm/ARM/Ch.19/pilots.data.json/1,gaussian,singular,,40,1,2,2,0.4418
-226,stan_arm/ARM/Ch.20/allvar.csv/1,gaussian,ok,,1072,2,1,2,4.6317
-227,stan_arm/ARM/Ch.20/hiv.data.json/1,gaussian,ok,,369,2,1,2,4.5349
-228,stan_arm/ARM/Ch.21/cty.dat/1,gaussian,ok,,3194,1,1,1,1.7508
-229,stan_arm/ARM/Ch.21/radon.data.json/1,gaussian,ok,,919,3,1,1,1.2246
-230,stan_arm/ARM/Ch.23/electric.data.json/1,gaussian,ok,,192,2,1,1,97.1495
-231,pingouin/src/pingouin/datasets/cochran.csv/1,bernoulli,singular,,60,3,1,1,0.55
-232,pingouin/src/pingouin/datasets/mixed_anova.csv/1,gaussian,ok,,180,6,1,1,5.742
-233,pingouin/src/pingouin/datasets/mixed_anova_unbalanced.csv/1,gaussian,singular,,104,12,1,1,5.7284
-234,pingouin/src/pingouin/datasets/pairwise_tests.csv/1,gaussian,singular,,33,6,1,1,4.6667
-235,pingouin/src/pingouin/datasets/pairwise_tests_missing.csv/1,gaussian,ok,,29,3,1,1,4.7241
-236,pingouin/src/pingouin/datasets/rm_anova.csv/1,gaussian,ok,,367,4,1,1,6.9183
-237,pingouin/src/pingouin/datasets/rm_corr.csv/1,gaussian,ok,,47,2,1,1,4.9034
-238,pingouin/src/pingouin/datasets/rm_missing.csv/1,gaussian,ok,,28,4,1,1,5.6071
-239,pymc_examples/examples/data/alcohol1_pp.csv/1,gaussian,ok,,246,6,1,2,0.922
+207,stan_arm/ARM/Ch.17/flight_simulator_17.3.data.json/1,gaussian,singular,,281,1,2,2,0.4377
+208,stan_arm/ARM/Ch.17/latent_glm_17.7.data.json/1,bernoulli,singular,,2015,4,4,4,0.5578
+209,stan_arm/ARM/Ch.17/multilevel_logistic_17.4.data.json/1,bernoulli,singular,,2015,4,4,4,0.5578
+210,stan_arm/ARM/Ch.17/multilevel_poisson_17.5.data.json/1,poisson,ok,,899,1,2,2,146.1813
+211,stan_arm/ARM/Ch.19/election88.data.json/1,bernoulli,singular,,2015,4,4,4,0.5578
+212,stan_arm/ARM/Ch.19/pilots.data.json/1,gaussian,singular,,40,1,2,2,0.4418
+213,stan_arm/ARM/Ch.20/allvar.csv/1,gaussian,ok,,1072,2,1,2,4.6317
+214,stan_arm/ARM/Ch.20/hiv.data.json/1,gaussian,ok,,369,2,1,2,4.5349
+215,stan_arm/ARM/Ch.21/cty.dat/1,gaussian,ok,,3194,1,1,1,1.7508
+216,stan_arm/ARM/Ch.23/electric.data.json/1,gaussian,ok,,192,2,1,1,97.1495
+217,pingouin/src/pingouin/datasets/cochran.csv/1,bernoulli,singular,,60,3,1,1,0.55
+218,pingouin/src/pingouin/datasets/mixed_anova.csv/1,gaussian,ok,,180,6,1,1,5.742
+219,pingouin/src/pingouin/datasets/mixed_anova_unbalanced.csv/1,gaussian,singular,,104,12,1,1,5.7284
+220,pingouin/src/pingouin/datasets/pairwise_tests.csv/1,gaussian,singular,,33,6,1,1,4.6667
+221,pingouin/src/pingouin/datasets/pairwise_tests_missing.csv/1,gaussian,ok,,29,3,1,1,4.7241
+222,pingouin/src/pingouin/datasets/rm_anova.csv/1,gaussian,ok,,367,4,1,1,6.9183
+223,pingouin/src/pingouin/datasets/rm_corr.csv/1,gaussian,ok,,47,2,1,1,4.9034
+224,pingouin/src/pingouin/datasets/rm_missing.csv/1,gaussian,ok,,28,4,1,1,5.6071
+225,pymc_examples/examples/data/alcohol1_pp.csv/1,gaussian,ok,,246,6,1,2,0.922
 ,pymc_examples/examples/data/external_pp.csv/1,gaussian,error,no estimates,,,,,
-240,pymc_examples/examples/data/radon.csv/1,gaussian,ok,,919,2,1,2,1.2648
-241,pymc_examples/examples/data/rugby.csv/1,poisson,ok,,60,1,2,2,23.5
-242,openml_4531/dataset_4531.pq/1,gaussian,warning,,5875,20,1,1,21.2962
-243,openml_4531/dataset_4531.pq/2,gaussian,warning,,5875,20,1,1,29.0189
-244,uci_760/data.csv/1,gaussian,ok,,181800,7,2,2,12.1493
-245,pmlb_apnea1/557_analcatdata_apnea1.tsv.gz/1,poisson,ok,,475,9,1,1,838.9074
-246,pmlb_apnea2/556_analcatdata_apnea2.tsv.gz/1,poisson,ok,,475,9,1,1,839.4568
-247,pmlb_boxing1/analcatdata_boxing1.tsv.gz/1,bernoulli,singular,,120,3,1,1,0.65
-248,pmlb_boxing2/analcatdata_boxing2.tsv.gz/1,bernoulli,singular,,132,3,1,1,0.5379
-249,mixedmodels_jl/d3.arrow/1,gaussian,ok,,130418,2,3,3,4.9404
-250,stata_jobhistory/jobhistory.dta/2,gaussian,ok,,600,5,2,2,836.61
-251,stan_arm/ARM/Ch.12/radon.data.json/1,gaussian,ok,,919,2,1,1,1.2246
-252,stan_arm/ARM/Ch.12/srrs2.dat/1,gaussian,ok,,12754,2,1,1,0.8152
-253,stan_arm/ARM/Ch.13/earnings.data.json/1,gaussian,warning,,1059,2,1,2,9.7374
+226,pymc_examples/examples/data/radon.csv/1,gaussian,ok,,919,2,1,2,1.2648
+227,pymc_examples/examples/data/rugby.csv/1,poisson,ok,,60,1,2,2,23.5
+228,openml_4531/dataset_4531.pq/1,gaussian,warning,,5875,20,1,1,21.2962
+229,openml_4531/dataset_4531.pq/2,gaussian,warning,,5875,20,1,1,29.0189
+230,uci_760/data.csv/1,gaussian,ok,,181800,7,2,2,12.1493
+231,pmlb_apnea1/557_analcatdata_apnea1.tsv.gz/1,poisson,ok,,475,9,1,1,838.9074
+232,pmlb_apnea2/556_analcatdata_apnea2.tsv.gz/1,poisson,ok,,475,9,1,1,839.4568
+233,pmlb_boxing1/analcatdata_boxing1.tsv.gz/1,bernoulli,singular,,120,3,1,1,0.65
+234,pmlb_boxing2/analcatdata_boxing2.tsv.gz/1,bernoulli,singular,,132,3,1,1,0.5379
+235,mixedmodels_jl/d3.arrow/1,gaussian,ok,,130418,2,3,3,4.9404
+236,stata_jobhistory/jobhistory.dta/2,gaussian,ok,,600,5,2,2,836.61
+237,stan_arm/ARM/Ch.12/srrs2.dat/1,gaussian,ok,,12754,2,1,1,0.8152
+238,stan_arm/ARM/Ch.13/earnings.data.json/1,gaussian,warning,,1059,2,1,2,9.7374
 ,stan_arm/ARM/Ch.13/pilots.dat/1,bernoulli,error,no estimates,,,,,
-,stata_quinidine/quinidine.dta/1,gaussian,no_formula,no estimates,,,,,
-254,stata_pisa2000/pisa2000.dta/1,bernoulli,warning,,2069,9,1,1,0.3881
+239,stata_pisa2000/pisa2000.dta/1,bernoulli,warning,,2069,9,1,1,0.3881
 ,stata_catheter/catheter.dta/1,gaussian,error,no estimates,,,,,
-255,stata_pig/pig.dta/1,gaussian,ok,,432,2,1,2,50.4051
-256,pingouin/src/pingouin/datasets/rm_anova2.csv/1,gaussian,ok,,60,6,3,3,23.0833
-257,pymc_examples/examples/data/employee.csv/1,gaussian,warning,,502,3,1,2,28.247
+240,stata_pig/pig.dta/1,gaussian,ok,,432,2,1,2,50.4051
+241,pingouin/src/pingouin/datasets/rm_anova2.csv/1,gaussian,ok,,60,6,3,3,23.0833
+242,pymc_examples/examples/data/employee.csv/1,gaussian,warning,,502,3,1,2,28.247
 ,pymc_examples/examples/data/time_to_attrition.csv/1,gaussian,error,no estimates,,,,,
-258,stan_arm/ARM/Ch.23/sesame.data.json/1,gaussian,ok,,240,2,1,1,26.7417
-259,stan_arm/ARM/Ch.23/sesame.data.json/2,bernoulli,ok,,240,2,1,1,0.775
-260,posteriordb/posterior_database/data/data/radon_mn.json.zip/1,gaussian,ok,,919,2,1,2,1.2648
-261,stata_pisa2000/pisa2000.dta/2,gaussian,ok,,2069,7,1,1,47.0435
-262,fitzmaurice_smoking/smoking.dta/1,gaussian,warning,,771,4,1,2,2.9864
-263,fitzmaurice_headache/headache.dta/1,gaussian,singular,,846,4,2,2,9.6096
-264,fitzmaurice_amenorrhea/amenorrhea.dta/1,bernoulli,warning,,3616,5,1,1,0.3404
-265,fitzmaurice_cd4/cd4.dta/1,gaussian,warning,,5036,10,1,2,2.8718
-266,fitzmaurice_progesterone/progesterone.dta/1,gaussian,ok,,1130,3,1,2,0.3864
-267,fitzmaurice_skin/skin.dta/1,poisson,warning,,7081,7,2,2,0.2709
-268,fitzmaurice_muscatine/muscatine.dta/1,bernoulli,ok,,9856,4,1,1,0.2143
-269,fitzmaurice_ecg/ecg.dta/1,bernoulli,ok,,134,3,1,1,0.3134
-270,fitzmaurice_melanoma/melanoma.dta/1,poisson,warning,,70,2,1,1,31.1286
-271,fitzmaurice_tvsfp/tvsfp.dta/1,gaussian,ok,,1600,5,2,2,2.6619
-272,fitzmaurice_ntp/ntp.dta/1,bernoulli,warning,,1028,2,1,1,0.2383
-273,fitzmaurice_ntp/ntp.dta/2,gaussian,warning,,1028,2,1,1,0.8411
-274,alda/aldatxt/alcohol2_pp.txt/1,gaussian,ok,,3366,4,1,2,0.2557
-275,alda/aldatxt/wages_pp.txt/1,gaussian,ok,,6402,4,1,2,1.8967
-276,alda/aldatxt/unemployment_pp.txt/1,gaussian,ok,,674,4,1,2,15.2448
-277,alda/aldatxt/medication_pp.txt/1,gaussian,warning,,1242,4,1,2,167.7949
-278,alda/aldatxt/external_pp.txt/1,gaussian,ok,,270,2,1,2,12.963
-279,alda/aldatxt/opposites_pp.txt/1,gaussian,ok,,140,4,1,2,204.8143
+243,stan_arm/ARM/Ch.23/sesame.data.json/1,gaussian,ok,,240,2,1,1,26.7417
+244,stan_arm/ARM/Ch.23/sesame.data.json/2,bernoulli,ok,,240,2,1,1,0.775
+,stan_arm/ARM/Ch.17/multilevel_ordered_categorical_17.6.data.json/1,bernoulli,no_formula,no estimates,,,,,
+245,posteriordb/posterior_database/data/data/radon_mn.json.zip/1,gaussian,ok,,919,2,1,2,1.2648
+246,stata_pisa2000/pisa2000.dta/2,gaussian,ok,,2069,7,1,1,47.0435
+247,fitzmaurice_smoking/smoking.dta/1,gaussian,warning,,771,4,1,2,2.9864
+248,fitzmaurice_headache/headache.dta/1,gaussian,singular,,846,4,2,2,9.6096
+249,fitzmaurice_amenorrhea/amenorrhea.dta/1,bernoulli,warning,,3616,5,1,1,0.3404
+250,fitzmaurice_cd4/cd4.dta/1,gaussian,warning,,5036,10,1,2,2.8718
+251,fitzmaurice_progesterone/progesterone.dta/1,gaussian,ok,,1130,3,1,2,0.3864
+252,fitzmaurice_skin/skin.dta/1,poisson,warning,,7081,7,2,2,0.2709
+253,fitzmaurice_muscatine/muscatine.dta/1,bernoulli,ok,,9856,4,1,1,0.2143
+254,fitzmaurice_ecg/ecg.dta/1,bernoulli,ok,,134,3,1,1,0.3134
+255,fitzmaurice_melanoma/melanoma.dta/1,poisson,warning,,70,2,1,1,31.1286
+256,fitzmaurice_ntp/ntp.dta/1,bernoulli,warning,,1028,2,1,1,0.2383
+257,fitzmaurice_ntp/ntp.dta/2,gaussian,warning,,1028,2,1,1,0.8411
+258,alda/aldatxt/alcohol2_pp.txt/1,gaussian,ok,,3366,4,1,2,0.2557
+259,alda/aldatxt/wages_pp.txt/1,gaussian,ok,,6402,4,1,2,1.8967
+260,alda/aldatxt/unemployment_pp.txt/1,gaussian,ok,,674,4,1,2,15.2448
+261,alda/aldatxt/medication_pp.txt/1,gaussian,warning,,1242,4,1,2,167.7949
+262,alda/aldatxt/external_pp.txt/1,gaussian,ok,,270,2,1,2,12.963
+263,alda/aldatxt/opposites_pp.txt/1,gaussian,ok,,140,4,1,2,204.8143
 ,alda/aldatxt/foxngeese_pp.txt/1,poisson,no_formula,no estimates,,,,,
-280,alda/aldatxt/teachers_pp.txt/1,bernoulli,ok,,24875,12,1,1,0.0887
-281,alda/aldatxt/firstsex_pp.txt/1,bernoulli,singular,,822,8,1,1,0.1533
-282,alda/aldatxt/tenure_pp.txt/1,bernoulli,singular,,1474,9,1,1,0.1126
-283,alda/aldatxt/mathdropout_pp.txt/1,bernoulli,singular,,9558,6,1,1,0.2329
-284,alda/aldatxt/firstarrest_pp.txt/1,bernoulli,ok,,15834,14,1,1,0.0216
-285,alda/aldatxt/suicide_pp.txt/1,bernoulli,warning,,4026,17,1,1,0.0683
-286,alda/aldatxt/congress_pp.txt/1,bernoulli,warning,,559,9,1,1,0.1878
-287,alda/aldatxt/cocaine_relapse_pp.txt/1,bernoulli,warning,,770,13,1,1,0.0805
-288,zuur_mixed/Owls.txt/1,poisson,ok,,599,5,1,1,6.7195
-289,zuur_mixed/RIKZ.txt/1,poisson,ok,,45,4,1,1,5.6889
-290,zuur_mixed/DeerEcervi.txt/1,gaussian,ok,,826,4,1,1,0.6465
-291,zuur_mixed/ParasiteCod.txt/1,bernoulli,warning,,1248,11,1,1,0.4784
-292,zuur_mixed/TeethNitrogen.txt/1,gaussian,ok,,307,2,1,1,13.8016
+264,alda/aldatxt/teachers_pp.txt/1,bernoulli,ok,,24875,12,1,1,0.0887
+265,alda/aldatxt/tenure_pp.txt/1,bernoulli,singular,,1474,9,1,1,0.1126
+266,alda/aldatxt/mathdropout_pp.txt/1,bernoulli,singular,,9558,6,1,1,0.2329
+267,alda/aldatxt/firstarrest_pp.txt/1,bernoulli,ok,,15834,14,1,1,0.0216
+268,alda/aldatxt/suicide_pp.txt/1,bernoulli,warning,,4026,17,1,1,0.0683
+269,alda/aldatxt/congress_pp.txt/1,bernoulli,warning,,559,9,1,1,0.1878
+270,alda/aldatxt/cocaine_relapse_pp.txt/1,bernoulli,warning,,770,13,1,1,0.0805
+271,zuur_mixed/RIKZ.txt/1,poisson,ok,,45,4,1,1,5.6889
+272,zuur_mixed/DeerEcervi.txt/1,gaussian,ok,,826,4,1,1,0.6465
+273,zuur_mixed/ParasiteCod.txt/1,bernoulli,warning,,1248,11,1,1,0.4784
+274,zuur_mixed/TeethNitrogen.txt/1,gaussian,ok,,307,2,1,1,13.8016
 ,zuur_mixed/Limosa.txt/1,gaussian,error,no estimates,,,,,
 ,zuur_mixed/Bees.txt/1,gaussian,error,no estimates,,,,,
-293,zuur_mixed/Biodiversity.txt/1,gaussian,singular,,108,7,1,1,3.7259
-294,zuur_mixed/ISIT.txt/1,gaussian,warning,,789,4,1,1,10.7878
-295,zuur_mixed/Seals.txt/1,poisson,warning,,98,6,1,1,182.5816
-296,zuur_mixed/Vegetation.txt/1,poisson,singular,,58,7,1,1,9.9655
-297,zuur_mixed/Squid.txt/1,gaussian,ok,,768,2,1,1,5.2815
-298,zuur_mixed/Koalas.txt/1,bernoulli,ok,,300,5,1,1,0.38
-299,zuur_mixed/RiceFieldBirds.txt/1,gaussian,ok,,110,5,1,1,20.8314
+275,zuur_mixed/Biodiversity.txt/1,gaussian,singular,,108,7,1,1,3.7259
+276,zuur_mixed/ISIT.txt/1,gaussian,warning,,789,4,1,1,10.7878
+277,zuur_mixed/Seals.txt/1,poisson,warning,,98,6,1,1,182.5816
+278,zuur_mixed/Vegetation.txt/1,poisson,singular,,58,7,1,1,9.9655
+279,zuur_mixed/Squid.txt/1,gaussian,ok,,768,2,1,1,5.2815
+280,zuur_mixed/Koalas.txt/1,bernoulli,ok,,300,5,1,1,0.38
+281,zuur_mixed/RiceFieldBirds.txt/1,gaussian,ok,,110,5,1,1,20.8314
 ,zuur_mixed/RIKZDATAEnv.txt/1,gaussian,error,no estimates,,,,,
-300,zuur_mixed/Sparrows.txt/1,gaussian,ok,,1281,10,1,1,19.7984
-301,zuur_mixed/Lice.txt/1,poisson,warning,,609,5,1,1,3.1445
-302,zuur_mixed/BadgersFarmSurveys.txt/1,bernoulli,ok,,278,3,1,1,0.1619
-303,zuur_glmglmm/PolychaetaV3.txt/1,bernoulli,ok,,144,3,1,1,0.4583
-304,zuur_glmglmm/Spiders.txt/1,poisson,warning,,173,11,1,1,15.815
-305,zuur_glmglmm/WBees.txt/1,bernoulli,ok,,2151,2,1,1,0.6146
-306,zuur_glmglmm/pollen.txt/1,poisson,ok,,60,4,1,1,101.4833
-307,zuur_glmglmm/Seedling.txt/1,poisson,warning,,290,4,2,2,12.0103
-308,zuur_zim/Beavers2.csv/1,bernoulli,ok,,356,3,1,1,0.0478
-309,zuur_zim/ButterfliesNEggs_V4.txt/1,poisson,warning,,248,10,1,1,1.1573
-310,zuur_zim/Freietal2014.txt/1,gaussian,warning,,852,5,3,3,586.9762
-311,zuur_zim/Kiwi4.txt/1,poisson,ok,,60,4,1,1,108.35
-312,zuur_zim/OrangedCrownedWarblers.txt/1,poisson,ok,,181,3,1,1,1.3978
-313,zuur_zim/SeaGrassV3.csv/1,gaussian,warning,,4081,8,3,3,8.7782
-314,zuur_zim/Turcoparasitos.txt/1,poisson,warning,,155,5,1,1,31.3613
-315,rethinking/data/chimpanzees.csv/1,bernoulli,ok,,504,4,2,2,0.5794
-316,rethinking/data/Dinosaurs.csv/1,gaussian,singular,,32,2,1,2,1797.1844
-317,rethinking/data/Hoogland.csv/1,bernoulli,ok,,1490,7,1,1,0.7953
-318,rethinking/data/Achehunting.csv/1,gaussian,ok,,2314,3,1,1,3.2408
-319,rethinking/data/Dissertations.csv/1,gaussian,ok,,3037,2,1,1,176.0734
-320,rethinking/data/Monks.csv/1,poisson,singular,,153,1,2,2,0.2745
-321,rethinking/data/Moralizing_gods.csv/1,bernoulli,warning,,336,4,1,1,0.9494
-322,rethinking/data/Panda_nuts.csv/1,poisson,warning,,84,6,1,1,12.0714
+282,zuur_mixed/Sparrows.txt/1,gaussian,ok,,1281,10,1,1,19.7984
+283,zuur_mixed/Lice.txt/1,poisson,warning,,609,5,1,1,3.1445
+284,zuur_mixed/BadgersFarmSurveys.txt/1,bernoulli,ok,,278,3,1,1,0.1619
+285,zuur_glmglmm/PolychaetaV3.txt/1,bernoulli,ok,,144,3,1,1,0.4583
+286,zuur_glmglmm/Spiders.txt/1,poisson,warning,,173,11,1,1,15.815
+287,zuur_glmglmm/WBees.txt/1,bernoulli,ok,,2151,2,1,1,0.6146
+288,zuur_glmglmm/pollen.txt/1,poisson,ok,,60,4,1,1,101.4833
+289,zuur_glmglmm/Seedling.txt/1,poisson,warning,,290,4,2,2,12.0103
+290,zuur_zim/Beavers2.csv/1,bernoulli,ok,,356,3,1,1,0.0478
+291,zuur_zim/ButterfliesNEggs_V4.txt/1,poisson,warning,,248,10,1,1,1.1573
+292,zuur_zim/Freietal2014.txt/1,gaussian,warning,,852,5,3,3,586.9762
+293,zuur_zim/Kiwi4.txt/1,poisson,ok,,60,4,1,1,108.35
+294,zuur_zim/OrangedCrownedWarblers.txt/1,poisson,ok,,181,3,1,1,1.3978
+295,zuur_zim/SeaGrassV3.csv/1,gaussian,warning,,4081,8,3,3,8.7782
+296,zuur_zim/Turcoparasitos.txt/1,poisson,warning,,155,5,1,1,31.3613
+297,rethinking/data/chimpanzees.csv/1,bernoulli,ok,,504,4,2,2,0.5794
+298,rethinking/data/Dinosaurs.csv/1,gaussian,singular,,32,2,1,2,1797.1844
+299,rethinking/data/Hoogland.csv/1,bernoulli,ok,,1490,7,1,1,0.7953
+300,rethinking/data/Achehunting.csv/1,gaussian,ok,,2314,3,1,1,3.2408
+301,rethinking/data/Dissertations.csv/1,gaussian,ok,,3037,2,1,1,176.0734
+302,rethinking/data/Monks.csv/1,poisson,singular,,153,1,2,2,0.2745
+303,rethinking/data/Moralizing_gods.csv/1,bernoulli,warning,,336,4,1,1,0.9494
+304,rethinking/data/Panda_nuts.csv/1,poisson,warning,,84,6,1,1,12.0714
 ,rethinking/data/Primates301.csv/1,poisson,no_formula,no estimates,,,,,
 ,rethinking/data/PrussianHorses.csv/1,poisson,ok,no intercept,,,,,
-323,rethinking/data/UFClefties.csv/1,bernoulli,singular,,205,3,2,2,0.522
-324,rethinking/data/Wines2012.csv/1,gaussian,ok,,180,4,2,2,14.2
-325,rethinking/data/foxes.csv/1,gaussian,singular,,116,4,1,1,4.5297
-326,rethinking/kl_dyads/1,poisson,ok,,300,1,3,3,3.8667
-327,west_welch_galecki/ratpup/1,gaussian,ok,,322,7,1,1,6.081
-328,west_welch_galecki/rat.brain/1,gaussian,ok,,30,6,1,1,402.1407
-329,west_welch_galecki/autism/1,gaussian,singular,,610,6,1,2,26.4098
-330,diggle_cd4/CD4_data.txt/1,gaussian,ok,,2376,7,1,2,765.1313
-331,ros/Beauty/data/beauty.csv/1,gaussian,ok,,463,7,1,1,3.9983
-332,ros/Incentives/data/incentives_full.txt/1,gaussian,ok,,101,12,1,1,0.6467
-333,"ros/HDI/data/state vote and income, 68-00.dta/1",gaussian,warning,,450,10,1,1,0.4581
-334,ros/Rodents/hvs02_sorted.csv/1,bernoulli,ok,,13931,9,1,1,0.2348
-335,rabe_hesketh/airlines.dta/1,gaussian,ok,,90,4,2,2,13.3656
+305,rethinking/data/UFClefties.csv/1,bernoulli,singular,,205,3,2,2,0.522
+306,rethinking/data/Wines2012.csv/1,gaussian,ok,,180,4,2,2,14.2
+307,rethinking/data/foxes.csv/1,gaussian,singular,,116,4,1,1,4.5297
+308,rethinking/kl_dyads/1,poisson,ok,,300,1,3,3,3.8667
+309,west_welch_galecki/ratpup/1,gaussian,ok,,322,7,1,1,6.081
+310,west_welch_galecki/rat.brain/1,gaussian,ok,,30,6,1,1,402.1407
+311,west_welch_galecki/autism/1,gaussian,singular,,610,6,1,2,26.4098
+312,diggle_cd4/CD4_data.txt/1,gaussian,ok,,2376,7,1,2,765.1313
+313,ros/Beauty/data/beauty.csv/1,gaussian,ok,,463,7,1,1,3.9983
+314,ros/Incentives/data/incentives_full.txt/1,gaussian,ok,,101,12,1,1,0.6467
+315,"ros/HDI/data/state vote and income, 68-00.dta/1",gaussian,warning,,450,10,1,1,0.4581
+316,ros/Rodents/hvs02_sorted.csv/1,bernoulli,ok,,13931,9,1,1,0.2348
 ,rabe_hesketh/angina8.dta/1,gaussian,error,no estimates,,,,,
-336,rabe_hesketh/antisocial.dta/1,poisson,warning,,1743,9,1,1,1.6368
-337,rabe_hesketh/army.dta/1,gaussian,ok,,7382,4,1,1,2.7799
-338,rabe_hesketh/asian.dta/1,gaussian,ok,,198,4,1,2,8.8371
-339,rabe_hesketh/birthwt.dta/1,gaussian,ok,,4390,2,1,1,3156.3043
+317,rabe_hesketh/antisocial.dta/1,poisson,warning,,1743,9,1,1,1.6368
+318,rabe_hesketh/birthwt.dta/1,gaussian,ok,,4390,2,1,1,3156.3043
 ,rabe_hesketh/bladder.dta/1,gaussian,error,no estimates,,,,,
 ,rabe_hesketh/blindness.dta/1,gaussian,error,no estimates,,,,,
-340,rabe_hesketh/bp.dta/1,gaussian,ok,,1092,5,2,2,91.3498
-341,rabe_hesketh/calcium.dta/1,gaussian,ok,,494,4,1,2,0.922
-342,rabe_hesketh/cigar.dta/1,gaussian,ok,,1380,5,2,2,4.7934
-343,rabe_hesketh/contraceptive.dta/1,bernoulli,ok,,2867,8,1,1,0.3973
-344,rabe_hesketh/crackers.dta/1,bernoulli,singular,,10036,7,1,1,0.25
-345,rabe_hesketh/crime.dta/1,gaussian,ok,,630,13,1,1,-3.6092
-346,rabe_hesketh/cropareas.dta/1,gaussian,ok,,36,3,1,1,121.2058
-347,rabe_hesketh/cropareas.dta/2,gaussian,ok,,36,3,1,1,97.1761
-348,rabe_hesketh/dairy.dta/1,bernoulli,ok,,3027,4,2,2,0.4301
-349,rabe_hesketh/dialyzer.dta/1,gaussian,warning,,164,6,1,2,1125.5122
+319,rabe_hesketh/bp.dta/1,gaussian,ok,,1092,5,2,2,91.3498
+320,rabe_hesketh/calcium.dta/1,gaussian,ok,,494,4,1,2,0.922
+321,rabe_hesketh/crackers.dta/1,bernoulli,singular,,10036,7,1,1,0.25
+322,rabe_hesketh/cropareas.dta/1,gaussian,ok,,36,3,1,1,121.2058
+323,rabe_hesketh/cropareas.dta/2,gaussian,ok,,36,3,1,1,97.1761
+324,rabe_hesketh/dairy.dta/1,bernoulli,ok,,3027,4,2,2,0.4301
+325,rabe_hesketh/dialyzer.dta/1,gaussian,warning,,164,6,1,2,1125.5122
 ,rabe_hesketh/divorce2.dta/1,gaussian,error,no estimates,,,,,
-350,rabe_hesketh/epilep.dta/1,poisson,ok,,236,6,1,1,8.2627
-351,rabe_hesketh/family.dta/1,gaussian,ok,,3000,4,1,1,3568.13
-352,rabe_hesketh/fat.dta/1,gaussian,ok,,1049,3,1,3,23.6145
-353,rabe_hesketh/garrett.dta/1,gaussian,warning,,350,6,1,1,3.2542
-354,rabe_hesketh/gcse.dta/1,gaussian,ok,,4059,2,1,1,-0.0012
-355,rabe_hesketh/growth.dta/1,gaussian,ok,,108,3,1,1,24.0231
-356,rabe_hesketh/grunfeld.dta/1,gaussian,warning,,200,3,2,2,145.9582
-357,rabe_hesketh/guatemala.dta/1,bernoulli,warning,,2159,11,2,2,0.4465
-358,rabe_hesketh/headache.dta/1,poisson,ok,,122,4,1,1,1.6803
-359,rabe_hesketh/homework.dta/1,gaussian,ok,,519,6,1,2,51.7225
-360,rabe_hesketh/hours.dta/1,gaussian,warning,,5320,6,1,1,7.6575
-361,rabe_hesketh/hybrid.dta/1,bernoulli,singular,,4452,8,1,1,0.3333
-362,rabe_hesketh/kenya.dta/1,poisson,singular,,2593,10,2,2,18.2457
-363,rabe_hesketh/minwage.dta/1,gaussian,ok,,794,4,1,1,21.0265
+326,rabe_hesketh/family.dta/1,gaussian,ok,,3000,4,1,1,3568.13
+327,rabe_hesketh/fat.dta/1,gaussian,ok,,1049,3,1,3,23.6145
+328,rabe_hesketh/garrett.dta/1,gaussian,warning,,350,6,1,1,3.2542
+329,rabe_hesketh/gcse.dta/1,gaussian,ok,,4059,2,1,1,-0.0012
+330,rabe_hesketh/growth.dta/1,gaussian,ok,,108,3,1,1,24.0231
+331,rabe_hesketh/guatemala.dta/1,bernoulli,warning,,2159,11,2,2,0.4465
+332,rabe_hesketh/headache.dta/1,poisson,ok,,122,4,1,1,1.6803
+333,rabe_hesketh/homework.dta/1,gaussian,ok,,519,6,1,2,51.7225
+334,rabe_hesketh/hybrid.dta/1,bernoulli,singular,,4452,8,1,1,0.3333
+335,rabe_hesketh/kenya.dta/1,poisson,singular,,2593,10,2,2,18.2457
+336,rabe_hesketh/minwage.dta/1,gaussian,ok,,794,4,1,1,21.0265
 ,rabe_hesketh/mortality.dta/1,gaussian,error,no estimates,,,,,
-364,rabe_hesketh/neighborhood.dta/1,gaussian,ok,,2310,9,2,2,0.0934
-365,rabe_hesketh/nitrogen.dta/1,gaussian,ok,,30,10,3,3,15.6733
-366,rabe_hesketh/olympics.dta/1,gaussian,ok,,49,2,2,2,5.1347
-367,rabe_hesketh/papke_did.dta/1,gaussian,ok,,44,3,1,1,11.281
-368,rabe_hesketh/patents.dta/1,poisson,warning,,1730,13,1,1,34.7717
-369,rabe_hesketh/pisaUSA2000.dta/1,bernoulli,warning,,2069,8,1,1,0.3881
-,rabe_hesketh/police.dta/1,poisson,ok,rows unlike the fit's,,,,,
-370,rabe_hesketh/pups.dta/1,gaussian,ok,,321,5,1,1,6.0812
-371,rabe_hesketh/schiz.dta/1,gaussian,ok,,1603,4,1,1,4.3731
-372,rabe_hesketh/schooleffects.dta/1,gaussian,ok,,15362,19,1,1,20.5973
-373,rabe_hesketh/sex.dta/1,gaussian,ok,,5399,9,1,1,4.4588
-374,rabe_hesketh/smoking.dta/1,gaussian,ok,,8604,14,1,1,3469.9311
-375,rabe_hesketh/star1.dta/1,gaussian,ok,,24610,3,2,2,553.6885
-376,rabe_hesketh/taxprep.dta/1,gaussian,ok,,1290,9,1,1,6.8801
-,rabe_hesketh/thailand.dta/1,bernoulli,ok,rows unlike the fit's,,,,,
-377,rabe_hesketh/towerl.dta/1,bernoulli,ok,,677,6,2,2,0.2408
-,rabe_hesketh/twin_hay.dta/1,bernoulli,ok,rows unlike the fit's,,,,,
-378,rabe_hesketh/videos.dta/1,poisson,singular,,128,1,2,2,11.5
-379,rabe_hesketh/wagepan.dta/1,gaussian,ok,,4360,8,1,2,1.6491
-380,rabe_hesketh/wemp.dta/1,bernoulli,ok,,1580,5,1,1,0.6456
-381,rabe_hesketh/wheeze.dta/1,bernoulli,ok,,2148,3,1,1,0.1518
-382,rabe_hesketh/wine.dta/1,bernoulli,ok,,72,3,1,1,0.2639
+337,rabe_hesketh/neighborhood.dta/1,gaussian,ok,,2310,9,2,2,0.0934
+338,rabe_hesketh/nitrogen.dta/1,gaussian,ok,,30,10,3,3,15.6733
+339,rabe_hesketh/olympics.dta/1,gaussian,ok,,49,2,2,2,5.1347
+340,rabe_hesketh/papke_did.dta/1,gaussian,ok,,44,3,1,1,11.281
+341,rabe_hesketh/patents.dta/1,poisson,warning,,1730,13,1,1,34.7717
+342,rabe_hesketh/police.dta/1,poisson,ok,,225,5,1,3,142.5689
+343,rabe_hesketh/pups.dta/1,gaussian,ok,,321,5,1,1,6.0812
+344,rabe_hesketh/schooleffects.dta/1,gaussian,ok,,15362,19,1,1,20.5973
+345,rabe_hesketh/sex.dta/1,gaussian,ok,,5399,9,1,1,4.4588
+346,rabe_hesketh/smoking.dta/1,gaussian,ok,,8604,14,1,1,3469.9311
+347,rabe_hesketh/star1.dta/1,gaussian,ok,,24610,3,2,2,553.6885
+348,rabe_hesketh/taxprep.dta/1,gaussian,ok,,1290,9,1,1,6.8801
+349,rabe_hesketh/towerl.dta/1,bernoulli,ok,,677,6,2,2,0.2408
+350,rabe_hesketh/twin_hay.dta/1,bernoulli,ok,,7614,4,1,1,0.3207
+351,rabe_hesketh/videos.dta/1,poisson,singular,,128,1,2,2,11.5
+352,rabe_hesketh/wemp.dta/1,bernoulli,ok,,1580,5,1,1,0.6456
+353,rabe_hesketh/wheeze.dta/1,bernoulli,ok,,2148,3,1,1,0.1518
+354,rabe_hesketh/wine.dta/1,bernoulli,ok,,72,3,1,1,0.2639
 ,rabe_hesketh/recurrent.dta/1,gaussian,error,no estimates,,,,,
-383,rabe_hesketh/returns.dta/1,gaussian,ok,,4165,13,1,1,6.6763
-384,hox/thaieduc.sav/1,bernoulli,warning,,8582,2,1,1,0.1451
-385,hox/estrlong.sav/1,gaussian,ok,,80,1,1,1,3.2639
-386,hox/MetaResp.sav/1,gaussian,ok,,105,9,1,5,0.7068
-387,hox/AstLrd.sav/1,gaussian,ok,,67,5,1,1,0.3718
-388,hox/CurranLong.sav/1,gaussian,ok,,1325,3,1,2,4.1401
-389,hox/Epilepsy.sav/1,poisson,ok,,236,3,1,1,8.2627
-390,hox/FamIQData.sav/1,gaussian,ok,,400,1,1,1,29.9425
-391,hox/FirstSexPP.sav/1,bernoulli,ok,,822,4,1,1,0.1533
-392,hox/MultResp.sav/1,gaussian,ok,,134,7,1,1,0.6817
+355,hox/thaieduc.sav/1,bernoulli,warning,,8582,2,1,1,0.1451
+356,hox/estrlong.sav/1,gaussian,ok,,80,1,1,1,3.2639
+357,hox/MetaResp.sav/1,gaussian,ok,,105,9,1,5,0.7068
+358,hox/AstLrd.sav/1,gaussian,ok,,67,5,1,1,0.3718
+359,hox/CurranLong.sav/1,gaussian,ok,,1325,3,1,2,4.1401
+360,hox/FamIQData.sav/1,gaussian,ok,,400,1,1,1,29.9425
+361,hox/FirstSexPP.sav/1,bernoulli,ok,,822,4,1,1,0.1533
+362,hox/MultResp.sav/1,gaussian,ok,,134,7,1,1,0.6817
 ,hox/SibDiv.sav/1,gaussian,error,no estimates,,,,,
-393,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!03C/1,gaussian,ok,,3762,1,1,1,41.4173
-394,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!03C/2,gaussian,ok,,3762,1,1,1,19.8206
-395,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!04/1,gaussian,ok,,3758,7,1,2,41.413
-396,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!09/1,gaussian,ok,,3766,7,1,1,41.4134
-397,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!14/1,gaussian,ok,,4864,7,1,1,-0.1997
+363,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!09/1,gaussian,ok,,3766,7,1,1,41.4134
+364,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!14/1,gaussian,ok,,4864,7,1,1,-0.1997
 ,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!15/1,gaussian,ok,no intercept,,,,,
-398,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!16/1,gaussian,ok,,3766,7,1,1,41.4134
-399,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!16/2,gaussian,ok,,3769,7,1,1,19.8214
-400,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17A/1,bernoulli,ok,,136611,13,1,1,0.2385
-401,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17B/1,bernoulli,ok,,3432,3,1,1,0.7855
-402,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17B/2,poisson,ok,,3432,4,1,1,1.4496
-403,goldstein_msm/examjsp.xls/1,gaussian,ok,,785,4,1,1,0.0057
-404,goldstein_msm/HUNGARY.xls/1,gaussian,ok,,2439,2,1,1,0.8394
-405,goldstein_msm/HUNGARY.xls/2,gaussian,ok,,2439,2,1,1,7.0664
-406,goldstein_msm/HUNGARY.xls/3,gaussian,ok,,2439,2,1,1,0.7212
-407,goldstein_msm/bes83.xls/1,bernoulli,ok,,800,1,1,1,0.4388
-408,goldstein_msm/HTBONEBoys.xls/1,gaussian,ok,,982,5,1,1,88.5044
+365,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!16/1,gaussian,ok,,3766,7,1,1,41.4134
+366,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!16/2,gaussian,ok,,3769,7,1,1,19.8214
+367,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17A/1,bernoulli,ok,,136611,13,1,1,0.2385
+368,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17B/1,bernoulli,ok,,3432,3,1,1,0.7855
+369,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17B/2,poisson,ok,,3432,4,1,1,1.4496
+370,goldstein_msm/examjsp.xls/1,gaussian,ok,,785,4,1,1,0.0057
+371,goldstein_msm/HTBONEBoys.xls/1,gaussian,ok,,982,5,1,1,88.5044
 ,goldstein_msm/height-nonlin.xls/1,gaussian,no_formula,no estimates,,,,,
 ,goldstein_msm/playactivity.xls/1,gaussian,error,no estimates,,,,,
-409,goldstein_partnership/partnership.txt/1,bernoulli,singular,,283728,5,1,1,0.0197
-410,cmm_asian/ASIAN.DAT/1,gaussian,warning,,1572,4,1,2,8858.7799
-411,cmm_ilea567/ILEA567.DAT/1,gaussian,ok,,15362,21,1,1,20.5973
-412,zuur_zim/SpidersHongKongV2.csv/1,poisson,ok,,274,8,1,1,0.8796
-413,zuur_zim/SpidersHongKongV2.csv/2,poisson,singular,,274,8,1,1,0.1788
-414,zuur_zim/SpidersHongKongV2.csv/3,poisson,warning,,274,8,1,1,0.4051
-415,rabe_hesketh/cigarette.dta/1,bernoulli,ok,,1556,6,2,2,0.4075
-416,rabe_hesketh/wheat.dta/1,gaussian,ok,,60,2,1,1,56.9
-417,rethinking/data/Crofoot.csv/1,bernoulli,singular,,58,5,3,3,0.5517
-418,rabe_hesketh/star1.dta/2,gaussian,singular,,23640,10,2,2,539.112
+372,goldstein_partnership/partnership.txt/1,bernoulli,singular,,283728,5,1,1,0.0197
+373,cmm_asian/ASIAN.DAT/1,gaussian,warning,,1572,4,1,2,8858.7799
+374,cmm_ilea567/ILEA567.DAT/1,gaussian,ok,,15362,21,1,1,20.5973
+375,zuur_zim/SpidersHongKongV2.csv/1,poisson,ok,,274,8,1,1,0.8796
+376,zuur_zim/SpidersHongKongV2.csv/2,poisson,singular,,274,8,1,1,0.1788
+377,zuur_zim/SpidersHongKongV2.csv/3,poisson,warning,,274,8,1,1,0.4051
+378,rabe_hesketh/wheat.dta/1,gaussian,ok,,60,2,1,1,56.9
+379,rethinking/data/Crofoot.csv/1,bernoulli,singular,,58,5,3,3,0.5517
+380,rabe_hesketh/star1.dta/2,gaussian,singular,,23640,10,2,2,539.112
 ,alda/aldatxt/depression_pp.txt/1,bernoulli,error,no estimates,,,,,
-419,rethinking/kl_dyads/2,poisson,ok,,300,1,3,3,5.7033
-420,rethinking/data/Monks.csv/2,poisson,ok,,153,1,2,2,0.451
-421,alda/aldatxt/tolerance_pp.txt/1,gaussian,ok,,80,2,1,2,1.6194
-422,rabe_hesketh/electricity.dta/1,bernoulli,warning,,4780,7,1,6,0.25
-423,rabe_hesketh/ezunem.dta/1,poisson,warning,,198,10,1,1,11.1908
+381,rethinking/kl_dyads/2,poisson,ok,,300,1,3,3,5.7033
+382,rethinking/data/Monks.csv/2,poisson,ok,,153,1,2,2,0.451
+383,alda/aldatxt/tolerance_pp.txt/1,gaussian,ok,,80,2,1,2,1.6194
+384,rabe_hesketh/electricity.dta/1,bernoulli,warning,,4780,7,1,6,0.25
 ,rabe_hesketh/yogurt.dta/1,bernoulli,no_formula,no estimates,,,,,
 ,rabe_hesketh/infections.dta/1,gaussian,error,no estimates,,,,,
-424,goldstein_msm/jsp_728.xls/1,gaussian,ok,,728,4,1,1,-0.0031
-425,alda/aldatxt/reading_pp.txt/1,gaussian,warning,,267,2,1,2,31.2247
-426,ros/ElectricCompany/data/electric.csv/1,gaussian,ok,,192,4,1,1,97.1495
-427,fitzmaurice_fev1/fev1.dta/1,gaussian,ok,,1994,5,1,2,0.8152
-428,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17C/1,poisson,ok,,1738,6,1,2,2.3429
+385,goldstein_msm/jsp_728.xls/1,gaussian,ok,,728,4,1,1,-0.0031
+386,alda/aldatxt/reading_pp.txt/1,gaussian,warning,,267,2,1,2,31.2247
+387,fitzmaurice_fev1/fev1.dta/1,gaussian,ok,,1994,5,1,2,0.8152
+388,rabe_hesketh/cito.dta/1,bernoulli,ok,,2156,4,1,1,0.7792
+389,snijders_bosker/Multilevel_Analysis_2nd_Ed_data.xlsx!17C/1,poisson,ok,,1738,6,1,2,2.3429
 ,zuur_mixed/Cetaceans.txt/1,gaussian,error,no estimates,,,,,
-429,koczynska_2026_osf_48/data_means_20241030/1,gaussian,singular,,1696,7,1,7,0.0333
-430,koczynska_2026_osf_49/merge_iter_20241030/1,gaussian,ok,,169500,7,1,7,0.0329
-431,naranowicz_2024_osf_2/MO--ST_beh.csv/1,gaussian,warning,,9600,16,2,5,895.6259
-432,naranowicz_2024_osf_2/MO--ST_beh.csv/2,bernoulli,warning,,9600,16,2,6,0.8865
-433,sievers_2020_osf_14/summary_change_a_pairwise_2019-11-27.csv/1,gaussian,ok,,3478,2,1,1,3113.3564
-434,sievers_2020_osf_16/summary_pull_c_pairwise_2019-11-29.csv/1,gaussian,ok,,10810,5,1,1,2925.2332
-435,sievers_2020_osf_50/status_wave_two.csv/1,gaussian,ok,,390,39,1,1,5.7436
-436,szollosi_2019_osf_3/exp1.csv/1,bernoulli,ok,,14400,2,1,1,0.6717
-437,szollosi_2019_osf_4/exp3.csv/1,bernoulli,ok,,19200,2,1,1,0.7611
-,timmer_2024_osf_16/color_experiments_data_27.05.2024.txt/1,gaussian,singular,rows unlike the fit's,,,,,
-,timmer_2024_osf_15/tone_experiments_data_27.05.2024.txt/1,gaussian,singular,rows unlike the fit's,,,,,
-438,berweger_2023_osf_78/dat.all/2,bernoulli,warning,,3981,14,1,1,0.7322
-439,hubbard_2023_osf_2/Godparent data.csv/1,poisson,singular,,222,5,2,2,11.0856
-440,hubbard_2023_osf_2/Godparent data.csv/2,bernoulli,singular,,222,5,2,2,0.7658
-441,hubbard_2023_osf_2/Godparent data.csv/3,poisson,singular,,258,3,1,1,1.7868
-442,johannes_2021b_osf_6/processed_data/1,gaussian,ok,,428,9,2,2,138.9603
-443,johannes_2021b_osf_6/processed_data/2,gaussian,singular,,428,9,2,2,153.3995
-444,johannes_2021b_osf_6/processed_data/3,gaussian,singular,,426,9,2,2,45.7051
-445,plonsky_2019_osf/dd1/1,gaussian,ok,,20783,271,3,3,0.382
-446,avetisyan_2020_osf_3/E1_data.csv/1,bernoulli,ok,,8723,4,2,8,0.9263
-447,avetisyan_2020_osf_3/E1_data.csv/2,gaussian,singular,,8727,4,2,8,6.9418
-448,kanber_2022_osf/Task3_Intelligibility_raw_data.csv/1,bernoulli,ok,,4160,2,2,2,0.7447
-449,laing_2024_osf_7/SiblingsData.csv/1,gaussian,ok,,281,3,1,1,1.2457
-450,sequestro_2024_osf_2/EXP2_3_pooled.csv/1,bernoulli,singular,,5692,8,1,4,0.6052
-451,sequestro_2024_osf_11/EXP2_elevator_main.csv/1,bernoulli,singular,,3288,4,1,4,0.7856
-452,sequestro_2024_osf_12/EXP1_elevator_main.csv/1,bernoulli,warning,,6876,4,1,4,0.8166
-453,sequestro_2024_osf_12/EXP1_elevator_main.csv/2,gaussian,ok,,6876,3,1,1,0.5851
-454,sequestro_2024_osf_16/EXP3_elevator_main.csv/1,bernoulli,warning,,6528,4,1,4,0.7633
+390,koczynska_2026_osf_48/data_means_20241030/1,gaussian,singular,,1696,7,1,7,0.0333
+391,koczynska_2026_osf_49/merge_iter_20241030/1,gaussian,ok,,169500,7,1,7,0.0329
+392,naranowicz_2024_osf_2/MO--ST_beh.csv/1,gaussian,warning,,9600,16,2,5,895.6259
+393,naranowicz_2024_osf_2/MO--ST_beh.csv/2,bernoulli,warning,,9600,16,2,6,0.8865
+394,sievers_2020_osf_14/summary_change_a_pairwise_2019-11-27.csv/1,gaussian,ok,,3478,2,1,1,3113.3564
+395,sievers_2020_osf_16/summary_pull_c_pairwise_2019-11-29.csv/1,gaussian,ok,,10810,5,1,1,2925.2332
+396,sievers_2020_osf_50/status_wave_two.csv/1,gaussian,ok,,390,39,1,1,5.7436
+397,szollosi_2019_osf_3/exp1.csv/1,bernoulli,ok,,14400,2,1,1,0.6717
+398,szollosi_2019_osf_4/exp3.csv/1,bernoulli,ok,,19200,2,1,1,0.7611
+399,timmer_2024_osf_16/color_experiments_data_27.05.2024.txt/1,gaussian,singular,,26568,8,2,12,0.0285
+400,timmer_2024_osf_15/tone_experiments_data_27.05.2024.txt/1,gaussian,singular,,60826,14,2,10,-0.0099
+401,berweger_2023_osf_78/dat.all/2,bernoulli,warning,,3981,14,1,1,0.7322
+402,hubbard_2023_osf_2/Godparent data.csv/1,poisson,singular,,222,5,2,2,11.0856
+403,hubbard_2023_osf_2/Godparent data.csv/2,bernoulli,singular,,222,5,2,2,0.7658
+404,hubbard_2023_osf_2/Godparent data.csv/3,poisson,singular,,258,3,1,1,1.7868
+405,johannes_2021b_osf_6/processed_data/1,gaussian,ok,,428,9,2,2,138.9603
+406,johannes_2021b_osf_6/processed_data/2,gaussian,singular,,428,9,2,2,153.3995
+407,johannes_2021b_osf_6/processed_data/3,gaussian,singular,,426,9,2,2,45.7051
+408,plonsky_2019_osf/dd1/1,gaussian,ok,,20783,271,3,3,0.382
+409,avetisyan_2020_osf_3/E1_data.csv/1,bernoulli,ok,,8723,4,2,8,0.9263
+410,avetisyan_2020_osf_3/E1_data.csv/2,gaussian,singular,,8727,4,2,8,6.9418
+411,kanber_2022_osf/Task3_Intelligibility_raw_data.csv/1,bernoulli,ok,,4160,2,2,2,0.7447
+412,laing_2024_osf_7/SiblingsData.csv/1,gaussian,ok,,281,3,1,1,1.2457
+413,sequestro_2024_osf_2/EXP2_3_pooled.csv/1,bernoulli,singular,,5692,8,1,4,0.6052
+414,sequestro_2024_osf_11/EXP2_elevator_main.csv/1,bernoulli,singular,,3288,4,1,4,0.7856
+415,sequestro_2024_osf_12/EXP1_elevator_main.csv/1,bernoulli,warning,,6876,4,1,4,0.8166
+416,sequestro_2024_osf_12/EXP1_elevator_main.csv/2,gaussian,ok,,6876,3,1,1,0.5851
+417,sequestro_2024_osf_16/EXP3_elevator_main.csv/1,bernoulli,warning,,6528,4,1,4,0.7633
 ,gumundsdottir_2026_osf/Momentary_data_4waves/1,gaussian,error,no estimates,,,,,
 ,gumundsdottir_2026_osf_2/Momentary_data/1,gaussian,error,no estimates,,,,,
 ,gumundsdottir_2026_osf_3/Daily_data_4waves/1,gaussian,error,no estimates,,,,,
@@ -527,88 +481,452 @@ task,id,family,status,reason,rows,rank,factors,random_effects,y_mean
 ,lagisz_2020_osf_3/MA_dataset_with_ES.csv/1,gaussian,error,no estimates,,,,,
 ,lagisz_2020_osf_3/MA_dataset_with_ES.csv/2,gaussian,error,no estimates,,,,,
 ,marton_2022_figshare/OS_pigmentation_data.csv/1,gaussian,error,no estimates,,,,,
-455,weaving_2023_osf/df1_long/1,gaussian,ok,,1020,5,2,2,5.7151
-456,weaving_2023_osf/df2_long/1,gaussian,ok,,1128,5,2,2,5.3005
-457,weaving_2023_osf/df3_long/1,gaussian,ok,,1662,5,2,2,5.8438
-458,weaving_2023_osf/df3_news/1,gaussian,ok,,1662,3,2,2,7.4729
-459,greis_2022_osf/raw_SAT1_R1.csv/1,gaussian,ok,,1076,62,1,1,3.6199
-460,greis_2022_osf/raw_SAT1_R1.csv/2,bernoulli,warning,,1076,4,1,1,0.6013
-461,king_2025_osf/CHOdataset.xlsx!reps/1,poisson,ok,,48,3,1,1,75.6458
+418,weaving_2023_osf/df1_long/1,gaussian,ok,,1020,5,2,2,5.7151
+419,weaving_2023_osf/df2_long/1,gaussian,ok,,1128,5,2,2,5.3005
+420,weaving_2023_osf/df3_long/1,gaussian,ok,,1662,5,2,2,5.8438
+421,weaving_2023_osf/df3_news/1,gaussian,ok,,1662,3,2,2,7.4729
+422,greis_2022_osf/raw_SAT1_R1.csv/1,gaussian,ok,,1076,62,1,1,3.6199
+423,greis_2022_osf/raw_SAT1_R1.csv/2,bernoulli,warning,,1076,4,1,1,0.6013
+424,king_2025_osf/CHOdataset.xlsx!reps/1,poisson,ok,,48,3,1,1,75.6458
 ,liutu_2026_zenodo_3/Measurement_plots.xlsx/1,gaussian,error,no estimates,,,,,
-462,walker_2021b_zenodo/FeedingAssays_Site_2018.csv/1,gaussian,warning,,379,4,1,1,0.2876
+425,walker_2021b_zenodo/FeedingAssays_Site_2018.csv/1,gaussian,warning,,379,4,1,1,0.2876
 ,grey_2026_osf_2/WrangledData.csv/1,gaussian,no_formula,no estimates,,,,,
-463,valdebenito_2020_dryad_2/submit.csv/1,bernoulli,singular,,219,4,2,2,0.0183
-464,valdebenito_2020_dryad_2/submit.csv/2,gaussian,ok,,208,7,2,2,41.3803
-465,valdebenito_2020_dryad_2/submit.csv/3,bernoulli,ok,,219,4,2,2,0.2146
-466,villemereuil_2018_dryad/data.csv/2,poisson,warning,,465,7,1,1,0.3247
-467,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question I.1/1,bernoulli,ok,,500,4,1,1,0.684
-468,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question I.1/2,bernoulli,singular,,500,4,1,1,0.194
-469,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.2/2,poisson,ok,,54,3,1,1,1.5
-470,shanahan_2019_dryad_3/TNetAndTSLR.csv/1,gaussian,ok,,2408,17,1,1,2.3991
-471,shanahan_2019_dryad_3/TNetAndTSLR.csv/2,gaussian,ok,,2408,17,1,1,3.5671
-472,shanahan_2019_dryad_2/StandardDeviations.csv/1,gaussian,ok,,688,7,1,1,11.1321
+426,valdebenito_2020_dryad_2/submit.csv/1,bernoulli,singular,,219,4,2,2,0.0183
+427,valdebenito_2020_dryad_2/submit.csv/2,gaussian,ok,,208,7,2,2,41.3803
+428,valdebenito_2020_dryad_2/submit.csv/3,bernoulli,ok,,219,4,2,2,0.2146
+429,villemereuil_2018_dryad/data.csv/2,poisson,warning,,465,7,1,1,0.3247
+430,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question I.1/1,bernoulli,ok,,500,4,1,1,0.684
+431,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question I.1/2,bernoulli,singular,,500,4,1,1,0.194
+432,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.2/2,poisson,ok,,54,3,1,1,1.5
+433,shanahan_2019_dryad_3/TNetAndTSLR.csv/1,gaussian,ok,,2408,17,1,1,2.3991
+434,shanahan_2019_dryad_3/TNetAndTSLR.csv/2,gaussian,ok,,2408,17,1,1,3.5671
+435,shanahan_2019_dryad_2/StandardDeviations.csv/1,gaussian,ok,,688,7,1,1,11.1321
 ,barbosa_2018_dryad/Miguel_Barbosa_data.csv/1,gaussian,error,no estimates,,,,,
 ,barbosa_2018_dryad/Miguel_Barbosa_data.csv/2,gaussian,error,no estimates,,,,,
-473,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.2/1,poisson,ok,,54,3,1,1,4.963
-474,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question III and IV/2,gaussian,ok,,210,6,1,1,1.0329
-475,slepian_2019_osf_6/manic6_cleanData_combinedAnalysis.csv/1,gaussian,ok,,11124,6,2,2,54.266
-476,slepian_2019_osf_5/manic5_cleanData_combinedAnalysis.csv/1,gaussian,ok,,16716,6,2,2,52.7545
+436,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.2/1,poisson,ok,,54,3,1,1,4.963
+437,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question III and IV/2,gaussian,ok,,210,6,1,1,1.0329
+438,slepian_2019_osf_6/manic6_cleanData_combinedAnalysis.csv/1,gaussian,ok,,11124,6,2,2,54.266
+439,slepian_2019_osf_5/manic5_cleanData_combinedAnalysis.csv/1,gaussian,ok,,16716,6,2,2,52.7545
 ,martinezzaragoza_2020_dryad/eco2/2,bernoulli,error,no estimates,,,,,
-477,martinezzaragoza_2020_dryad/eco2/1,bernoulli,ok,,1901,7,1,1,0.3161
-478,arriero_2017_dryad/vole_immunological_profiles_data.xlsx/1,gaussian,ok,,248,9,1,1,0.3079
-479,arriero_2017_dryad/vole_immunological_profiles_data.xlsx/2,gaussian,ok,,248,9,1,1,0.2799
-480,arriero_2017_dryad/vole_immunological_profiles_data.xlsx/3,gaussian,ok,,248,9,1,1,0.1962
+440,martinezzaragoza_2020_dryad/eco2/1,bernoulli,ok,,1901,7,1,1,0.3161
+441,arriero_2017_dryad/vole_immunological_profiles_data.xlsx/1,gaussian,ok,,248,9,1,1,0.3079
+442,arriero_2017_dryad/vole_immunological_profiles_data.xlsx/2,gaussian,ok,,248,9,1,1,0.2799
+443,arriero_2017_dryad/vole_immunological_profiles_data.xlsx/3,gaussian,ok,,248,9,1,1,0.1962
 ,verberk_2022_zenodo/Data/Pcrit data for 195 fish species ( 2022_02_14).csv/1,gaussian,error,no estimates,,,,,
 ,zimin_2023_dryad/JAV-03137_DATA.csv/1,gaussian,singular,no intercept,,,,,
-481,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.1/1,bernoulli,ok,,444,3,1,1,0.6171
-482,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.1/2,bernoulli,ok,,438,3,1,1,0.1849
-483,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question III and IV/1,bernoulli,ok,,210,6,1,1,0.8381
-484,goodwin_2022_dryad_3/Sample_metadata.csv/1,gaussian,ok,,334,4,1,1,15.0219
-485,goodwin_2022_dryad_3/Sample_metadata.csv/2,gaussian,ok,,334,4,1,1,8.0708
-486,goodwin_2022_dryad_3/Sample_metadata.csv/3,gaussian,ok,,334,4,1,1,67.3623
-487,avetisyan_2020_osf_2/E3_data.csv/1,gaussian,singular,,68040,8,2,16,6.6971
-488,staton_2021_dryad/rawdata.csv/1,gaussian,ok,,25312,2,2,2,15.554
-489,weaving_2023_osf/df_ALL/1,gaussian,singular,,3810,5,3,7,5.6485
-490,voorspoels_2015_osf_3/d/1,gaussian,singular,,1592,4,4,4,71.772
+444,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.1/1,bernoulli,ok,,444,3,1,1,0.6171
+445,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question II.1/2,bernoulli,ok,,438,3,1,1,0.1849
+446,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question III and IV/1,bernoulli,ok,,210,6,1,1,0.8381
+447,goodwin_2022_dryad_3/Sample_metadata.csv/1,gaussian,ok,,334,4,1,1,15.0219
+448,goodwin_2022_dryad_3/Sample_metadata.csv/2,gaussian,ok,,334,4,1,1,8.0708
+449,goodwin_2022_dryad_3/Sample_metadata.csv/3,gaussian,ok,,334,4,1,1,67.3623
+450,avetisyan_2020_osf_2/E3_data.csv/1,gaussian,singular,,68040,8,2,16,6.6971
+451,staton_2021_dryad/rawdata.csv/1,gaussian,ok,,25312,2,2,2,15.554
+452,weaving_2023_osf/df_ALL/1,gaussian,singular,,3810,5,3,7,5.6485
+453,voorspoels_2015_osf_3/d/1,gaussian,singular,,1592,4,4,4,71.772
 ,kappers_2018_osf_4/phenotypic_data_for_animal_model.xlsx/1,gaussian,error,no estimates,,,,,
-491,liutu_2026_zenodo_3/Measurement_plots.xlsx/2,gaussian,ok,,76,4,1,1,21.5
-492,avetisyan_2020_osf/E2_data.csv/1,gaussian,singular,,20064,4,2,8,6.8003
+454,liutu_2026_zenodo_3/Measurement_plots.xlsx/2,gaussian,ok,,76,4,1,1,21.5
+455,avetisyan_2020_osf/E2_data.csv/1,gaussian,singular,,20064,4,2,8,6.8003
 ,kappers_2018_osf_4/phenotypic_data_for_animal_model.xlsx/2,gaussian,error,no estimates,,,,,
-493,martinezzaragoza_2020_dryad/eco2/3,bernoulli,warning,,1901,5,1,2,0.0752
+456,martinezzaragoza_2020_dryad/eco2/3,bernoulli,warning,,1901,5,1,2,0.0752
 ,marton_2022_figshare/OS_pigmentation_data.csv/2,gaussian,error,no estimates,,,,,
 ,marton_2022_figshare/OS_pigmentation_data.csv/3,gaussian,error,no estimates,,,,,
-494,szollosi_2019_osf_2/exp2.csv/1,bernoulli,ok,,10560,3,1,1,0.7378
-495,voorspoels_2015_osf/d/1,gaussian,ok,,308,4,2,2,76.2208
-496,voorspoels_2015_osf_2/d/1,gaussian,ok,,2066,36,2,2,76.0252
+457,szollosi_2019_osf_2/exp2.csv/1,bernoulli,ok,,10560,3,1,1,0.7378
+458,voorspoels_2015_osf/d/1,gaussian,ok,,308,4,2,2,76.2208
+459,voorspoels_2015_osf_2/d/1,gaussian,ok,,2066,36,2,2,76.0252
 ,kleisner_2026_osf/data.csv/1,gaussian,error,no estimates,,,,,
 ,kleisner_2026_osf/data.csv/2,gaussian,error,no estimates,,,,,
 ,kleisner_2026_osf/data.csv/3,gaussian,error,no estimates,,,,,
-497,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question I.2/1,bernoulli,ok,,504,4,2,2,0.6409
-498,sievers_2020_osf_12/convo_df_2022-04-01.csv/1,gaussian,warning,,45,16,1,1,0.3659
-499,villemereuil_2018_dryad/data.csv/3,poisson,warning,,537,7,1,1,3.9888
-500,pymc_examples/examples/data/rugby.csv/2,poisson,ok,,60,1,2,2,19.9833
+460,meyel_2026_dryad/Data_MS_group_size_final.xlsx!Question I.2/1,bernoulli,ok,,504,4,2,2,0.6409
+461,sievers_2020_osf_12/convo_df_2022-04-01.csv/1,gaussian,warning,,45,16,1,1,0.3659
+462,villemereuil_2018_dryad/data.csv/3,poisson,warning,,537,7,1,1,3.9888
+463,pymc_examples/examples/data/rugby.csv/2,poisson,ok,,60,1,2,2,19.9833
 ,rethinking/data/Primates301.csv/2,gaussian,error,no estimates,,,,,
-501,mlmRev/Gcsemv/2,gaussian,ok,,1725,2,1,1,73.3874
-502,mlmRev/ScotsSec/2,gaussian,ok,,3435,2,2,2,0.4099
-503,mlmRev/ScotsSec/3,poisson,ok,,3435,1,2,2,5.6786
-504,stata_abdata/abdata.dta/1,gaussian,ok,,751,17,1,1,1.0137
-505,stata_pennxrate/pennxrate.dta/1,gaussian,ok,,5134,4,1,1,-0.6375
-506,stata_swedishgov/swedishgov.dta/1,gaussian,singular,,2385,3,1,1,0.0185
-507,zuur_glmglmm/Baileyetal2008.xls/1,poisson,warning,,148,4,1,1,215.6216
+464,mlmRev/Gcsemv/2,gaussian,ok,,1725,2,1,1,73.3874
+465,mlmRev/ScotsSec/2,gaussian,ok,,3435,2,2,2,0.4099
+466,mlmRev/ScotsSec/3,poisson,ok,,3435,1,2,2,5.6786
+467,stata_pennxrate/pennxrate.dta/1,gaussian,ok,,5134,4,1,1,-0.6375
+468,zuur_glmglmm/Baileyetal2008.xls/1,poisson,warning,,148,4,1,1,215.6216
 ,ros/Peacekeeping/data/pk&pkept.dta/1,bernoulli,error,no estimates,,,,,
-508,stan_arm/ARM/Ch.10/ideo2.dat/1,gaussian,ok,,8535,3,2,2,-0.0247
+469,stan_arm/ARM/Ch.10/ideo2.dat/1,gaussian,ok,,8535,3,2,2,-0.0247
 ,stan_bugs/bugs_examples/vol2/ice/ice.data.json/1,poisson,no_formula,no estimates,,,,,
 ,pymc_examples/examples/data/gdp_data_hierarchical_clean.csv/1,gaussian,no_formula,no estimates,,,,,
 ,pymc_examples/examples/data/gdp_data_hierarchical_clean.csv/2,gaussian,no_formula,no estimates,,,,,
 ,pymc_examples/examples/data/gdp_data_hierarchical_clean.csv/3,gaussian,no_formula,no estimates,,,,,
 ,pymc_examples/examples/data/pancreatitis.csv/1,gaussian,no_formula,no estimates,,,,,
-509,carData/Vocab/1,poisson,ok,,30351,3,1,1,6.0037
-510,agridat/lander.multi.uniformity/1,gaussian,ok,,780,4,1,1,28.3056
-511,agridat/lehmann.rice.uniformity/1,gaussian,ok,,153,4,1,1,241.8914
-512,agridat/roemer.sugarbeet.uniformity/1,gaussian,ok,,192,2,1,1,22.513
-513,HSAUR3/Forbes2000/1,gaussian,ok,,1995,30,1,1,1.6925
-,agridat/heady.fertilizer/1,gaussian,ok,rows unlike the fit's,,,,,
-514,MASS/Cars93/1,gaussian,ok,,93,3,1,1,19.5097
+470,carData/Vocab/1,poisson,ok,,30351,3,1,1,6.0037
+471,agridat/lander.multi.uniformity/1,gaussian,ok,,780,4,1,1,28.3056
+472,agridat/lehmann.rice.uniformity/1,gaussian,ok,,153,4,1,1,241.8914
+473,agridat/roemer.sugarbeet.uniformity/1,gaussian,ok,,192,2,1,1,22.513
+474,HSAUR3/Forbes2000/1,gaussian,ok,,1995,30,1,1,1.6925
+475,agridat/heady.fertilizer/1,gaussian,ok,,228,12,1,1,59.5496
+476,MASS/Cars93/1,gaussian,ok,,93,3,1,1,19.5097
 ,posteriordb/posterior_database/data/data/loss_curves.json.zip/1,gaussian,no_formula,no estimates,,,,,
 ,pymc_examples/examples/data/fastball_spin_rates.csv/1,gaussian,no_formula,no estimates,,,,,
 ,pymc_examples/examples/data/gambia_dataset.csv/1,bernoulli,no_formula,no estimates,,,,,
+477,github_mcmcglmm_intro/data.tsv/1,bernoulli,warning,,1112,8,2,12,0.571
+478,github_ladal/mblrdata.txt/1,bernoulli,ok,,2000,4,1,1,0.172
+479,osf_8rjxu/tappedMcGillLing620.csv/1,bernoulli,warning,,715,3,2,10,0.1189
+480,osf_8rjxu/tappedMcGillLing620.csv/2,gaussian,singular,,721,4,2,18,0.1017
+481,osf_dha2j/alternativesMcGillLing620.csv/1,bernoulli,warning,,622,3,2,8,0.6688
+482,osf_r4j2w/givennessMcGillLing620.csv/1,bernoulli,warning,,382,4,2,12,0.3534
+483,osf_r4j2w/givennessMcGillLing620.csv/2,gaussian,singular,,382,6,2,20,-0.7221
+484,github_ysj_r_workshop/AMPM_subset.csv/1,bernoulli,warning,,1602,4,2,4,0.3146
+485,github_ysj_r_workshop/AMPM_subset.csv/2,gaussian,ok,,492,4,2,3,0.0008
+486,osf_xrqae/study1.data.csv/1,gaussian,ok,,600,4,1,1,51.5983
+487,osf_xrqae/study1.data.csv/2,gaussian,ok,,600,4,1,1,47.1567
+488,bodowinter_politeness/politeness_data.csv/1,gaussian,singular,,83,3,2,4,193.5819
+489,github_stats4nr/redpine/1,gaussian,ok,,450,2,2,2,74.5007
+490,github_sigrist2023/data/airbnb.csv.gz/1,gaussian,ok,,49976,196,1,1,4.7258
+491,github_sigrist2023/data/au_anual_import_commodity.csv.gz/1,gaussian,warning,,125602,9,1,3,14.4001
+492,github_sigrist2023/data/imdb.csv.gz/1,gaussian,ok,,88360,160,2,2,6.0927
+,github_sigrist2023/data/news.csv.gz/1,poisson,timeout,no estimates,,,,,
+493,github_sigrist2023/data/spotify.csv.gz/1,gaussian,ok,,28356,15,4,4,0.6534
+,github_gpboost/gdp_european_regions.csv/1,gaussian,no_formula,no estimates,,,,,
+494,AER/USAirlines/1,gaussian,ok,,90,4,1,1,13.3656
+495,AER/USAirlines/2,gaussian,ok,,90,4,2,2,13.3656
+496,plm/Cigar/1,gaussian,warning,,1380,3,2,2,123.9509
+497,plm/Crime/1,gaussian,ok,,630,27,1,1,-3.6092
+498,plm/Gasoline/1,gaussian,ok,,342,4,1,1,4.2962
+499,plm/Grunfeld/1,gaussian,warning,,200,3,1,1,145.9583
+500,plm/Grunfeld/2,gaussian,warning,,200,3,2,2,145.9583
+501,plm/Hedonic/1,gaussian,warning,,506,14,1,1,9.9423
+502,plm/Produc/1,gaussian,ok,,816,5,1,1,10.5088
+503,plm/Produc/2,gaussian,ok,,816,5,2,2,10.5088
+504,plm/Produc/3,gaussian,ok,,816,7,2,2,10.5088
+505,camerondata/vietnam_hh/1,gaussian,ok,,5006,7,1,1,6.3106
+,Ecdat/Train/1,bernoulli,warning,no intercept,,,,,
+506,Ecdat/VietNamI/1,poisson,ok,,27765,11,1,1,0.5118
+,metadat/dat.assink2016/1,gaussian,error,no estimates,,,,,
+,metadat/dat.bakdash2021/1,gaussian,error,no estimates,,,,,
+507,metadat/dat.begg1989/1,gaussian,ok,,20,4,1,1,0.4085
+,metadat/dat.berkey1998/1,gaussian,error,no estimates,,,,,
+508,metadat/dat.crede2010/1,gaussian,singular,,97,1,2,2,0.4271
+,metadat/dat.kalaian1996/1,gaussian,error,no estimates,,,,,
+,metadat/dat.knapp2017/1,gaussian,error,no estimates,,,,,
+,metadat/dat.konstantopoulos2011/1,gaussian,error,no estimates,,,,,
+,metadat/dat.mccurdy2020/1,gaussian,error,no estimates,,,,,
+,metadat/dat.senn2013/1,gaussian,error,no estimates,,,,,
+,metadat/dat.tannersmith2016/1,gaussian,error,no estimates,,,,,
+,metadat/dat.white2020/1,gaussian,error,no estimates,,,,,
+,psymetadata/lowe2020/1,gaussian,error,no estimates,,,,,
+,psymetadata/noble2019/1,gaussian,error,no estimates,,,,,
+509,bayesrules/airbnb/1,poisson,ok,,1561,4,1,1,27.1928
+510,bayesrules/airbnb/2,gaussian,ok,,1561,6,1,1,4.4829
+511,bayesrules/basketball/1,poisson,warning,,146,4,1,1,416.4795
+512,bayesrules/big_word_club/1,gaussian,ok,,603,6,1,1,6.6944
+513,bayesrules/cherry_blossom_sample/1,gaussian,ok,,185,2,1,1,89.9468
+514,bayesrules/climbers_sub/1,bernoulli,ok,,2076,3,2,2,0.3887
+515,bayesrules/spotify/1,gaussian,ok,,350,1,1,1,58.4029
+516,bayesrules/spotify/2,gaussian,ok,,350,7,1,1,66.0406
+517,bayesrules/spotify/3,gaussian,ok,,350,2,2,2,58.4029
+518,StroupGLMM/DataSet8.2/1,gaussian,ok,,36,9,3,3,23.9472
+519,StroupGLMM/DataSet8.3/1,gaussian,ok,,28,8,1,1,46.1893
+520,StroupGLMM/DataSet8.4/1,gaussian,singular,,36,9,3,3,20.2556
+521,StroupGLMM/DataSet9.1/1,gaussian,ok,,24,1,1,1,15.9
+522,MLMusingR/pisa2012/1,gaussian,ok,,3136,2,1,1,484.1275
+523,MLMusingR/sch29/1,gaussian,ok,,648,5,1,1,49.0565
+524,R2MLwiN/bes83/1,bernoulli,ok,,800,5,1,1,0.4388
+525,R2MLwiN/cvd/1,bernoulli,ok,,8804,6,1,1,0.2743
+526,R2MLwiN/diag1/1,gaussian,ok,,907,2,1,2,0.0173
+527,R2MLwiN/fysio/1,bernoulli,ok,,16700,33,1,1,0.1995
+528,R2MLwiN/gcsemv1/1,gaussian,ok,,1703,2,1,1,46.7976
+529,R2MLwiN/gcsemv1/2,gaussian,ok,,1725,2,1,1,73.4348
+530,R2MLwiN/hungary1/1,gaussian,ok,,2439,2,1,1,8.3941
+531,R2MLwiN/hungary1/2,gaussian,ok,,2439,2,1,1,7.0664
+532,R2MLwiN/hungary1/3,gaussian,ok,,1222,2,1,1,6.8822
+533,R2MLwiN/jspmix1/1,poisson,warning,,1119,4,1,1,41.4745
+534,R2MLwiN/jspmix1/2,bernoulli,ok,,1119,3,1,1,0.7784
+535,R2MLwiN/lmdp/1,gaussian,ok,,5639,2,1,1,112.7866
+536,R2MLwiN/xc/1,poisson,ok,,3435,1,2,2,5.6786
+,MPDiR/Context/1,poisson,error,no estimates,,,,,
+,MPDiR/Faces/1,poisson,error,no estimates,,,,,
+537,MPDiR/Faces/2,poisson,warning,,960,2,2,4,4.8177
+538,MPDiR/Faces2/1,bernoulli,ok,,960,2,2,2,0.55
+539,MPDiR/ModelFest.df/1,gaussian,ok,,2752,43,2,2,1.5472
+540,afex/fhch2010/1,gaussian,singular,,13222,16,2,7,-0.0753
+541,afex/sk2011.1/1,poisson,ok,,640,16,4,4,79.1406
+542,afex/sk2011.2/1,poisson,warning,,2268,24,1,12,71.1517
+543,afex/stroop/1,bernoulli,ok,,232217,4,1,4,0.9531
+544,afex/stroop/2,gaussian,ok,,232217,4,4,4,-0.475
+545,multilevel/bh1996/1,gaussian,warning,,7382,5,1,2,2.7799
+546,multilevel/bhr2000/1,gaussian,ok,,5400,1,1,1,11.0276
+547,multilevel/sherifdat/1,gaussian,singular,,72,2,2,3,2.8694
+548,multilevel/tankdat/1,gaussian,ok,,2208,4,1,1,2.2749
+549,multilevel/univbct/1,gaussian,ok,,1386,4,1,2,3.2713
+550,BayesFactor/puzzles/1,gaussian,singular,,48,4,3,3,45.0
+551,BayesFactor/puzzles/2,gaussian,ok,,48,3,1,1,45.0
+552,mixor/concen/1,bernoulli,ok,,7632,2,1,1,0.7467
+553,JM/aids/1,gaussian,ok,,1405,4,1,2,2.4718
+554,JM/pbc2/1,gaussian,ok,,1945,4,1,1,0.6031
+555,JM/prothro/1,gaussian,ok,,2968,6,1,2,79.0371
+556,joineR/epileptic/1,gaussian,warning,,2797,4,1,2,2.3316
+557,joineR/heart.valve/1,gaussian,ok,,988,3,1,2,5.0022
+558,joineR/heart.valve/2,gaussian,ok,,629,3,1,1,18.2502
+559,joineR/liver/1,gaussian,ok,,2969,6,1,2,79.0472
+,lcmm/paquid/1,poisson,error,no estimates,,,,,
+560,lcmm/paquid/3,poisson,warning,,2104,4,1,3,8.4881
+561,lmerTest/TVbo/1,gaussian,ok,,192,6,2,2,8.2594
+562,DAAG/humanpower1/1,gaussian,ok,,28,2,1,1,47.0336
+563,DAAG/kiwishade/1,gaussian,ok,,48,4,2,2,96.5327
+564,smbdata/competition/1,gaussian,ok,,32,8,2,2,5.5525
+565,smbdata/forage/1,gaussian,ok,,12,4,1,1,11.7683
+566,smbdata/herbicide/1,gaussian,ok,,135,27,1,1,1.6537
+567,smbdata/lupintrial/1,gaussian,singular,,42,14,1,1,0.336
+568,smbdata/potatorow/1,gaussian,ok,,80,5,2,2,562.8
+569,smbdata/sosr/1,poisson,warning,,118,6,2,2,2.4667
+570,DAAG/science/1,gaussian,singular,,1383,3,2,2,5.0817
+571,DAAG/sorption/1,gaussian,ok,,192,12,1,1,43.3423
+572,DAAG/tinting/1,gaussian,ok,,182,15,1,1,3.92
+573,JoSAE/JoSAE.sample.data/1,gaussian,ok,,145,2,1,1,117.7664
+574,JoSAE/ulal.sub.samp.dat/1,gaussian,warning,,73,3,1,1,223.2181
+575,COUNT/medpar/1,poisson,ok,,1495,5,1,1,9.8542
+,spaMM/clinics/1,poisson,error,no estimates,,,,,
+,spaMM/crack/1,gaussian,error,no estimates,,,,,
+,spaMM/wafers/1,gaussian,error,no estimates,,,,,
+,hglm.data/semiconductor/1,gaussian,error,no estimates,,,,,
+576,MCMCglmm/BTdata/1,gaussian,ok,,828,3,2,2,-0.0
+,MCMCglmm/BTdata/2,gaussian,error,no estimates,,,,,
+577,MCMCglmm/PlodiaPO/1,gaussian,ok,,511,1,1,1,1.1686
+578,MCMCglmm/PlodiaRB/1,bernoulli,ok,,874,1,1,1,0.2895
+,FAwR/stage/1,gaussian,error,no estimates,,,,,
+579,beyondmlr/data/ambulance3.csv/1,gaussian,ok,,450,7,1,2,515.9556
+580,beyondmlr/data/basketball0910.csv/1,bernoulli,warning,,4972,11,3,3,0.4795
+581,beyondmlr/data/musicdata.csv/1,gaussian,ok,,497,11,1,6,16.2093
+582,embrace_elp_ldt_trial/ELP_ldt_trial.arrow/1,gaussian,ok,,2745952,4,2,2,1.5168
+,embrace_elp_ldt_trial/ELP_ldt_trial.arrow/2,bernoulli,timeout,no estimates,,,,,
+583,embrace_exp_2x2x3/exp_2x2x3.arrow/1,gaussian,ok,,396,12,1,1,29.6367
+,embrace_fggk21/fggk21.arrow/1,gaussian,error,no estimates,,,,,
+584,embrace_kkl15/kkl15.arrow/1,gaussian,singular,,53765,16,1,5,293.1467
+585,embrace_kwdyz11/kwdyz11.arrow/1,gaussian,singular,,28710,4,1,4,5.886
+586,osf_manylabs3/ML3AllSites.csv/2,bernoulli,singular,,2279,2,1,1,0.5151
+587,osf_manylabs3/ML3AllSites.csv/3,gaussian,ok,,2418,4,1,1,145.8557
+588,osf_manybabies1/03_data_trial_main.csv/1,gaussian,ok,,26895,15,3,3,1.8643
+589,osf_manybabies1/03_data_trial_main.csv/2,bernoulli,ok,,37264,10,1,1,0.2783
+590,osf_confidence_wierzchon_2014/data_Wierzchon_2014.csv/1,bernoulli,warning,,59374,48,1,1,0.9368
+591,beyondarena_rossmann_store_sales/rossmann_store_sales.pq/1,gaussian,warning,,267812,16,1,1,6538.2736
+,kaggle_us_census_demographic_data/acs2017_census_tract_data.csv/1,gaussian,no_formula,no estimates,,,,,
+,kaggle_craigslist_carstrucks_data/vehicles.csv/1,gaussian,error,no estimates,,,,,
+592,kaggle_craigslist_carstrucks_data/vehicles.csv/2,gaussian,warning,,80778,88,1,1,0.0001
+593,mendeley_oasis_longitudinal/oasis_longitudinal_demographics.xlsx/1,gaussian,singular,,373,8,1,2,0.7296
+594,beyondarena_5g_energy_consumption/5g_energy_consumption.pq/1,gaussian,warning,,5375,22,1,1,43.1276
+,beyondarena_early_learning_predictors/early_learning_predictors.pq/1,gaussian,error,no estimates,,,,,
+,beyondarena_sepsis_prediction/sepsis_prediction.pq/1,bernoulli,error,no estimates,,,,,
+,beyondarena_wids_diabetes_mellitus/wids_diabetes_mellitus.pq/1,bernoulli,error,no estimates,,,,,
+595,kaggle_speed_dating_experiment/Speed Dating Data.csv/1,bernoulli,warning,,7614,8,2,2,0.4268
+596,beyondarena_sat11_hand_algo_runtime/sat11_hand_algo_runtime.pq/1,gaussian,warning,,1150,122,1,1,4.798
+597,beyondarena_food_delivery_time/food_delivery_time.pq/1,gaussian,singular,,45451,9,1,1,26.2906
+598,uci_335/transcoding_mesurment.tsv/1,gaussian,warning,,68784,22,1,1,1.5662
+599,uci_335/youtube_videos.tsv/1,gaussian,ok,,168286,24,1,1,730.6215
+600,openml_44992/dataset_44992.pq/1,gaussian,ok,,24624,2,3,3,4.7261
+601,kaggle_electric_motor_temperature/measures_v2.csv/1,gaussian,warning,,1330816,8,1,1,58.5068
+602,kaggle_electric_motor_temperature/measures_v2.csv/2,gaussian,warning,,1330816,8,1,1,66.3427
+603,kaggle_electric_motor_temperature/measures_v2.csv/3,gaussian,warning,,1330816,8,1,1,56.8786
+,uci_597/data.csv/1,gaussian,error,no estimates,,,,,
+604,uci_464/unique_m.csv/1,gaussian,ok,,21263,78,1,1,34.4212
+,kaggle_skillbuilder_data_2009_2010/2012-2013-data-with-predictions-4-final.csv/1,gaussian,error,no estimates,,,,,
+605,osf_dha2j/alternativesMcGillLing620.csv/2,gaussian,singular,,630,3,2,6,3.0984
+606,osf_dha2j/alternativesMcGillLing620.csv/3,gaussian,singular,,524,3,2,6,195.2657
+,uci_349/studentVle.csv/1,poisson,timeout,no estimates,,,,,
+607,openml_41700/dataset_41700.pq/1,gaussian,ok,,2108,26,1,1,1164.9278
+608,openml_43071/dataset_43071.pq/1,gaussian,ok,,1090,5,1,1,14843.4182
+609,uci_562/Shill Bidding Dataset.csv/1,bernoulli,warning,,6321,10,2,2,0.1068
+610,kaggle_noshowappointments/KaggleV2-May-2016.csv/1,bernoulli,singular,,110527,9,2,2,0.2019
+611,openml_839/dataset_839.pq/1,bernoulli,warning,,568,5,2,2,0.6338
+612,openml_566/dataset_566.pq/1,gaussian,ok,,528,24,1,1,99.5525
+613,kaggle_nba_players_20162019/nba_final.csv/1,gaussian,warning,,1270,20,2,2,71.5639
+614,github_sigrist2023/data/poverty.csv.gz/1,bernoulli,warning,,5755,11,1,1,0.3769
+615,github_gpboost/gdp_european_regions.csv/2,gaussian,ok,,484,5,2,2,9.9599
+616,openml_41445/dataset_41445.pq/1,gaussian,ok,,9211,4,3,3,73433.8464
+617,openml_41210/dataset_41210.pq/1,gaussian,warning,,18249,13,1,1,1.406
+618,kaggle_wine_reviews/winemag-data-130k-v2.csv/1,gaussian,ok,,96420,43,4,4,88.5856
+619,openml_41444/dataset_41444.pq/1,gaussian,ok,,163065,2,3,3,8494.4952
+620,openml_41267/dataset_41267.pq/1,gaussian,ok,,394299,52,1,1,14.9071
+621,openml_41251/dataset_41251.pq/1,gaussian,ok,,457892,20,3,3,3.586
+622,openml_4135/dataset_4135.pq/1,bernoulli,ok,,32769,1,4,4,0.9421
+623,openml_41434/dataset_41434.pq/1,bernoulli,ok,,39948,4,2,2,0.1684
+624,kaggle_real_or_fake_fake_jobposting_prediction/fake_job_postings.csv/1,bernoulli,ok,,17534,1,1,1,0.0483
+625,beyondarena_mice_protein_trisomy_discriminant/mice_protein_trisomy_discriminant.pq/1,gaussian,ok,,1077,8,1,1,0.4258
+626,beyondarena_mice_protein_trisomy_discriminant/mice_protein_trisomy_discriminant.pq/2,gaussian,ok,,1077,8,1,1,0.6171
+627,beyondarena_mice_protein_trisomy_discriminant/mice_protein_trisomy_discriminant.pq/3,gaussian,ok,,1077,8,1,1,0.3191
+628,AER/CASchools/1,gaussian,ok,,420,5,1,1,654.1565
+629,Ecdat/Star/1,gaussian,ok,,5748,8,1,1,922.3904
+,metadat/dat.besson2016/1,gaussian,error,no estimates,,,,,
+,metadat/dat.bornmann2007/1,gaussian,error,no estimates,,,,,
+,metadat/dat.bourassa1996/1,gaussian,error,no estimates,,,,,
+,metadat/dat.curtis1998/1,gaussian,error,no estimates,,,,,
+,metadat/dat.dagostino1998/1,gaussian,error,no estimates,,,,,
+,metadat/dat.lopez2019/1,gaussian,ok,no intercept,,,,,
+630,AER/Municipalities/1,gaussian,singular,,2385,3,1,1,0.0185
+631,AER/PSID7682/1,gaussian,ok,,4165,13,1,1,6.6763
+632,DAAG/droughts/1,gaussian,singular,,2042,1,1,1,-0.6696
+633,DAAG/possum/1,gaussian,ok,,104,3,1,1,87.0885
+,psymetadata/agadullina2018/1,gaussian,error,no estimates,,,,,
+,psymetadata/aksayli2019/1,gaussian,error,no estimates,,,,,
+,psymetadata/barroso2021/1,gaussian,error,no estimates,,,,,
+634,psymetadata/gamble2019/1,gaussian,ok,,89,1,1,1,-0.1395
+,psymetadata/maldonado2020/1,gaussian,error,no estimates,,,,,
+,psymetadata/sala2019/1,gaussian,error,no estimates,,,,,
+,psymetadata/stasielowicz2020/1,gaussian,error,no estimates,,,,,
+,psymetadata/steffens2020/1,gaussian,error,no estimates,,,,,
+635,psymetadata/stramaccia2021/1,gaussian,ok,,96,5,2,2,0.251
+636,psymetadata/coles2019/1,gaussian,ok,,286,1,1,1,0.2502
+637,psymetadata/maccann2020/1,gaussian,ok,,1246,1,1,1,0.1759
+638,osf_blp/blp-trials.txt/1,gaussian,ok,,1860003,1,2,2,633.4966
+639,osf_dlp1/dlp-trials.txt/1,gaussian,ok,,949100,1,2,2,643.0246
+640,osf_dlp2_0/dlp2_trials0.tsv/1,gaussian,ok,,1055937,1,2,2,615.6815
+641,osf_dlp2_1/dlp2_trials1.tsv/1,gaussian,ok,,1054345,1,2,2,606.06
+642,osf_confidence_kvam_2016/data_Kvam_2016.csv/1,gaussian,ok,,4400,4,1,4,1.8533
+643,osf_confidence_lebreton_2018/data_Lebreton_2018.csv/1,gaussian,ok,,25320,6,1,1,0.7832
+644,osf_confidence_rausch_2016/data_Rausch_2016.csv/1,gaussian,ok,,8400,5,1,1,1.8527
+,mixor/SmokeOnset/1,gaussian,error,no estimates,,,,,
+,mixor/SmokeOnset/2,gaussian,error,no estimates,,,,,
+645,hglm.data/ohioGrades/1,gaussian,ok,,9835,7,2,2,67.3947
+,StroupGLMM/Table1.2/1,gaussian,error,no estimates,,,,,
+646,StroupGLMM/DataSet3.3/1,gaussian,ok,,72,2,1,2,98.64
+647,Ecdat/Benefits/1,bernoulli,warning,,4877,20,1,1,0.6838
+648,Ecdat/Caschool/1,gaussian,ok,,420,5,1,1,654.1565
+649,Ecdat/Cigarette/1,gaussian,ok,,528,3,1,1,4.6442
+650,Ecdat/Fatality/1,gaussian,ok,,336,14,1,1,2.0404
+651,Ecdat/HHSCyberSecurityBreaches/1,poisson,warning,,1151,4,1,1,35778.5786
+652,Ecdat/PSID/1,gaussian,ok,,177,2,1,1,2.1982
+,Ecdat/breaches/1,poisson,timeout,no estimates,,,,,
+653,wooldridge/airfare/1,gaussian,ok,,4596,7,1,1,5.0956
+654,wooldridge/airfare/2,poisson,warning,,4596,8,1,1,636.8242
+655,wooldridge/apple/1,gaussian,ok,,660,7,1,1,1.474
+656,wooldridge/athlet1/1,poisson,warning,,67,8,1,1,9.2714
+657,wooldridge/benefits/1,gaussian,ok,,1848,9,1,1,10.4755
+658,wooldridge/big9salary/1,gaussian,ok,,537,11,1,1,11.2838
+659,wooldridge/census2000/1,gaussian,ok,,29501,2,2,2,6.6363
+660,wooldridge/countymurders/1,gaussian,ok,,35152,22,1,1,0.5008
+661,wooldridge/crime3/1,gaussian,ok,,106,4,1,1,2.6836
+662,wooldridge/driving/1,gaussian,warning,,1200,35,1,1,18.9186
+663,wooldridge/ezunem/1,poisson,warning,,198,10,1,1,11.1908
+664,wooldridge/gpa3/1,gaussian,ok,,732,11,1,1,2.3302
+665,wooldridge/jtrain/1,gaussian,ok,,162,5,1,1,0.3937
+666,wooldridge/lowbrth/1,gaussian,ok,,100,7,1,1,6.707
+667,wooldridge/mathpnl/1,gaussian,ok,,3300,10,1,1,58.4774
+668,wooldridge/meap01/1,gaussian,ok,,1823,3,1,1,71.909
+669,wooldridge/meapsingle/1,gaussian,ok,,229,4,2,2,80.6581
+670,wooldridge/murder/1,gaussian,ok,,153,5,1,1,8.0706
+671,wooldridge/ncaa_rpi/1,gaussian,ok,,336,3,1,1,58.386
+672,wooldridge/ncaa_rpi/2,bernoulli,singular,,336,3,1,1,0.3988
+673,wooldridge/prison/1,gaussian,warning,,663,11,1,1,1.4288
+674,wooldridge/rental/1,gaussian,ok,,128,5,1,1,5.7462
+675,wooldridge/school93_98/1,gaussian,ok,,7274,8,1,1,63.6066
+676,wooldridge/vote1/1,gaussian,ok,,173,4,1,1,50.5029
+677,wooldridge/wagepan/1,gaussian,ok,,4360,15,1,1,1.6491
+678,wooldridge/wagepan/2,bernoulli,warning,,4360,11,1,1,0.244
+679,AER/CigarettesSW/1,gaussian,ok,,96,4,1,1,109.1824
+680,AER/Fatalities/1,poisson,warning,,336,2,1,1,2.0404
+681,AER/Guns/1,gaussian,ok,,1173,9,1,1,6.0273
+682,AER/Guns/2,gaussian,ok,,1173,9,1,1,4.6852
+683,AER/Journals/1,poisson,warning,,180,4,1,1,4.7404
+684,AER/NaturalGas/1,gaussian,ok,,138,7,1,1,11.8998
+685,AER/Parade2005/1,gaussian,singular,,130,4,1,1,11.2133
+686,AER/ResumeNames/1,bernoulli,ok,,4870,4,1,1,0.0805
+687,AER/TeachingRatings/1,gaussian,ok,,463,4,1,1,3.9983
+688,AER/USSeatBelts/1,gaussian,warning,,556,10,1,1,0.0198
+689,plm/EmplUK/1,gaussian,ok,,1031,3,1,1,1.056
+690,plm/Parity/1,gaussian,ok,,1768,2,1,1,0.0567
+691,plm/RiceFarms/1,gaussian,ok,,1026,4,1,1,6.7344
+692,plm/Snmesp/1,gaussian,ok,,5904,3,1,1,4.861
+693,plm/SumHes/1,gaussian,ok,,3250,4,1,1,7.6572
+694,camerondata/laborpanelprec/1,gaussian,warning,,5320,6,1,1,7.6575
+695,camerondata/randhealth/1,poisson,ok,,20186,18,1,1,2.8607
+696,camerondata/randhealth/2,gaussian,ok,,15733,18,1,1,4.1093
+697,metadat/dat.cohen1981/1,gaussian,singular,,20,1,1,1,0.4008
+,metadat/dat.craft2003/1,gaussian,error,no estimates,,,,,
+,metadat/dat.demir2022/1,gaussian,error,no estimates,,,,,
+698,metadat/dat.huber2000/1,poisson,ok,,601,2,1,1,1.1897
+699,metadat/dat.lehmann2018/1,gaussian,ok,,81,2,1,1,0.2422
+,metadat/dat.nakagawa2007/1,gaussian,error,no estimates,,,,,
+,metadat/dat.riley2003/1,gaussian,error,no estimates,,,,,
+,psymetadata/gnambs2020/1,gaussian,error,no estimates,,,,,
+700,psymetadata/manylabs2018/1,gaussian,ok,,1414,25,1,1,0.1868
+,psymetadata/nuijten2020/1,gaussian,error,no estimates,,,,,
+,psymetadata/spaniol2020/1,gaussian,error,no estimates,,,,,
+,psymetadata/stasielowicz2019a/1,gaussian,error,no estimates,,,,,
+,psymetadata/stasielowicz2019b/1,gaussian,error,no estimates,,,,,
+701,bayesrules/bike_users/1,poisson,warning,,534,7,1,1,1526.6161
+702,bayesrules/bird_counts/1,poisson,ok,,14925,2,1,1,235.4009
+703,bayesrules/coffee_ratings/1,gaussian,ok,,980,1,1,1,81.9193
+704,bayesrules/pop_vs_soda/1,bernoulli,ok,,374250,4,1,1,0.374
+705,bayesrules/hotel_bookings/1,bernoulli,warning,,1000,5,1,1,0.366
+706,StroupGLMM/DataSet3.2/2,gaussian,ok,,32,4,1,1,25.8875
+707,StroupGLMM/DataSet3.3/3,poisson,warning,,72,2,1,2,9.3889
+708,StroupGLMM/DataSet8.1/1,gaussian,ok,,30,6,1,1,9.12
+709,StroupGLMM/DataSet9.2/1,gaussian,ok,,28,1,2,2,19.2571
+710,StroupGLMM/DataSet9.4/1,gaussian,ok,,32,2,2,2,13.5469
+711,MLMusingR/engage/1,gaussian,ok,,528,7,1,1,8.8065
+712,MLMusingR/ri_test1/1,gaussian,ok,,900,3,1,1,0.9772
+713,MLMusingR/ri_test2/1,gaussian,ok,,3000,3,1,1,1.0183
+714,MLMusingR/suspend/1,bernoulli,ok,,8465,6,1,1,0.068
+715,MLMusingR/thai/1,gaussian,warning,,4271,6,1,1,442.8678
+716,R2MLwiN/bang/2,bernoulli,warning,,2867,12,1,2,0.3973
+717,MPDiR/CorticalCells/1,gaussian,ok,,42,2,1,2,14.7927
+718,MPDiR/Motion/1,gaussian,ok,,112,3,1,1,2.7733
+719,labstats/KH2004/1,gaussian,ok,,210,30,2,2,39.8919
+,labstats/KH2004/2,gaussian,error,no estimates,,,,,
+,labstats/KH2004/3,gaussian,error,no estimates,,,,,
+720,labstats/VPA/1,gaussian,ok,,24,4,1,1,63642.7083
+721,labstats/cellcount/1,poisson,ok,,9216,1,1,1,375.764
+722,labstats/glycogen/1,gaussian,ok,,36,3,1,1,142.2222
+723,labstats/hypertension/1,gaussian,ok,,30,6,1,1,141.1333
+724,labstats/locomotor/1,gaussian,ok,,282,12,1,1,1.3541
+725,multilevel/banddat/1,gaussian,ok,,2096,4,1,1,4.0027
+726,multilevel/lq2002/1,gaussian,ok,,2042,1,1,1,0.947
+727,multilevel/lq2002/2,gaussian,ok,,2042,1,1,1,3.0007
+728,multilevel/paneldat/1,gaussian,ok,,980,10,1,1,0.0206
+,mixor/irt.data/1,bernoulli,ok,no intercept,,,,,
+729,lcmm/paquid/2,poisson,singular,,1950,5,1,3,10.7779
+730,lmerTest/TVbo/2,gaussian,ok,,192,12,3,3,8.9099
+731,lmerTest/TVbo/3,gaussian,ok,,192,6,2,2,8.0307
+732,joineRML/epileptic.qol/1,poisson,warning,,1795,4,1,1,15.1304
+733,joineRML/epileptic.qol/2,poisson,warning,,1799,4,1,1,12.9783
+734,joineRML/epileptic.qol/3,poisson,warning,,1759,4,1,1,40.7089
+735,DAAG/antigua/1,gaussian,ok,,287,12,2,2,4.0333
+736,DAAG/appletaste/1,gaussian,ok,,60,4,1,1,61.05
+737,DAAG/intersalt/1,gaussian,ok,,52,2,1,1,73.1519
+738,DAAG/leaftemp.all/1,gaussian,ok,,62,4,1,1,1.1455
+739,DAAG/nassCDS/1,bernoulli,ok,,26217,8,1,1,0.045
+740,DAAG/stVincent/1,gaussian,ok,,324,12,2,2,16.1312
+741,smbdata/cuttings/1,gaussian,ok,,25,13,1,1,20.444
+742,COUNT/azpro/1,poisson,ok,,3589,4,1,1,8.8309
+743,COUNT/rwm5yr/1,poisson,ok,,19609,7,1,1,3.1762
+744,COUNT/ships/1,poisson,ok,,34,4,1,1,10.4706
+,hglm.data/ohioSchools/1,gaussian,error,no estimates,,,,,
+,FAwR/gutten/1,gaussian,error,no estimates,,,,,
+745,FAwR/sweetgum/1,gaussian,ok,,39,2,1,1,0.1778
+746,FAwR/ufc/1,gaussian,ok,,336,8,1,1,3.1336
+747,beyondmlr/data/FinalRockiesdata.csv/1,gaussian,ok,,118,4,1,2,90.2051
+748,beyondmlr/data/FinalRockiesdata.csv/2,gaussian,singular,,118,4,1,2,6.5536
+749,beyondmlr/data/FinalRockiesdata.csv/3,gaussian,singular,,118,4,1,2,6.2599
+750,beyondmlr/data/ambiguity.csv/1,gaussian,singular,,666,8,1,1,0.5334
+751,beyondmlr/data/ambiguity.csv/2,poisson,ok,,695,3,1,1,7.5468
+752,beyondmlr/data/bookbanningNoTex.csv/1,bernoulli,warning,,920,14,2,2,0.2326
+753,beyondmlr/data/colleges.csv/1,gaussian,ok,,7935,8,1,2,25.4693
+754,beyondmlr/data/electiondata.csv/1,bernoulli,ok,,39925,9,1,1,0.4065
+755,beyondmlr/data/kentucky.csv/1,gaussian,ok,,47812,8,2,3,49.8621
+756,beyondmlr/data/mudamalai.csv/1,gaussian,ok,,1060,10,2,2,34.6129
+757,beyondmlr/data/nursebp.csv/1,gaussian,ok,,7877,13,1,1,118.1801
+758,beyondmlr/data/nursebp.csv/2,gaussian,ok,,7877,13,1,1,71.3962
+759,beyondmlr/data/nursebp.csv/3,gaussian,ok,,7877,13,1,1,79.9586
+760,beyondmlr/data/treetube.csv/1,gaussian,ok,,4643,3,2,4,2.1936
+761,beyondmlr/data/yelp.csv/2,poisson,ok,,59929,6,2,2,0.4994
+762,beyondmlr/data/yelp.csv/3,poisson,ok,,59929,6,2,2,0.2793
+763,beyondmlr/data/yrbs09.sav/1,bernoulli,ok,,14790,4,1,1,0.4613
+764,osf_manylabs1/CleanedDataset.sav/2,bernoulli,singular,,6271,2,1,2,0.5197
+765,osf_manylabs1/CleanedDataset.sav/3,gaussian,ok,,5362,2,1,2,3439.9437
+766,osf_dlp1/dlp-trials.txt/2,gaussian,ok,,978925,2,1,1,0.0
+767,osf_confidence_charalampaki_unpub_1/data_Charalampaki_unpub_1.csv/1,gaussian,ok,,22304,3,1,1,72.6891
+768,osf_confidence_massoni_unpub/data_Massoni_unpub.csv/1,gaussian,ok,,10000,3,1,1,0.7285
+769,osf_confidence_mazor_2021_expt2/data_Mazor_2021_Expt2.csv/1,gaussian,ok,,13728,3,1,1,0.593
+770,osf_confidence_mazor_2021_expt7/data_Mazor_2021_Expt7.csv/1,gaussian,ok,,13056,3,1,1,0.5828
+771,osf_confidence_rausch_2018_expt2/data_Rausch_2018_Expt2.csv/1,gaussian,ok,,23400,2,1,1,-0.1026
+772,osf_confidence_recht_unpub/data_Recht_unpub.csv/1,bernoulli,ok,,16800,6,1,1,0.5644
+773,osf_confidence_rouault_2019/data_Rouault_2019.csv/1,gaussian,ok,,12960,2,1,1,0.7748
+774,osf_confidence_sherman_2016_jn/data_Sherman_2016_JN.csv/1,bernoulli,ok,,6539,7,1,1,0.5862
+775,osf_confidence_siedlecka_2019/data_Siedlecka_2019.csv/1,bernoulli,ok,,14672,4,1,4,0.7234
+776,osf_confidence_siedlecka_2019/data_Siedlecka_2019.csv/3,gaussian,ok,,14689,4,1,4,0.8029
+777,osf_confidence_teuchies_2019/data_Teuchies_2019.csv/1,gaussian,ok,,6480,3,1,1,237.8194
