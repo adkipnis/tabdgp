@@ -724,7 +724,7 @@ wheels = [
 
 [[package]]
 name = "mixedbench"
-version = "1.0.12"
+version = "1.0.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "openpyxl" },
@@ -736,9 +736,9 @@ dependencies = [
     { name = "rdata" },
     { name = "xlrd" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/d0/0631028003ddf968fedff956c667a220f6294588d4a1fadf1bdc7ddc4d2d/mixedbench-1.0.12.tar.gz", hash = "sha256:ec08f22921844b5160434cf0aa1e77b1d5aef9683e35a84bab3d08e7dc85264a", size = 1587945, upload-time = "2026-10-29T16:45:14.923Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/85/eeeb0ab404a90b4237b2ab90572a4bd73d470f8225317f402510c8792f91/mixedbench-1.0.13.tar.gz", hash = "sha256:e7f8260d1d7fc706d81cf3b46da3ad05b408b078c56236230912884a75e4b406", size = 2187665, upload-time = "2026-11-04T13:35:44.202Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/ac/7cb908aa6164c1cacab580c6b4567a3363fdd1d6c08f765e223a8c135344/mixedbench-1.0.12-py3-none-any.whl", hash = "sha256:a3fd68e8ff7b0e8272da94c7e2081ba77a4c953b141934948ff59cc818cb8565", size = 1663498, upload-time = "2026-10-29T16:45:13.021Z" },
+    { url = "https://files.pythonhosted.org/packages/04/93/a8a81d7ca28f7b59b799f8ea50d1963d720908803ed977fc0a64b842d66b/mixedbench-1.0.13-py3-none-any.whl", hash = "sha256:e16e3ddf9cad1de003755b57720d8ed721c81936b0cfb4a57a47b92d982d7d80", size = 2284864, upload-time = "2026-11-04T13:35:42.254Z" },
 ]
 
 [[package]]
@@ -1714,7 +1714,7 @@ dev = [
     { name = "tabdgp", extras = ["fidelity"] },
 ]
 experiments = [{ name = "matplotlib", specifier = ">=3.11.2" }]
-registry = [{ name = "mixedbench", specifier = "==1.0.12" }]
+registry = [{ name = "mixedbench", specifier = "==1.0.13" }]
 
 [[package]]
 name = "threadpoolctl"
