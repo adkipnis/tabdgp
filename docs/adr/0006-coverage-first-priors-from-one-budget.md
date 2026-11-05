@@ -50,11 +50,10 @@ The parameters are returned on the standardized scale and on the raw columns.
    - precedent: on the registry's Bernoulli designs, 0.5 to 3 brings the registry fits' mean rank among their refits to 0.50 to 0.53 on the marginal and conditional R² and on sd(η), where 0.5 would match, and the singular refits to 22.5 %, against the registry's 19 % (#79).
    - it leaves 8 of the 132 Bernoulli fits outside their refits' range on the conditional R², 1.5 fits over uniform ranks' 5 % at a noise sd of 2.5 fits, but none of the 110 fits that are neither separated (some |η̂| above 10) nor null (a conditional R² below 0.02).
    - on the log link, a floor of 0.1 cuts the fits outside their refits' range on sd(η) from 10.8 % to 5.4 %, but its refits explain less than real tables and leave 5.4 % outside on y's mean, so the log link keeps 0.25 to 4.
-2. The fixed block (the fixed effects) takes the share φ_fixed (`fixed_share`), `Beta(2, 3)`, and the factors' blocks (each factor's random effects) split the rest by a Dirichlet at `split_alpha` (1):
+2. The fixed block (the fixed effects) takes the share φ_fixed (`fixed_share`), `Beta(2, 3)`, and the factors' blocks (each factor's random effects) split the rest by a Dirichlet at `split_alpha` (1), a guess:
    - precedent: the registry's fixed share of the explained variance does not depend on the number of factors (#47).
    - on the registry's designs, `Beta(1, 1)` leaves the grouping factors' intraclass correlation (ICC) below real tables' on every family, as the registry fits rank at 0.58, 0.63 and 0.59 on average among their refits (Gaussian, Bernoulli, Poisson).
    - `Beta(2, 3)` brings these ranks to 0.54, 0.59 and 0.55, and cuts the singular refits by 2.0 to 3.1 points (#79).
-   - a Dirichlet at 3 moves the ICC's rank by less than 0.01, scored by reweighting the refits alone, so it stays at 1.
 3. Each block's scales spend its part of τ² exactly, over what each coefficient adds to var(η) at scale 1:
    - a slope adds its column's variance (times 1 + δ_j² when located), a random effect its column's second moment (the random intercept 1).
    - e.g. a Gaussian y at r = 0.5 and φ_fixed = 0.5 with 19 z-scored slopes of one shared scale gives each slope τ_j = √(0.5 · 0.5 / 19) ≈ 0.11.
@@ -130,14 +129,14 @@ The parameters are returned on the standardized scale and on the raw columns.
    - Two experiments compare the joint draw with stated scales and with R2D2M2 (the R²-induced Dirichlet decomposition prior for multilevel models; Aguilar and Bürkner 2023; Yanchenko, Bondell and Reich 2024 for GLMMs).
    - The stated scales are one published model's from the practice survey, or 1 for every coefficient.
    - The first experiment draws on the grouped preset's covariates and sweeps d, f and q (#76).
-   - The second draws y on the registry's designs and refits it by lme4, as the registry fitted the real y. It ranks each registry fit among its 39 refits under each option (#77).
+   - The second draws y on the registry's designs and refits it by lme4, as the registry fitted the real y. It ranks each registry fit among its 39 refits under each option, with the joint draw at its defaults (#77).
    - Stated scales let var(η) grow with every term, so 92 % to 96 % of the logit datasets saturate at d = 32 (#76).
-   - On the registry's designs, stated scales leave 20 % of the logit fits outside their refits' range on the conditional R², where uniform ranks leave 5 % (#77).
+   - On the registry's designs, stated scales leave 14 % to 21 % of the logit fits outside their refits' range on the conditional R², where uniform ranks leave 5 % (#77).
    - R2D2M2 ties the fixed share to the number of terms, from about 0.1 at d = 2 to 0.8 at d = 32. It leaves a lone random intercept an intraclass correlation of about 0.01 (#76).
-   - On the registry's designs, R2D2M2's refits explain more than the logit fits. Its Wasserstein-1 distance to them is 0.23 to 0.27 on the marginal and conditional R² and on sd(η), where the joint draw's is 0.07 to 0.08 (#77).
-   - The joint draw leaves fewer registry fits outside its refits' range than uniform ranks on every measure and link but three of the log link's, the marginal R², the fixed share and sd(η), where it leaves 7 % to 8 %. There every option misses, and none leaves significantly fewer at no larger distance (#77).
-   - Its random effects explain less than the registry's on every link, and its refits are singular and saturated more often than the registry's fits (#77).
-   - The defaults of φ_fixed, τ_0 and the logit link's τ narrow that gap, but leave 10.8 % of the log link's fits outside on sd(η) (#79).
+   - On the registry's designs, R2D2M2's refits explain more than the logit fits. Its Wasserstein-1 distance to them is 0.23 to 0.25 on the marginal and conditional R² and on sd(η), where the joint draw's is 0.03 to 0.05 (#77).
+   - The joint draw leaves fewer registry fits outside its refits' range than uniform ranks on every measure and link but four. It leaves 6 % to 11 % outside on the logit link's conditional R² and on the log link's marginal R², fixed share and sd(η) (#77).
+   - On the log link's sd(η), R2D2M2 leaves significantly fewer fits outside than the joint draw, 6.5 % against 10.8 %, at a smaller distance. No option does so on any other measure or link (#77).
+   - The joint draw's random effects explain less than the registry's on every link, and its refits are singular and saturated more often than the registry's fits (#77).
 2. **A block's divisor:**
    - Dividing by the width realizes a third of the budget, since dummies and 0/1 columns have variance below 1 and the intercept none (#47).
 3. **Heavy tails:**
