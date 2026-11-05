@@ -67,10 +67,13 @@ JOINT_DEFAULTS = {
 # each arm's overrides of Glmm's defaults, so that it draws at the defaults of its records
 OVERRIDES: dict[Arm, dict[str, Distribution]] = {
     'joint': JOINT_DEFAULTS,
-    'joint-phi': {'intercept_scale': LogUniform(0.1, 10), 'predictor_sd': LogUniform(0.25, 4)},
-    'joint-phi-tau0': {'predictor_sd': LogUniform(0.25, 4)},
+    'joint-phi': {
+        'intercept_scale': JOINT_DEFAULTS['intercept_scale'],
+        'predictor_sd': JOINT_DEFAULTS['predictor_sd'],
+    },
+    'joint-phi-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
     # τ per link, each run only on its own family's fits
-    'joint-phi-tau0-logit': {},
+    'joint-phi-tau0-logit': {},  # Glmm's defaults
     'joint-phi-tau0-log': {'predictor_sd': LogUniform(0.1, 3)},
     # the rivals rescale the joint prior, its intercept kept
     'r2d2m2-0.5': JOINT_DEFAULTS,
