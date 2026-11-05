@@ -221,7 +221,7 @@ SD_FAMILY_SHARES = {
     'half_cauchy': 0.25,
     'exponential': 0.25,
 }
-# τ's default per link, read off the registry's refits (#79); with a residual, τ is √r
+# τ's default per link, read off the registry's refits
 PREDICTOR_SDS = {
     'logit': LogUniform(0.5, 3),
     'log': LogUniform(0.25, 4),
