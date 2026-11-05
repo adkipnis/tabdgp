@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
+from typing import get_args
 
 import numpy as np
 import pytest
 from pydantic import ValidationError
 
 from tabdgp.field import Beta, Dirichlet, Distribution, LogUniform, Uniform, UniformInt
+from tabdgp.likelihood import Family
 from tabdgp.prior import Block, Glm, Glmm, Prior
 from tests.fixtures.build import point
 
@@ -149,9 +151,11 @@ def test_a_family_without_a_residual_resolves_its_links_default_predictor_sd_and
     assert 5 <= min(predictor_sds) < max(predictor_sds) <= 6
 
 
-@pytest.mark.parametrize('family', ['gaussian', 'student_t'])
+@pytest.mark.parametrize('family', sorted(set(get_args(Family)) - set(PREDICTOR_SDS)))
 def test_a_family_with_a_residual_draws_no_predictor_sd(family: str) -> None:
-    """With a residual, τ² is the signal share r, so a dataset draws no τ of its own."""
+    """With a residual, τ² is the signal share r, so a dataset draws no τ of its own.
+    Every family outside the table above has one, so a new family fails here until listed.
+    """
     resolved = Glm(family=family).resolveDataset(np.random.default_rng(0))
 
     assert resolved.predictor_sd is None
