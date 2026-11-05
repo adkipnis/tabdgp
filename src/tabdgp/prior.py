@@ -236,7 +236,7 @@ class Glm(Hyperprior):
     - Locations: of intercept and slopes
     - Scales: shared or per coefficient within a block
     - Shape: y's second parameter (e.g. Student-t's df)
-    - Budget: τ², the variance of eta without the intercept (τ's default per link)
+    - Budget: τ², the variance of eta without the intercept
     - Deviation (outside the prior): the score added to eta, scaled by λ * sd(Xβ + Σ_k Z_k α_k)
     """
 
@@ -254,9 +254,8 @@ class Glm(Hyperprior):
     varying_scale_share: Share = 0.5  # the probability that a block's scales vary per coefficient
     scale_spread: NonNegative = Uniform(0, 2)  # the sd of a log weight in a varying block
     signal_share: Share = Beta(2, 2)  # r
-    predictor_sd: NonNegative | None = None  # τ, None for its link's default (√r with a residual)
-    # for misspecification
-    deviation_scale: NonNegative = 0.0  # λ
+    predictor_sd: NonNegative | None = None  # τ, None -> use each link's default
+    deviation_scale: NonNegative = 0.0  # λ, for misspecification
 
     @model_validator(mode='after')
     def _checkShape(self) -> Glm:
