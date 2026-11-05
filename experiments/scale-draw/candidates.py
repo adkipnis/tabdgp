@@ -48,10 +48,8 @@ from tabdgp.prior import Glmm, Parameters, Prior
 
 Arm = Literal[
     'joint',
-    'joint-phi',
     'joint-phi-tau0',
     'joint-phi-tau0-logit',
-    'joint-phi-tau0-log',
     'r2d2m2-0.5',
     'r2d2m2-1',
     'survey',
@@ -70,14 +68,9 @@ JOINT_DEFAULTS = {
 # each arm's overrides of Glmm's defaults, so that it draws at the defaults of its records
 OVERRIDES: dict[Arm, dict[str, Distribution]] = {
     'joint': JOINT_DEFAULTS,
-    'joint-phi': {
-        'intercept_scale': JOINT_DEFAULTS['intercept_scale'],
-        'predictor_sd': JOINT_DEFAULTS['predictor_sd'],
-    },
     'joint-phi-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
-    # τ per link, each run only on its own family's fits
+    # the logit link's τ, run only on the Bernoulli fits
     'joint-phi-tau0-logit': {},  # Glmm's defaults
-    'joint-phi-tau0-log': {'predictor_sd': LogUniform(0.1, 3)},
     # the rivals rescale the joint prior, its intercept kept
     'r2d2m2-0.5': JOINT_DEFAULTS,
     'r2d2m2-1': JOINT_DEFAULTS,
@@ -256,9 +249,7 @@ Candidate = Joint | R2d2m2 | Stated
 def buildCandidate(arm: Arm, survey_dir: Path | None) -> Candidate:
     """The candidate an arm names (the survey arm reads the practice survey's data directory)."""
     match arm:
-        case (
-            'joint' | 'joint-phi' | 'joint-phi-tau0' | 'joint-phi-tau0-logit' | 'joint-phi-tau0-log'
-        ):
+        case 'joint' | 'joint-phi-tau0' | 'joint-phi-tau0-logit':
             return Joint()
         case 'r2d2m2-0.5' | 'r2d2m2-0.5-tau0':
             return R2d2m2(concentration=0.5)
