@@ -429,8 +429,8 @@ if __name__ == '__main__':
         case 'run':
             if args.task is None:
                 parser.error('run reads a task')
-            if 'survey' in args.arms and args.survey is None:
-                parser.error('the survey arm reads --survey')
+            if {'survey', 'survey-tau0'} & set(args.arms) and args.survey is None:
+                parser.error('the survey arms read --survey')
             candidates = {}
             for arm in args.arms:
                 candidates[arm] = buildCandidate(arm, args.survey)

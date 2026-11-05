@@ -56,6 +56,9 @@ Arm = Literal[
     'r2d2m2-1',
     'survey',
     'unit',
+    'r2d2m2-0.5-tau0',
+    'survey-tau0',
+    'unit-tau0',
 ]
 ARMS: list[Arm] = list(get_args(Arm))
 # Glmm's defaults before #79, at which the joint prior and its rivals drew their records
@@ -80,6 +83,11 @@ OVERRIDES: dict[Arm, dict[str, Distribution]] = {
     'r2d2m2-1': JOINT_DEFAULTS,
     'survey': JOINT_DEFAULTS,
     'unit': JOINT_DEFAULTS,
+    # the rivals at joint-phi-tau0's overrides, so that they share every draw with it
+    # and with joint-phi-tau0-logit, whose τ one uniform sets alike and a rival never reads
+    'r2d2m2-0.5-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
+    'survey-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
+    'unit-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
 }
 Family = Literal['gaussian', 'bernoulli', 'poisson']  # the families whose y's variance is known
 FAMILIES: list[Family] = list(get_args(Family))
@@ -252,13 +260,13 @@ def buildCandidate(arm: Arm, survey_dir: Path | None) -> Candidate:
             'joint' | 'joint-phi' | 'joint-phi-tau0' | 'joint-phi-tau0-logit' | 'joint-phi-tau0-log'
         ):
             return Joint()
-        case 'r2d2m2-0.5':
+        case 'r2d2m2-0.5' | 'r2d2m2-0.5-tau0':
             return R2d2m2(concentration=0.5)
         case 'r2d2m2-1':
             return R2d2m2(concentration=1.0)
-        case 'survey':
+        case 'survey' | 'survey-tau0':
             return Stated(survey=Survey.fromDir(survey_dir))
-        case 'unit':
+        case 'unit' | 'unit-tau0':
             return Stated()
 
 
