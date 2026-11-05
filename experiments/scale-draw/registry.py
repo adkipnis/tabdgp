@@ -148,6 +148,41 @@ def _screenFit(row: Row, fit: dict, tables: registry.Tables) -> dict:
     }
 
 
+def _readDesign(table: pd.DataFrame, formula: str, family: str) -> dict:
+    """lme4's design of the formula on the table: the rows it keeps, y's mean over them,
+    X's column names and X standardized, the offset, and per factor in lme4's order
+    its random columns and codes, its groups, and whether lme4 correlates its random effects."""
+    built = lme4.buildDesign(table, formula, family)
+
+    # a continuous column, a transform or a product z-scored over the rows, as the contract
+    # scales a continuous covariate, and a 0/1 column (the intercept, a dummy) as is,
+    # so that the refit's intercept and slopes absorb the change
+    continuous = ~np.isin(built.X, [0, 1]).all(axis=0)  # (d,)
+    matrix = built.X.copy()  # (n, d)
+    values = built.X[:, continuous]
+    matrix[:, continuous] = (values - values.mean(axis=0)) / values.std(axis=0, ddof=1)
+
+    factors: Factors = {}
+    groups = {}
+    correlated = []
+    for factor in built.factors:
+        factors[factor.name] = (factor.Z, factor.codes)
+        groups[factor.name] = len(factor.levels)
+        # `(1 + x || g)` is two terms of g, whose random effects lme4 leaves uncorrelated
+        if len(factor.terms) == 1:
+            correlated.append(factor.name)
+    return {
+        'rows': built.rows,
+        'y_mean': float(built.y.mean()),  # as lme4 reads y
+        'columns': list(built.columns),
+        'matrix': matrix,
+        'offset': built.offset,
+        'factors': factors,
+        'groups': groups,
+        'correlated': correlated,
+    }
+
+
 # =====================================================================================
 # a task
 # =====================================================================================
@@ -243,6 +278,37 @@ def _readRecord(dir: Path, arm: str, draw: int) -> dict:
     return json.loads((dir / f'{arm}-{draw}.json').read_text())
 
 
+def _measureBlocks(design: dict) -> list[Block]:
+    """The blocks TabDGP's draw builds on the design, from what each coefficient adds
+    to var(eta) at scale 1."""
+    # a fixed effect adds its column's variance (the intercept nothing)
+    blocks = [Block(name='fixed', variances=design['matrix'].var(axis=0).tolist())]
+    for factor, (z, _) in design['factors'].items():
+        # a random effect adds E[z²] (an intercept 1)
+        variances = (z**2).mean(axis=0)  # (q,)
+        groups = design['groups'][factor]
+        blocks.append(Block(name=factor, variances=variances.tolist(), groups=groups))
+    return blocks
+
+
+def _drawJointPrior(
+    family: str,
+    blocks: list[Block],
+    correlated: list[str],
+    overrides: dict[str, Distribution],
+    rng: np.random.Generator,
+) -> Prior:
+    """The joint draw's prior over the blocks under an arm's overrides of Glmm's defaults,
+    each factor's random effects correlated as lme4 fits them:
+    an LKJ for a factor in one term, independent for `(x || g)`."""
+    hyperprior = Glmm(family=family, correlated_share=1.0, **overrides)
+    prior = hyperprior.resolveDataset(rng).drawPrior(blocks, rng)
+    lkj_eta = {}
+    for factor, shape in prior.lkj_eta.items():
+        lkj_eta[factor] = shape if factor in correlated else None
+    return dataclasses.replace(prior, lkj_eta=lkj_eta)
+
+
 def _refit(table: pd.DataFrame, formula: str, family: str, factor_columns: int) -> dict:
     """How lme4's fit of the formula ended, its sd and max |eta|,
     and its variance partition as fits.csv reads a fit's,
@@ -279,72 +345,6 @@ def _refit(table: pd.DataFrame, formula: str, family: str, factor_columns: int) 
     return measures
 
 
-def _readDesign(table: pd.DataFrame, formula: str, family: str) -> dict:
-    """lme4's design of the formula on the table: the rows it keeps, y's mean over them,
-    X's column names and X standardized, the offset, and per factor in lme4's order
-    its random columns and codes, its groups, and whether lme4 correlates its random effects."""
-    built = lme4.buildDesign(table, formula, family)
-
-    # a continuous column, a transform or a product z-scored over the rows, as the contract
-    # scales a continuous covariate, and a 0/1 column (the intercept, a dummy) as is,
-    # so that the refit's intercept and slopes absorb the change
-    continuous = ~np.isin(built.X, [0, 1]).all(axis=0)  # (d,)
-    matrix = built.X.copy()  # (n, d)
-    values = built.X[:, continuous]
-    matrix[:, continuous] = (values - values.mean(axis=0)) / values.std(axis=0, ddof=1)
-
-    factors: Factors = {}
-    groups = {}
-    correlated = []
-    for factor in built.factors:
-        factors[factor.name] = (factor.Z, factor.codes)
-        groups[factor.name] = len(factor.levels)
-        # `(1 + x || g)` is two terms of g, whose random effects lme4 leaves uncorrelated
-        if len(factor.terms) == 1:
-            correlated.append(factor.name)
-    return {
-        'rows': built.rows,
-        'y_mean': float(built.y.mean()),  # as lme4 reads y
-        'columns': list(built.columns),
-        'matrix': matrix,
-        'offset': built.offset,
-        'factors': factors,
-        'groups': groups,
-        'correlated': correlated,
-    }
-
-
-def _measureBlocks(design: dict) -> list[Block]:
-    """The blocks TabDGP's draw builds on the design, from what each coefficient adds
-    to var(eta) at scale 1."""
-    # a fixed effect adds its column's variance (the intercept nothing)
-    blocks = [Block(name='fixed', variances=design['matrix'].var(axis=0).tolist())]
-    for factor, (z, _) in design['factors'].items():
-        # a random effect adds E[z²] (an intercept 1)
-        variances = (z**2).mean(axis=0)  # (q,)
-        groups = design['groups'][factor]
-        blocks.append(Block(name=factor, variances=variances.tolist(), groups=groups))
-    return blocks
-
-
-def _drawJointPrior(
-    family: str,
-    blocks: list[Block],
-    correlated: list[str],
-    overrides: dict[str, Distribution],
-    rng: np.random.Generator,
-) -> Prior:
-    """The joint draw's prior over the blocks under an arm's overrides of Glmm's defaults,
-    each factor's random effects correlated as lme4 fits them:
-    an LKJ for a factor in one term, independent for `(x || g)`."""
-    hyperprior = Glmm(family=family, correlated_share=1.0, **overrides)
-    prior = hyperprior.resolveDataset(rng).drawPrior(blocks, rng)
-    lkj_eta = {}
-    for factor, shape in prior.lkj_eta.items():
-        lkj_eta[factor] = shape if factor in correlated else None
-    return dataclasses.replace(prior, lkj_eta=lkj_eta)
-
-
 def _describePrior(prior: Prior, factor_columns: int) -> dict:
     """What the prior drew: β's and σ_α's families, τ, the intercept's location and scale,
     Xβ's share of τ², and per factor in lme4's order its share, the spread of its σ_α scales
@@ -377,7 +377,7 @@ def _describePrior(prior: Prior, factor_columns: int) -> dict:
 # =====================================================================================
 
 
-def collect(runs: Path, arms: list[Arm]) -> dict[str, pd.DataFrame]:
+def collect(runs: Path, arms: list[Arm]) -> pd.DataFrame:
     """The arms' records on each task until REFITS refits have estimates (all DRAWS if fewer do),
     in task order.
     It skips a task an arm never ran on, and raises where a draw it keeps never ran."""
