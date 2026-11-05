@@ -50,7 +50,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from candidates import (
-    ARMS,
     OVERRIDES,
     Arm,
     Candidate,
@@ -84,6 +83,15 @@ ESTIMATED = ['ok', 'singular', 'warning']  # the statuses of a fit with estimate
 # (rabe_hesketh's pups counts it per dam), and named apart from a covariate y (SASmixed's Demand)
 RESPONSE = 'y_drawn'
 NO_COLUMNS = ['rethinking/data/PrussianHorses.csv/1']  # `kicks ~ 0 + (1 | corps) + (1 | year)`
+# the arms refitted here, in the records' order: the joint prior at Glmm's defaults,
+# its logit arm on the Bernoulli fits, and the rivals at its intercept
+REFIT_ARMS: list[Arm] = [
+    'joint-phi-tau0',
+    'joint-phi-tau0-logit',
+    'r2d2m2-0.5-tau0',
+    'survey-tau0',
+    'unit-tau0',
+]
 
 # =====================================================================================
 # the tasks
@@ -411,7 +419,7 @@ if __name__ == '__main__':
     parser.add_argument('--cache', type=Path, help="mixedbench's cache of the registry's tables")
     parser.add_argument('--draws', type=int, nargs=2, default=[0, DRAWS], metavar=('FIRST', 'STOP'),
                         help='the draws to run, FIRST to STOP - 1')
-    parser.add_argument('--arms', nargs='+', choices=ARMS, default=ARMS,
+    parser.add_argument('--arms', nargs='+', choices=REFIT_ARMS, default=REFIT_ARMS,
                         help='the arms to run, or to collect beside the others in registry.csv.gz')
     parser.add_argument('--survey', type=Path,
                         help="the practice survey's data directory, read by the survey arm")
@@ -429,8 +437,8 @@ if __name__ == '__main__':
         case 'run':
             if args.task is None:
                 parser.error('run reads a task')
-            if {'survey', 'survey-tau0'} & set(args.arms) and args.survey is None:
-                parser.error('the survey arms read --survey')
+            if 'survey-tau0' in args.arms and args.survey is None:
+                parser.error('the survey arm reads --survey')
             candidates = {}
             for arm in args.arms:
                 candidates[arm] = buildCandidate(arm, args.survey)
@@ -438,12 +446,12 @@ if __name__ == '__main__':
         case 'collect':
             records = collect(args.runs, args.arms)
             # the arms not collected as registry.csv.gz held them,
-            # each task's arms in ARMS' order and each arm's draws in order
-            if set(args.arms) != set(ARMS):
+            # each task's arms in REFIT_ARMS' order and each arm's draws in order
+            if set(args.arms) != set(REFIT_ARMS):
                 earlier = pd.read_csv(HERE / 'registry.csv.gz')
                 kept = earlier[~earlier['arm'].isin(args.arms)]
                 records = pd.concat([kept, records])
-                arm_order = records['arm'].map(ARMS.index)
+                arm_order = records['arm'].map(REFIT_ARMS.index)
                 records = records.iloc[np.lexsort([arm_order, records['task']])]
             # gzip's header at a fixed time, so that a rerun writes the same bytes
             compression = {'method': 'gzip', 'mtime': 0}
