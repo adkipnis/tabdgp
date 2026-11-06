@@ -29,9 +29,6 @@ generated it.
   Supported likelihoods are Gaussian, Bernoulli, Poisson, Student-t, negative binomial,
   latent-noise Bernoulli, Gamma, and Beta.
   The true parameters are returned with the priors they were drawn from.
-  `Glm` skips random effects,
-  `Glmm(family='gaussian', deviation_scale=0.3)` adds a known misspecification.
-  You can also pass your own model as a function of the covariates by defining it as a Callable.
 - **Independent covariates.** `dependence='none'` draws each covariate from its marginal alone;
   `y` keeps its parents.
 - **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `modelOutcome`
