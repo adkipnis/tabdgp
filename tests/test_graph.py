@@ -434,6 +434,44 @@ def test_no_edge_crosses_out_of_a_chain() -> None:
     assert pairs_seen == READS
 
 
+def test_under_dependence_none_y_alone_has_parents_and_reads_every_node_of_its_chain() -> None:
+    """A study that wants independent covariates still gets y as the SCM's function of them.
+
+    Every edge is drawn, so the mask alone decides: none into a covariate or a latent node,
+    and y reads each node at the row or at a factor of the row's chain, as under the SCM.
+    """
+    graph = _connect(
+        0,
+        8,
+        GROUPING,
+        with_y=True,
+        latent_nodes=4,
+        group_level_share=0.5,
+        edge_offset=30.0,
+        hub_scale=0.0,
+        dependence='none',
+    )
+    assert graph.names[-1] == 'y'
+    assert not graph.parents[:-1].any()
+    f = len(GROUPING.metadata)
+    expected = [unit in GROUPING.traceChain('row') for unit in graph.unit[f:-1]]
+    assert graph.parents[-1, f:-1].tolist() == expected
+    assert graph.parents[-1].sum() >= 1
+
+
+def test_under_dependence_none_a_row_unit_node_still_draws_its_group_share_and_factor() -> None:
+    """A covariate's group part is a property of one column, so it stays when the edges go."""
+    graph = _connect(0, 8, GROUPING, latent_nodes=3, group_level_share=0.5, dependence='none')
+    assert not graph.parents.any()
+    assert graph.unit.count('row') >= 1
+    assert all(0 <= share <= 1 for share in _rowShares(graph))
+    assert {graph.group_factor[i] for i, unit in enumerate(graph.unit) if unit == 'row'} <= {
+        'g0',
+        'g1',
+        'g2',
+    }
+
+
 def test_group_level_share_1_puts_every_node_at_a_factor_and_0_at_the_row() -> None:
     """The share is the probability that a node is group-level, latent nodes included."""
     for seed in range(10):
