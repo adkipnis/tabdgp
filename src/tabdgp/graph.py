@@ -248,7 +248,7 @@ def _maskEdges(
     grouping: Grouping,
     resolved: Scm,
 ) -> np.ndarray:
-    """Drops each edge a child cannot read, and every edge into a node but y under none."""
+    """Drops each edge a child cannot read (under the dependence none, every edge but y's)."""
     units = grouping.traceChain('row')
     # a child reads a parent at its own unit or a superior one of its chain
     reads = np.zeros((len(units), len(units)), dtype=bool)  # (f + 1, f + 1), [child, parent]
@@ -263,8 +263,8 @@ def _maskEdges(
     kept[:, :f] = False
     # under the dependence none, every covariate and latent node is a root
     if resolved.dependence == 'none':
-        child_is_y = np.array([name == 'y' for name in names], dtype=bool)  # (v,)
-        kept = kept & child_is_y[:, None]  # (v, v)
+        not_y = np.array([name != 'y' for name in names], dtype=bool)  # (v,)
+        kept[not_y] = False
     return edges & kept
 
 
