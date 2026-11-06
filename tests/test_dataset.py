@@ -183,6 +183,32 @@ def test_outcome_none_gives_no_y_and_no_score() -> None:
 
 
 @pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
+def test_dependence_none_gives_every_covariate_and_latent_node_as_a_root_and_y_its_parents(
+    preset: Callable[..., Scm],
+) -> None:
+    """A study's independent covariates, ADR 0005's decision 9: each column is its marginal alone,
+    and y stays the SCM's function of the covariates, so some key gives it a parent.
+    """
+    parents_of_y = 0
+    for index in range(50):
+        dataset = drawDataset(0, index, preset(dependence='none'))
+        parents = dataset.graph.parents
+        assert not parents[:-1].any()
+        parents_of_y += parents[-1].sum()
+    assert parents_of_y >= 1
+
+
+def test_a_glmm_draws_its_outcome_on_independent_covariates() -> None:
+    """A study that draws its own y on independent covariates sets outcome_source to none too."""
+    scm = Scm.grouped(dependence='none', outcome_source='none')
+    for index in range(5):
+        dataset = drawDataset(0, index, scm)
+        outcome = modelOutcome(0, index, dataset.covariates, Glmm(family='gaussian'))
+        assert type(outcome) is GlmmOutcome
+        assert outcome.columns['y'].shape == (dataset.hyperparameters.rows,)
+
+
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
 def test_under_the_scm_the_covariates_carry_ys_score_z_scored(
     preset: Callable[[], Scm],
 ) -> None:
@@ -594,6 +620,7 @@ GLMM_OVERRIDE = Glmm(family='gaussian', random_effects=1)  # every factor's inte
     group_share=st.sampled_from([0.0, 0.5, 1.0]),
     model=st.sampled_from(['scm', 'none', GLM_OVERRIDE, GLMM_OVERRIDE]),
     outcome_type=st.sampled_from(Scm.categories('outcome_type_shares')),
+    dependence=st.sampled_from(['scm', 'none']),
 )
 def test_every_override_is_honored(
     rows: int,
@@ -608,6 +635,7 @@ def test_every_override_is_honored(
     group_share: float,
     model: str | Glm | Glmm,
     outcome_type: str,
+    dependence: str,
 ) -> None:
     """metabeta passes its sizes as points; the dataset must have exactly those sizes.
 
@@ -640,6 +668,7 @@ def test_every_override_is_honored(
         outcome_source=source,
         outcome_type_shares=point('outcome_type_shares', outcome_type),
         poisson_log_rate=2.0,
+        dependence=dependence,
     )
     dataset = drawDataset(0, 0, scm)
     metadata = dataset.metadata
@@ -709,6 +738,7 @@ def test_every_override_is_honored(
         0.5,
         2.0,
     )
+    assert resolved.dependence == dependence
 
 
 def test_a_distribution_override_is_honored() -> None:
