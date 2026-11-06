@@ -434,6 +434,47 @@ def test_no_edge_crosses_out_of_a_chain() -> None:
     assert pairs_seen == READS
 
 
+def test_under_dependence_none_y_alone_reads_every_covariate_and_latent_node() -> None:
+    """A study that wants independent covariates still gets y as the SCM's function of them.
+
+    Every edge is drawn, so the mask alone decides: none into a covariate or a latent node,
+    and y reads every node but the grouping factors, as under the SCM.
+    """
+    graph = _connect(
+        0,
+        8,
+        GROUPING,
+        with_y=True,
+        latent_nodes=4,
+        group_level_share=0.5,
+        edge_offset=30.0,
+        hub_scale=0.0,
+        dependence='none',
+    )
+    f = len(GROUPING.metadata)
+    assert graph.names[-1] == 'y'
+    assert not graph.parents[:-1].any()
+    assert graph.parents[-1, f:-1].all()
+
+
+def test_under_dependence_none_without_y_no_node_has_parents() -> None:
+    """A study that draws its own y gets a graph without edges, though every edge is drawn.
+    Its row-unit roots keep their group part, which Graph checks itself.
+    """
+    graph = _connect(
+        0,
+        8,
+        GROUPING,
+        latent_nodes=3,
+        group_level_share=0.5,
+        edge_offset=30.0,
+        hub_scale=0.0,
+        dependence='none',
+    )
+    assert not graph.parents.any()
+    assert 'row' in graph.unit
+
+
 def test_group_level_share_1_puts_every_node_at_a_factor_and_0_at_the_row() -> None:
     """The share is the probability that a node is group-level, latent nodes included."""
     for seed in range(10):

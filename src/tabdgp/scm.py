@@ -66,6 +66,7 @@ MARGINAL_FIELDS = {
 }  # based on scamd's marginals
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
 OutcomeSource = Literal['none', 'scm']
+Dependence = Literal['none', 'scm']
 MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
 
 
@@ -96,6 +97,8 @@ class Scm(Hyperprior):
       Latent nodes may affect observed nodes but have no columns assigned to them.
       Each possible edge has its own probability. It rises with the graph's overall density,
       when its parent or child is a hub or when both nodes are in the same block.
+      Under `dependence='none'`, only y's node is connected to (and thus dependent on) other nodes
+      besides the grouping factors.
     - Mechanisms: for each node, its value is a function of its parents' values + noise.
       The function is linear or an MLP.
     - Marginals: the graph and its mechanisms decide only the dependence between columns
@@ -160,6 +163,7 @@ class Scm(Hyperprior):
     group_share: Share = Beta(0.5, 2)  # share of a within-group node's variance due to its group
 
     # graph
+    dependence: Dependence = 'scm'  # whether covariates and latent nodes have parents
     latent_nodes: Count = UniformInt(0, 9)
     edge_offset: Real = Uniform(-4, 2)  # the logit offset shared by every edge
     hub_scale: NonNegative = LogUniform(0.1, 2)  # Cauchy scale of the per-node out- and in-terms
