@@ -33,9 +33,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from candidates import (
-    ARMS,
     FAMILIES,
     OVERRIDES,
+    Arm,
     Candidate,
     Factors,
     buildCandidate,
@@ -56,9 +56,10 @@ SWEEP = {
 }
 GROUPED = Scm.grouped()  # the preset's sizes, whose tops a raised floor keeps
 ICC_COLUMNS = max(SWEEP['factors'])  # an ICC per factor of the widest cell
-# the arms at the joint arm's overrides of Glmm's defaults,
-# since a dataset rescales one joint prior per family
-SWEPT_ARMS = [arm for arm in ARMS if OVERRIDES[arm] == OVERRIDES['joint']]
+# the arms swept here, in the records' order: the joint prior and its rivals,
+# each at the joint arm's overrides of Glmm's defaults, since a dataset rescales one joint prior
+# per family (joint-phi-tau0-logit shares them, but its records are the registry's)
+SWEPT_ARMS: list[Arm] = ['joint', 'r2d2m2-0.5', 'r2d2m2-1', 'survey', 'unit']
 # the GLMM overrides of a light-tailed run, where each budget holds for Normal effects
 LIGHT_TAILS = {
     'beta_family_shares': {'normal': 1.0, 'student_t': 0.0, 'cauchy': 0.0},
