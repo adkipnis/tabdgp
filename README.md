@@ -32,6 +32,8 @@ generated it.
   `Glm` skips random effects,
   `Glmm(family='gaussian', deviation_scale=0.3)` adds a known misspecification.
   You can also pass your own model as a function of the covariates by defining it as a Callable.
+- **Independent covariates.** `dependence='none'` draws each covariate from its marginal alone;
+  `y` keeps its parents.
 - **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `modelOutcome`
   draws a model's outcome on it.
   You can use this semi-synthetic data for oracle tests or power analysis.
