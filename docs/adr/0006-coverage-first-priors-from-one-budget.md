@@ -130,7 +130,7 @@ The parameters are returned on the standardized scale and on the raw columns.
    - The stated scales are one published model's from the practice survey, or 1 for every coefficient.
    - The first experiment draws on the grouped preset's covariates and sweeps d, f and q (#76).
    - The second draws y on the registry's designs and refits it by lme4, as the registry fitted the real y. It ranks each registry fit among its 39 refits under each option, with the joint draw at its defaults (#77).
-   - Stated scales let var(η) grow with every term, so 92 % to 96 % of the logit datasets saturate at d = 32 (#76).
+   - Stated scales let var(η) grow with every term, so 91 % to 95 % of the logit datasets saturate at d = 32 (#76).
    - On the registry's designs, stated scales leave 14 % to 21 % of the logit fits outside their refits' range on the conditional R², where uniform ranks leave 5 % (#77).
    - R2D2M2 ties the fixed share to the number of terms, from about 0.1 at d = 2 to 0.8 at d = 32. It leaves a lone random intercept an intraclass correlation of about 0.01 (#76).
    - On the registry's designs, R2D2M2's refits explain more than the logit fits. Its Wasserstein-1 distance to them is 0.23 to 0.25 on the marginal and conditional R² and on sd(η), where the joint draw's is 0.03 to 0.05 (#77).
