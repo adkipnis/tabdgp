@@ -91,6 +91,31 @@ def test_a_source_other_than_none_or_scm_fails_at_construction(
         Scm(outcome_source=source)
 
 
+NOT_A_DEPENDENCE = [
+    pytest.param('SCM', id='a misspelled dependence'),
+    pytest.param('marginals', id='a preset that was never built'),
+    pytest.param({'none': 0.3, 'scm': 0.7}, id='shares'),
+    pytest.param(Dirichlet({'none': 1, 'scm': 1}), id='a dirichlet'),
+]
+
+
+@pytest.mark.parametrize('dependence', NOT_A_DEPENDENCE)
+def test_a_dependence_other_than_none_or_scm_fails_at_construction(
+    dependence: str | dict | Dirichlet,
+) -> None:
+    """The dependence is one choice per dataset, so a corpus never mixes the two:
+    it fails where it is written, not at a draw.
+    """
+    with pytest.raises(ValidationError):
+        Scm(dependence=dependence)
+
+
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
+def test_both_presets_draw_every_edge_by_default(preset: Callable[[], Scm]) -> None:
+    """ADR 0005's decision 9: the dependence is an override, never a preset's default."""
+    assert preset().dependence == 'scm'
+
+
 def test_grouped_equals_the_defaults_and_flat_sets_factors_to_0() -> None:
     """Every draw starts from a preset; Scm() stays valid as the grouped one,
     and the flat preset differs from it in factors alone.
