@@ -12,6 +12,7 @@ Its noise scale is a field of its own.
 An override draws a dataset without y.
 A model (ADR 0007) draws a y of its own on the covariates, after the draw.
 The SCM's y is what the hyperprior matches to real responses.
+Under the dependence `none`, every covariate is a root and y alone keeps its parents.
 
 ## Decisions
 
@@ -37,6 +38,11 @@ The SCM's y is what the hyperprior matches to real responses.
 6. y's node value (the score) is rank-matched onto y's marginal or post-hoc type, like a covariate's.
 7. No learnability filter rejects a dataset, so an outcome without parents is a valid table.
 8. Time, treatment and the GP (Gaussian process) and tree mechanism families are not bound to the outcome node, so each is left for a later decision.
+9. The dependence (`dependence`) is a point, `'scm'` by default or `'none'`, and y keeps its parents under both (2026-11-06):
+   - under `'none'`, every covariate and latent node is a root, so each column is its marginal alone and the columns are independent.
+   - y's parents are drawn as under `'scm'`, so `outcome_source = 'scm'` stays valid and gives y as the SCM's function of independent covariates plus noise; a study that draws its own y sets `outcome_source = 'none'` as well.
+   - a within-group covariate keeps its group part (ADR 0003), a property of one column, so the columns stay independent.
+   - `latent_nodes` keeps its default: a latent node under `'none'` is a root that only y may read.
 
 ## Considered options
 
@@ -49,6 +55,8 @@ The SCM's y is what the hyperprior matches to real responses.
 | y's mechanism | the nodes' families | a head of its own (a mechanism only y uses) |
 | label noise | none | label flips, target-only subgroup effects |
 | learnability | no filter | ExtraTrees and shared-class filters |
+| independent covariates | the override `dependence = 'none'` | a preset `marginals()`, `edge_offset = -inf` |
+| a dependence that keeps the marginals | the SCM with linear mechanisms | a Wishart correlation |
 
 1. **Outcome by default:**
    - y drawn only when asked for would be certified under a proof configuration of its own (a hyperprior only the proofs use), and `grouped()`'s tables would lack the column every registry table has.
@@ -68,6 +76,12 @@ The SCM's y is what the hyperprior matches to real responses.
 7. **Learnability:**
    - A rejection changes the distribution the proofs certify.
    - #15's "no forced child" (a latent node may have no children) already lets a node be unpredictable, and the registry has null results.
+8. **Independent covariates:**
+   - A preset names a kind of table (flat or grouped), and whether the SCM draws edges is a level above it, so it is an override on any preset.
+   - `edge_offset = -inf` gives zero edges by arithmetic, but it cannot spare y and dumps to JSON as null.
+9. **A dependence that keeps the marginals:**
+   - Every node of a linear SCM is a linear combination of Gaussian noises and rank matching is the marginal transform, so `mechanism_shares = {'linear': 1, 'mlp': 0}` with `latent_nodes = 0` is a Gaussian copula whose correlation the Cauchy DAG draws.
+   - A Wishart correlation would be a second copula, and a preset never adds a mechanism.
 
 ## Consequences
 
@@ -75,6 +89,7 @@ The SCM's y is what the hyperprior matches to real responses.
   - Their summary vector gains the response's statistics, which MixedBench's measurement pass measures.
 - **One type per corpus:** a study's override (`outcome_type_shares = {'continuous': 1}`), not a preset.
   - A model states its response family instead (`Glm(family='gaussian')`).
+- **Independent covariates:** a study's override (`dependence = 'none'`), on `grouped()` or `flat()`; the proofs run on `'scm'`.
 - **Extension points, none built:**
   - time and treatment (ADR 0003), which have no role in the registry to fit against.
   - the GP family, though no summary statistic tells function classes apart yet.
