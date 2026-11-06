@@ -97,8 +97,7 @@ class Scm(Hyperprior):
       Latent nodes may affect observed nodes but have no columns assigned to them.
       Each possible edge has its own probability. It rises with the graph's overall density,
       when its parent or child is a hub or when both nodes are in the same block.
-      Under `dependence='none'`, every covariate and latent node is a root
-      and y alone keeps its parents.
+      Under `dependence='none'`, only y's node is connected to (and thus dependent on) other nodes.
     - Mechanisms: for each node, its value is a function of its parents' values + noise.
       The function is linear or an MLP.
     - Marginals: the graph and its mechanisms decide only the dependence between columns
