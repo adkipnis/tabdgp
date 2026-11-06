@@ -10,9 +10,9 @@ TabDGP simulates tabular datasets from a random structural causal model (SCM) an
 reproduce the quirks of real data. Each table comes with the graph and the settings that
 generated it.
 
-> **Alpha.** Release 0.4 draws grouped and flat tables with an outcome `y`, from the SCM or from a
-> model's outcome, from defaults that are round guesses; the rest is planned below. Before 1.0, a
-> release may change the dataset a key draws.
+> **Alpha.** Release 0.5 draws grouped and flat tables with an outcome `y`, from the SCM or from a
+> model's outcome. The SCM's defaults are round guesses, and `Glmm`'s are checked against real
+> tables; the rest is planned below. Before 1.0, a release may change the dataset a key draws.
 
 ## Highlights
 
