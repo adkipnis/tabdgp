@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
+from typing import get_args
 
 import numpy as np
 import pytest
 from pydantic import ValidationError
 
 from tabdgp.field import Beta, Dirichlet, Distribution, LogUniform, Uniform, UniformInt
+from tabdgp.likelihood import Family
 from tabdgp.prior import Block, Glm, Glmm, Prior
 from tests.fixtures.build import point
 
@@ -33,13 +35,13 @@ DEFAULTS = {
     'beta_family_shares': {'normal': 0.68, 'student_t': 0.30, 'cauchy': 0.02},
     'sigma_eps_family_shares': SD_FAMILY_SHARES,
     'intercept_location': Uniform(-3, 3),
-    'intercept_scale': LogUniform(0.1, 10),
+    'intercept_scale': LogUniform(0.1, 3),
     'location_share': 0.1,
     'location_scale': 2.0,
     'varying_scale_share': 0.5,
     'scale_spread': Uniform(0, 2),
     'signal_share': Beta(2, 2),
-    'predictor_sd': LogUniform(0.25, 4),
+    'predictor_sd': None,  # its link's default, drawn per dataset
     'deviation_scale': 0.0,
 }
 
@@ -74,12 +76,13 @@ def test_the_fields_take_their_defaults_and_an_override() -> None:
     assert (glm.beta_family_shares['cauchy'], glm.signal_share) == (1.0, 0.5)
 
 
-def _resolveShapes(model: Glm) -> list[float]:
-    """y's shape as twenty datasets resolve it."""
-    shapes = []
-    for seed in range(20):
-        shapes.append(model.resolveDataset(np.random.default_rng(seed)).shape)
-    return shapes
+def _resolvePoints(model: Glm, field: str, datasets: int = 20) -> list[float]:
+    """A field's points as `datasets` datasets resolve it."""
+    points = []
+    for seed in range(datasets):
+        resolved = model.resolveDataset(np.random.default_rng(seed))
+        points.append(getattr(resolved, field))
+    return points
 
 
 @pytest.mark.parametrize('family', SHAPES)
@@ -92,10 +95,10 @@ def test_a_contaminated_family_resolves_its_own_default_shape_per_dataset_and_an
     """
     support = SHAPES[family]
     for model in [Glm(family=family), Glmm(family=family, shape=None)]:
-        shapes = _resolveShapes(model)
+        shapes = _resolvePoints(model, 'shape')
         assert support.low <= min(shapes) < max(shapes) <= support.high
-    assert set(_resolveShapes(Glm(family=family, shape=4.0))) == {4.0}
-    shapes = _resolveShapes(Glmm(family=family, shape=Uniform(5, 6)))
+    assert set(_resolvePoints(Glm(family=family, shape=4.0), 'shape')) == {4.0}
+    shapes = _resolvePoints(Glmm(family=family, shape=Uniform(5, 6)), 'shape')
     assert 5 <= min(shapes) < max(shapes) <= 6
 
 
@@ -118,9 +121,49 @@ def test_a_shape_is_stated_only_where_the_family_has_one_and_is_positive(
         Glm(family=family, shape=shape)
 
 
+# τ's default by y's family without a residual, its link's range (#79)
+PREDICTOR_SDS = {
+    'bernoulli': LogUniform(0.5, 3),
+    'latent_bernoulli': LogUniform(0.5, 3),
+    'beta': LogUniform(0.5, 3),
+    'poisson': LogUniform(0.25, 4),
+    'negative_binomial': LogUniform(0.25, 4),
+    'gamma': LogUniform(0.25, 4),
+}
+
+
+@pytest.mark.parametrize('family', PREDICTOR_SDS)
+def test_a_family_without_a_residual_resolves_its_links_default_predictor_sd_and_an_override(
+    family: str,
+) -> None:
+    """τ is eta's sd on the link scale, and the registry's refits match real tables
+    at a range of their link's (#79), so each dataset draws τ from its link's default,
+    which a point or a distribution replaces on any family.
+    """
+    support = PREDICTOR_SDS[family]
+    for model in [Glm(family=family), Glmm(family=family, predictor_sd=None)]:
+        predictor_sds = np.array(_resolvePoints(model, 'predictor_sd', DRAWS))
+        # a log-uniform draw is uniform on the log scale
+        positions = np.log(predictor_sds / support.low) / math.log(support.high / support.low)
+        assert _ksDistance(positions.tolist(), _uniformCdf) < 1.63 / math.sqrt(DRAWS)
+    assert set(_resolvePoints(Glm(family=family, predictor_sd=2.0), 'predictor_sd')) == {2.0}
+    predictor_sds = _resolvePoints(Glmm(family=family, predictor_sd=Uniform(5, 6)), 'predictor_sd')
+    assert 5 <= min(predictor_sds) < max(predictor_sds) <= 6
+
+
+@pytest.mark.parametrize('family', sorted(set(get_args(Family)) - set(PREDICTOR_SDS)))
+def test_a_family_with_a_residual_draws_no_predictor_sd(family: str) -> None:
+    """With a residual, τ² is the signal share r, so a dataset draws no τ of its own.
+    Every family outside the table above has one, so a new family fails here until listed.
+    """
+    resolved = Glm(family=family).resolveDataset(np.random.default_rng(0))
+
+    assert resolved.predictor_sd is None
+
+
 GLMM_DEFAULTS = DEFAULTS | {
     'sigma_alpha_family_shares': SD_FAMILY_SHARES,
-    'fixed_share': Beta(1, 1),
+    'fixed_share': Beta(2, 3),
     'split_alpha': 1.0,
     'random_effects': UniformInt(1, 6),
     'correlated_share': 0.55,
@@ -421,6 +464,11 @@ def _uniformCdf(x: float) -> float:
     return x
 
 
+def _beta23Cdf(x: float) -> float:
+    # the integral of Beta(2, 3)'s density 12 x (1 − x)²
+    return 6 * x**2 - 8 * x**3 + 3 * x**4
+
+
 def _ksDistance(samples: list[float], cdf: Callable[[float], float]) -> float:
     """The Kolmogorov-Smirnov distance between a sample and a distribution function."""
     n = len(samples)
@@ -640,7 +688,7 @@ def test_each_block_varies_with_varying_scale_share_over_many_draws() -> None:
 
 
 def test_the_split_follows_fixed_share_and_the_dirichlet_over_many_draws() -> None:
-    """φ_fixed is fixed_share's Beta(1, 1), the registry's near-uniform witness (#47),
+    """φ_fixed is fixed_share's Beta(2, 3), which brings the ICC closer to real tables' (#79),
     and two factors split the rest by a Dirichlet at split_alpha = 1, so either share is uniform.
     """
     blocks = [
@@ -656,7 +704,7 @@ def test_the_split_follows_fixed_share_and_the_dirichlet_over_many_draws() -> No
         prior = resolved.drawPrior(blocks, rng)
         fixed.append(prior.split['fixed'])
         first.append(prior.split['g0'] / (1 - prior.split['fixed']))
-    assert _ksDistance(fixed, _uniformCdf) < 1.63 / math.sqrt(DRAWS)
+    assert _ksDistance(fixed, _beta23Cdf) < 1.63 / math.sqrt(DRAWS)
     assert _ksDistance(first, _uniformCdf) < 1.63 / math.sqrt(DRAWS)
 
 

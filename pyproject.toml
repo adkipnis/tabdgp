@@ -39,6 +39,12 @@ dev = [
     "ipykernel",
     "tabdgp[fidelity]",
 ]
+experiments = [
+    "matplotlib>=3.11.2",
+]
+registry = [
+    "mixedbench==1.0.13",  # the registry's designs and lme4's refits, never imported by src/
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]  # PEP 639 license expression and license files

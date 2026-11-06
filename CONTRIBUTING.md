@@ -55,8 +55,8 @@ Three rules keep the generator trustworthy:
   the release notes; downstream training corpora depend on them.
 - **Written from scratch.** scamd and TabICL's prior are read for ideas; no code is copied
   from either. A mechanism they inspired says so in a comment.
-- **Nothing from downstream.** TabDGP imports nothing from metabeta or mixedbench; the proofs
-  read mixedbench's registry as a test dependency only.
+- **Nothing from downstream.** `src/` imports nothing from metabeta or mixedbench, but
+  `experiments/` and the tests may import mixedbench (its registry, its lme4 fits).
 
 ## License
 
