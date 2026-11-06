@@ -29,7 +29,6 @@ generated it.
   Supported likelihoods are Gaussian, Bernoulli, Poisson, Student-t, negative binomial,
   latent-noise Bernoulli, Gamma, and Beta.
   The true parameters are returned with the priors they were drawn from.
-  You can also pass your own model as a function of the covariates by defining it as a Callable.
 - **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `modelOutcome`
   draws a model's outcome on it.
   You can use this semi-synthetic data for oracle tests or power analysis.
