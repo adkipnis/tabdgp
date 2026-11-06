@@ -90,6 +90,14 @@ The mechanisms' weights are drawn with the node values and not kept.
 It is returned with every dataset.
 _Avoid_: causal graph unqualified, DAG (one property of it), architecture
 
+**Dependence**:
+Whether the SCM draws edges among the covariates and the latent nodes, one choice per dataset.
+Under `scm`, the default, the generating graph draws every edge.
+Under `none`, every covariate and latent node is a root, so each column is its marginal alone,
+and only the outcome node has parents.
+A within-group covariate keeps its group part under both.
+_Avoid_: correlation (one measure of it), copula (the SCM is one), structure, marginals preset
+
 **Latent node**:
 A node of the generating graph that is not a column of the table.
 Its values are still returned, so the dataset stays white-box.
@@ -169,6 +177,7 @@ A named SCM hyperprior for one kind of table, `Scm.grouped()` or `Scm.flat()` to
 response, survival or causal later.
 A preset only sets defaults and never adds a mechanism.
 Every draw starts from one.
+A preset names a kind of table; the dependence is an override on any preset.
 The defaults of the grouped preset are to be matched to real grouped tables and then widened.
 They are what the proofs certify.
 _Avoid_: dataset type, kind, mode
@@ -176,8 +185,8 @@ _Avoid_: dataset type, kind, mode
 **Override**:
 A point value or a distribution passed for one field of a hyperprior, which replaces its
 default for that call.
-Overrides choose the outcome's source, or adapt a preset of `Scm` to a study, an ablation or a
-size outside its range.
+Overrides choose the outcome's source or the dependence, or adapt a preset of `Scm` to a
+study, an ablation or a size outside its range.
 _Avoid_: setting, parameter, hyperparameter
 
 **Quirk axis**:
@@ -190,6 +199,7 @@ The node `y` with role `outcome`.
 It is drawn by default, at the row unit, as the last node of the generating graph and without
 children.
 Its parents are drawn like any node's, and its source says how y follows from them.
+Under the dependence `none`, it is the only node with parents.
 A dataset has at most one.
 _Avoid_: target, label, response unqualified, dependent variable
 
