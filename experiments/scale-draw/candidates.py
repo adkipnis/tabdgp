@@ -39,7 +39,7 @@ import pandas as pd
 from pydantic import ConfigDict, PositiveFloat
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.field import Beta, Distribution, LogUniform
+from tabdgp.field import Distribution, LogUniform
 from tabdgp.prior import Glmm, Parameters, Prior
 
 # =====================================================================================
@@ -59,28 +59,24 @@ Arm = Literal[
     'unit-tau0',
 ]
 ARMS: list[Arm] = list(get_args(Arm))
-# Glmm's defaults before #79, at which the joint prior and its rivals drew their records
-JOINT_DEFAULTS = {
-    'fixed_share': Beta(1, 1),
-    'intercept_scale': LogUniform(0.1, 10),
-    'predictor_sd': LogUniform(0.25, 4),
-}
+# Glmm's τ before #79 on every link, at which joint-phi-tau0 and its rivals drew their records
+JOINT_DEFAULTS = {'predictor_sd': LogUniform(0.25, 4)}
 # each arm's overrides of Glmm's defaults, so that it draws at the defaults of its records
 OVERRIDES: dict[Arm, dict[str, Distribution]] = {
-    'joint': JOINT_DEFAULTS,
-    'joint-phi-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
+    'joint': {},  # Glmm's defaults
+    'joint-phi-tau0': JOINT_DEFAULTS,
     # the logit link's τ, run only on the Bernoulli fits
     'joint-phi-tau0-logit': {},  # Glmm's defaults
     # the rivals rescale the joint prior, its intercept kept
-    'r2d2m2-0.5': JOINT_DEFAULTS,
-    'r2d2m2-1': JOINT_DEFAULTS,
-    'survey': JOINT_DEFAULTS,
-    'unit': JOINT_DEFAULTS,
+    'r2d2m2-0.5': {},
+    'r2d2m2-1': {},
+    'survey': {},
+    'unit': {},
     # the rivals at joint-phi-tau0's overrides, so that they share every draw with it
     # and with joint-phi-tau0-logit, whose τ one uniform sets alike and a rival never reads
-    'r2d2m2-0.5-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
-    'survey-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
-    'unit-tau0': {'predictor_sd': JOINT_DEFAULTS['predictor_sd']},
+    'r2d2m2-0.5-tau0': JOINT_DEFAULTS,
+    'survey-tau0': JOINT_DEFAULTS,
+    'unit-tau0': JOINT_DEFAULTS,
 }
 Family = Literal['gaussian', 'bernoulli', 'poisson']  # the families whose y's variance is known
 FAMILIES: list[Family] = list(get_args(Family))
