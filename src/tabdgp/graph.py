@@ -6,7 +6,7 @@ the resolved SCM hyperprior, the grouping, and the covariate columns
 -> each node's unit                                                                    _sampleUnits
 -> names and units in topological order, the grouping factors first, y last if drawn   _orderNodes
 -> edges: Cauchy node terms and a block bonus                                          _sampleEdges
--> the edges a child may read, y's alone under the dependence none                     _maskEdges
+-> optionally mask out (non-outcome) edges                                             _maskEdges
 -> each node's own field draws: family, scales, activation                             _resolveNodes
 -> each row-unit node's group share and group factor                                   _resolveParts
 -> the Graph                                                                           connect
@@ -43,7 +43,7 @@ class Graph:
       A node reads parents at its own unit or any unit superior to it,
       so a latent row-unit node may have an observed group-level parent.
     - The outcome y (when present) comes last at the row, i.e. no node reads it.
-    - Under the dependence none, y is the only node with parents.
+    - Under `dependence='none'`, y is the only node with parents.
     - A root (a node without parents) is just its noise and draws no family or scale.
     - A linear node draws a noise scale.
     - An MLP node draws a noise scale, an activation and an init scale.
@@ -248,7 +248,7 @@ def _maskEdges(
     grouping: Grouping,
     resolved: Scm,
 ) -> np.ndarray:
-    """Drops each edge a child cannot read (under the dependence none, every edge but y's)."""
+    """Drops each edge a child cannot read."""
     units = grouping.traceChain('row')
     # a child reads a parent at its own unit or a superior one of its chain
     reads = np.zeros((len(units), len(units)), dtype=bool)  # (f + 1, f + 1), [child, parent]
@@ -261,7 +261,7 @@ def _maskEdges(
     f = len(grouping.metadata)
     kept[:f] = False
     kept[:, :f] = False
-    # under the dependence none, every covariate and latent node is a root
+    # under `dependence='none'`, every covariate and latent node can at most affect the outcome node
     if resolved.dependence == 'none':
         not_y = np.array([name != 'y' for name in names], dtype=bool)  # (v,)
         kept[not_y] = False
