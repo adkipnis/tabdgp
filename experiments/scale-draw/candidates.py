@@ -51,7 +51,6 @@ Arm = Literal[
     'joint-phi-tau0',
     'joint-phi-tau0-logit',
     'r2d2m2-0.5',
-    'r2d2m2-1',
     'survey',
     'unit',
     'r2d2m2-0.5-tau0',
@@ -69,7 +68,6 @@ OVERRIDES: dict[Arm, dict[str, Distribution]] = {
     'joint-phi-tau0-logit': {},  # Glmm's defaults
     # the rivals rescale the joint prior, its intercept kept
     'r2d2m2-0.5': {},
-    'r2d2m2-1': {},
     'survey': {},
     'unit': {},
     # the rivals at joint-phi-tau0's overrides, so that they share every draw with it
@@ -249,8 +247,6 @@ def buildCandidate(arm: Arm, survey_dir: Path | None) -> Candidate:
             return Joint()
         case 'r2d2m2-0.5' | 'r2d2m2-0.5-tau0':
             return R2d2m2(concentration=0.5)
-        case 'r2d2m2-1':
-            return R2d2m2(concentration=1.0)
         case 'survey' | 'survey-tau0':
             return Stated(survey=Survey.fromDir(survey_dir))
         case 'unit' | 'unit-tau0':
