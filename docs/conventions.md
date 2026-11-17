@@ -324,8 +324,8 @@ fidelity (imported by nothing in src/)
 - `tests/` mirrors `src/`.
 - Unit tests for every mechanism: marginal ranges, the coded shapes, determinism under a fixed
   generator, every override honored, the flat case as zero factors.
-- The proofs against mixedbench's registry (the two-sample test and the containment test)
-  carry the `slow` mark and fixed seeds.
+- The proofs against real tables (the schema proof and the content proof) carry the `slow`
+  mark and fixed seeds.
 - The names checked across modules include a shares field's categories and the per-column and
   per-node fields. Names listed twice in one module are checked by a test, if at all.
 
@@ -353,8 +353,8 @@ How the docs and the paper explain TabDGP to a reader with only a vague idea of 
 
 ### Data
 
-- The registry statistics the proofs read are mixedbench's, pinned by version, never edited
-  here.
+- The real tables the proofs read come from a pinned version of their source (e.g.
+  mixedbench). Their summary vectors are measured here and never edited by hand.
 
 ### Lab notes
 
