@@ -7,7 +7,8 @@ date: 2026-10-14
 
 A draw takes a preset of the SCM's hyperprior, which chooses the kind of table that gets sampled.
 The flat preset draws no grouping factor.
-The grouped preset keeps the defaults, which the proofs (the tests that compare generated and real tables) certify.
+The grouped preset keeps the defaults.
+The proofs (the tests that compare generated and real tables) certify each preset's defaults.
 Sizes are drawn coverage-first, which means log-uniform or uniform over their range.
 A count bounded by another field is truncated at that field's value.
 A superior factor has fewer groups than its subordinate one.
@@ -16,7 +17,7 @@ The group sizes are equal or follow a symmetric Dirichlet.
 ## Decisions
 
 1. `drawDataset(seed, index, scm)` takes a preset of the SCM's hyperprior and has no default:
-   - `Scm.grouped()` keeps the defaults, which are what the proofs certify; `Scm.flat()` sets `factors = 0`.
+   - `Scm.grouped()` keeps the defaults and `Scm.flat()` sets `factors = 0`; the proofs certify both presets.
    - a later kind of table (item response, survival, causal) is a preset that fixes fields, never a branch in `drawDataset` nor a new mechanism.
    - an override serves a study, an ablation or a size outside a preset.
 2. A count bounded by another field draws from its distribution truncated at that field's resolved value:
@@ -62,6 +63,6 @@ The group sizes are equal or follow a symmetric Dirichlet.
 ## Consequences
 
 - **No override by default:** a consumer (a package that trains on the datasets) calls `drawDataset(seed, index, Scm.grouped())` and passes nothing.
-- **The proofs:** run on `grouped()`; MixedBench's flat sample (mb#72) tests `flat()`.
+- **The proofs:** certify `flat()` first, on MixedBench's flat sample (mb#72), then `grouped()` on the registry (ADR 0009).
 - **`size_alpha`'s floor:** the registry's smallest concentration, 0.025, lies below the floor of 0.5.
-  - the containment test decides whether to widen it.
+  - the proofs decide whether to widen it.
