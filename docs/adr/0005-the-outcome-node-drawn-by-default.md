@@ -85,11 +85,11 @@ Under the dependence `none`, every covariate is a root and y alone keeps its par
 
 ## Consequences
 
-- **The proofs:** certify the SCM's y under `grouped()`.
-  - Their summary vector gains the response's statistics, which MixedBench's measurement pass measures.
+- **The proofs:** certify the SCM's y under both presets.
+  - y is measured like every other column, on axes of its own (ADR 0009).
 - **One type per corpus:** a study's override (`outcome_type_shares = {'continuous': 1}`), not a preset.
   - A model states its response family instead (`Glm(family='gaussian')`).
-- **Independent covariates:** a study's override (`dependence = 'none'`), on `grouped()` or `flat()`; the proofs run on `'scm'`.
+- **Independent covariates:** a study's override (`dependence = 'none'`), on `grouped()` or `flat()`; the proofs run on `'scm'`, with `'none'` as their negative control.
 - **Extension points, none built:**
   - time and treatment (ADR 0003), which have no role in the registry to fit against.
   - the GP family, though no summary statistic tells function classes apart yet.
