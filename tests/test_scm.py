@@ -16,8 +16,8 @@ from tabdgp.field import Beta, Dirichlet, LogUniform, LogUniformInt, Uniform, Un
 from tabdgp.graph import Activation, Graph, Mechanism
 from tabdgp.mechanism import ACTIVATIONS
 from tabdgp.prior import Glmm
-from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm
-from tests.fixtures.build import drawNothing
+from tabdgp.scm import MARGINAL_FIELDS, LeveledType, Marginal, PlainType, Scm
+from tests.fixtures.build import STATED, drawNothing, point
 
 
 def test_the_defaults_validate() -> None:
@@ -293,6 +293,111 @@ def test_a_misspelled_override_fails_at_construction() -> None:
     """A typo in a field name would otherwise leave the default in place without a word."""
     with pytest.raises(ValidationError):
         Scm(n_ob=500)
+
+
+def test_stated_columns_of_every_type_validate_as_given() -> None:
+    """A real table's schema enters as plain values: a type, with its k where the type leaves k free."""
+    scm = Scm.flat(columns=STATED, outcome_column=('ordered', 5))
+    assert (scm.columns, scm.outcome_column) == (STATED, ('ordered', 5))
+
+
+NOT_A_COLUMN = [
+    pytest.param(('binary', 3), id='a binary column has k = 2'),
+    pytest.param(('categorical', 2), id='a categorical column has k >= 3'),
+    pytest.param('ordered', id='an ordered column states its k'),
+    pytest.param(('continuous', 4), id='a continuous column has no levels'),
+    pytest.param('nominal', id='an unknown type'),
+]
+
+
+@pytest.mark.parametrize('field', ['columns', 'outcome_column'])
+@pytest.mark.parametrize('column', NOT_A_COLUMN)
+def test_a_stated_column_that_contradicts_its_type_fails_at_construction(
+    column: str | tuple, field: str
+) -> None:
+    """A stated column takes a k only where its type leaves k free, so it cannot contradict itself."""
+    stated = {'columns': (), 'outcome_column': 'binary'}
+    stated[field] = (column,) if field == 'columns' else column
+    with pytest.raises(ValidationError):
+        Scm.flat(**stated)
+
+
+def test_the_stated_types_are_exactly_the_column_types() -> None:
+    """A type that a column can have but no stated column can name could be drawn, never stated."""
+    stated = [*get_args(PlainType), *get_args(LeveledType)]
+    assert sorted(stated) == sorted(get_args(ColumnType))
+
+
+REPLACED = [
+    pytest.param({'design_columns': 5}, id='the budget'),
+    pytest.param({'type_shares': ALL_CONTINUOUS}, id="the covariates' type shares"),
+    pytest.param({'levels_p': 0.5}, id='the draw of k'),
+    pytest.param({'max_levels': 5}, id='the cap on k'),
+    pytest.param({'outcome_type_shares': point('outcome_type_shares', 'count')}, id="y's type"),
+    pytest.param({'outcome_max_levels': 5}, id="the cap on y's k"),
+]
+
+
+@pytest.mark.parametrize('override', REPLACED)
+def test_an_override_of_a_field_the_stated_columns_replace_fails_naming_it(override: dict) -> None:
+    """The stated columns draw no type or k, so such an override would be ignored without a word."""
+    [field] = override
+    with pytest.raises(ValidationError, match=field):
+        Scm.flat(columns=STATED, outcome_column='binary', **override)
+
+
+NOT_TOGETHER = [
+    pytest.param({'columns': STATED}, id="the covariates without y's column"),
+    pytest.param({'columns': (), 'outcome_source': 'scm'}, id="no covariates without y's column"),
+    pytest.param({'outcome_column': 'binary'}, id="y's column without the covariates"),
+    pytest.param(
+        {'columns': STATED, 'outcome_column': 'binary', 'outcome_source': 'none'},
+        id="y's column without y",
+    ),
+]
+
+
+@pytest.mark.parametrize('stated', NOT_TOGETHER)
+def test_ys_column_is_stated_with_the_covariates_under_scm_and_never_under_none(
+    stated: dict,
+) -> None:
+    """A schema is stated whole, and y's stated column would be ignored without a y.
+    A table without y states its covariates under outcome_source='none'.
+    """
+    with pytest.raises(ValidationError, match='outcome_column'):
+        Scm.flat(**stated)
+
+
+def test_resolve_keeps_the_stated_columns_and_leaves_the_fields_they_replace_as_given() -> None:
+    """Dataset.hyperparameters records the stated columns, and nothing draws what they replace."""
+    scm = Scm.flat(columns=STATED, outcome_column='binary')
+    resolved = scm.resolveDataset(np.random.default_rng(0))
+    assert (resolved.columns, resolved.outcome_column) == (STATED, 'binary')
+    for field in Scm.REPLACED_BY_COLUMNS:
+        assert getattr(resolved, field) == getattr(scm, field)
+
+
+def test_a_rows_point_below_twice_the_stated_design_columns_fails_naming_rows_and_its_bound() -> (
+    None
+):
+    """A point override is honored exactly or not at all.
+    STATED takes 1 + 3 + 1 + 1 + 2 = 8 design columns, so 16 rows meet n >= 2d and 15 break it.
+    """
+    Scm.flat(rows=16, columns=STATED, outcome_column='binary').resolveDataset(
+        np.random.default_rng(0)
+    )
+    with pytest.raises(ValueError, match=r'rows.*\b16\b'):
+        Scm.flat(rows=15, columns=STATED, outcome_column='binary').resolveDataset(
+            np.random.default_rng(0)
+        )
+
+
+@given(seed=st.integers(0, 2**32 - 1))
+def test_a_rows_range_resolves_at_or_above_twice_the_stated_design_columns(seed: int) -> None:
+    """A range that starts below the floor of 16 rows is truncated to it, never failing at random."""
+    scm = Scm.flat(rows=UniformInt(2, 20), columns=STATED, outcome_column='binary')
+    resolved = scm.resolveDataset(np.random.default_rng(seed))
+    assert 16 <= resolved.rows <= 20
 
 
 SUPPORTED = [

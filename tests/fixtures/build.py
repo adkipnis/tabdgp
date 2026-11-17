@@ -1,4 +1,5 @@
-"""Hand-built inputs the module tests share: point-mass shares, continuous columns by name,
+"""Hand-built inputs the module tests share: point-mass shares, stated columns of every type,
+continuous columns by name,
 a grouping from code lists, covariates from both, a model's y column, a model that draws nothing
 and a graph from parent lists.
 Also the between-group share the grouped tests measure.
@@ -16,6 +17,9 @@ from tabdgp.scm import Scm
 
 # a model writes its columns without a marginal or parameters
 Y = Column(type='continuous', role='outcome')
+
+# every column type stated once, 1 + 3 + 1 + 1 + 2 = 8 design columns
+STATED = ('continuous', ('categorical', 4), 'binary', 'count', ('ordered', 3))
 
 
 def point(field: str, category: str, hyperprior: type[Hyperprior] = Scm) -> dict[str, float]:

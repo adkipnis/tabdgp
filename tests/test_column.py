@@ -17,7 +17,7 @@ from pydantic import ValidationError
 from tabdgp.column import Column, Grouping, assign, plan, rankMatch
 from tabdgp.field import UniformInt
 from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm
-from tests.fixtures.build import groupingOf, point
+from tests.fixtures.build import STATED, groupingOf, point
 
 ALPHA = {'level_alpha': 1.0}
 # one value per marginal parameter, for columns built by hand
@@ -576,6 +576,27 @@ def test_plan_ends_with_y_under_scm_and_has_no_y_under_none() -> None:
     assert with_y['y'].role == 'outcome'
     assert 'y' not in without_y
     assert {name: with_y[name] for name in without_y} == without_y
+
+
+def test_plan_gives_the_stated_columns_in_their_order_with_y_last() -> None:
+    """The content proof pairs each draw with a real table's schema, so the plan takes the stated
+    types and k as given: a bare binary has k = 2, and a count covariate draws its poisson marginal.
+    """
+    columns = _plan(
+        0,
+        columns=STATED,
+        outcome_column=('categorical', 5),
+    )
+    assert list(columns) == ['x0', 'x1', 'x2', 'x3', 'x4', 'y']
+    assert _shapes(columns) == [
+        ('continuous', None),
+        ('categorical', 4),
+        ('binary', 2),
+        ('count', None),
+        ('ordered', 3),
+        ('categorical', 5),
+    ]
+    assert columns['x3'].marginal == 'poisson'
 
 
 @pytest.mark.parametrize('type', Scm.categories('outcome_type_shares'))

@@ -10,6 +10,7 @@ import sys
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
+from typing import get_args
 
 import numpy as np
 import pandas as pd
@@ -26,8 +27,8 @@ from tabdgp.outcome import (
     Outcome,
 )
 from tabdgp.prior import Glm, Glmm
-from tabdgp.scm import Scm, UniformInt
-from tests.fixtures.build import Y, betweenShare, graphOf, groupingOf, point
+from tabdgp.scm import LeveledType, PlainType, Scm, StatedColumn, UniformInt
+from tests.fixtures.build import STATED, Y, betweenShare, graphOf, groupingOf, point
 
 
 def test_a_dataset_holds_its_arrays_without_copying() -> None:
@@ -759,6 +760,120 @@ def test_a_budget_of_0_gives_no_columns() -> None:
         assert dataset.metadata == {}
         assert dataset.graph.latent.all()
         assert len(dataset.latent['z0']) == 50
+
+
+STATED_COLUMN = st.one_of(
+    st.sampled_from(get_args(PlainType)),
+    st.tuples(st.sampled_from(get_args(LeveledType)), st.integers(3, 8)),
+)
+
+
+def _stated(column: Column) -> StatedColumn:
+    """A column's metadata as it is stated: its type, with k where the type leaves k free."""
+    if column.type in get_args(LeveledType):
+        return column.type, column.levels
+    return column.type
+
+
+def _statedOf(dataset: Dataset) -> list[StatedColumn]:
+    """The covariates' and y's metadata as they are stated, in column order."""
+    stated: list[StatedColumn] = []
+    for column in dataset.metadata.values():
+        if column.role != 'grouping_factor':
+            stated.append(_stated(column))
+    return stated
+
+
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
+@settings(max_examples=50, deadline=None)
+@given(
+    columns=st.lists(STATED_COLUMN, max_size=8),
+    outcome_column=STATED_COLUMN,
+    index=st.integers(0, 2**16),
+)
+def test_a_draw_has_the_stated_columns_in_their_order_with_y_last(
+    preset: Callable[..., Scm],
+    columns: list[StatedColumn],
+    outcome_column: StatedColumn,
+    index: int,
+) -> None:
+    """The content proof ranks a real table among draws at its schema,
+    so every draw has exactly the stated types and k and records them in its hyperparameters.
+    A count covariate holds non-negative integers, as a count y does.
+    """
+    scm = preset(columns=tuple(columns), outcome_column=outcome_column)
+    dataset = drawDataset(0, index, scm)
+    metadata = dataset.metadata
+    observed = [name for name, column in metadata.items() if column.role != 'grouping_factor']
+    assert observed == [*[f'x{i}' for i in range(len(columns))], 'y']
+    assert _statedOf(dataset) == [*columns, outcome_column]
+    for name in observed:
+        if metadata[name].type == 'count':
+            assert metadata[name].marginal == 'poisson'
+            assert dataset.columns[name].dtype == np.int64
+            assert (dataset.columns[name] >= 0).all()
+    resolved = dataset.hyperparameters
+    assert (resolved.columns, resolved.outcome_column) == (tuple(columns), outcome_column)
+
+
+@settings(max_examples=50, deadline=None)
+@given(columns=st.lists(STATED_COLUMN, min_size=1, max_size=8), index=st.integers(0, 2**16))
+def test_the_rows_floor_is_twice_the_design_columns_the_metadata_counts(
+    columns: list[StatedColumn], index: int
+) -> None:
+    """resolveDataset counts the stated design columns before any column exists,
+    so its count has to agree with the metadata's: 2d rows draw and 2d − 1 fail.
+    """
+    stated = tuple(columns)
+    dataset = drawDataset(0, index, Scm.flat(columns=stated, outcome_source='none'))
+    design_columns = sum(column.design_columns for column in dataset.metadata.values())
+    floor = 2 * design_columns
+    drawDataset(0, index, Scm.flat(rows=floor, columns=stated, outcome_source='none'))
+    with pytest.raises(ValueError, match='rows'):
+        drawDataset(0, index, Scm.flat(rows=floor - 1, columns=stated, outcome_source='none'))
+
+
+@settings(max_examples=50, deadline=None)
+@given(columns=st.lists(STATED_COLUMN, min_size=1, max_size=8), index=st.integers(0, 2**16))
+def test_a_flat_draw_shows_every_level_of_a_stated_column(
+    columns: list[StatedColumn], index: int
+) -> None:
+    """A level no row has would be an all-zero dummy column in a design matrix.
+    The floor of 2d rows leaves a column of k levels at least 2(k − 1) >= k rows,
+    and a range that ends at 120 keeps the rows near that floor.
+    """
+    scm = Scm.flat(rows=UniformInt(1, 120), columns=tuple(columns), outcome_source='none')
+    dataset = drawDataset(0, index, scm)
+    for name, column in dataset.metadata.items():
+        if column.levels is not None:
+            codes = dataset.columns[name]
+            assert np.array_equal(np.unique(codes), np.arange(column.levels))
+
+
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
+def test_stated_columns_under_dependence_none_are_roots_of_the_stated_types(
+    preset: Callable[..., Scm],
+) -> None:
+    """A power analysis states its design and may draw it with independent covariates,
+    so both overrides hold at once: every covariate a root, each of its stated type and k.
+    """
+    scm = preset(columns=STATED, outcome_column='binary', dependence='none')
+    for index in range(20):
+        dataset = drawDataset(0, index, scm)
+        assert not dataset.graph.parents[:-1].any()
+        assert _statedOf(dataset) == [*STATED, 'binary']
+
+
+@pytest.mark.parametrize('preset', [Scm.grouped, Scm.flat], ids=['grouped', 'flat'])
+def test_stated_columns_under_outcome_none_give_the_stated_covariates_and_no_y(
+    preset: Callable[..., Scm],
+) -> None:
+    """A real table without a documented y enters the content proof as its covariates alone."""
+    scm = preset(columns=STATED, outcome_source='none')
+    for index in range(20):
+        dataset = drawDataset(0, index, scm)
+        assert dataset.outcome is None
+        assert _statedOf(dataset) == list(STATED)
 
 
 def test_every_column_and_latent_node_is_finite() -> None:
