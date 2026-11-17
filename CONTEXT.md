@@ -179,7 +179,7 @@ A preset only sets defaults and never adds a mechanism.
 Every draw starts from one.
 A preset names a kind of table; the dependence is an override on any preset.
 The defaults of the grouped preset are to be matched to real grouped tables and then widened.
-They are what the proofs certify.
+The proofs certify a preset's defaults against real tables of its kind.
 _Avoid_: dataset type, kind, mode
 
 **Override**:
@@ -297,9 +297,27 @@ _Avoid_: group effect, b (an earlier letter), random intercept for a latent grou
 **Summary vector**:
 The statistics per dataset on which the proofs compare generated and real tables, one row per
 dataset.
+A real table and a generated one are measured in the same way.
+A statistic per column enters as its median and its maximum over the columns of one type.
 A statistic that a table cannot show (e.g. the intraclass correlation of a second factor) is
 marked missing.
 _Avoid_: features (the classifier's view of it), meta-features, embedding
+
+**Schema**:
+A table's sizes (rows, design columns, grouping factors, groups per factor, nested or crossed),
+each column's type and its number of levels.
+It can be read off a table without a statistic.
+_Avoid_: structure, layout, metadata (a column's, which a dataset carries)
+
+**Schema proof**:
+Compares the schemas of real tables with what the hyperprior's fields draw.
+It draws no table.
+For the sizes it asks only whether each real table's sizes can be drawn.
+
+**Content proof**:
+Compares real and generated tables on every statistic that is not part of the schema.
+It draws datasets at each real table's schema, so it tests the mechanisms and not the sizes
+or the type mix.
 
 **Two-sample test**:
 A classifier two-sample test (C2ST) on the summary vectors of generated and real tables.
@@ -312,15 +330,37 @@ It is drawn by permuting the sample labels of the rows.
 A statistic is read by its position in the null.
 _Avoid_: baseline, chance level unqualified, significance
 
+**Pairing**:
+Drawing several generated datasets per real table, each at that table's schema.
+A comparison then measures the generator's mismatch and not the schema's.
+_Avoid_: matching (the hyperprior's fit to the registry), conditioning
+
+**Recall**:
+The share of real tables that lie inside the range of their paired draws, per axis.
+A real table is ranked among its draws.
+A generator that is too narrow leaves too many real tables outside, and one that is too wide
+piles their ranks in the middle.
+_Avoid_: coverage (the fitter's credible-interval property), support
+
+**Precision**:
+The share of generated tables that lie near a real table, on every axis at once.
+It shows what the widening costs.
+It has a floor and is never maximized.
+_Avoid_: realism, fidelity (the module)
+
 **Containment test**:
-Tests whether the real tables' summary vectors lie inside the band of the generated ones, the
-generated 1st to 99th percentile per axis.
-Its result is the share of real tables inside the band on every axis.
-The share of generated tables inside the real tables' band shows what the widening costs.
+Tests whether one sample's summary vectors lie inside the band of another's, its 1st to 99th
+percentile per axis.
+It compares two unpaired samples, where no rank among paired draws exists.
 _Avoid_: coverage (the fitter's credible-interval property), support (the band is its estimate)
 
-**Pairing**:
-Drawing one generated dataset per fit of a real table, at that table's sizes (rows, grouping
-factors, groups per factor).
-The two-sample test then measures the prior's mismatch and not the sizes'.
-_Avoid_: matching (the hyperprior's fit to the registry), conditioning
+**Negative control**:
+A proof run on tables that lack a structure on purpose (e.g. independent covariates, group
+labels assigned at random).
+The proof has to fail there, otherwise it is too loose.
+
+**Named gap**:
+An axis on which the generator fails a proof for a known reason (e.g. real tables have count
+covariates and the generator draws none).
+The proofs list the named gaps, and the list may only shrink.
+_Avoid_: known failure, expected failure
