@@ -32,6 +32,9 @@ generated it.
   The true parameters are returned with the priors they were drawn from.
 - **Independent covariates.** `dependence='none'` draws each covariate from its marginal alone;
   `y` keeps its parents.
+- **Stated columns.** `columns` and `outcome_column` fix each column's type and levels, `y`'s
+  included, so a draw can match a real table's schema
+  (e.g. `columns=('continuous', ('categorical', 4), 'count')`).
 - **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `modelOutcome`
   draws a model's outcome on it.
   You can use this semi-synthetic data for oracle tests or power analysis.
