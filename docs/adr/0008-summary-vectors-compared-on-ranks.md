@@ -37,7 +37,8 @@ The containment test returns the share of one sample inside the other's band.
 7. `containment` returns the share of one sample's rows inside the other sample's band, per axis and on every axis:
    - the band spans the 1st to 99th percentile by default.
    - its ends are observed values, so ranks and values agree on which rows are inside.
-   - with the registry as the reference, the share is the precision (generated rows inside the real band); otherwise it is the recall.
+   - with the real tables as the reference, it is the share of generated rows inside the real band; otherwise the share of real rows inside the generated band.
+   - it compares two unpaired samples. Paired draws are read by the real table's rank among them (ADR 0009).
 
 ## Considered options
 
@@ -66,11 +67,12 @@ The containment test returns the share of one sample inside the other's band.
    - A permutation null is exact for any classifier.
 6. **Containment:**
    - A support metric (e.g. k-NN coverage, or precision, recall, density and coverage) needs a distance between summary vectors, which ranks do not provide.
-   - It is deferred until the summary vector is decided.
+   - It is decided with the proofs' precision (ADR 0009).
 
 ## Consequences
 
-- **Containment first:** of the distributional measures, coverage tracked downstream performance, the accuracy on real tables of a consumer (a package that trains on the datasets) (see Structural Coverage, arXiv 2609.06912).
+- **Recall first:** of the distributional measures, coverage tracked downstream performance, the accuracy on real tables of a consumer (a package that trains on the datasets) (see Structural Coverage, arXiv 2609.06912).
+  - The proofs gate on recall and on a floor of precision (ADR 0009).
   - A classifier separates every prior from real tables, and its accuracy did not predict performance (see Mind the Gap?, arXiv 2605.06343).
   - The C2ST shows how far apart the samples are, and the distances show on which axes.
   - A downstream ablation remains the final test: a consumer trained with and without a change, compared on real tables.
