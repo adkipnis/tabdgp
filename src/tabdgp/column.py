@@ -8,8 +8,9 @@ pipeline:
 resolved sizes, shares and budget
 -> per factor (top down), how many factors it nests in           _nestFactors
 -> per factor (bottom up), its m groups, their sizes and codes   _sampleSizes, assign
--> per column, its type by its shares, then its k or marginal    plan, _resolveColumn
--> x0, x1, ... until the budget is met, then y under the SCM     plan
+-> per column, its type and k, stated or drawn by its shares     _readStated, _drawLevels
+-> per column, its marginal family or level concentration        _resolveColumn
+-> x0, x1, ... as stated or until the budget is met, then y      plan
 -> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
 -> placed by the node's ranks, tied values sharing one           rankMatch
 """
@@ -23,7 +24,7 @@ import numpy as np
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm
+from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm, StatedColumn
 
 MarginalType = Literal['continuous', 'count']
 ColumnType = Literal[MarginalType, 'binary', 'categorical', 'ordered']
@@ -205,38 +206,40 @@ def _sampleSizes(
 
 
 def plan(resolved: Scm, rng: np.random.Generator) -> dict[str, Column]:
-    """Columns x0, x1, ... are drawn one by one until their design columns fill the budget.
-    The outcome y is drawn last, if its model is the SCM.
+    """Columns x0, x1, ... are stated,
+    or drawn one by one until their design columns fill the budget.
+    The outcome y comes last, if its model is the SCM.
     """
     columns: dict[str, Column] = {}
-    remainder = resolved.design_columns
-    while remainder > 0:
-        type = resolved.type_shares.choose(rng)
-        # k − 1 may not overflow the budget
-        column = _resolveColumn(type, 'covariate', remainder + 1, resolved, rng)
-        columns[f'x{len(columns)}'] = column
-        remainder -= column.design_columns
+    if resolved.columns is None:
+        remainder = resolved.design_columns
+        while remainder > 0:
+            type = resolved.type_shares.choose(rng)
+            # k − 1 may not overflow the budget
+            type, levels = _drawLevels(type, remainder + 1, resolved, rng)
+            column = _resolveColumn(type, 'covariate', levels, resolved, rng)
+            columns[f'x{len(columns)}'] = column
+            remainder -= column.design_columns
+    else:
+        for stated in resolved.columns:
+            type, levels = _readStated(stated)
+            columns[f'x{len(columns)}'] = _resolveColumn(type, 'covariate', levels, resolved, rng)
     if resolved.outcome_source == 'scm':
-        type = resolved.outcome_type_shares.choose(rng)
-        columns['y'] = _resolveColumn(type, 'outcome', resolved.outcome_max_levels, resolved, rng)
+        if resolved.outcome_column is None:
+            type = resolved.outcome_type_shares.choose(rng)
+            type, levels = _drawLevels(type, resolved.outcome_max_levels, resolved, rng)
+        else:
+            type, levels = _readStated(resolved.outcome_column)
+        columns['y'] = _resolveColumn(type, 'outcome', levels, resolved, rng)
     return columns
 
 
-def _resolveColumn(
-    type: ColumnType,
-    role: Role,
-    most_levels: int,
-    resolved: Scm,
-    rng: np.random.Generator,
-) -> Column:
-    """One column's k or marginal family (and its own parameters)."""
+def _drawLevels(
+    type: ColumnType, most_levels: int, resolved: Scm, rng: np.random.Generator
+) -> tuple[ColumnType, int | None]:
+    """A drawn column's k, if its type has levels, under the caps (a k of 2 is binary)."""
     if type in get_args(MarginalType):
-        if type == 'continuous':
-            family = resolved.marginal_shares.choose(rng)
-        else:
-            family = 'poisson'  # a count's only family, so it is not among marginal_shares'
-        parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
-        return Column(type=type, role=role, marginal=family, parameters=parameters)
+        return type, None
     levels = 2
     if type != 'binary':
         extra = rng.geometric(resolved.levels_p)  # 1, 2, ...
@@ -246,6 +249,31 @@ def _resolveColumn(
     levels = min(levels, most_levels)
     if levels == 2:
         type = 'binary'
+    return type, levels
+
+
+def _readStated(stated: StatedColumn) -> tuple[ColumnType, int | None]:
+    """A stated column's type and k: a bare type has no k, unless it is binary."""
+    if isinstance(stated, tuple):
+        return stated
+    return stated, 2 if stated == 'binary' else None
+
+
+def _resolveColumn(
+    type: ColumnType,
+    role: Role,
+    levels: int | None,
+    resolved: Scm,
+    rng: np.random.Generator,
+) -> Column:
+    """One column's marginal family or level concentration (and its own parameters)."""
+    if type in get_args(MarginalType):
+        if type == 'continuous':
+            family = resolved.marginal_shares.choose(rng)
+        else:
+            family = 'poisson'  # a count's only family, so it is not among marginal_shares'
+        parameters = {field: resolved.resolveField(field, rng) for field in MARGINAL_FIELDS[family]}
+        return Column(type=type, role=role, marginal=family, parameters=parameters)
     parameters = {'level_alpha': resolved.resolveField('level_alpha', rng)}
     return Column(type=type, role=role, levels=levels, parameters=parameters)
 
