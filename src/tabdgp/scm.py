@@ -14,7 +14,8 @@ We save hyperparameters as fields of the Scm class (a Hyperprior in field.py).
 - A preset is the defaults for one kind of table (e.g. flat, grouped); overrides apply on top.
 - A draw resolves every field to a point;
   the fields that shape a single column, node or grouping factor are resolved in a second step.
-- Some counts are limited by another field's value (design_columns and groups by rows):
+- Some counts are limited by another field's value (design_columns and groups by rows,
+  rows by the stated columns):
   they are drawn only from the values within that limit.
 
 pipeline:
@@ -67,7 +68,10 @@ MARGINAL_FIELDS = {
 Marginal = Literal[tuple(MARGINAL_FIELDS)]  # for pydantic  # pyrefly: ignore[invalid-literal]
 OutcomeSource = Literal['none', 'scm']
 Dependence = Literal['none', 'scm']
-MaxLevels = Annotated[int, Field(ge=3)]  # a cap on k that leaves a categorical its 3
+Levels = Annotated[int, Field(ge=3)]  # a categorical's k, or a cap on k that leaves it its 3
+PlainType = Literal['continuous', 'count', 'binary']  # a column type of no k or binary's 2
+LeveledType = Literal['categorical', 'ordered']  # a column type whose k is free
+StatedColumn = PlainType | tuple[LeveledType, Levels]  # a column's type, with k if free
 
 
 # =====================================================================================
@@ -82,6 +86,8 @@ class Scm(Hyperprior):
       A column is continuous, a count or has levels (binary, categorical or ordered).
       A column with levels takes one of k levels in each row.
       Due to dummy-encoding, it takes k − 1 columns in the design matrix.
+      A study can state each covariate's type and k, and y's, instead of drawing them.
+      A type states its k only where k is free, as in `('categorical', 4)`.
     - Grouping: a grouping factor assigns every row to one of its m groups.
       A table has none (flat), one or multiple grouping factors.
       Each factor after the first either nests in the one before it (classes in schools)
@@ -140,6 +146,14 @@ class Scm(Hyperprior):
         'marginal_shares',
         'outcome_type_shares',
     )
+    REPLACED_BY_COLUMNS: ClassVar[tuple[str, ...]] = (
+        'design_columns',
+        'type_shares',
+        'levels_p',
+        'max_levels',
+        'outcome_type_shares',
+        'outcome_max_levels',
+    )  # what draws each column's type and k
 
     # sizes and columns
     rows: PositiveCount = LogUniformInt(20, 15000)  # n, the table's length
@@ -148,8 +162,9 @@ class Scm(Hyperprior):
         {'continuous': 0.9, 'binary': 0.7, 'categorical': 0.4, 'ordered': 0.1}
     )  # column types
     levels_p: Annotated[Real, within(gt=0, le=1)] = Beta(2, 3)  # k is 2 + Geometric(levels_p)
-    max_levels: MaxLevels | None = None  # optional upper bound for k
+    max_levels: Levels | None = None  # optional upper bound for k
     level_alpha: Positive = LogUniform(0.5, 5)  # controls each column's level shares
+    columns: tuple[StatedColumn, ...] | None = None  # the stated covariates, in order
 
     # grouping
     factors: Count = UniformInt(1, 3)  # grouping factors; 0 is a flat table
@@ -208,8 +223,9 @@ class Scm(Hyperprior):
         'ordered': 0.05,
         'count': 0.1,
     }  # the outcome's column type
-    outcome_max_levels: MaxLevels = 10
+    outcome_max_levels: Levels = 10
     outcome_noise_scale: NonNegative = LogUniform(0.1, 3)
+    outcome_column: StatedColumn | None = None  # y's stated column
 
     @classmethod
     def grouped(cls, **overrides: Any) -> Scm:
@@ -261,17 +277,49 @@ class Scm(Hyperprior):
         lowest, _ = self._support(self.groups)
         return lowest + depth
 
+    @model_validator(mode='after')
+    def _checkStatedColumns(self) -> Scm:
+        """Checks that the covariates and y are stated whole, and nothing stated is drawn."""
+        # y's column comes with the covariates' under the SCM, and never without a y
+        stated = self.columns is not None
+        stated_y = self.outcome_column is not None
+        if self.outcome_source == 'none' and stated_y:
+            raise ValueError("outcome_source='none' draws no y, so it takes no outcome_column")
+        if self.outcome_source == 'scm' and stated != stated_y:
+            raise ValueError(
+                "state columns and outcome_column together, or set outcome_source='none'"
+            )
+        # an override of a field the stated columns replace would be ignored
+        if not stated:
+            return self
+        overridden = [field for field in self.REPLACED_BY_COLUMNS if field in self.model_fields_set]
+        if overridden:
+            raise ValueError(f'the stated columns replace {overridden}: drop the override')
+        return self
+
     def resolveDataset(self, rng: np.random.Generator) -> Scm:
         """Resolves each field drawn once per dataset."""
         points = {}
         for name in type(self).model_fields:
             if name in self.PER_COLUMN + self.PER_NODE + self.PER_FACTOR:
                 points[name] = getattr(self, name)  # defer resolution to a later step
+            elif self.columns is not None and name in self.REPLACED_BY_COLUMNS:
+                continue  # never drawn, so it keeps its default
+            elif name == 'rows' and self.columns is not None:
+                floor = 2 * self._countDesignColumns()
+                points[name] = self.resolveField(name, rng, low=floor)  # n >= 2d
             elif name == 'design_columns':
                 points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n >= 2d
             else:
                 points[name] = self.resolveField(name, rng)
         return Scm(**points)
+
+    def _countDesignColumns(self) -> int:
+        """The design columns the stated covariates take: k − 1 if k is free, else 1."""
+        count = 0
+        for column in self.columns:
+            count += 1 if isinstance(column, str) else column[1] - 1
+        return count
 
     def resolveGroups(self, factor: int, depth: int, rng: np.random.Generator, high: int) -> int:
         """A factor's m: its own point of a tuple, else a draw from its depth's floor to high."""
