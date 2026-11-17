@@ -187,6 +187,8 @@ A point value or a distribution passed for one field of a hyperprior, which repl
 default for that call.
 Overrides choose the outcome's source or the dependence, or adapt a preset of `Scm` to a
 study, an ablation or a size outside its range.
+The stated columns are an override that fixes each column's type and levels, y's included,
+in place of their draw.
 _Avoid_: setting, parameter, hyperparameter
 
 **Quirk axis**:
