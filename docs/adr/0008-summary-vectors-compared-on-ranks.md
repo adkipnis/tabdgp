@@ -66,8 +66,8 @@ The containment test returns the share of one sample inside the other's band.
    - A binomial null around 0.5 (see Lopez-Paz and Oquab, 2017) is wrong for cross-validated accuracies, because the folds are correlated.
    - A permutation null is exact for any classifier.
 6. **Containment:**
-   - A support metric (e.g. k-NN coverage, or precision, recall, density and coverage) needs a distance between summary vectors, which ranks do not provide.
-   - It is decided with the proofs' precision (ADR 0009).
+   - A support metric (e.g. k-NN coverage, or precision, recall, density and coverage) needs a distance between summary vectors and a known value for a calibrated generator.
+   - The proofs' precision has both for paired draws (ADR 0009).
 
 ## Consequences
 
