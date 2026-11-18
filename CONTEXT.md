@@ -345,10 +345,19 @@ piles their ranks in the middle.
 _Avoid_: coverage (the fitter's credible-interval property), support
 
 **Precision**:
-The share of generated tables that lie near a real table, on every axis at once.
+The share of generated tables that lie at least as near to the real tables as the real table they
+were drawn for, on every axis at once.
+A generated table and its real table are compared by their reach.
+A calibrated generator scores 0.5.
 It shows what the widening costs.
 It has a floor and is never maximized.
 _Avoid_: realism, fidelity (the module)
+
+**Reach**:
+A table's mean distance to its nearest real tables.
+The real tables of a table's own source (the collection it was published in) are left out, for a
+real table and for its draws alike.
+_Avoid_: radius, neighborhood
 
 **Containment test**:
 Tests whether one sample's summary vectors lie inside the band of another's, its 1st to 99th
