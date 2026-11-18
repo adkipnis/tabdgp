@@ -115,7 +115,8 @@ values in both cases.
 _Avoid_: feature, variable unqualified
 
 **Count**:
-A column type for non-negative integers (e.g. a Poisson outcome, an integer covariate of a table).
+A column type for non-negative integers (e.g. a Poisson outcome).
+A table's integer column is inferred as continuous, so a count covariate is declared.
 The SCM's hyperprior draws no count covariates yet.
 In the design matrix, a count is treated as a continuous column.
 _Avoid_: integer column, discrete column (an ordered one)
