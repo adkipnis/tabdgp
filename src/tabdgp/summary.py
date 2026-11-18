@@ -248,7 +248,8 @@ def _relatePair(a: np.ndarray, b: np.ndarray) -> float:
             # χ²/n from the contingency table, scaled by its fewer levels less one (Cramér 1946)
             table = a.T @ b  # (k_a, k_b)
             expected = np.outer(table.sum(axis=1), table.sum(axis=0))  # (k_a, k_b), times n
-            phi_squared = np.sum(table**2 / expected) - 1
+            # independent columns (a crossed design) leave rounding error below 0
+            phi_squared = max(np.sum(table**2 / expected) - 1, 0.0)
             fewer = min(table.shape) - 1
             return math.sqrt(phi_squared / fewer)
 
