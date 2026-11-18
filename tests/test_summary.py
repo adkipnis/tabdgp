@@ -174,6 +174,14 @@ RELATIONS = [
         {'categorical_relation_max': 0.625**0.5},
         id="two categorical columns relate by Cramér's V, χ² 5 at n 4 and k 3",
     ),
+    pytest.param(
+        {
+            'x0': (Column('categorical', 3), [0] * 5 + [1] * 5 + [2] * 5),
+            'x1': (Column('categorical', 5), [0, 1, 2, 3, 4] * 3),
+        },
+        {'categorical_relation_max': 0.0},
+        id="two crossed categorical columns relate at 0, a designed experiment's χ² of −1e-16",
+    ),
 ]
 
 
