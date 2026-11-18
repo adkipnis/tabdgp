@@ -297,7 +297,7 @@ fidelity, summary (imported by nothing in src/)
 | `outcome` | what the SCM or a model returns: `Outcome` (the columns it writes and their metadata, a model's subclass adding its ground truth), what it guarantees, `Model`, and a model's outcome through `runModel`: a study's model called and its result checked at the covariates' rows, or the GLM or GLMM drawn (a GLMM only on covariates with a factor), on the covariates' design matrix, each factor's random terms within its budget, η, a deviation only on covariates with a score, and `GlmOutcome` or `GlmmOutcome`, holding y's family, link and shape, the prior and the parameters, with the parameters' raw-scale views | dataset, summary, the package's `__init__` |
 | `dataset` | the pipeline and its output: the key's seed sequence and its generator, threaded through the modules in a fixed order, the grouping before the graph, nodes joined to columns by name, every column and latent node broadcast to the rows last, and what one draw returns, its covariates with the score and the SCM's outcome, its columns the grouping factors first and y last, with the view `toPandas`; `modelOutcome`, a model's outcome on drawn or given covariates from the key's first child stream | the package's `__init__` |
 | `summary` | how a table becomes its summary vector, a real table like a drawn one: the axes by name and in order (the sizes, each type's shape statistics, the relations, y's), a statistic per column as its median and maximum over the columns of one type, a pair's relation (\|ρ\| on ranks, η of the ranks over a categorical's levels, Cramér's V), the condition index with each covariate as its span, NaN where a table cannot show an axis | the caller, outside `src/` |
-| `fidelity` | how two samples of summary vectors are compared: pooled ranks (missing value coded as −1), the permutation null, random-forest C2ST, Wasserstein-1 distance over ranks per axis, containment bands | the caller, outside `src/` |
+| `fidelity` | how two samples of summary vectors are compared: pooled ranks (missing value coded as −1), the permutation null, random-forest C2ST, Wasserstein-1 distance over ranks per axis, containment bands; how paired draws are compared with their real table: its rank among them per axis (the recall), a table's reach (its mean distance on the pooled ranks to the nearest real tables of other sources, an axis only one of two tables shows at 1) and the share of draws within their real table's reach (the precision) | the caller, outside `src/` |
 
 ### Changing code
 
@@ -310,7 +310,7 @@ fidelity, summary (imported by nothing in src/)
 - A draw is named before it is cast or transformed. The Bernoulli idiom `rng.random() < share`
   counts as one draw.
 - Letters of its own: `v` counts nodes, `f` grouping factors, `e` the elements of a unit, `c`
-  a node's parents (its direct causes) and `u` distinct values.
+  a node's parents (its direct causes), `u` distinct values and `t` the real tables of a proof.
 - One marker for a missing value in a dataset's columns: `None`, in a list of Python scalars,
   never NaN in an array. A summary vector marks a missing statistic as NaN, since it is a float
   array.
