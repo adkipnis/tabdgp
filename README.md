@@ -92,7 +92,7 @@ table = pd.DataFrame(
         'school': ['a', 'a', 'a', 'b', 'b', 'b', 'c', 'c', 'c'],  # the grouping factor
         'age': [11.2, 12.5, 10.8, 13.1, 11.9, 12.2, 10.5, 12.8, 11.4],  # floats: continuous
         'female': [1, 0, 1, 1, 0, 0, 1, 0, 1],  # two values: binary
-        'books': [3, 10, 0, 25, 7, 2, 14, 5, 8],  # integers: a count
+        'books': [3, 10, 0, 25, 7, 2, 14, 5, 8],  # integers: continuous too
     }
 )
 covariates = Covariates.fromPandas(table, factors=['school'])
