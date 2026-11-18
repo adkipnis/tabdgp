@@ -185,6 +185,9 @@ def test_from_pandas_reads_types_levels_codes_and_nesting_from_a_data_frame() ->
     """The dtype is the table's statement of a covariate's type, a factor is categorical by role.
     A column of two values is binary whatever its dtype, as mixedbench reads one:
     a 0/1 dummy stored as float, a sex coded 1/2.
+    A column of numbers is continuous whatever its dtype: real tables store years, codes and
+    row numbers as integers, and a whole-valued column as floats once a value is missing,
+    so only declared metadata states a count.
     Codes follow the sorted values, or a categorical's own order.
     Nesting is read from the codes, whichever factor is named first:
     real tables list a subordinate before its superior too.
@@ -198,7 +201,6 @@ def test_from_pandas_reads_types_levels_codes_and_nesting_from_a_data_frame() ->
         'school': ([0, 0, 0, 0, 1, 1, 1, 1], Column('categorical', 2, 'grouping_factor')),
         'rater': ([0, 1, 0, 1, 0, 1, 0, 1], Column('categorical', 2, 'grouping_factor')),
         'pupil': (list(range(8)), pupil),
-        'x_int': ([0, 2, 5, 1, 0, 3, 4, 2], Column('count')),
         'x_bool': ([1, 0, 0, 1, 1, 0, 1, 1], Column('binary', 2)),
         'x_two': ([1, 0, 0, 1, 0, 1, 1, 0], Column('binary', 2)),
         'x_ordered': ([1, 0, 2, 1, 0, 2, 1, 0], Column('ordered', 3)),
@@ -213,10 +215,11 @@ def test_from_pandas_reads_types_levels_codes_and_nesting_from_a_data_frame() ->
         assert covariates.columns[name].dtype == np.int64
         assert covariates.columns[name].tolist() == codes
         assert covariates.metadata[name] == column
-    x_float = np.array(TABLE['x_float'], dtype=np.float32)
-    assert np.array_equal(covariates.columns['x_float'], x_float)
-    assert covariates.columns['x_float'].dtype == np.float32
-    assert covariates.metadata['x_float'] == Column('continuous')
+    for name in ['x_float', 'x_int']:
+        values = np.array(TABLE[name], dtype=np.float32)
+        assert np.array_equal(covariates.columns[name], values)
+        assert covariates.columns[name].dtype == np.float32
+        assert covariates.metadata[name] == Column('continuous')
     assert list(covariates.grouping.metadata) == factors
 
 
@@ -278,13 +281,13 @@ UNREADABLE = [
         id='a factor grouping the rows as another does',
     ),
     pytest.param(
-        'x_int',
-        [0, -1, 5, 1, 0, 3, 4, 2],
-        'x_int.*read it as continuous',
-        id='an integer column with a negative value',
+        'x_float', pd.date_range('2026-01-01', periods=8), 'x_float', id='a datetime column'
     ),
     pytest.param(
-        'x_float', pd.date_range('2026-01-01', periods=8), 'x_float', id='a datetime column'
+        'x_int',
+        [1_700_000_000 + second for second in range(8)],
+        'x_int takes one value only as float32.*rescale',
+        id='integers that differ beyond the digits of float32',
     ),
 ]
 
@@ -295,10 +298,10 @@ def test_from_pandas_refuses_a_column_it_cannot_read_naming_it(
 ) -> None:
     """The coder never meets a missing value or a constant column, a z-score of 0 over 0.
     Two factors that group the rows alike are one factor under two names.
-    A negative integer may be a code for a missing value, so it is no count,
-    and a dtype outside the five states no column type.
-    A real table meets the constant column most (an empty interaction cell, a fixed setting)
-    and the negative code for a missing value too, so both refusals say what to do.
+    A dtype outside the five states no column type.
+    Numbers that differ only beyond float32's digits (an epoch time) are stored as one value.
+    A real table meets the constant column most (an empty interaction cell, a fixed setting),
+    so its refusal says what to do.
     """
     table = TABLE.assign(**{name: values})
     with pytest.raises(ValueError, match=match):
@@ -321,7 +324,12 @@ CONTRADICTED = [
         id='a nesting in no factor of the table',
     ),
     pytest.param('x_int', None, 'x_int', id='a column without metadata'),
-    pytest.param('x_float', Column('count'), 'x_float', id='a count of negative fractions'),
+    pytest.param(
+        'x_float',
+        Column('count'),
+        'x_float.*read it as continuous',
+        id='a count of negative fractions',
+    ),
     pytest.param('x_string', Column('continuous'), 'x_string', id='a continuous column of strings'),
 ]
 
