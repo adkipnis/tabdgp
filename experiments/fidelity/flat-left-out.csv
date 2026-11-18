@@ -1,0 +1,20 @@
+source,object,reason
+Ecdat,nonEnglishNames,no covariate
+DAAG,nasshead,no covariate
+stan_arm,ARM/Ch.25/siswave3v4impute3.csv,no complete row
+ros,Golf/data/golf.txt,no covariate
+ros,Introclass/data/gradesW4315.dat,no covariate
+lagisz_2020_osf_2,MA_dataset_2019_updated_meta_data.csv,no covariate
+liu_2022_figshare_3,Name_Match_R_NicheTrans.xlsx,no covariate
+williamson_2022_zenodo,SAFE_LOMBOK_Rivers_Dung_Beetle_Dung_Removal_2015.xlsx!Locations,no covariate
+williamson_2022_zenodo_2,SAFE_LOMBOK_Rivers_Dung_Beetle_2017_2018.xlsx!Locations,no covariate
+williamson_2022_zenodo_3,SAFE_database_dung_beetle_2011_data_final_uploaded_copy.xlsx!Locations,no covariate
+williamson_2022_zenodo_5,SAFE_LOMBOK_dung_beetle_2018_data.xlsx!Locations,no covariate
+williamson_2022_zenodo_6,trait_data.xlsx!Locations,no covariate
+szollosi_2019_osf_6,legend.xlsx!exp1,no covariate
+szollosi_2019_osf_6,legend.xlsx!exp2,no covariate
+szollosi_2019_osf_6,legend.xlsx!exp3,no covariate
+zemla_2020_osf,animals_snafu_spellfile.csv,no covariate
+johannes_2021b_osf_2,search_index.json,no covariate
+meyel_2026_dryad,Data_MS_group_size_final.xlsx!READ ME,no covariate
+sievers_2020_osf_192,group-c_movie-03.txt,no covariate
