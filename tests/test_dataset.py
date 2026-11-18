@@ -818,16 +818,16 @@ def test_a_draw_has_the_stated_columns_in_their_order_with_y_last(
 
 @settings(max_examples=50, deadline=None)
 @given(columns=st.lists(STATED_COLUMN, min_size=1, max_size=8), index=st.integers(0, 2**16))
-def test_the_rows_floor_is_twice_the_design_columns_the_metadata_counts(
+def test_the_rows_floor_is_the_most_levels_the_metadata_holds(
     columns: list[StatedColumn], index: int
 ) -> None:
-    """resolveDataset counts the stated design columns before any column exists,
-    so its count has to agree with the metadata's: 2d rows draw and 2d − 1 fail.
+    """resolveDataset reads the stated levels before any column exists,
+    so its floor has to agree with the metadata's: as many rows as the most levels draw
+    (2 for a table without a coded column), and one row fewer fails.
     """
     stated = tuple(columns)
     dataset = drawDataset(0, index, Scm.flat(columns=stated, outcome_source='none'))
-    design_columns = sum(column.design_columns for column in dataset.metadata.values())
-    floor = 2 * design_columns
+    floor = max(column.levels or 2 for column in dataset.metadata.values())
     drawDataset(0, index, Scm.flat(rows=floor, columns=stated, outcome_source='none'))
     with pytest.raises(ValueError, match='rows'):
         drawDataset(0, index, Scm.flat(rows=floor - 1, columns=stated, outcome_source='none'))
@@ -839,7 +839,7 @@ def test_a_flat_draw_shows_every_level_of_a_stated_column(
     columns: list[StatedColumn], index: int
 ) -> None:
     """A level no row has would be an all-zero dummy column in a design matrix.
-    The floor of 2d rows leaves a column of k levels at least 2(k − 1) >= k rows,
+    The floor leaves a column of k levels at least k rows,
     and a range that ends at 120 keeps the rows near that floor.
     """
     scm = Scm.flat(rows=UniformInt(1, 120), columns=tuple(columns), outcome_source='none')
