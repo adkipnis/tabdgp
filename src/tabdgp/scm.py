@@ -306,20 +306,21 @@ class Scm(Hyperprior):
             elif self.columns is not None and name in self.REPLACED_BY_COLUMNS:
                 continue  # never drawn, so it keeps its default
             elif name == 'rows' and self.columns is not None:
-                floor = 2 * self._countDesignColumns()
-                points[name] = self.resolveField(name, rng, low=floor)  # n >= 2d
+                floor = self._findMostLevels()
+                points[name] = self.resolveField(name, rng, low=floor)  # a row per level
             elif name == 'design_columns':
                 points[name] = self.resolveField(name, rng, high=points['rows'] // 2)  # n >= 2d
             else:
                 points[name] = self.resolveField(name, rng)
         return Scm(**points)
 
-    def _countDesignColumns(self) -> int:
-        """The design columns the stated covariates take: k − 1 if k is free, else 1."""
-        count = 0
+    def _findMostLevels(self) -> int:
+        """The most levels a stated covariate has: its k if free, else 2."""
+        most = 2  # a column takes two values at least
         for column in self.columns:
-            count += 1 if isinstance(column, str) else column[1] - 1
-        return count
+            if not isinstance(column, str):
+                most = max(most, column[1])
+        return most
 
     def resolveGroups(self, factor: int, depth: int, rng: np.random.Generator, high: int) -> int:
         """A factor's m: its own point of a tuple, else a draw from its depth's floor to high."""
