@@ -43,7 +43,11 @@ experiments = [
     "matplotlib>=3.11.2",
 ]
 registry = [
-    "mixedbench==1.0.13",  # the registry's designs and lme4's refits, never imported by src/
+    "mixedbench==1.0.15",  # the registry's designs and lme4's refits, never imported by src/
+]
+tabicl = [
+    "tabicl==2.2.0",  # its prior as an arm of experiments/fidelity, never imported by src/
+    "xgboost",  # which tabicl's prior imports without declaring it
 ]
 
 [build-system]
