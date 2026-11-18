@@ -377,27 +377,39 @@ def test_resolve_keeps_the_stated_columns_and_leaves_the_fields_they_replace_as_
         assert getattr(resolved, field) == getattr(scm, field)
 
 
-def test_a_rows_point_below_twice_the_stated_design_columns_fails_naming_rows_and_its_bound() -> (
-    None
-):
+def test_a_rows_point_below_the_most_stated_levels_fails_naming_rows_and_its_bound() -> None:
     """A point override is honored exactly or not at all.
-    STATED takes 1 + 3 + 1 + 1 + 2 = 8 design columns, so 16 rows meet n >= 2d and 15 break it.
+    STATED's categorical column has 4 levels, so 4 rows can show each and 3 cannot.
+    A real table may have more design columns than rows, so their number sets no floor:
+    STATED takes 8 of them.
     """
-    Scm.flat(rows=16, columns=STATED, outcome_column='binary').resolveDataset(
+    Scm.flat(rows=4, columns=STATED, outcome_column='binary').resolveDataset(
         np.random.default_rng(0)
     )
-    with pytest.raises(ValueError, match=r'rows.*\b16\b'):
-        Scm.flat(rows=15, columns=STATED, outcome_column='binary').resolveDataset(
+    with pytest.raises(ValueError, match=r'rows.*\b4\b'):
+        Scm.flat(rows=3, columns=STATED, outcome_column='binary').resolveDataset(
+            np.random.default_rng(0)
+        )
+
+
+def test_a_rows_point_of_one_fails_under_stated_columns_without_levels() -> None:
+    """A column takes two values at least, so two rows are the floor of any stated table."""
+    columns = ('continuous', 'count')
+    Scm.flat(rows=2, columns=columns, outcome_source='none').resolveDataset(
+        np.random.default_rng(0)
+    )
+    with pytest.raises(ValueError, match=r'rows.*\b2\b'):
+        Scm.flat(rows=1, columns=columns, outcome_source='none').resolveDataset(
             np.random.default_rng(0)
         )
 
 
 @given(seed=st.integers(0, 2**32 - 1))
-def test_a_rows_range_resolves_at_or_above_twice_the_stated_design_columns(seed: int) -> None:
-    """A range that starts below the floor of 16 rows is truncated to it, never failing at random."""
-    scm = Scm.flat(rows=UniformInt(2, 20), columns=STATED, outcome_column='binary')
+def test_a_rows_range_resolves_at_or_above_the_most_stated_levels(seed: int) -> None:
+    """A range that starts below the floor of 4 rows is truncated to it, never failing at random."""
+    scm = Scm.flat(rows=UniformInt(2, 6), columns=STATED, outcome_column='binary')
     resolved = scm.resolveDataset(np.random.default_rng(seed))
-    assert 16 <= resolved.rows <= 20
+    assert 4 <= resolved.rows <= 6
 
 
 SUPPORTED = [
