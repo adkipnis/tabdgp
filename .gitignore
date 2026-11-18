@@ -22,3 +22,5 @@ docs/frontier-priors.md
 docs/reports/
 # the refits of the registry experiment, regenerable from their seeds
 experiments/scale-draw/registry-runs
+# the cluster logs of the fidelity experiment
+experiments/fidelity/flat-logs
