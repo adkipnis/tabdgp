@@ -229,9 +229,8 @@ class Covariates:
             return Column(type='ordered', levels=k)
         if categorical or pd.api.types.is_string_dtype(values):
             return Column(type='categorical', levels=k)
-        if pd.api.types.is_integer_dtype(dtype):
-            return Column(type='count')
-        if pd.api.types.is_float_dtype(dtype):
+        # an integer dtype states no count (a year, a code, a row number), so a count is declared
+        if pd.api.types.is_integer_dtype(dtype) or pd.api.types.is_float_dtype(dtype):
             return Column(type='continuous')
         raise ValueError(
             f'the column {values.name} has the dtype {dtype}, which states no column type: '
@@ -295,7 +294,13 @@ class Covariates:
                 f'the {column.type} column {values.name} holds {values.dtype}, not numbers'
             )
         if column.type == 'continuous':
-            return values.to_numpy(dtype=column.dtype)
+            stored = values.to_numpy(dtype=column.dtype)  # (n,)
+            # numbers that differ only beyond float32's digits (an epoch time) are stored alike
+            if np.unique(stored).size < 2:
+                raise ValueError(
+                    f'the column {values.name} takes one value only as float32: rescale or drop it'
+                )
+            return stored
         counts = values.to_numpy(dtype=column.dtype)  # (n,)
         if (counts < 0).any() or (counts != values.to_numpy()).any():
             raise ValueError(
