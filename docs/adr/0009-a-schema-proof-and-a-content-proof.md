@@ -48,9 +48,14 @@ The flat preset is certified first, then the grouped one.
    - a calibrated generator leaves 5 % outside, and the gate adds a tolerance for the sampling noise.
    - the mean rank is reported. It is 0.5 when the draws are centered on the real tables.
    - an axis above the gate is a named gap, which the test lists by name. The list may only shrink.
-2. Precision is the share of generated tables with a real table among their nearest neighbors, on every axis at once:
+2. Precision is the share of generated tables that lie at least as near to the real tables as the real table they were drawn for, on every axis at once:
+   - a table's reach is its mean distance to the 5 nearest real tables from other sources.
+   - the distance between two tables is their mean absolute difference over the axes, each axis coded on the pooled ranks (ADR 0008).
+   - an axis that only one of the two tables shows costs 1, and an axis that neither shows costs 0.
+   - a generated table counts if its reach is at most the reach of its real table. A tie counts half.
+   - a calibrated generator scores 0.5, because a real table and its 39 draws are then exchangeable.
+   - the floor is 0.25. A generator scores it if half of its tables are realistic and the other half lie far from every real table.
    - it is gated by a floor and never maximized.
-   - its measure and its floor are decided in its issue, after a reading of the support metrics.
 3. The negative control runs the same proof on tables that lack a structure, and the proof has to fail there:
    - `dependence='none'` has to fail on the relations between columns.
    - a flat table with group labels assigned at random has to fail on the grouping.
@@ -76,6 +81,8 @@ The flat preset is certified first, then the grouped one.
 | the size defaults | read off the fields | read off drawn tables |
 | recall | paired ranks | a pooled band |
 | a model's y | outside the proofs | a proof of its own |
+| precision | the reach, compared within a pair | a real table among the neighbors, improved precision, density, α-precision, one threshold |
+| the floor | 0.25 | the noise below 0.5 |
 
 1. **The claim:**
    - Recall alone is loose on a column's shape, since a wide mix of marginals contains every real table there.
@@ -104,6 +111,20 @@ The flat preset is certified first, then the grouped one.
    - The scale-draw experiment ranked each registry fit among 39 refits in the same way (#77).
 8. **A model's y:**
    - A model's priors are coverage-first and never fitted (ADR 0006), and the scale-draw experiment already compared them with the registry's fits (#77).
+9. **Precision:**
+   - The share of generated tables with a real table among their nearest neighbors rises when the generator is too wide. In many dimensions the real tables lie in the middle of the generated ones (see Khayatkhoei and AbdAlmageed, 2023).
+   - Improved precision has no known value for a calibrated generator, and its value changes with the number of axes (see Naeem et al., 2020). Its floor could only be read off a run.
+   - Density has an expected value of 1, but it is unbounded and noisy at a few hundred tables (see Naeem et al., 2020).
+   - α-precision needs an embedding that is trained on the real tables (see Alaa et al., 2022).
+   - One threshold for all tables is set by the oddest real tables, so a wide generator passes it at a common schema (see Mind the Gap?, arXiv 2605.06343).
+   - The few hundred real tables are a sparse sample. The reach of a real table grows with the sparsity as much as the reach of its draws, so their comparison is unaffected.
+   - Tables from one source resemble each other, and a generated table has no such sibling. The own source is therefore left out.
+   - The calibrated value of 0.5 holds for any distance and any number of neighbors. The mean absolute difference is the simplest distance on ranks, and 5 neighbors are the choice of Naeem et al. (2020) and of Mind the Gap?.
+   - A Mahalanobis distance reacts more sharply where the axes are correlated, but it has no rule for a table that lacks axes. The two are compared on the measured tables (#97).
+10. **The floor:**
+    - The defaults are matched to real tables and then widened, so they are wider than the real tables on purpose. A floor at the noise below 0.5 would reject them.
+    - Below 0.25 most of a training corpus could be unlike real tables. The half is a judgment.
+    - The floor has no named gaps. If a preset's defaults score below it, the defaults change or the floor does (decision 6 of the gates).
 
 ## Consequences
 
