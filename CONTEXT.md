@@ -356,6 +356,7 @@ _Avoid_: realism, fidelity (the module)
 
 **Reach**:
 A table's mean distance to its nearest real tables.
+On each axis a table is coded by its rank among the real tables of other sources.
 The real tables of a table's own source (the collection it was published in) are left out, for a
 real table and for its draws alike.
 _Avoid_: radius, neighborhood
