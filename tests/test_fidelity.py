@@ -180,19 +180,23 @@ def test_narrow_draws_leave_more_tables_outside_and_wide_draws_pile_the_ranks_in
     assert _distanceFromMiddle(wide.ranks) < 0.2
 
 
-# worked by hand on one axis, where the pooled values 1 to 9 are coded 1/18 to 17/18,
-# so a distance is a difference in value over 9.
-# the real tables lie at 2, 5 and 8, with the draws 1 and 4, 3 and 6, 7 and 9
+# worked by hand on one axis: a table is coded by its share of the real tables of other sources
+# below it (a tie counting half), and those tables by their share among themselves.
+# with 3 others coded 1/6, 1/2 and 5/6, a value between two of them codes at their midpoint
+# and reaches 1/6 on 2 neighbors, and a value beyond them all codes at 0 or 1 and reaches 1/3.
+# the real tables lie at 2, 5, 8 and 11, with the draws 1 and 6, 3 and 12, 5 and 9, 10 and 7
 WORKED_REACHES = [
     pytest.param(
-        [0, 1, 2],
-        [1 / 2, 1, 1 / 2],
-        id='own sources: each real table reaches 3; the draws reach 4, 1; 1, 2; 2, 4',
+        [0, 1, 2, 3],
+        [3 / 4, 1 / 4, 1 / 2, 3 / 4],
+        id='own sources: the real tables reach 1/3, 1/6, 1/6, 1/3; '
+        'the draws 1/3, 1/6; 1/6, 1/3; 1/6, 1/6; 1/3, 1/6',
     ),
     pytest.param(
-        [0, 0, 1],
-        [1 / 2, 1 / 2, 1 / 2],
-        id='a sibling is left out: the real tables reach 6, 3, 3; the draws 7, 4; 5, 2; 2, 4',
+        [0, 0, 1, 2],
+        [1 / 2, 1 / 2, 1 / 2, 3 / 4],
+        id='a sibling is left out: the first two tables have 2 others, coded 1/4 and 3/4, '
+        'so they and their draws reach 1/2',
     ),
 ]
 
@@ -201,14 +205,28 @@ WORKED_REACHES = [
 def test_precision_is_the_share_of_draws_within_their_real_tables_reach(
     sources: list[int], expected: list[float]
 ) -> None:
-    """A table's reach is its distance to the nearest real table of another source (`neighbors=1`).
+    """A table's reach is its mean distance to the 2 nearest real tables of other sources.
     A draw is within reach if its own is at most its real table's.
     """
-    real = np.array([[2.0], [5.0], [8.0]])
-    draws = np.array([[[1.0], [4.0]], [[3.0], [6.0]], [[7.0], [9.0]]])
-    measured = precision(real, draws, np.array(sources), neighbors=1)
+    real = np.array([[2.0], [5.0], [8.0], [11.0]])
+    draws = np.array([[[1.0], [6.0]], [[3.0], [12.0]], [[5.0], [9.0]], [[10.0], [7.0]]])
+    measured = precision(real, draws, np.array(sources), neighbors=2)
     assert measured.per_table.tolist() == pytest.approx(expected)
     assert measured.share == pytest.approx(np.mean(expected))
+
+
+def test_a_tables_precision_does_not_depend_on_the_other_tables_draws() -> None:
+    """The real tables of other sources are the ruler, the same for every generator.
+    Draws ten times as wide at the last table leave every other table's precision unchanged.
+    """
+    rng = np.random.default_rng(10)
+    real = rng.standard_normal((30, 3))  # (t, p)
+    draws = rng.standard_normal((30, 39, 3))  # (t, s, p)
+    wider = np.concatenate([draws[:-1], 10 * draws[-1:]])
+    sources = np.arange(30)
+    before = precision(real, draws, sources).per_table
+    after = precision(real, wider, sources).per_table
+    assert np.array_equal(before[:-1], after[:-1])
 
 
 def test_an_axis_only_one_of_two_tables_shows_costs_1_and_one_neither_shows_costs_0() -> None:
