@@ -77,5 +77,5 @@ testpaths = ["tests"]
 addopts = "-m 'not slow' --import-mode=importlib"
 pythonpath = ["."]
 markers = [
-    "slow: draws thousands of datasets (the proofs against mixedbench's registry); runs by `-m slow`",
+    "slow: draws thousands of datasets (the fidelity checks against real tables); runs by `-m slow`",
 ]

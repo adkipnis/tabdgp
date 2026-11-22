@@ -18,7 +18,7 @@ Under the dependence `none`, every covariate is a root and y alone keeps its par
 
 1. A dataset's outcome source (`outcome_source`) is a point, `'scm'` by default or `'none'`:
    - under `'scm'`, y is a node like the others; under `'none'`, the dataset has no y.
-   - every table of the registry (MixedBench's list of real grouped tables and their documented models) has a response, so `grouped()` and `flat()` draw y, and the proofs (the tests that compare generated and real tables) certify it.
+   - every table of the registry (MixedBench's list of real grouped tables and their documented models) has a response, so `grouped()` and `flat()` draw y, and the fidelity checks (the tests that compare generated and real tables) certify it.
    - an override sets the other point, never shares, since the two return different datasets and no corpus mixes them.
 2. y's column is planned last, outside the design-column budget, its type chosen with the shares `outcome_type_shares`:
    - the default is a round guess: `continuous` 0.6, `binary` 0.2, `count` 0.1, `categorical` and `ordered` 0.05 each.
@@ -59,7 +59,7 @@ Under the dependence `none`, every covariate is a root and y alone keeps its par
 | a dependence that keeps the marginals | the SCM with linear mechanisms | a Wishart correlation |
 
 1. **Outcome by default:**
-   - y drawn only when asked for would be certified under a proof configuration of its own (a hyperprior only the proofs use), and `grouped()`'s tables would lack the column every registry table has.
+   - y drawn only when asked for would be certified under a configuration of its own (a hyperprior only the fidelity checks use), and `grouped()`'s tables would lack the column every registry table has.
 2. **SCM and GLMM:**
    - A marginal rank-matched onto the GLMM's (generalized linear mixed model's) linear predictor η has no likelihood, so the two are not one family.
    - They answer different questions (what real responses look like, what a GLMM's posterior is), so one knob joins them, the deviation (ADR 0006).
@@ -74,7 +74,7 @@ Under the dependence `none`, every covariate is a root and y alone keeps its par
    - Label flips are rare among the tabular priors (only O'Prior and TabFM).
    - O'Prior's target-only subgroup effects are the group share, which every node has.
 7. **Learnability:**
-   - A rejection changes the distribution the proofs certify.
+   - A rejection changes the distribution the fidelity checks certify.
    - #15's "no forced child" (a latent node may have no children) already lets a node be unpredictable, and the registry has null results.
 8. **Independent covariates:**
    - A preset names a kind of table (flat or grouped), and whether the SCM draws edges is a level above it, so it is an override on any preset.
@@ -85,11 +85,11 @@ Under the dependence `none`, every covariate is a root and y alone keeps its par
 
 ## Consequences
 
-- **The proofs:** certify the SCM's y under both presets.
+- **The fidelity checks:** certify the SCM's y under both presets.
   - y is measured like every other column, on axes of its own (ADR 0009).
 - **One type per corpus:** a study's override (`outcome_type_shares = {'continuous': 1}`), not a preset.
   - A model states its response family instead (`Glm(family='gaussian')`).
-- **Independent covariates:** a study's override (`dependence = 'none'`), on `grouped()` or `flat()`; the proofs run on `'scm'`, with `'none'` as their negative control.
+- **Independent covariates:** a study's override (`dependence = 'none'`), on `grouped()` or `flat()`; the fidelity checks run on `'scm'`, with `'none'` as their negative control.
 - **Extension points, none built:**
   - time and treatment (ADR 0003), which have no role in the registry to fit against.
   - the GP family, though no summary statistic tells function classes apart yet.

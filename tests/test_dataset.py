@@ -797,7 +797,7 @@ def test_a_draw_has_the_stated_columns_in_their_order_with_y_last(
     outcome_column: StatedColumn,
     index: int,
 ) -> None:
-    """The content proof ranks a real table among draws at its schema,
+    """The content check ranks a real table among draws at its schema,
     so every draw has exactly the stated types and k and records them in its hyperparameters.
     A count covariate holds non-negative integers, as a count y does.
     """
@@ -868,7 +868,7 @@ def test_stated_columns_under_dependence_none_are_roots_of_the_stated_types(
 def test_stated_columns_under_outcome_none_give_the_stated_covariates_and_no_y(
     preset: Callable[..., Scm],
 ) -> None:
-    """A real table without a documented y enters the content proof as its covariates alone."""
+    """A real table without a documented y enters the content check as its covariates alone."""
     scm = preset(columns=STATED, outcome_source='none')
     for index in range(20):
         dataset = drawDataset(0, index, scm)

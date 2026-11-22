@@ -160,7 +160,7 @@ The parameters are returned on the standardized scale and on the raw columns.
 
 ## Consequences
 
-- **The proofs:** the tests that compare generated and real tables certify a model's covariates under `grouped()`, never its y.
+- **The fidelity checks:** the tests that compare generated and real tables certify a model's covariates under `grouped()`, never its y.
 - **A corpus of several families:** states one per index (`Glmm(family=FAMILIES[index % 3])`), so the same index under two families reads the same covariates.
 - **A white-box misspecified study:** a study that knows its exact misspecification sets `deviation_scale` or states a family that misspecifies its base family, and the ground truth stays exact either way.
 - **One scale per block:** one override (`varying_scale_share=0`).

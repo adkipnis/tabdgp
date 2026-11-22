@@ -6,7 +6,7 @@ date: 2026-10-24
 # 0008 - Summary vectors compared on ranks
 
 One module, `fidelity`, compares two samples of summary vectors (#58).
-The proofs (the tests that compare generated and real tables) use it, and so will the hyperprior's fit (matching the grouped preset's defaults to real grouped tables).
+The fidelity checks (the tests that compare generated and real tables) use it, and so will the hyperprior's fit (matching the grouped preset's defaults to real grouped tables).
 It draws nothing, and the caller turns each dataset into its summary vector.
 Each axis (one summary statistic) is ranked over both samples.
 The two-sample test compares the samples on every axis at once, and a Wasserstein-1 distance on each axis alone.
@@ -33,7 +33,7 @@ The containment test returns the share of one sample inside the other's band.
 6. Each statistic is tested against a permutation null:
    - the null shuffles the sample labels of the pooled rows and reruns the test, 200 times by default.
    - the p-value counts the statistic as part of its null, (k + 1)/(B + 1) with k of the B permuted statistics at or above it, so it is never 0 (see Phipson and Smyth, 2010).
-   - the module sets no bar (the threshold a proof must pass); the caller does.
+   - the module sets no bar (the threshold a check must pass); the caller does.
 7. `containment` returns the share of one sample's rows inside the other sample's band, per axis and on every axis:
    - the band spans the 1st to 99th percentile by default.
    - its ends are observed values, so ranks and values agree on which rows are inside.
@@ -67,13 +67,13 @@ The containment test returns the share of one sample inside the other's band.
    - A permutation null is exact for any classifier.
 6. **Containment:**
    - A support metric (e.g. k-NN coverage, or precision, recall, density and coverage) needs a distance between summary vectors and a known value for a calibrated generator.
-   - The proofs' precision has both for paired draws (ADR 0009).
+   - The fidelity checks' precision has both for paired draws (ADR 0009).
 
 ## Consequences
 
 - **Recall first:** of the distributional measures, coverage tracked downstream performance, the accuracy on real tables of a consumer (a package that trains on the datasets) (see Structural Coverage, arXiv 2609.06912).
-  - The proofs gate on recall and on a floor of precision (ADR 0009).
+  - The fidelity checks gate on recall and on a floor of precision (ADR 0009).
   - A classifier separates every prior from real tables, and its accuracy did not predict performance (see Mind the Gap?, arXiv 2605.06343).
   - The C2ST shows how far apart the samples are, and the distances show on which axes.
   - A downstream ablation remains the final test: a consumer trained with and without a change, compared on real tables.
-- **Consistency checks only:** the proofs' summary vector and bar are documented as consistency checks, never claimed as realism in the README or a paper.
+- **Consistency checks only:** the fidelity checks' summary vector and bar are documented as consistency checks, never claimed as realism in the README or a paper.

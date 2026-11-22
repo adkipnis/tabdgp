@@ -37,7 +37,7 @@ GROUPING_DEFAULTS = {
 
 
 def test_the_grouping_fields_take_the_grouped_presets_defaults() -> None:
-    """ADR 0004's table: what the proofs certify and metabeta trains on."""
+    """ADR 0004's table: what the fidelity checks certify and metabeta trains on."""
     scm = Scm()
     defaults = {field: getattr(scm, field) for field in GROUPING_DEFAULTS}
     assert defaults == GROUPING_DEFAULTS

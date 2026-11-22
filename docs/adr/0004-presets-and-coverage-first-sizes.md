@@ -8,7 +8,7 @@ date: 2026-10-14
 A draw takes a preset of the SCM's hyperprior, which chooses the kind of table that gets sampled.
 The flat preset draws no grouping factor.
 The grouped preset keeps the defaults.
-The proofs (the tests that compare generated and real tables) certify each preset's defaults.
+The fidelity checks (the tests that compare generated and real tables) certify each preset's defaults.
 Sizes are drawn coverage-first, which means log-uniform or uniform over their range.
 A count bounded by another field is truncated at that field's value.
 A superior factor has fewer groups than its subordinate one.
@@ -17,7 +17,7 @@ The group sizes are equal or follow a symmetric Dirichlet.
 ## Decisions
 
 1. `drawDataset(seed, index, scm)` takes a preset of the SCM's hyperprior and has no default:
-   - `Scm.grouped()` keeps the defaults and `Scm.flat()` sets `factors = 0`; the proofs certify both presets.
+   - `Scm.grouped()` keeps the defaults and `Scm.flat()` sets `factors = 0`; the fidelity checks certify both presets.
    - a later kind of table (item response, survival, causal) is a preset that fixes fields, never a branch in `drawDataset` nor a new mechanism.
    - an override serves a study, an ablation or a size outside a preset.
 2. A count bounded by another field draws from its distribution truncated at that field's resolved value:
@@ -52,7 +52,7 @@ The group sizes are equal or follow a symmetric Dirichlet.
    - A bool `flat` is not future-proof.
    - A `Literal` of kinds makes every kind a branch inside `drawDataset`, which can contradict an override.
 2. **Default kind:**
-   - The defaults are what a consumer trains on and the proofs certify, so grouped tables are the default and the flat table the other preset.
+   - The defaults are what a consumer trains on and the fidelity checks certify, so grouped tables are the default and the flat table the other preset.
 3. **Bounded count:**
    - A draw clipped afterwards piles mass on the bound: at n = 20, 57 % of the draws from `LogUniformInt(2, 400)` would become all-singleton tables.
 4. **A superior factor's groups:**
@@ -63,6 +63,6 @@ The group sizes are equal or follow a symmetric Dirichlet.
 ## Consequences
 
 - **No override by default:** a consumer (a package that trains on the datasets) calls `drawDataset(seed, index, Scm.grouped())` and passes nothing.
-- **The proofs:** certify `flat()` first, on MixedBench's flat sample (mb#72), then `grouped()` on the registry (ADR 0009).
+- **The fidelity checks:** certify `flat()` first, on MixedBench's flat sample (mb#72), then `grouped()` on the registry (ADR 0009).
 - **`size_alpha`'s floor:** the registry's smallest concentration, 0.025, lies below the floor of 0.5.
-  - the proofs decide whether to widen it.
+  - the fidelity checks decide whether to widen it.

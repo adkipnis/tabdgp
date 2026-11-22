@@ -3,12 +3,12 @@ status: accepted
 date: 2026-11-17
 ---
 
-# 0009 - A schema proof and a content proof
+# 0009 - A schema check and a content check
 
-The proofs (the tests that compare generated and real tables) certify a preset's defaults against a set of real tables.
+The fidelity checks (the tests that compare generated and real tables) certify a preset's defaults against a set of real tables.
 One module measures any table into its summary vector, a real table like a generated one.
-The schema proof compares the real tables' sizes, type mix and levels with the hyperprior's fields.
-The content proof draws 39 datasets at each real table's schema and ranks the real table among them on every axis.
+The schema check compares the real tables' sizes, type mix and levels with the hyperprior's fields.
+The content check draws 39 datasets at each real table's schema and ranks the real table among them on every axis.
 A preset passes on three gates: recall, a floor on precision and a negative control.
 The two-sample test is reported.
 The flat preset is certified first, then the grouped one.
@@ -19,7 +19,7 @@ The flat preset is certified first, then the grouped one.
 
 1. One module in `src/` measures a table into its summary vector, one row per dataset:
    - it measures `Covariates` and an `Outcome`, so a real table enters through `Covariates.fromPandas`.
-   - it measures both samples of a proof, the real tables and the generated ones.
+   - it measures both samples of a check, the real tables and the generated ones.
    - `src/` imports nothing downstream. A script in `experiments/` loads the real tables, measures them once per pinned version of their source and commits their summary vectors.
 2. The axes (one summary statistic each) come in six blocks: the sizes, each column's shape, the relations between columns, y, the grouping, and y's relation to the groups:
    - a statistic per column enters as its median and its maximum over the dataset's columns of one type.
@@ -30,14 +30,14 @@ The flat preset is certified first, then the grouped one.
    - it gets the column statistics, its largest rank correlation with a covariate and its between-group share per factor.
    - no model is fitted to measure a table.
 
-### The two proofs
+### The two checks
 
 1. A table's schema is its sizes (rows, design columns, factors, groups per factor, nested or crossed), each column's type and its number of levels, y's included.
-2. The schema proof compares the real tables' schemas with the hyperprior's fields, and draws no table:
-   - the sizes are drawn coverage-first (ADR 0004), so the proof asks only whether each real table's sizes can be drawn.
+2. The schema check compares the real tables' schemas with the hyperprior's fields, and draws no table:
+   - the sizes are drawn coverage-first (ADR 0004), so the check asks only whether each real table's sizes can be drawn.
    - the type mix and the levels are compared by their distance per axis (ADR 0008).
    - the hyperprior's side is sampled from its fields, since a count bounded by another field is truncated.
-3. The content proof draws 39 datasets per real table, each at that table's schema:
+3. The content check draws 39 datasets per real table, each at that table's schema:
    - an override of `Scm` states each column's type and its levels.
    - on every axis, the real table is ranked among its 39 draws (see Talts et al., 2020).
    - a real table with several documented models enters once, with its first model.
@@ -57,7 +57,7 @@ The flat preset is certified first, then the grouped one.
    - a calibrated generator scores 0.5, because a real table and its 39 draws are then exchangeable.
    - the floor is 0.25. A generator scores it if half of its tables are realistic and the other half lie far from every real table.
    - it is gated by a floor and never maximized.
-3. The negative control runs the same proof on tables that lack a structure, and the proof has to fail there:
+3. The negative control runs the same check on tables that lack a structure, and the check has to fail there:
    - `dependence='none'` has to fail on the relations between columns.
    - a flat table with group labels assigned at random has to fail on the grouping.
    - a control is judged by recall. The floor on precision does not have to reject it.
@@ -68,8 +68,8 @@ The flat preset is certified first, then the grouped one.
 ### The order
 
 1. The flat preset is certified first, on a sample of real flat tables, and the grouped preset after it on the registry (MixedBench's list of real grouped tables and their documented models).
-2. A later kind of table (survival, item response) brings its own set of real tables and runs the same two proofs.
-3. TabICL v2's prior runs through the flat proof as a reported reference, from `experiments/`.
+2. A later kind of table (survival, item response) brings its own set of real tables and runs the same two checks.
+3. TabICL v2's prior runs through the flat checks as a reported reference, from `experiments/`.
 
 ## Considered options
 
@@ -82,7 +82,7 @@ The flat preset is certified first, then the grouped one.
 | the pairing | the schema | the sizes alone |
 | the size defaults | read off the fields | read off drawn tables |
 | recall | paired ranks | a pooled band |
-| a model's y | outside the proofs | a proof of its own |
+| a model's y | outside the fidelity checks | a check of its own |
 | precision | the reach, compared within a pair | a real table among the neighbors, improved precision, density, α-precision, one threshold |
 | the reach's distance | ranks among the real tables, every axis alike, 5 neighbors | pooled ranks, a weight per block, a robust scale, Mahalanobis |
 | the floor | 0.25 | the noise below 0.5 |
@@ -146,6 +146,6 @@ The flat preset is certified first, then the grouped one.
 - **The stated columns:** the override is public, since a study with a fixed design (e.g. a power analysis) states its columns too. It gets an issue of its own.
 - **`fidelity`:** gains the paired ranks and the precision. Its containment stays for two unpaired samples.
 - **The real flat tables:** MixedBench reads its flat sample in a survey script, so a loader in its package is owed.
-- **A reference for the grouped proof:** no public prior draws grouped tables. PluRel (arXiv 2602.04029) draws relational databases, whose child table joined to its parent is a grouped table.
+- **A reference for the grouped checks:** no public prior draws grouped tables. PluRel (arXiv 2602.04029) draws relational databases, whose child table joined to its parent is a grouped table.
 - **Consistency checks only:** the gates are not a claim of realism (ADR 0008), and a downstream ablation remains the final test.
-- **Left to the spec:** the list of axes, the tolerance on recall and the schema proof's bar on the type mix and the levels.
+- **Left to the spec:** the list of axes, the tolerance on recall and the schema check's bar on the type mix and the levels.

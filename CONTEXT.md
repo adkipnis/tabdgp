@@ -180,7 +180,7 @@ A preset only sets defaults and never adds a mechanism.
 Every draw starts from one.
 A preset names a kind of table; the dependence is an override on any preset.
 The defaults of the grouped preset are to be matched to real grouped tables and then widened.
-The proofs certify a preset's defaults against real tables of its kind.
+The fidelity checks certify a preset's defaults against real tables of its kind.
 _Avoid_: dataset type, kind, mode
 
 **Override**:
@@ -295,11 +295,11 @@ Only the outcome node draws random effects.
 A group-level node, latent or observed, is part of the covariates, which a GLMM takes as given.
 _Avoid_: group effect, b (an earlier letter), random intercept for a latent group-level node
 
-### The proofs
+### The fidelity checks
 
 **Summary vector**:
-The statistics per dataset on which the proofs compare generated and real tables, one row per
-dataset.
+The statistics per dataset on which the fidelity checks compare generated and real tables, one
+row per dataset.
 A real table and a generated one are measured in the same way.
 A statistic per column enters as its median and its maximum over the columns of one type.
 A statistic that a table cannot show (e.g. the intraclass correlation of a second factor) is
@@ -312,15 +312,17 @@ each column's type and its number of levels.
 It can be read off a table without a statistic.
 _Avoid_: structure, layout, metadata (a column's, which a dataset carries)
 
-**Schema proof**:
+**Schema check**:
 Compares the schemas of real tables with what the hyperprior's fields draw.
 It draws no table.
 For the sizes it asks only whether each real table's sizes can be drawn.
+_Avoid_: schema proof
 
-**Content proof**:
+**Content check**:
 Compares real and generated tables on every statistic that is not part of the schema.
 It draws datasets at each real table's schema, so it tests the mechanisms and not the sizes
 or the type mix.
+_Avoid_: content proof
 
 **Two-sample test**:
 A classifier two-sample test (C2ST) on the summary vectors of generated and real tables.
@@ -368,12 +370,12 @@ It compares two unpaired samples, where no rank among paired draws exists.
 _Avoid_: coverage (the fitter's credible-interval property), support (the band is its estimate)
 
 **Negative control**:
-A proof run on tables that lack a structure on purpose (e.g. independent covariates, group
+A fidelity check run on tables that lack a structure on purpose (e.g. independent covariates, group
 labels assigned at random).
-The proof has to fail there, otherwise it is too loose.
+The check has to fail there, otherwise it is too loose.
 
 **Named gap**:
-An axis on which the generator fails a proof for a known reason (e.g. real tables have count
+An axis on which the generator fails a fidelity check for a known reason (e.g. real tables have count
 covariates and the generator draws none).
-The proofs list the named gaps, and the list may only shrink.
+The fidelity checks list the named gaps, and the list may only shrink.
 _Avoid_: known failure, expected failure

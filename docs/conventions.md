@@ -302,7 +302,7 @@ fidelity, summary (imported by nothing in src/)
 ### Changing code
 
 - [`CONTRIBUTING.md`](../CONTRIBUTING.md#pull-requests)'s three rules hold: the defaults are
-  what the proofs certify, code is written from scratch, nothing comes from downstream.
+  what the fidelity checks certify, code is written from scratch, nothing comes from downstream.
 
 ### Code
 
@@ -310,7 +310,8 @@ fidelity, summary (imported by nothing in src/)
 - A draw is named before it is cast or transformed. The Bernoulli idiom `rng.random() < share`
   counts as one draw.
 - Letters of its own: `v` counts nodes, `f` grouping factors, `e` the elements of a unit, `c`
-  a node's parents (its direct causes), `u` distinct values and `t` the real tables of a proof.
+  a node's parents (its direct causes), `u` distinct values and `t` the real tables of a
+  fidelity check.
 - One marker for a missing value in a dataset's columns: `None`, in a list of Python scalars,
   never NaN in an array. A summary vector marks a missing statistic as NaN, since it is a float
   array.
@@ -326,8 +327,8 @@ fidelity, summary (imported by nothing in src/)
 - `tests/` mirrors `src/`.
 - Unit tests for every mechanism: marginal ranges, the coded shapes, determinism under a fixed
   generator, every override honored, the flat case as zero factors.
-- The proofs against real tables (the schema proof and the content proof) carry the `slow`
-  mark and fixed seeds.
+- The fidelity checks against real tables (the schema check and the content check) carry the
+  `slow` mark and fixed seeds.
 - The names checked across modules include a shares field's categories and the per-column and
   per-node fields. Names listed twice in one module are checked by a test, if at all.
 
@@ -355,7 +356,7 @@ How the docs and the paper explain TabDGP to a reader with only a vague idea of 
 
 ### Data
 
-- The real tables the proofs read come from a pinned version of their source (e.g.
+- The real tables the fidelity checks read come from a pinned version of their source (e.g.
   mixedbench). Their summary vectors are measured here and never edited by hand.
 
 ### Lab notes

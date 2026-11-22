@@ -7,8 +7,8 @@ Thank you for your interest. TabDGP is early stage and help is welcome.
 - **A real-data quirk the generator misses.** Open an issue naming the property, a public
   table that shows it and, if you can, how to measure it per column or per grouping factor;
   the quirk catalog grows through the measurement pass, never by hand.
-- **A bug in a mechanism or a proof.** Open an issue with the smallest example that shows it,
-  or a pull request with a failing test and the fix.
+- **A bug in a mechanism or a fidelity check.** Open an issue with the smallest example that
+  shows it, or a pull request with a failing test and the fix.
 - **A use case.** A model family or a simulation study that needs something the hyperprior
   cannot express: open an issue describing the dataset you cannot draw.
 
@@ -24,7 +24,7 @@ git clone https://github.com/adkipnis/tabdgp
 cd tabdgp
 uv sync
 uv run pytest               # the fast tests
-uv run pytest -m slow       # the proofs against mixedbench's registry, once they exist
+uv run pytest -m slow       # the fidelity checks against real tables
 ```
 
 ## Find your way
@@ -33,7 +33,7 @@ uv run pytest -m slow       # the proofs against mixedbench's registry, once the
 src/tabdgp/     the package; each module's docstring says what it defines and how
 tests/          mirrors src/, fixtures beside the tests
 docs/adr/       the design decisions and why they were taken
-docs/           the conventions, and later the proofs' method
+docs/           the conventions and the fidelity checks' method
 ```
 
 [`CONTEXT.md`](CONTEXT.md) defines the words (node, mechanism, hyperprior, override, quirk
@@ -50,8 +50,8 @@ axis, outcome node) and the covariate terms it shares with metabeta's glossary.
 
 Three rules keep the generator trustworthy:
 
-- **The defaults are what the proofs certify.** A change to a default distribution of the
-  hyperprior, to a proof's seed or to its bar is discussed in an issue first and recorded in
+- **The defaults are what the fidelity checks certify.** A change to a default distribution of the
+  hyperprior, to a check's seed or to its bar is discussed in an issue first and recorded in
   the release notes; downstream training corpora depend on them.
 - **Written from scratch.** scamd and TabICL's prior are read for ideas; no code is copied
   from either. A mechanism they inspired says so in a comment.

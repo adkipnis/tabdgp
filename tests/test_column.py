@@ -334,7 +334,7 @@ def test_a_balanced_factors_sizes_differ_by_at_most_one_and_record_no_size_alpha
 
 
 def test_an_unbalanced_factor_records_its_size_alpha() -> None:
-    """The concentration shapes the sizes, so the proofs read it off the column;
+    """The concentration shapes the sizes, so the fidelity checks read it off the column;
     each factor draws its own, and a point override gives all one.
     """
     drawn = _assign(0, factors=3, nested_share=0, balanced_share=0)
@@ -579,7 +579,7 @@ def test_plan_ends_with_y_under_scm_and_has_no_y_under_none() -> None:
 
 
 def test_plan_gives_the_stated_columns_in_their_order_with_y_last() -> None:
-    """The content proof pairs each draw with a real table's schema, so the plan takes the stated
+    """The content check pairs each draw with a real table's schema, so the plan takes the stated
     types and k as given: a bare binary has k = 2, and a count covariate draws its poisson marginal.
     """
     columns = _plan(

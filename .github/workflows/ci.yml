@@ -1,6 +1,6 @@
 # Format and lint checks and the fast tests,
 # on three operating systems and on the oldest and newest supported Python;
-# the slow proofs run by hand or on the cluster (`uv run pytest -m slow`).
+# the slow fidelity checks run by hand or on the cluster (`uv run pytest -m slow`).
 name: CI
 
 on:

@@ -72,7 +72,7 @@ A consumer (a package that trains on the datasets) can draw them online instead 
 - **No batching inside TabDGP:** no batch object, storage, padding or parallelism.
   - Parallelism is the caller's (e.g. a process pool over indices, one line).
   - A pool inside TabDGP would nest inside a consumer's dataloader workers.
-- **Tests:** the end-to-end test asserts that dataset `i` is bitwise identical when drawn alone and inside two different index sets. The proofs (the tests that compare generated and real tables) draw their datasets by index under fixed seeds and store none.
+- **Tests:** the end-to-end test asserts that dataset `i` is bitwise identical when drawn alone and inside two different index sets. The fidelity checks (the tests that compare generated and real tables) draw their datasets by index under fixed seeds and store none.
 - **One type for both:** the hyperprior and its resolved version (with all distributions drawn from) share one Pydantic type.
   - An override is a point or a distribution on a field; the resolved hyperparameter is a point on the same field.
   - A field each column or node draws for itself keeps its override there; the column metadata and the graph record what it drew (#16).

@@ -345,7 +345,7 @@ def _readOutcome(table: pd.DataFrame, column: Column) -> Outcome:
 @pytest.mark.parametrize('index', range(3))
 @pytest.mark.parametrize('preset', ['flat', 'grouped'])
 def test_a_drawn_dataset_and_its_table_read_back_give_one_vector(preset: str, index: int) -> None:
-    """The proofs measure real tables through fromPandas and draws as they come,
+    """The fidelity checks measure real tables through fromPandas and draws as they come,
     so the two routes have to agree bit for bit.
     """
     dataset = drawDataset(0, index, getattr(Scm, preset)())
@@ -358,7 +358,7 @@ def test_a_drawn_dataset_and_its_table_read_back_give_one_vector(preset: str, in
 
 
 def test_a_table_of_15000_rows_and_19_design_columns_is_measured_in_under_a_second() -> None:
-    """The largest table Scm.flat() draws, for the content proof's thousands of draws."""
+    """The largest table Scm.flat() draws, for the content check's thousands of draws."""
     dataset = drawDataset(0, 0, Scm.flat(rows=15000, design_columns=19))
     start = time.perf_counter()
     measure(dataset.covariates, dataset.outcome)
