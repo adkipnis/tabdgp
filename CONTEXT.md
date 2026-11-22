@@ -375,7 +375,7 @@ labels assigned at random).
 The check has to fail there, otherwise it is too loose.
 
 **Named gap**:
-An axis on which the generator fails a fidelity check for a known reason (e.g. real tables have count
-covariates and the generator draws none).
+An axis on which the generator fails a fidelity check for a known reason (e.g. real tables store
+rounded numbers and the generator draws nearly every value distinct).
 The fidelity checks list the named gaps, and the list may only shrink.
 _Avoid_: known failure, expected failure

@@ -140,9 +140,9 @@ The flat preset is certified first, then the grouped one.
 
 ## Consequences
 
-- **Named gaps before the first run:**
-  - count covariates, which `type_shares` does not draw.
-  - how well the covariates predict y together, which no axis measures.
+- **Blind spots:** no axis can fail on two properties of real tables, so neither is a named gap:
+  - count covariates, since a real column of numbers is read as continuous.
+  - how well the covariates predict y together.
 - **The stated columns:** the override is public, since a study with a fixed design (e.g. a power analysis) states its columns too. It gets an issue of its own.
 - **`fidelity`:** gains the paired ranks and the precision. Its containment stays for two unpaired samples.
 - **The real flat tables:** MixedBench reads its flat sample in a survey script, so a loader in its package is owed.
