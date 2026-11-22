@@ -1,9 +1,10 @@
 """fidelity.py defines how two samples of summary vectors are compared.
 
 A sample is an array (s datasets with p summary statistics).
-Each test scores each axis on its pooled ranks.
+The two-sample tests score each axis on its pooled ranks.
 The classifier two-sample test (C2ST) and distances compare their statistic against a null reference.
 Paired draws (s draws at the schema of each of t real tables) are compared with their own real table.
+A table's reach is measured on ranks among the real tables of other sources.
 
 pipeline:
 ---------
@@ -15,7 +16,8 @@ two samples, (s, p) each
 
 real tables (t, p) and their paired draws (t, s, p)
 -> each real table's rank among its draws, per axis                   recall, _rankPaired
--> each table's reach, on the pooled ranks                            precision, _measureReach
+-> each table's reach, each axis ranked among the real tables
+   of other sources                                                   precision, _measureReach
 -> the share of the draws within their real table's reach             _rankPaired
 """
 
@@ -149,15 +151,26 @@ def _rankPooled(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     pooled = np.concatenate([a, b])  # (s, p)
     labels = np.repeat([0, 1], [len(a), len(b)])  # (s,)
-    ranks = np.full(pooled.shape, -1.0)  # (s, p)
-    for axis in range(pooled.shape[1]):
-        observed = ~np.isnan(pooled[:, axis])
-        values = pooled[observed, axis]
-        ordered = np.sort(values)
-        below = np.searchsorted(ordered, values, side='left')
-        at_or_below = np.searchsorted(ordered, values, side='right')
-        ranks[observed, axis] = (below + at_or_below) / 2 / len(values)
+    ranks = _rankAmong(pooled, pooled)  # (s, p)
+    ranks[np.isnan(ranks)] = -1.0
     return ranks, labels
+
+
+def _rankAmong(values: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """Each value's share of the reference's values below it, per axis (a tie counts half).
+    It is NaN where the value is missing or the reference shows no value on its axis.
+    """
+    ranks = np.full(values.shape, np.nan)  # (n, p)
+    for axis in range(values.shape[1]):
+        ordered = np.sort(reference[~np.isnan(reference[:, axis]), axis])
+        # an axis the reference does not show leaves the values unranked
+        if len(ordered) == 0:
+            continue
+        shown = ~np.isnan(values[:, axis])
+        below = np.searchsorted(ordered, values[shown, axis], side='left')
+        at_or_below = np.searchsorted(ordered, values[shown, axis], side='right')
+        ranks[shown, axis] = (below + at_or_below) / 2 / len(ordered)
+    return ranks  # (n, p)
 
 
 # -------------------------------------------------------------------------------------
@@ -248,7 +261,7 @@ def precision(
     """The share of the draws (t, s, p) that lie at least as near to the real tables (t, p)
     as their own real table does. A table's own source (t,) is left out of its neighbors.
     """
-    t, s, p = draws.shape
+    t, s, _ = draws.shape
     # the tables of the largest source have the fewest neighbors
     _, source_sizes = np.unique(sources, return_counts=True)
     fewest_others = t - int(source_sizes.max())
@@ -258,15 +271,12 @@ def precision(
             f'fewer than the {neighbors} neighbors'
         )
 
-    codes, _ = _rankPooled(real, draws.reshape(t * s, p))
-    real_codes = codes[:t]  # (t, p)
-    draw_codes = codes[t:].reshape(t, s, p)
     real_reaches = np.empty((t, 1))
     draw_reaches = np.empty((t, s, 1))
     # one real table and its draws at a time, since all gaps at once would not fit in memory
     for table in range(t):
-        others = real_codes[sources != sources[table]]  # (others, p)
-        pair = np.concatenate([real_codes[[table]], draw_codes[table]])  # (1 + s, p)
+        others = real[sources != sources[table]]  # (others, p)
+        pair = np.concatenate([real[[table]], draws[table]])  # (1 + s, p)
         reaches = _measureReach(pair, others, neighbors)
         real_reaches[table] = reaches[0]
         draw_reaches[table, :, 0] = reaches[1:]
@@ -277,13 +287,17 @@ def precision(
 
 def _measureReach(tables: np.ndarray, others: np.ndarray, neighbors: int) -> np.ndarray:
     """Each table's mean distance to its nearest `others`
-    (a distance is the mean absolute difference over the axes).
+    (a distance is the mean absolute difference over the axes, each ranked among the `others`).
     """
-    gaps = np.abs(tables[:, None] - others[None])  # (tables, others, p)
-    # an axis only one of two tables shows costs the largest gap between two ranks
-    # (a missing value's code is below every rank, and two of them are 0 apart)
-    mismatched = (tables[:, None] < 0) != (others[None] < 0)
-    gaps[mismatched] = 1.0
+    codes = _rankAmong(tables, others)  # (tables, p)
+    other_codes = _rankAmong(others, others)  # (others, p)
+    gaps = np.abs(codes[:, None] - other_codes[None])  # (tables, others, p)
+    # an axis only one of two tables shows costs the largest gap between two ranks,
+    # and an axis neither shows costs 0
+    shown = ~np.isnan(tables)[:, None]  # (tables, 1, p)
+    other_shown = ~np.isnan(others)[None]  # (1, others, p)
+    gaps[shown != other_shown] = 1.0
+    gaps[~shown & ~other_shown] = 0.0
     apart = gaps.mean(axis=2)  # (tables, others)
     nearest = np.sort(apart, axis=1)[:, :neighbors]  # (tables, neighbors)
     return nearest.mean(axis=1)  # (tables,)
