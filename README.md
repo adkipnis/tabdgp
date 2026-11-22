@@ -38,6 +38,8 @@ generated it.
 - **Bring your own covariates.** `Covariates.fromPandas` reads a table, and `modelOutcome`
   draws a model's outcome on it.
   You can use this semi-synthetic data for oracle tests or power analysis.
+- **Checked against real tables.** Slow tests compare what `Scm.flat()` draws with real flat
+  tables, as [consistency checks with a list of known gaps](https://github.com/adkipnis/tabdgp/blob/main/docs/fidelity.md).
 
 ## Install
 
