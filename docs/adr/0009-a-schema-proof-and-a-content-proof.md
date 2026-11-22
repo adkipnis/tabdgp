@@ -124,7 +124,7 @@ The flat preset is certified first, then the grouped one.
    - Tables from one source resemble each other, and a generated table has no such sibling. The own source is therefore left out.
    - The calibrated value of 0.5 holds for any distance and any number of neighbors, so both were chosen on the measured tables (option 10).
 10. **The reach's distance:**
-    - The candidates were compared on the real flat tables inside the default sizes and on simulated tables with a known fault, by checks that were fixed before the run (#97). The score of the defaults was not among the checks.
+    - The candidates were compared on the real flat tables inside the default sizes and on simulated tables with a known fault, by checks that were fixed before the run (#97, `experiments/fidelity/distance.py`). The score of the defaults was not among the checks.
     - Ranks pooled over real and generated tables (ADR 0008) take their scale from the generator, which supplies 39 of 40 tables. A real table's code moved by 0.12 on average between two generators, so they were not measured on one scale. Where the draws pile up on one value, the real tables are squeezed together and every draw lies far from them.
     - Ranks among the real tables from other sources are the same for every generator, and they come from the tables that the neighbors come from. The two codings agree on 4 of a table's 5 neighbors, so they differ in the size of the gaps.
     - A weight per block of axes counts y's 19 axes as much as the relations' 11. It scored like the equal weight per axis and needs a list of blocks. The experiment keeps it as a second reading.
