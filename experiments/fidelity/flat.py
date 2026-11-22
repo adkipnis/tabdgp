@@ -19,7 +19,7 @@ per arm and stratum:
 -> 39 draws at each real table's schema, measured                   run, _drawScm, _drawTabicl
 -> flat-draws-<arm>-<stratum>.csv.gz
 per arm, part and stratum:
--> recall per axis against its gate, the precision,
+-> recall per axis against its gate, the precision at 5, 3 and 10 neighbors,
    the two-sample test and the distance per axis                    report, _reportArm
 -> the same test and distances between the two parts                _reportParts
 -> the tables outside each size field, the distance of the
@@ -368,8 +368,12 @@ def _reportArm(arm: Arm, stratum: Stratum, real: pd.DataFrame, draws: pd.DataFra
         }
         for statistic, values in per_axis.items():
             records += _recordAxes(statistic, cell, AXES, values)
-        precision = fidelity.precision(real_vectors, draw_vectors, tables['source'].to_numpy())
-        records.append({'statistic': 'precision', **cell, 'value': precision.share})
+        # the gate reads the precision at 5 neighbors, and 3 and 10 show how far it moves
+        statistics = {'precision': 5, 'precision_3': 3, 'precision_10': 10}
+        sources = tables['source'].to_numpy()
+        for statistic, neighbors in statistics.items():
+            precision = fidelity.precision(real_vectors, draw_vectors, sources, neighbors)
+            records.append({'statistic': statistic, **cell, 'value': precision.share})
         # two samples of t tables each: the real ones and the first draw of each
         seeds = [SEED, ARMS.index(arm), PARTS.index(part), PAIRED.index(stratum)]
         records += _reportTwoSamples(real_vectors, draw_vectors[:, 0], AXES, seeds, cell)
