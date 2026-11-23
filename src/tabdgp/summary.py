@@ -24,9 +24,10 @@ from typing import get_args
 
 import numpy as np
 
-from tabdgp.column import Column, ColumnType
+from tabdgp.column import Column, ColumnType, MarginalType
 from tabdgp.covariates import Covariates
 from tabdgp.outcome import Outcome
+from tabdgp.scm import LeveledType
 
 TYPES: tuple[ColumnType, ...] = get_args(ColumnType)
 
@@ -121,9 +122,7 @@ def _measureSizes(rows: int, metadata: dict[str, Column]) -> dict[str, float]:
     for type in TYPES:
         sizes[f'{type}_share'] = types.count(type) / len(types)
     # binary's k = 2 is its type, so the levels are read over the categorical and ordered columns
-    levels = [
-        column.levels for column in metadata.values() if column.type in ['categorical', 'ordered']
-    ]
+    levels = [column.levels for column in metadata.values() if column.type in get_args(LeveledType)]
     sizes.update(_aggregate('levels', levels))
     return sizes
 
@@ -219,16 +218,16 @@ def _rankAverage(values: np.ndarray) -> np.ndarray:
 
 def _measureRelations(coded: list[np.ndarray], metadata: dict[str, Column]) -> dict[str, float]:
     """Each type's relations over its columns, a column's relation its largest with another one."""
-    c = len(coded)
+    x = len(coded)
     # a single covariate relates to no other
-    if c < 2:
+    if x < 2:
         return {}
-    relations = np.full((c, c), math.nan)  # (c, c), NaN on the diagonal
-    for i, j in combinations(range(c), 2):
+    relations = np.full((x, x), math.nan)  # (x, x), NaN on the diagonal
+    for i, j in combinations(range(x), 2):
         relation = _relatePair(coded[i], coded[j])
         relations[i, j] = relation
         relations[j, i] = relation
-    largest = np.nanmax(relations, axis=1)  # (c,)
+    largest = np.nanmax(relations, axis=1)  # (x,)
     measured: dict[str, float] = {}
     for type in TYPES:
         values = []
@@ -296,14 +295,14 @@ def _measureLeverage(
     # the normal scores leave out each column's marginal, which its own statistics measure
     scores = []
     for name, column in metadata.items():
-        if column.type in ['continuous', 'count']:
+        if column.type in get_args(MarginalType):
             scores.append(_scoreNormal(columns[name]))
     # a single column has no joint extremes
     if len(scores) < 2:
         return {}
-    design = np.stack(scores, axis=1)  # (n, c)
-    centered = design - design.mean(axis=0)  # (n, c)
-    basis, singular, _ = np.linalg.svd(centered, full_matrices=False)  # (n, c), (c,)
+    design = np.stack(scores, axis=1)  # (n, x)
+    centered = design - design.mean(axis=0)  # (n, x)
+    basis, singular, _ = np.linalg.svd(centered, full_matrices=False)  # (n, x), (x,)
     # a monotone function of another column has its scores and adds no rank
     basis = basis[:, singular > _findTolerance(singular, centered.shape)]  # (n, r)
     rank = basis.shape[1]
