@@ -8,7 +8,7 @@ pipeline:
 resolved sizes, shares and budget
 -> per factor (top down), how many factors it nests in           _nestFactors
 -> per factor (bottom up), its m groups, their sizes and codes   _sampleSizes, assign
--> per column, its type and k, stated or drawn by its shares     _readStated, _drawLevels
+-> per column, its type and k, stated or drawn by its shares     readStated, _drawLevels
 -> per column, its marginal family or level concentration        _resolveColumn
 -> x0, x1, ... as stated or until the budget is met, then y      plan
 -> per column, a sorted sample, one per distinct node value      _sampleMarginal, _sampleCodes
@@ -24,7 +24,7 @@ import numpy as np
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm, StatedColumn
+from tabdgp.scm import MARGINAL_FIELDS, Marginal, Scm, readStated
 
 MarginalType = Literal['continuous', 'count']
 ColumnType = Literal[MarginalType, 'binary', 'categorical', 'ordered']
@@ -222,14 +222,14 @@ def plan(resolved: Scm, rng: np.random.Generator) -> dict[str, Column]:
             remainder -= column.design_columns
     else:
         for stated in resolved.columns:
-            type, levels = _readStated(stated)
+            type, levels = readStated(stated)
             columns[f'x{len(columns)}'] = _resolveColumn(type, 'covariate', levels, resolved, rng)
     if resolved.outcome_source == 'scm':
         if resolved.outcome_column is None:
             type = resolved.outcome_type_shares.choose(rng)
             type, levels = _drawLevels(type, resolved.outcome_max_levels, resolved, rng)
         else:
-            type, levels = _readStated(resolved.outcome_column)
+            type, levels = readStated(resolved.outcome_column)
         columns['y'] = _resolveColumn(type, 'outcome', levels, resolved, rng)
     return columns
 
@@ -250,13 +250,6 @@ def _drawLevels(
     if levels == 2:
         type = 'binary'
     return type, levels
-
-
-def _readStated(stated: StatedColumn) -> tuple[ColumnType, int | None]:
-    """A stated column's type and k: a bare type has no k, unless it is binary."""
-    if isinstance(stated, tuple):
-        return stated
-    return stated, 2 if stated == 'binary' else None
 
 
 def _resolveColumn(
