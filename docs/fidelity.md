@@ -45,7 +45,7 @@ The share of draws that count has to be at least 0.25, and a calibrated generato
 ## Controls
 
 - **Negative:** independent covariates (`dependence='none'`) fail recall on every relation
-  between columns, or the gates are too loose.
+  between columns that enough tables show to fail, or the gates are too loose.
 - **Positive:** a drawn table in a real table's place passes every gate, or the gates are too
   strict.
 
@@ -62,7 +62,6 @@ list can only shrink.
 
 No axis measures count covariates, since a real column of numbers is read as continuous, or how
 well the covariates predict y together.
-[Bounds and leverage by row wait for axes of their own](https://github.com/adkipnis/tabdgp/issues/98).
 
 ## Limits
 
