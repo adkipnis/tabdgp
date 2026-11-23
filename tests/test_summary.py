@@ -112,6 +112,23 @@ def test_a_continuous_or_count_column_enters_by_its_moments_tails_ties_and_dispe
     assert {axis: measured[axis] for axis in expected} == pytest.approx(expected)
 
 
+def test_a_column_piled_at_its_floor_or_ceiling_enters_by_the_excess_over_a_typical_value() -> None:
+    """A column of u distinct values holds 1/u of its rows at a typical value,
+    so the excess at its larger end is 0.6 − 1/3 for x0's floor and 0.4 − 1/4 for x1's ceiling.
+    x2's distinct values hold 1/u at each end, which is no pile.
+    """
+    covariates = _flatCovariates(
+        {
+            'x0': (Column(type='continuous'), [0.0, 0.0, 0.0, 1.0, 2.0]),
+            'x1': (Column(type='continuous'), [1.0, 2.0, 3.0, 4.0, 4.0]),
+            'x2': (Column(type='continuous'), [1.0, 2.0, 3.0, 4.0, 5.0]),
+        }
+    )
+    expected = {'continuous_bound_excess_median': 0.15, 'continuous_bound_excess_max': 4 / 15}
+    measured = _measured(covariates, None)
+    assert {axis: measured[axis] for axis in expected} == pytest.approx(expected)
+
+
 def test_a_coded_column_enters_by_its_largest_and_smallest_level_share() -> None:
     """A binary column enters by its largest level share alone, its majority,
     so the maximum over several binary columns finds the rarest indicator.
@@ -227,6 +244,31 @@ def test_the_condition_index_reads_the_relations_between_covariates_alone(
     assert measured['condition_index'] == pytest.approx(expected)
 
 
+def test_the_leverage_is_mardias_kurtosis_of_the_normal_scores_over_its_normal_value() -> None:
+    """The normal scores ±Φ⁻¹(7/8) and ±Φ⁻¹(5/8) of x0 and x1 correlate at ρ 0.757.
+    The squared distances (z0² − 2ρ·z0·z1 + z1²) / (1 − ρ²), in units of the scores' variance,
+    are 2.11, 0.16, 2.86 and 2.86, and their mean square 5.22 over its normal value 2 · 4 is 0.652.
+    """
+    covariates = _flatCovariates(
+        {'x0': (CONTINUOUS, [1.0, 2.0, 3.0, 4.0]), 'x1': (CONTINUOUS, [1.0, 2.0, 4.0, 3.0])}
+    )
+    measured = _measured(covariates, None)
+    assert measured['leverage'] == pytest.approx(0.652379, rel=1e-6)
+
+
+def test_the_leverage_is_blind_to_each_columns_marginal() -> None:
+    """A monotone transformation keeps a column's ranks, so the leverage reads the rows' joint
+    extremes alone and leaves a column's tails to its own statistics.
+    """
+    x0 = [0.3, 1.2, -0.5, 2.0, 0.9, -1.4]
+    x1 = [1.0, 0.0, 2.0, 5.0, 3.0, 4.0]
+    plain = _flatCovariates({'x0': (CONTINUOUS, x0), 'x1': (CONTINUOUS, x1)})
+    transformed = _flatCovariates(
+        {'x0': (CONTINUOUS, np.exp(x0).tolist()), 'x1': (CONTINUOUS, np.power(x1, 3).tolist())}
+    )
+    assert _measured(transformed, None)['leverage'] == _measured(plain, None)['leverage']
+
+
 def _continuousOutcome(values: list[float]) -> Outcome:
     """A model's continuous y."""
     y = Column(type='continuous', role='outcome')
@@ -281,6 +323,12 @@ MISSING = [
         None,
         ['continuous_relation_median', 'continuous_relation_max'],
         id='with one covariate, its relation to another',
+    ),
+    pytest.param(
+        {'x0': TWO_CONTINUOUS['x0'], 'x1': (BINARY, [0, 1, 0, 1])},
+        None,
+        ['leverage'],
+        id='with one continuous or count column, the leverage, since one column has no joint extremes',
     ),
 ]
 
