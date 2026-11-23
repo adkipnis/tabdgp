@@ -10,6 +10,7 @@ the covariates and the outcome
 -> each covariate coded for its relations                          _codeColumn, _rankAverage
 -> each covariate's largest relation with another one              _measureRelations, _relatePair
 -> the condition index of the design, each covariate as its span   _measureConditionIndex
+-> the leverage: Mardia's kurtosis of the columns' normal scores    _measureLeverage, _scoreNormal
 -> y's shape statistics and its largest relation with a covariate  _measureOutcome
 -> the vector in AXES' order, NaN where the table lacks an axis    measure
 """
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import math
 from itertools import combinations
+from statistics import NormalDist
 from typing import get_args
 
 import numpy as np
@@ -36,6 +38,7 @@ MOMENTS = [
     'zero_share',
     'distinct_share',
     'mode_share',
+    'bound_excess',
 ]
 STATISTICS: dict[ColumnType, list[str]] = {
     'continuous': MOMENTS,
@@ -64,7 +67,7 @@ def _nameAxes() -> tuple[str, ...]:
             axes.extend([f'{type}_{statistic}_median', f'{type}_{statistic}_max'])
     for type in TYPES:
         axes.extend([f'{type}_relation_median', f'{type}_relation_max'])
-    axes.append('condition_index')
+    axes.extend(['condition_index', 'leverage'])
     for type, statistics in STATISTICS.items():
         for statistic in statistics:
             axes.append(f'y_{type}_{statistic}')
@@ -93,6 +96,7 @@ def measure(covariates: Covariates, outcome: Outcome | None) -> np.ndarray:
         **_measureShape(columns, metadata),
         **_measureRelations(coded, metadata),
         'condition_index': _measureConditionIndex(covariates),
+        **_measureLeverage(columns, metadata),
     }
     if outcome is not None:
         measured.update(_measureOutcome(outcome, coded))
@@ -150,7 +154,9 @@ def _measureLevels(codes: np.ndarray, levels: int) -> dict[str, float]:
 
 
 def _measureMarginal(values: np.ndarray, type: ColumnType) -> dict[str, float]:
-    """A continuous or count column's moments, tails and ties, a count's dispersion."""
+    """A continuous or count column's moments, tails, ties and pile at a bound,
+    a count's dispersion.
+    """
     values = values.astype(np.float64)  # (n,)
     rows = len(values)
     mean = values.mean()
@@ -163,7 +169,9 @@ def _measureMarginal(values: np.ndarray, type: ColumnType) -> dict[str, float]:
     q1, q3 = np.quantile(values, [0.25, 0.75])
     iqr = q3 - q1
     outside = (values < q1 - 1.5 * iqr) | (values > q3 + 1.5 * iqr)  # (n,)
-    _, counts = np.unique(values, return_counts=True)  # (u,)
+    _, counts = np.unique(values, return_counts=True)  # (u,) in the values' order
+    # the larger end's share beyond the 1/u of a typical value, so that ties alone leave no pile
+    end_share = int(max(counts[0], counts[-1])) / rows
     statistics = {
         'skewness': float(m3 / m2**1.5),
         'excess_kurtosis': float(m4 / m2**2 - 3),
@@ -171,6 +179,7 @@ def _measureMarginal(values: np.ndarray, type: ColumnType) -> dict[str, float]:
         'zero_share': float(np.mean(values == 0)),
         'distinct_share': len(counts) / rows,
         'mode_share': int(counts.max()) / rows,
+        'bound_excess': max(end_share - 1 / len(counts), 0.0),
     }
     if type == 'count':
         statistics['dispersion'] = float(m2 / mean)
@@ -267,12 +276,49 @@ def _measureConditionIndex(covariates: Covariates) -> float:
         bases.append(basis)
     spans = np.hstack(bases)  # (n, d − 1)
     singular = np.linalg.svd(spans, compute_uv=False)  # (d − 1,)
-    # a rank-deficient design (e.g. covariates at a factor of few groups) has no finite index;
-    # the tolerance is numpy's matrix_rank's
-    tolerance = singular[0] * max(spans.shape) * np.finfo(np.float64).eps
-    if singular[-1] <= tolerance:
+    # a rank-deficient design (e.g. covariates at a factor of few groups) has no finite index
+    if singular[-1] <= _findTolerance(singular, spans.shape):
         return math.inf
     return float(singular[0] / singular[-1])
+
+
+def _findTolerance(singular: np.ndarray, shape: tuple[int, ...]) -> float:
+    """The tolerance of numpy's matrix_rank: a singular value at or below it counts as zero."""
+    return float(singular[0] * max(shape) * np.finfo(np.float64).eps)
+
+
+def _measureLeverage(
+    columns: dict[str, np.ndarray], metadata: dict[str, Column]
+) -> dict[str, float]:
+    """Mardia's kurtosis of the continuous and count columns' normal scores over its normal value
+    r(r + 2), at the scores' rank r: how far a few rows lie from the rest jointly.
+    """
+    # the normal scores leave out each column's marginal, which its own statistics measure
+    scores = []
+    for name, column in metadata.items():
+        if column.type in ['continuous', 'count']:
+            scores.append(_scoreNormal(columns[name]))
+    # a single column has no joint extremes
+    if len(scores) < 2:
+        return {}
+    design = np.stack(scores, axis=1)  # (n, c)
+    centered = design - design.mean(axis=0)  # (n, c)
+    basis, singular, _ = np.linalg.svd(centered, full_matrices=False)  # (n, c), (c,)
+    # a monotone function of another column has its scores and adds no rank
+    basis = basis[:, singular > _findTolerance(singular, centered.shape)]  # (n, r)
+    rank = basis.shape[1]
+    # each row's squared Mahalanobis distance under the covariance by n (Mardia 1970, b₂,ₚ)
+    distances = len(design) * np.sum(basis**2, axis=1)  # (n,)
+    return {'leverage': float(np.mean(distances**2) / (rank * (rank + 2)))}
+
+
+def _scoreNormal(values: np.ndarray) -> np.ndarray:
+    """Each value's normal score Φ⁻¹((rank − 1/2) / n), tied values at their average rank."""
+    ranks = _rankAverage(values)  # (n,)
+    distinct, inverse = np.unique(ranks, return_inverse=True)  # (u,), (n,)
+    quantile = NormalDist().inv_cdf
+    scores = [quantile((rank - 0.5) / len(values)) for rank in distinct.tolist()]
+    return np.array(scores)[inverse]  # (n,)
 
 
 # -------------------------------------------------------------------------------------
