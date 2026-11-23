@@ -48,8 +48,7 @@ WEAK_CODED_RELATIONS = (
 STRONG_Y_RELATION = 'a real y relates more strongly to its closest covariate than a drawn one'
 BOTH_SIDES = 'real tables lie outside their draws on both sides, for no single known cause'
 OUTLIERS = (
-    'real tables hold more outliers in their most outlying continuous column, for no known cause '
-    '(missing codes like -999 are not ruled out)'
+    'real tables hold more outliers in their most outlying continuous column, for no known cause'
 )
 
 NAMED_GAPS = {
@@ -68,6 +67,7 @@ NAMED_GAPS = {
         'continuous_distinct_share_max': DISCRETE_NUMBERS,
         'continuous_mode_share_median': DISCRETE_NUMBERS,
         'y_continuous_distinct_share': DISCRETE_NUMBERS,
+        'leverage': DISCRETE_NUMBERS,
         'y_count_dispersion': OVERDISPERSED_COUNTS,
         'y_count_skewness': OVERDISPERSED_COUNTS,
         'y_count_excess_kurtosis': OVERDISPERSED_COUNTS,
@@ -78,7 +78,6 @@ NAMED_GAPS = {
         'categorical_smallest_level_share_max': BALANCED_LEVELS,
         'continuous_relation_max': EXACT_DEPENDENCE,
         'condition_index': EXACT_DEPENDENCE,
-        'binary_relation_median': WEAK_CODED_RELATIONS,
         'binary_relation_max': WEAK_CODED_RELATIONS,
         'categorical_relation_median': WEAK_CODED_RELATIONS,
         'categorical_relation_max': WEAK_CODED_RELATIONS,
@@ -91,7 +90,7 @@ NAMED_GAPS = {
 }
 
 # the relations between columns, which the negative control lacks:
-# each type's largest relation and the condition index
+# each type's largest relation, the condition index and the leverage
 RELATIONS = [
     'continuous_relation_median',
     'continuous_relation_max',
@@ -104,6 +103,7 @@ RELATIONS = [
     'ordered_relation_median',
     'ordered_relation_max',
     'condition_index',
+    'leverage',
 ]
 
 # =====================================================================================
@@ -221,14 +221,18 @@ def test_independent_covariates_fail_recall_on_the_relations(tables: pd.DataFram
     """The negative control: a check that passes tables without relations between their columns
     is too loose. While the defaults fail these axes too, it shows only that the gates are not
     too wide.
+    An axis ranked on no more tables than its gate lets lie outside cannot fail (e.g. a relation
+    of ordered columns, which 3 tables show), so the control leaves it out.
     """
     draws = _drawArm(tables, {'dependence': 'none'})
-    shown = set()
-    for axis in RELATIONS:
-        if tables[axis].notna().any():
-            shown.add(axis)
     real = tables[flat.AXES].to_numpy()  # (t, p)
-    assert shown - _failRecall(real, draws) == set()
+    recall = fidelity.recall(real, draws)
+    gate = flat.gateRecall(recall.tables)
+    testable = set()
+    for axis, ranked, most in zip(flat.AXES, recall.tables, gate):
+        if axis in RELATIONS and ranked > most:
+            testable.add(axis)
+    assert testable - _failRecall(real, draws) == set()
 
 
 @pytest.mark.slow
