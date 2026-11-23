@@ -46,22 +46,18 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
+from flat import ARMS, AXES, DRAWS, REAL, SEED, pairDraws, pathDraws
 
-from tabdgp import fidelity, summary
+from tabdgp import fidelity
 
 # =====================================================================================
 # the files, the arms and the candidates
 # =====================================================================================
 
 HERE = Path(__file__).parent
-REAL = HERE / 'flat-real.csv'  # flat.py's measured tables
 # a row per statistic, data (a half or the toy), arm, candidate, neighbors, reach and seed
 REPORT = HERE / 'distance-report.csv'
 COLUMNS = ['statistic', 'data', 'arm', 'candidate', 'neighbors', 'reach', 'seed', 'value']
-SEED = 2026
-DRAWS = 39  # per real table, as in flat.py
-AXES = list(summary.AXES)
-ARMS = ['default', 'independent', 'tabicl']
 PARTS = ['certifying', 'fitting']
 NEIGHBORS = [1, 3, 5, 10, 20, 50]
 REACHES = [
@@ -100,7 +96,7 @@ def _nameBlock(axis: str) -> str:
     """
     if axis.startswith('y_'):
         return 'y'
-    if '_relation_' in axis or axis == 'condition_index':
+    if '_relation_' in axis or axis in ['condition_index', 'leverage']:
         return 'relations'
     if axis in ['rows', 'design_columns', 'columns'] or axis.startswith('levels_'):
         return 'sizes'
@@ -125,7 +121,7 @@ def compareReal() -> list[dict]:
     real = pd.read_csv(REAL)
     draws = {}
     for arm in ARMS:
-        draws[arm] = pd.read_csv(HERE / f'flat-draws-{arm}-inside.csv.gz')
+        draws[arm] = pd.read_csv(pathDraws(arm, 'inside'))
     blocks = []
     for axis in AXES:
         blocks.append(_nameBlock(axis))
@@ -137,18 +133,9 @@ def compareReal() -> list[dict]:
         sources = tables['source'].to_numpy()  # (t,)
         draw_vectors = {}
         for arm in ARMS:
-            draw_vectors[arm] = _pairDraws(draws[arm], tables)
+            draw_vectors[arm] = pairDraws(draws[arm], tables)
         records += _scoreCandidates(part, real_vectors, draw_vectors, sources, blocks)
     return records
-
-
-def _pairDraws(draws: pd.DataFrame, tables: pd.DataFrame) -> np.ndarray:
-    """The draws of the tables, DRAWS per table in the tables' order."""
-    own = draws[draws['position'].isin(tables['position'])]
-    expected = np.repeat(tables['position'].to_numpy(), DRAWS)
-    if not np.array_equal(own['position'].to_numpy(), expected):
-        raise ValueError('the draws are not those of the real tables: run flat.py again')
-    return own[AXES].to_numpy().reshape(len(tables), DRAWS, len(AXES))  # (t, s, p)
 
 
 def _scoreCandidates(
