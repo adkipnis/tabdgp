@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tabdgp import Scm, drawDataset, fidelity, summary
+from tabdgp import Scm, fidelity
 
 # flat.py is a script's module, not a package's
 sys.path.insert(0, str(Path(__file__).parents[1] / 'experiments' / 'fidelity'))
@@ -141,15 +141,12 @@ def _drawStandIns(tables: pd.DataFrame) -> np.ndarray:
     stand_ins = []
     for table in tables.to_dict('records'):
         scm = Scm.flat(**json.loads(table['schema']))
-        dataset = drawDataset(STAND_IN_SEED, table['position'], scm)
-        vector = summary.measure(dataset.covariates, dataset.outcome)
-        stand_ins.append(flat.roundVector(vector))
+        stand_ins.append(flat.measureDraw(scm, STAND_IN_SEED, table['position']))
     return np.stack(stand_ins)  # (t, p)
 
 
-def _failRecall(real: np.ndarray, draws: np.ndarray) -> set[str]:
+def _failRecall(recall: fidelity.Recall) -> set[str]:
     """The axes on which more real tables lie outside their draws than the gate allows."""
-    recall = fidelity.recall(real, draws)
     gate = flat.gateRecall(recall.tables)
     failing = set()
     for axis, outside, most in zip(flat.AXES, recall.outside, gate):
@@ -172,7 +169,8 @@ def test_the_schema_check_fails_only_on_its_named_gaps() -> None:
     real = pd.read_csv(flat.REAL)
     certifying = real[real['part'] == 'certifying']
     failing = set()
-    for limit, beyond in flat.findOutside(certifying).items():
+    outside = flat.findOutside(certifying['rows'], certifying['design_columns'])
+    for limit, beyond in outside.items():
         if beyond.mean() > flat.OUTSIDE_SHARE:
             failing.add(limit)
     inside = certifying[certifying['stratum'] == 'inside']
@@ -201,7 +199,7 @@ def test_recall_fails_only_on_its_named_gaps(
     has closed its gap and leaves the list.
     """
     real = tables[flat.AXES].to_numpy()  # (t, p)
-    assert _failRecall(real, default_draws) == set(NAMED_GAPS['content'])
+    assert _failRecall(fidelity.recall(real, default_draws)) == set(NAMED_GAPS['content'])
 
 
 @pytest.mark.slow
@@ -232,7 +230,7 @@ def test_independent_covariates_fail_recall_on_the_relations(tables: pd.DataFram
     for axis, ranked, most in zip(flat.AXES, recall.tables, gate):
         if axis in RELATIONS and ranked > most:
             testable.add(axis)
-    assert testable - _failRecall(real, draws) == set()
+    assert testable - _failRecall(recall) == set()
 
 
 @pytest.mark.slow
@@ -243,6 +241,6 @@ def test_a_drawn_table_in_a_real_tables_place_passes_every_gate(
     It also closes every named gap of the content check.
     """
     stand_ins = _drawStandIns(tables)
-    assert _failRecall(stand_ins, default_draws) == set()
+    assert _failRecall(fidelity.recall(stand_ins, default_draws)) == set()
     precision = fidelity.precision(stand_ins, default_draws, tables['source'].to_numpy())
     assert precision.share >= flat.PRECISION_FLOOR

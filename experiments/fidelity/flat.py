@@ -10,20 +10,22 @@ flat.ipynb reads the report.
 pipeline:
 ---------
 mixedbench's flat sample
+-> each source's part, by a fixed split                             _splitSources
 -> each table from the cache, prepared                              _prepareTables
 -> its schema (the overrides that restate it) and its stratum       _stateSchema, _findStratum
--> its source's part, by a fixed split                              _splitSources
 -> its summary vector                                               measure
 -> flat-real.csv, and flat-left-out.csv with a reason per table
 per arm and stratum:
 -> 39 draws at each real table's schema, measured                   run, drawScm, _drawTabicl
 -> flat-draws-<arm>-<stratum>.csv.gz
-per arm, part and stratum:
--> recall per axis against its gate, the precision at 5, 3 and 10 neighbors,
-   the two-sample test and the distance per axis                    report, _reportArm
--> the same test and distances between the two parts                _reportParts
+per part:
 -> the tables outside each size field, the distance of the
-   type mix and the levels to the fields' own draws                 _reportSchema
+   type mix and the levels to the fields' own draws                 report, _reportSchema
+per stratum:
+-> the two-sample test and the distances between the two parts     _reportParts
+-> per arm and part: recall per axis against its gate, the precision
+   at 5, 3 and 10 neighbors, the two-sample test and the distance
+   per axis                                                         _reportArm
 -> flat-report.csv
 
 Run from the repository root. The tables inside the default sizes take minutes on a laptop;
@@ -49,11 +51,12 @@ from typing import Literal, get_args
 
 import numpy as np
 import pandas as pd
-from preparation import Prepared, prepare
+from preparation import Prepared, Reason, prepare
 from scipy.stats import binom
 
 from tabdgp import Scm, drawDataset, fidelity, summary
 from tabdgp.column import Column
+from tabdgp.scm import LeveledType
 
 # =====================================================================================
 # the files, the arms, the sizes and the gates
@@ -113,8 +116,9 @@ def measure(cache: Path, large: bool) -> None:
     left_out = []
     for position, row, prepared in _prepareTables(cache):
         identity = {'source': row['source'], 'object': row['object']}
-        if prepared.reason is not None:
-            left_out.append(identity | {'reason': prepared.reason})
+        # a reason in place of the prepared table leaves it out
+        if isinstance(prepared, str):
+            left_out.append(identity | {'reason': prepared})
             continue
         schema = _stateSchema(prepared)
         stratum = _findStratum(prepared)
@@ -136,11 +140,27 @@ def measure(cache: Path, large: bool) -> None:
 
 
 # -------------------------------------------------------------------------------------
-# the flat sample -> each table prepared, with its schema, stratum and part
+# the flat sample -> each source's part, each table prepared with its schema and stratum
 # -------------------------------------------------------------------------------------
 
 
-def _prepareTables(cache: Path) -> Iterator[tuple[int, dict, Prepared]]:
+def _splitSources() -> dict[str, Part]:
+    """Half the sources to each part, so that no source's tables are in both."""
+    from mixedbench import registry
+    from mixedbench.registry.row import readCsv
+
+    flat = readCsv(registry.path('flat.csv'))
+    sources = sorted(set(flat['source']))
+    rng = np.random.default_rng(SEED)
+    shuffled = rng.permutation(sources)
+    half = len(sources) // 2
+    parts: dict[str, Part] = {}
+    for rank, source in enumerate(shuffled.tolist()):
+        parts[source] = 'fitting' if rank < half else 'certifying'
+    return parts
+
+
+def _prepareTables(cache: Path) -> Iterator[tuple[int, dict, Prepared | Reason]]:
     """Each table of the flat sample: its position, its row with the response's type, prepared."""
     # mixedbench is the dependency group `registry`, which only the measure step needs,
     # so that the slow tests import this module without it
@@ -182,7 +202,7 @@ def _stateSchema(prepared: Prepared) -> dict:
 
 def _stateColumn(column: Column) -> str | list:
     """A column as `Scm` states one: its type, with k where k is free."""
-    if column.type in ['categorical', 'ordered']:
+    if column.type in get_args(LeveledType):
         return [column.type, column.levels]
     return column.type
 
@@ -195,28 +215,22 @@ def _findStratum(prepared: Prepared) -> Stratum:
     cells = rows * design_columns
     if len(metadata) > MOST_COLUMNS or design_columns > MOST_DESIGN_COLUMNS or cells > MOST_CELLS:
         return 'large'
+    beyond = findOutside(rows, design_columns)
+    return 'outside' if any(beyond.values()) else 'inside'
+
+
+def findOutside(rows: int | pd.Series, design_columns: int | pd.Series) -> dict:
+    """Whether a table, or each of a column of tables, lies beyond each limit of the sizes
+    the defaults draw.
+    """
     scm = Scm.flat()
-    drawn_rows = scm.rows.low <= rows <= scm.rows.high
-    # the drawn budget is cut at half the rows
-    most_design_columns = min(scm.design_columns.high, rows // 2)
-    drawn_columns = scm.design_columns.low <= design_columns <= most_design_columns
-    return 'inside' if drawn_rows and drawn_columns else 'outside'
-
-
-def _splitSources() -> dict[str, Part]:
-    """Half the sources to each part, so that no source's tables are in both."""
-    from mixedbench import registry
-    from mixedbench.registry.row import readCsv
-
-    flat = readCsv(registry.path('flat.csv'))
-    sources = sorted(set(flat['source']))
-    rng = np.random.default_rng(SEED)
-    shuffled = rng.permutation(sources)
-    half = len(sources) // 2
-    parts: dict[str, Part] = {}
-    for rank, source in enumerate(shuffled.tolist()):
-        parts[source] = 'fitting' if rank < half else 'certifying'
-    return parts
+    return {
+        f'rows < {scm.rows.low}': rows < scm.rows.low,
+        f'rows > {scm.rows.high}': rows > scm.rows.high,
+        f'design_columns > {scm.design_columns.high}': design_columns > scm.design_columns.high,
+        # the drawn budget is cut at half the rows
+        'design_columns > rows / 2': design_columns > rows // 2,
+    }
 
 
 # -------------------------------------------------------------------------------------
@@ -234,7 +248,7 @@ def _formatVector(vector: np.ndarray) -> dict[str, str]:
     return formatted
 
 
-def roundVector(vector: np.ndarray) -> np.ndarray:
+def _roundVector(vector: np.ndarray) -> np.ndarray:
     """A summary vector as the files hold it, so that a draw ties with a real table alike,
     whether it is read from a file or drawn anew.
     """
@@ -250,7 +264,7 @@ def _writeCsv(table: pd.DataFrame, path: Path) -> None:
     table.to_csv(path, index=False, lineterminator='\n', compression=compression)
 
 
-def _pathDraws(arm: Arm, stratum: Stratum) -> Path:
+def pathDraws(arm: Arm, stratum: Stratum) -> Path:
     return HERE / f'flat-draws-{arm}-{stratum}.csv.gz'
 
 
@@ -277,7 +291,7 @@ def run(arm: Arm, stratum: Stratum) -> None:
         for draw, vector in enumerate(vectors):
             records.append({'position': position, 'draw': draw} | _formatVector(vector))
     draws = pd.DataFrame(records, columns=['position', 'draw', *AXES])
-    _writeCsv(draws, _pathDraws(arm, stratum))
+    _writeCsv(draws, pathDraws(arm, stratum))
 
 
 def drawScm(position: int, overrides: dict) -> list[np.ndarray]:
@@ -286,10 +300,15 @@ def drawScm(position: int, overrides: dict) -> list[np.ndarray]:
     vectors = []
     for draw in range(DRAWS):
         # a table's keys follow its position in the flat sample, whichever tables are left out
-        dataset = drawDataset(SEED, position * DRAWS + draw, scm)
-        vector = summary.measure(dataset.covariates, dataset.outcome)
-        vectors.append(roundVector(vector))  # (p,)
+        vectors.append(measureDraw(scm, SEED, position * DRAWS + draw))  # (p,)
     return vectors
+
+
+def measureDraw(scm: Scm, seed: int, index: int) -> np.ndarray:
+    """The summary vector of the dataset at a key, as the files hold it."""
+    dataset = drawDataset(seed, index, scm)
+    vector = summary.measure(dataset.covariates, dataset.outcome)
+    return _roundVector(vector)  # (p,)
 
 
 def _drawTabicl(position: int, schema: dict) -> list[np.ndarray]:
@@ -353,76 +372,67 @@ def report(arms: list[Arm], strata: list[Stratum]) -> None:
     for stratum in strata:
         records += _reportParts(real, stratum)
         for arm in arms:
-            draws = pd.read_csv(_pathDraws(arm, stratum))
+            draws = pd.read_csv(pathDraws(arm, stratum))
             records += _reportArm(arm, stratum, real, draws)
     columns = ['statistic', 'arm', 'part', 'stratum', 'axis', 'value']
     _writeCsv(pd.DataFrame(records, columns=columns), REPORT)
 
 
 # -------------------------------------------------------------------------------------
-# an arm's draws against the real tables
+# the real tables alone: their sizes, their schemas and their two parts
 # -------------------------------------------------------------------------------------
 
 
-def _reportArm(arm: Arm, stratum: Stratum, real: pd.DataFrame, draws: pd.DataFrame) -> list[dict]:
-    """Recall, precision, the two-sample test and the distances of one arm in one stratum,
-    per part. The precision's neighbors are the real tables of the same part and stratum.
+def _reportSchema(real: pd.DataFrame) -> list[dict]:
+    """Per part: the share of the real tables outside each size field's support, and the
+    distance of the type mix and the levels between the tables inside and the defaults' draws,
+    beside each side's mean and the share of its tables that show the axis.
     """
-    records = []
+    drawn = drawSchemas()
+    records = _recordMix({'arm': 'default', 'part': 'every', 'stratum': 'inside'}, drawn[MIX])
     for part in PARTS:
-        cell = {'arm': arm, 'part': part, 'stratum': stratum}
-        tables = real[(real['part'] == part) & (real['stratum'] == stratum)]
-        real_vectors = tables[AXES].to_numpy()  # (t, p)
-        own = draws[draws['position'].isin(tables['position'])]
-        # check that the draws are these tables': DRAWS per table, in the tables' order
-        expected = np.repeat(tables['position'].to_numpy(), DRAWS)
-        if not np.array_equal(own['position'].to_numpy(), expected):
-            raise ValueError(
-                f'the draws of {arm} are not those of the {stratum} tables: run it again'
-            )
-        draw_vectors = own[AXES].to_numpy().reshape(len(tables), DRAWS, len(AXES))
+        tables = real[real['part'] == part]
+        cell = {'arm': 'real', 'part': part, 'stratum': 'every'}
+        outside = findOutside(tables['rows'], tables['design_columns'])
+        shares = [float(beyond.mean()) for beyond in outside.values()]
+        records += _recordAxes('outside_share', cell, list(outside), shares)
 
-        recall = fidelity.recall(real_vectors, draw_vectors)
-        per_axis = {
-            'tables': recall.tables,
-            'outside': recall.outside,
-            'below': np.sum(recall.ranks == 0, axis=0),  # the tables under every draw
-            'gate': gateRecall(recall.tables),
-            'mean_rank': recall.mean_rank,
-        }
-        for statistic, values in per_axis.items():
-            records += _recordAxes(statistic, cell, AXES, values)
-        # the gate reads the precision at 5 neighbors, and 3 and 10 show how far it moves
-        statistics = {'precision': 5, 'precision_3': 3, 'precision_10': 10}
-        sources = tables['source'].to_numpy()
-        for statistic, neighbors in statistics.items():
-            precision = fidelity.precision(real_vectors, draw_vectors, sources, neighbors)
-            records.append({'statistic': statistic, **cell, 'value': precision.share})
-        # two samples of t tables each: the real ones and the first draw of each
-        seeds = [SEED, ARMS.index(arm), PARTS.index(part), PAIRED.index(stratum)]
-        records += _reportTwoSamples(real_vectors, draw_vectors[:, 0], AXES, seeds, cell)
+        inside = tables[tables['stratum'] == 'inside']
+        cell = {'arm': 'real', 'part': part, 'stratum': 'inside'}
+        records += _recordMix(cell, inside[MIX])
+        seeds = [SEED, len(ARMS) + 1, PARTS.index(part)]
+        rng = np.random.default_rng(seeds)
+        real_mix = inside[MIX].to_numpy()  # (t, 7)
+        drawn_mix = drawn[MIX].to_numpy()  # (SCHEMA_DRAWS, 7)
+        records += _recordDistances('schema_distance', real_mix, drawn_mix, MIX, rng, cell)
     return records
 
 
-def gateRecall(tables: np.ndarray) -> np.ndarray:
-    """The most real tables that may lie outside their draws' range before an axis fails:
-    5 % lie outside under a calibrated generator, and the tolerance is the quantile
-    1 − 0.01 / p of that binomial count, over the p axes.
+def drawSchemas() -> pd.DataFrame:
+    """SCHEMA_DRAWS datasets of the defaults, measured as the files hold them, a row per dataset."""
+    scm = Scm.flat()
+    drawn = []
+    for index in range(SCHEMA_DRAWS):
+        drawn.append(measureDraw(scm, SEED + 1, index))  # a seed apart from the paired draws'
+    return pd.DataFrame(drawn, columns=AXES)
+
+
+def _recordMix(cell: dict, mix: pd.DataFrame) -> list[dict]:
+    """Each axis of the type mix and the levels: its mean over the tables that show it,
+    and their share.
     """
-    return binom.ppf(1 - 0.01 / len(AXES), tables, 2 / (DRAWS + 1))  # (p,)
+    axes = list(mix.columns)
+    records = _recordAxes('schema_mean', cell, axes, mix.mean())
+    records += _recordAxes('schema_shown', cell, axes, mix.notna().mean())
+    return records
 
 
-def _reportTwoSamples(
-    a: np.ndarray, b: np.ndarray, axes: list[str], seeds: list[int], cell: dict
+def _recordAxes(
+    statistic: str, cell: dict, axes: list[str], values: list | np.ndarray
 ) -> list[dict]:
-    """The two-sample test of two samples of summary vectors, and their distance per axis."""
-    rng = np.random.default_rng(seeds)
-    test = fidelity.c2st(a, b, rng, PERMUTATIONS)
-    records = [
-        {'statistic': 'c2st', **cell, 'value': test.statistic},
-        {'statistic': 'c2st_p', **cell, 'value': test.p_value},
-    ]
-    records += _recordDistances('distance', a, b, axes, rng, cell)
+    records = []
+    for axis, value in zip(axes, values):
+        records.append({'statistic': statistic, **cell, 'axis': axis, 'value': float(value)})
     return records
 
 
@@ -443,20 +453,6 @@ def _recordDistances(
     return records
 
 
-def _recordAxes(
-    statistic: str, cell: dict, axes: list[str], values: list | np.ndarray
-) -> list[dict]:
-    records = []
-    for axis, value in zip(axes, values):
-        records.append({'statistic': statistic, **cell, 'axis': axis, 'value': float(value)})
-    return records
-
-
-# -------------------------------------------------------------------------------------
-# the real tables alone: their two parts, their sizes and their schemas
-# -------------------------------------------------------------------------------------
-
-
 def _reportParts(real: pd.DataFrame, stratum: Stratum) -> list[dict]:
     """The two-sample test and the distances between the two parts of a stratum's real tables,
     the reference for an arm's: real tables of other sources differ this much.
@@ -472,66 +468,76 @@ def _reportParts(real: pd.DataFrame, stratum: Stratum) -> list[dict]:
         records += _recordAxes('missing_share', cell, AXES, missing_share)
     cell = {'arm': 'real', 'part': 'fitting vs certifying', 'stratum': stratum}
     seeds = [SEED, len(ARMS), PAIRED.index(stratum)]
-    records += _reportTwoSamples(vectors['fitting'], vectors['certifying'], AXES, seeds, cell)
+    records += _reportTwoSamples(vectors['fitting'], vectors['certifying'], seeds, cell)
     return records
 
 
-def _reportSchema(real: pd.DataFrame) -> list[dict]:
-    """Per part: the share of the real tables outside each size field's support, and the
-    distance of the type mix and the levels between the tables inside and the defaults' draws,
-    beside each side's mean and the share of its tables that show the axis.
+def _reportTwoSamples(a: np.ndarray, b: np.ndarray, seeds: list[int], cell: dict) -> list[dict]:
+    """The two-sample test of two samples of summary vectors, and their distance per axis."""
+    rng = np.random.default_rng(seeds)
+    test = fidelity.c2st(a, b, rng, PERMUTATIONS)
+    records = [
+        {'statistic': 'c2st', **cell, 'value': test.statistic},
+        {'statistic': 'c2st_p', **cell, 'value': test.p_value},
+    ]
+    records += _recordDistances('distance', a, b, AXES, rng, cell)
+    return records
+
+
+# -------------------------------------------------------------------------------------
+# an arm's draws against the real tables
+# -------------------------------------------------------------------------------------
+
+
+def _reportArm(arm: Arm, stratum: Stratum, real: pd.DataFrame, draws: pd.DataFrame) -> list[dict]:
+    """Recall, precision, the two-sample test and the distances of one arm in one stratum,
+    per part. The precision's neighbors are the real tables of the same part and stratum.
     """
-    drawn = drawSchemas()
-    records = _recordMix({'arm': 'default', 'part': 'every', 'stratum': 'inside'}, drawn[MIX])
+    records = []
     for part in PARTS:
-        tables = real[real['part'] == part]
-        cell = {'arm': 'real', 'part': part, 'stratum': 'every'}
-        outside = findOutside(tables)
-        shares = [float(beyond.mean()) for beyond in outside.values()]
-        records += _recordAxes('outside_share', cell, list(outside), shares)
+        cell = {'arm': arm, 'part': part, 'stratum': stratum}
+        tables = real[(real['part'] == part) & (real['stratum'] == stratum)]
+        real_vectors = tables[AXES].to_numpy()  # (t, p)
+        draw_vectors = pairDraws(draws, tables)  # (t, s, p)
 
-        inside = tables[tables['stratum'] == 'inside']
-        cell = {'arm': 'real', 'part': part, 'stratum': 'inside'}
-        records += _recordMix(cell, inside[MIX])
-        seeds = [SEED, len(ARMS) + 1, PARTS.index(part)]
-        rng = np.random.default_rng(seeds)
-        real_mix = inside[MIX].to_numpy()  # (t, 7)
-        drawn_mix = drawn[MIX].to_numpy()  # (SCHEMA_DRAWS, 7)
-        records += _recordDistances('schema_distance', real_mix, drawn_mix, MIX, rng, cell)
+        recall = fidelity.recall(real_vectors, draw_vectors)
+        per_axis = {
+            'tables': recall.tables,
+            'outside': recall.outside,
+            'below': np.sum(recall.ranks == 0, axis=0),  # the tables under every draw
+            'gate': gateRecall(recall.tables),
+            'mean_rank': recall.mean_rank,
+        }
+        for statistic, values in per_axis.items():
+            records += _recordAxes(statistic, cell, AXES, values)
+        # the gate reads the precision at 5 neighbors, and 3 and 10 show how far it moves
+        statistics = {'precision': 5, 'precision_3': 3, 'precision_10': 10}
+        sources = tables['source'].to_numpy()
+        for statistic, neighbors in statistics.items():
+            precision = fidelity.precision(real_vectors, draw_vectors, sources, neighbors)
+            records.append({'statistic': statistic, **cell, 'value': precision.share})
+        # two samples of t tables each: the real ones and the first draw of each
+        seeds = [SEED, ARMS.index(arm), PARTS.index(part), PAIRED.index(stratum)]
+        records += _reportTwoSamples(real_vectors, draw_vectors[:, 0], seeds, cell)
     return records
 
 
-def drawSchemas() -> pd.DataFrame:
-    """SCHEMA_DRAWS datasets of the defaults, measured, a row per dataset."""
-    scm = Scm.flat()
-    drawn = []
-    for index in range(SCHEMA_DRAWS):
-        dataset = drawDataset(SEED + 1, index, scm)  # a seed apart from the paired draws'
-        drawn.append(summary.measure(dataset.covariates, dataset.outcome))
-    return pd.DataFrame(drawn, columns=AXES)
+def pairDraws(draws: pd.DataFrame, tables: pd.DataFrame) -> np.ndarray:
+    """The draws of the tables, DRAWS per table in the tables' order."""
+    own = draws[draws['position'].isin(tables['position'])]
+    # check that the draws are these tables': DRAWS per table, in the tables' order
+    expected = np.repeat(tables['position'].to_numpy(), DRAWS)
+    if not np.array_equal(own['position'].to_numpy(), expected):
+        raise ValueError('the draws are not those of the real tables: run them again')
+    return own[AXES].to_numpy().reshape(len(tables), DRAWS, len(AXES))  # (t, s, p)
 
 
-def findOutside(tables: pd.DataFrame) -> dict[str, pd.Series]:
-    """Which tables lie beyond each limit of the sizes the defaults draw."""
-    scm = Scm.flat()
-    rows = tables['rows']
-    design_columns = tables['design_columns']
-    return {
-        f'rows < {scm.rows.low}': rows < scm.rows.low,
-        f'rows > {scm.rows.high}': rows > scm.rows.high,
-        f'design_columns > {scm.design_columns.high}': design_columns > scm.design_columns.high,
-        'design_columns > rows / 2': design_columns > rows // 2,
-    }
-
-
-def _recordMix(cell: dict, mix: pd.DataFrame) -> list[dict]:
-    """Each axis of the type mix and the levels: its mean over the tables that show it,
-    and their share.
+def gateRecall(tables: np.ndarray) -> np.ndarray:
+    """The most real tables that may lie outside their draws' range before an axis fails:
+    5 % lie outside under a calibrated generator, and the tolerance is the quantile
+    1 − 0.01 / p of that binomial count, over the p axes.
     """
-    axes = list(mix.columns)
-    records = _recordAxes('schema_mean', cell, axes, mix.mean())
-    records += _recordAxes('schema_shown', cell, axes, mix.notna().mean())
-    return records
+    return binom.ppf(1 - 0.01 / len(AXES), tables, 2 / (DRAWS + 1))  # (p,)
 
 
 # =====================================================================================
