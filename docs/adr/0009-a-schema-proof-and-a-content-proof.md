@@ -27,16 +27,16 @@ The flat preset is certified first, then the grouped one.
    - an axis stays if real tables show values there that the generator cannot produce. It is then a named gap.
    - the statistics of missing values wait until the generator draws missing values.
 3. y is measured like every other column, on axes of its own:
-   - it gets the column statistics, its largest rank correlation with a covariate and its between-group share per factor.
+   - it gets the column statistics, its largest relation with a covariate and its between-group share per factor.
    - no model is fitted to measure a table.
 
 ### The two checks
 
 1. A table's schema is its sizes (rows, design columns, factors, groups per factor, nested or crossed), each column's type and its number of levels, y's included.
-2. The schema check compares the real tables' schemas with the hyperprior's fields, and draws no table:
+2. The schema check compares the real tables' schemas with the hyperprior's fields:
    - the sizes are drawn coverage-first (ADR 0004), so the check asks only whether each real table's sizes can be drawn.
    - the type mix and the levels are compared by their distance per axis (ADR 0008).
-   - the hyperprior's side is sampled from its fields, since a count bounded by another field is truncated.
+   - the hyperprior's type mix and levels are measured on 1,000 drawn tables, since a count bounded by another field is truncated.
 3. The content check draws 39 datasets per real table, each at that table's schema:
    - an override of `Scm` states each column's type and its levels.
    - on every axis, the real table is ranked among its 39 draws (see Talts et al., 2020).
@@ -58,7 +58,7 @@ The flat preset is certified first, then the grouped one.
    - the floor is 0.25. A generator scores it if half of its tables are realistic and the other half lie far from every real table.
    - it is gated by a floor and never maximized.
 3. The negative control runs the same check on tables that lack a structure, and the check has to fail there:
-   - `dependence='none'` has to fail on the relations between columns.
+   - `dependence='none'` has to fail on the relations between columns. A relation is left out if too few real tables show it to fail the gate.
    - a flat table with group labels assigned at random has to fail on the grouping.
    - a control is judged by recall. The floor on precision does not have to reject it.
 4. The two-sample test (C2ST) and the distances are reported, beside the same statistics on two halves of the real tables. The precision is also reported for 3 and for 10 neighbors.
@@ -127,7 +127,7 @@ The flat preset is certified first, then the grouped one.
     - The candidates were compared on the real flat tables inside the default sizes and on simulated tables with a known fault, by checks that were fixed before the run (#97, `experiments/fidelity/distance.py`). The score of the defaults was not among the checks.
     - Ranks pooled over real and generated tables (ADR 0008) take their scale from the generator, which supplies 39 of 40 tables. A real table's code moved by 0.12 on average between two generators, so they were not measured on one scale. Where the draws pile up on one value, the real tables are squeezed together and every draw lies far from them.
     - Ranks among the real tables from other sources are the same for every generator, and they come from the tables that the neighbors come from. The two codings agree on 4 of a table's 5 neighbors, so they differ in the size of the gaps.
-    - A weight per block of axes counts y's 19 axes as much as the relations' 11. It scored like the equal weight per axis and needs a list of blocks. The experiment keeps it as a second reading.
+    - A weight per block of axes counts y's 21 axes as much as the relations' 12. It scored like the equal weight per axis and needs a list of blocks. The experiment keeps it as a second reading.
     - A robust scale per axis with a Euclidean distance is the design of Structural Coverage (arXiv 2609.06912). One heavy-tailed axis then decides the distance, and `dependence='none'` scored 0.52 against 0.54 for the defaults.
     - A Mahalanobis distance was not sharper on the measured tables. Most tables lack whole blocks and y's types exclude each other, so the covariance exists only pairwise and is indefinite. The score of the defaults moved from 0.36 to 0.57 with the shrinkage and the cost of a missing axis.
     - With 1 to 50 neighbors, and with the mean, the median or the largest of their distances, `dependence='none'` always scored below the defaults. More neighbors react more to a generator that is too wide and less to weakened relations, and 5 react to both. The mean reacted at least as much as the other two. 5 neighbors are also the choice of Naeem et al. (2020) and of Mind the Gap?.
@@ -135,7 +135,7 @@ The flat preset is certified first, then the grouped one.
     - The defaults are matched to real tables and then widened, so they are wider than the real tables on purpose. A floor at the noise below 0.5 would reject them.
     - Below 0.25 most of a training corpus could be unlike real tables. The half is a judgment.
     - The number of neighbors and the summary of their distances move a score by about 0.05, so the floor is not read more finely than that.
-    - A table with independent covariates still resembles real tables in its sizes, its columns' shapes and y. `dependence='none'` scored 0.27 and 0.23 on the two parts, which is why a control is judged by recall.
+    - A table with independent covariates still resembles real tables in its sizes, its columns' shapes and y. `dependence='none'` scored 0.28 and 0.31 on the two parts, which is why a control is judged by recall.
     - The floor has no named gaps. If a preset's defaults score below it, the defaults change or the floor does (decision 6 of the gates).
 
 ## Consequences
@@ -143,9 +143,8 @@ The flat preset is certified first, then the grouped one.
 - **Blind spots:** no axis can fail on two properties of real tables, so neither is a named gap:
   - count covariates, since a real column of numbers is read as continuous.
   - how well the covariates predict y together.
-- **The stated columns:** the override is public, since a study with a fixed design (e.g. a power analysis) states its columns too. It gets an issue of its own.
+- **The stated columns:** the override is public, since a study with a fixed design (e.g. a power analysis) states its columns too (#91).
 - **`fidelity`:** gains the paired ranks and the precision. Its containment stays for two unpaired samples.
-- **The real flat tables:** MixedBench reads its flat sample in a survey script, so a loader in its package is owed.
 - **A reference for the grouped checks:** no public prior draws grouped tables. PluRel (arXiv 2602.04029) draws relational databases, whose child table joined to its parent is a grouped table.
 - **Consistency checks only:** the gates are not a claim of realism (ADR 0008), and a downstream ablation remains the final test.
-- **Left to the spec:** the list of axes, the tolerance on recall and the schema check's bar on the type mix and the levels.
+- **Left to the spec (#89):** the list of axes, the tolerance on recall and the schema check's bars.
