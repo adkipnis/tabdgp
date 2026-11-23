@@ -34,6 +34,14 @@ def _measured(covariates: Covariates, outcome: Outcome | None) -> dict[str, floa
     return dict(zip(AXES, measure(covariates, outcome).tolist()))
 
 
+def _measuredAt(
+    covariates: Covariates, outcome: Outcome | None, axes: dict[str, float]
+) -> dict[str, float]:
+    """The summary vector at the axes of `axes`, by name."""
+    measured = _measured(covariates, outcome)
+    return {axis: measured[axis] for axis in axes}
+
+
 def test_sizes_count_the_rows_the_design_columns_the_columns_and_the_levels() -> None:
     """A coded column counts its k − 1 dummies as design columns.
     The levels are read over the categorical and ordered columns, since binary's k = 2 is its type.
@@ -58,8 +66,7 @@ def test_sizes_count_the_rows_the_design_columns_the_columns_and_the_levels() ->
         'levels_median': 3.5,
         'levels_max': 4,
     }
-    measured = _measured(covariates, None)
-    assert {axis: measured[axis] for axis in expected} == expected
+    assert _measuredAt(covariates, None, expected) == expected
 
 
 # central moments of [0, 0, 1, 2, 7] about its mean 2, worked by hand
@@ -108,8 +115,7 @@ def test_a_continuous_or_count_column_enters_by_its_moments_tails_ties_and_dispe
         'count_dispersion_median': 3.4,
         'count_dispersion_max': 3.4,
     }
-    measured = _measured(covariates, None)
-    assert {axis: measured[axis] for axis in expected} == pytest.approx(expected)
+    assert _measuredAt(covariates, None, expected) == pytest.approx(expected)
 
 
 def test_a_column_piled_at_its_floor_or_ceiling_enters_by_the_excess_over_a_typical_value() -> None:
@@ -125,8 +131,7 @@ def test_a_column_piled_at_its_floor_or_ceiling_enters_by_the_excess_over_a_typi
         }
     )
     expected = {'continuous_bound_excess_median': 0.15, 'continuous_bound_excess_max': 4 / 15}
-    measured = _measured(covariates, None)
-    assert {axis: measured[axis] for axis in expected} == pytest.approx(expected)
+    assert _measuredAt(covariates, None, expected) == pytest.approx(expected)
 
 
 def test_a_coded_column_enters_by_its_largest_and_smallest_level_share() -> None:
@@ -153,8 +158,7 @@ def test_a_coded_column_enters_by_its_largest_and_smallest_level_share() -> None
         'ordered_smallest_level_share_median': 0.25,
         'ordered_smallest_level_share_max': 0.25,
     }
-    measured = _measured(covariates, None)
-    assert {axis: measured[axis] for axis in expected} == expected
+    assert _measuredAt(covariates, None, expected) == expected
 
 
 CONTINUOUS = Column(type='continuous')
@@ -207,8 +211,7 @@ def test_a_column_enters_by_its_largest_relation_with_another_column(
     columns: dict[str, tuple[Column, list[float]]], expected: dict[str, float]
 ) -> None:
     """Each measure is |ρ| when both columns have two levels, so the three share one scale."""
-    measured = _measured(_flatCovariates(columns), None)
-    assert {axis: measured[axis] for axis in expected} == pytest.approx(expected)
+    assert _measuredAt(_flatCovariates(columns), None, expected) == pytest.approx(expected)
 
 
 # two unit blocks at canonical correlation r have the singular values √(1 ± r),
