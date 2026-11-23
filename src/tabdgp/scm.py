@@ -74,6 +74,13 @@ LeveledType = Literal['categorical', 'ordered']  # a column type whose k is free
 StatedColumn = PlainType | tuple[LeveledType, Levels]  # a column's type, with k if free
 
 
+def readStated(stated: StatedColumn) -> tuple[PlainType | LeveledType, int | None]:
+    """A stated column's type and k: a bare type has no k, unless it is binary."""
+    if isinstance(stated, tuple):
+        return stated
+    return stated, 2 if stated == 'binary' else None
+
+
 # =====================================================================================
 # the SCM's hyperprior
 # =====================================================================================
@@ -300,12 +307,13 @@ class Scm(Hyperprior):
     def resolveDataset(self, rng: np.random.Generator) -> Scm:
         """Resolves each field drawn once per dataset."""
         points = {}
+        stated = self.columns is not None
         for name in type(self).model_fields:
             if name in self.PER_COLUMN + self.PER_NODE + self.PER_FACTOR:
                 points[name] = getattr(self, name)  # defer resolution to a later step
-            elif self.columns is not None and name in self.REPLACED_BY_COLUMNS:
+            elif stated and name in self.REPLACED_BY_COLUMNS:
                 continue  # never drawn, so it keeps its default
-            elif name == 'rows' and self.columns is not None:
+            elif name == 'rows' and stated:
                 floor = self._findMostLevels()
                 points[name] = self.resolveField(name, rng, low=floor)  # a row per level
             elif name == 'design_columns':
@@ -315,11 +323,15 @@ class Scm(Hyperprior):
         return Scm(**points)
 
     def _findMostLevels(self) -> int:
-        """The most levels a stated covariate has: its k if free, else 2."""
+        """The most levels a stated column has, y's included."""
+        stated = list(self.columns)
+        if self.outcome_column is not None:
+            stated.append(self.outcome_column)
         most = 2  # a column takes two values at least
-        for column in self.columns:
-            if not isinstance(column, str):
-                most = max(most, column[1])
+        for column in stated:
+            _, levels = readStated(column)
+            if levels is not None:
+                most = max(most, levels)
         return most
 
     def resolveGroups(self, factor: int, depth: int, rng: np.random.Generator, high: int) -> int:
