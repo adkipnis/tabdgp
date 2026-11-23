@@ -271,17 +271,14 @@ def precision(
             f'fewer than the {neighbors} neighbors'
         )
 
-    real_reaches = np.empty((t, 1))
-    draw_reaches = np.empty((t, s, 1))
+    reaches = np.empty((t, 1 + s))  # the real table's reach first, then its draws'
     # one real table and its draws at a time, since all gaps at once would not fit in memory
     for table in range(t):
         others = real[sources != sources[table]]  # (others, p)
         pair = np.concatenate([real[[table]], draws[table]])  # (1 + s, p)
-        reaches = _measureReach(pair, others, neighbors)
-        real_reaches[table] = reaches[0]
-        draw_reaches[table, :, 0] = reaches[1:]
-    # a draw within reach lies below its real table on the reach
-    per_table = _rankPaired(real_reaches, draw_reaches)[:, 0]
+        reaches[table] = _measureReach(pair, others, neighbors)
+    # a draw within reach lies below its real table on the reach, read as a single axis
+    per_table = _rankPaired(reaches[:, :1], reaches[:, 1:, None])[:, 0]
     return Precision(per_table=per_table)
 
 
