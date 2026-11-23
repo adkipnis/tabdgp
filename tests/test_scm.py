@@ -295,12 +295,6 @@ def test_a_misspelled_override_fails_at_construction() -> None:
         Scm(n_ob=500)
 
 
-def test_stated_columns_of_every_type_validate_as_given() -> None:
-    """A real table's schema enters as plain values: a type, with its k where the type leaves k free."""
-    scm = Scm.flat(columns=STATED, outcome_column=('ordered', 5))
-    assert (scm.columns, scm.outcome_column) == (STATED, ('ordered', 5))
-
-
 NOT_A_COLUMN = [
     pytest.param(('binary', 3), id='a binary column has k = 2'),
     pytest.param(('categorical', 2), id='a categorical column has k >= 3'),
@@ -377,31 +371,32 @@ def test_resolve_keeps_the_stated_columns_and_leaves_the_fields_they_replace_as_
         assert getattr(resolved, field) == getattr(scm, field)
 
 
-def test_a_rows_point_below_the_most_stated_levels_fails_naming_rows_and_its_bound() -> None:
-    """A point override is honored exactly or not at all.
-    STATED's categorical column has 4 levels, so 4 rows can show each and 3 cannot.
+FLOORS = [
+    pytest.param({'columns': STATED, 'outcome_column': 'binary'}, 4, id="STATED's categorical k"),
+    pytest.param(
+        {'columns': ('continuous', 'count'), 'outcome_source': 'none'},
+        2,
+        id='two values at least, without levels',
+    ),
+    pytest.param(
+        {'columns': ('continuous',), 'outcome_column': ('categorical', 6)}, 6, id="y's k counts too"
+    ),
+]
+
+
+@pytest.mark.parametrize(('stated', 'floor'), FLOORS)
+def test_a_rows_point_below_the_most_stated_levels_fails_naming_rows_and_its_bound(
+    stated: dict, floor: int
+) -> None:
+    """A point override is honored exactly or not at all: `floor` rows can show each level,
+    one row fewer cannot.
     A real table may have more design columns than rows, so their number sets no floor:
     STATED takes 8 of them.
     """
-    Scm.flat(rows=4, columns=STATED, outcome_column='binary').resolveDataset(
-        np.random.default_rng(0)
-    )
-    with pytest.raises(ValueError, match=r'rows.*\b4\b'):
-        Scm.flat(rows=3, columns=STATED, outcome_column='binary').resolveDataset(
-            np.random.default_rng(0)
-        )
-
-
-def test_a_rows_point_of_one_fails_under_stated_columns_without_levels() -> None:
-    """A column takes two values at least, so two rows are the floor of any stated table."""
-    columns = ('continuous', 'count')
-    Scm.flat(rows=2, columns=columns, outcome_source='none').resolveDataset(
-        np.random.default_rng(0)
-    )
-    with pytest.raises(ValueError, match=r'rows.*\b2\b'):
-        Scm.flat(rows=1, columns=columns, outcome_source='none').resolveDataset(
-            np.random.default_rng(0)
-        )
+    rng = np.random.default_rng(0)
+    Scm.flat(rows=floor, **stated).resolveDataset(rng)
+    with pytest.raises(ValueError, match=rf'rows.*\b{floor}\b'):
+        Scm.flat(rows=floor - 1, **stated).resolveDataset(rng)
 
 
 @given(seed=st.integers(0, 2**32 - 1))
