@@ -20,7 +20,7 @@ a table, its response and the type mixedbench read for it
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_args
 
 import numpy as np
 import pandas as pd
@@ -30,6 +30,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from tabdgp.column import Column, ColumnType
 from tabdgp.covariates import Covariates
 from tabdgp.outcome import Outcome
+from tabdgp.scm import LeveledType
 
 # =====================================================================================
 # the prepared table
@@ -54,11 +55,10 @@ MOSTLY_MISSING = 0.5
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Prepared:
-    """A real table as its measure reads it, or the reason it is left out."""
+    """A real table as its measure reads it."""
 
-    covariates: Covariates | None
-    outcome: Outcome | None  # None too without a response, or with a constant one
-    reason: Reason | None
+    covariates: Covariates
+    outcome: Outcome | None  # None without a response, or with a constant one
 
 
 # =====================================================================================
@@ -68,7 +68,7 @@ class Prepared:
 
 def prepare(
     table: pd.DataFrame, response: str | None, response_type: ResponseType | None
-) -> Prepared:
+) -> Prepared | Reason:
     """The table's covariates and y, or the reason the rules leave it without rows or covariates."""
     table = table.rename(columns=str)
     table = _blankToMissing(table)
@@ -77,7 +77,7 @@ def prepare(
     table = _dropUninformative(table, response)
     table = table.dropna()
     if len(table) == 0:
-        return Prepared(covariates=None, outcome=None, reason='no complete row')
+        return 'no complete row'
     # again, since a column may be constant over the rows that are left
     table = _dropUninformative(table, response)
 
@@ -86,11 +86,11 @@ def prepare(
         outcome = _readOutcome(table[response], response_type)
         table = table.drop(columns=response)
     if table.shape[1] == 0:
-        return Prepared(covariates=None, outcome=None, reason='no covariate')
+        return 'no covariate'
     table = _castLabels(table)
     table = table.rename(columns={'y': 'y_covariate'})  # y names the outcome
     covariates = Covariates.fromPandas(table.reset_index(drop=True), factors=[])
-    return Prepared(covariates=covariates, outcome=outcome, reason=None)
+    return Prepared(covariates=covariates, outcome=outcome)
 
 
 # -------------------------------------------------------------------------------------
@@ -189,7 +189,7 @@ def _readOutcome(values: pd.Series, response_type: ResponseType) -> Outcome | No
         return None
     if k == 2:
         column = Column(type='binary', levels=2, role='outcome')
-    elif type in ['categorical', 'ordered']:
+    elif type in get_args(LeveledType):
         column = Column(type=type, levels=k, role='outcome')
     else:
         column = Column(type=type, role='outcome')

@@ -15,7 +15,7 @@ import pytest
 # preparation.py is a script's module, not a package's
 sys.path.insert(0, str(Path(__file__).parent))
 
-from preparation import Prepared, prepare
+from preparation import Prepared, Reason, prepare
 
 # eight rows: a continuous covariate, a categorical one of three levels and a response
 X = [0.5, -1.0, 2.0, 0.0, 1.5, 3.0, -2.5, 1.0]
@@ -25,10 +25,10 @@ TABLE = pd.DataFrame({'x': X, 'g': G, 'score': SCORE})
 KEPT = {'x': 'continuous', 'g': ('categorical', 3)}
 
 
-def _describe(prepared: Prepared) -> dict:
+def _describe(prepared: Prepared | Reason) -> dict:
     """What a prepared table holds: its rows, each covariate's type with its levels, and y's."""
-    if prepared.reason is not None:
-        return {'reason': prepared.reason}
+    if isinstance(prepared, str):
+        return {'reason': prepared}
     columns = {}
     for name, column in prepared.covariates.metadata.items():
         columns[name] = _state(column.type, column.levels)
