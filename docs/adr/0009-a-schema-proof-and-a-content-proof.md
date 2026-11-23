@@ -22,12 +22,13 @@ The flat preset is certified first, then the grouped one.
    - it measures both samples of a check, the real tables and the generated ones.
    - `src/` imports nothing downstream. A script in `experiments/` loads the real tables, measures them once per pinned version of their source and commits their summary vectors.
 2. The axes (one summary statistic each) come in six blocks: the sizes, each column's shape, the relations between columns, y, the grouping, and y's relation to the groups:
+   - the relations between columns are each column's largest correlation with another column, the condition index of the design and the leverage (Mardia's kurtosis of the numeric columns).
    - a statistic per column enters as its median and its maximum over the dataset's columns of one type.
    - an axis joins if every table of its kind can show it. A table that cannot show it (e.g. a second factor's statistic) leaves it missing.
    - an axis stays if real tables show values there that the generator cannot produce. It is then a named gap.
    - the statistics of missing values wait until the generator draws missing values.
 3. y is measured like every other column, on axes of its own:
-   - it gets the column statistics, its largest relation with a covariate and its between-group share per factor.
+   - it gets the column statistics, its largest correlation with a covariate and its between-group share per factor.
    - no model is fitted to measure a table.
 
 ### The two checks
@@ -36,7 +37,7 @@ The flat preset is certified first, then the grouped one.
 2. The schema check compares the real tables' schemas with the hyperprior's fields:
    - the sizes are drawn coverage-first (ADR 0004), so the check asks only whether each real table's sizes can be drawn.
    - the type mix and the levels are compared by their distance per axis (ADR 0008).
-   - the hyperprior's type mix and levels are measured on 1,000 drawn tables, since a count bounded by another field is truncated.
+   - the hyperprior's type mix and levels are measured on 1,000 drawn tables.
 3. The content check draws 39 datasets per real table, each at that table's schema:
    - an override of `Scm` states each column's type and its levels.
    - on every axis, the real table is ranked among its 39 draws (see Talts et al., 2020).
