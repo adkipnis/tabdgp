@@ -6,10 +6,10 @@ date: 2026-11-17
 # 0009 - A schema check and a content check
 
 The fidelity checks (the tests that compare generated and real tables) certify a preset's defaults against a set of real tables.
-One module measures any table into its summary vector, a real table like a generated one.
+One module measures any table, real or generated, into its summary vector.
 The schema check compares the real tables' sizes, type mix and levels with the hyperprior's fields.
 The content check draws 39 datasets at each real table's schema and ranks the real table among them on every axis.
-A preset passes on three gates: recall, a floor on precision and a negative control.
+A preset passes on recall and a floor on precision, and two controls check these gates.
 The two-sample test is reported.
 The flat preset is certified first, then the grouped one.
 
@@ -17,15 +17,15 @@ The flat preset is certified first, then the grouped one.
 
 ### The summary vector
 
-1. One module in `src/` measures a table into its summary vector, one row per dataset:
+1. One module in `src/` measures a table into its summary vector:
    - it measures `Covariates` and an `Outcome`, so a real table enters through `Covariates.fromPandas`.
-   - it measures both samples of a check, the real tables and the generated ones.
+   - it measures the real and the generated tables alike.
    - `src/` imports nothing downstream. A script in `experiments/` loads the real tables, measures them once per pinned version of their source and commits their summary vectors.
 2. The axes (one summary statistic each) come in six blocks: the sizes, each column's shape, the relations between columns, y, the grouping, and y's relation to the groups:
    - the relations between columns are each column's largest correlation with another column, the condition index of the design and the leverage (Mardia's kurtosis of the numeric columns).
-   - a statistic per column enters as its median and its maximum over the dataset's columns of one type.
-   - an axis joins if every table of its kind can show it. A table that cannot show it (e.g. a second factor's statistic) leaves it missing.
-   - an axis stays if real tables show values there that the generator cannot produce. It is then a named gap.
+   - a statistic of a column enters twice, as its median and its maximum over the table's columns of one type.
+   - a table that cannot show an axis (e.g. a second factor's statistic) leaves it missing.
+   - an axis stays even if the generator cannot reach the real tables on it. It is then a named gap.
    - the statistics of missing values wait until the generator draws missing values.
 3. y is measured like every other column, on axes of its own:
    - it gets the column statistics, its largest correlation with a covariate and its between-group share per factor.
@@ -36,36 +36,33 @@ The flat preset is certified first, then the grouped one.
 1. A table's schema is its sizes (rows, design columns, factors, groups per factor, nested or crossed), each column's type and its number of levels, y's included.
 2. The schema check compares the real tables' schemas with the hyperprior's fields:
    - the sizes are drawn coverage-first (ADR 0004), so the check asks only whether each real table's sizes can be drawn.
-   - the type mix and the levels are compared by their distance per axis (ADR 0008).
-   - the hyperprior's type mix and levels are measured on 1,000 drawn tables.
+   - the type mix and the levels are compared with those of 1,000 drawn tables, by their distance per axis (ADR 0008).
 3. The content check draws 39 datasets per real table, each at that table's schema:
    - an override of `Scm` states each column's type and its levels.
    - on every axis, the real table is ranked among its 39 draws (see Talts et al., 2020).
-   - a real table with several documented models enters once, with its first model.
+   - a real table's y is the response of its first documented model, if it has one.
 
 ### The gates
 
-1. Recall is the share of real tables outside the range of their draws, per axis:
-   - a calibrated generator leaves 5 % outside, and the gate adds a tolerance for the sampling noise.
+1. Recall is the share of real tables that lie outside the range of their draws, per axis:
+   - if a real table is just one more draw, it lies outside its 39 draws in 2 of 40 cases (5 %). The gate adds a tolerance for the sampling noise.
    - the mean rank is reported. It is 0.5 when the draws are centered on the real tables.
-   - an axis above the gate is a named gap, which the test lists by name. The list may only shrink.
+   - an axis that fails is a named gap, which the test lists by name. The list may only shrink.
 2. Precision is the share of generated tables that are at least as close to the real tables as their own real table:
    - a table's reach is its mean distance to the 5 nearest real tables from other sources.
-   - the distance between two tables is their mean absolute difference over the axes.
-   - on each axis a table is coded by its rank among the real tables from other sources, which is the share of them below its value.
-   - an axis that only one of the two tables shows costs 1, and an axis that neither shows costs 0.
-   - a generated table counts if its reach is at most the reach of its real table. A tie counts half.
+   - on each axis, a table is coded by its percentile among the real tables from other sources.
+   - the distance between two tables is the mean gap between their codes. An axis that only one of them shows costs 1, and an axis that neither shows costs 0.
    - a calibrated generator scores 0.5, because a real table and its 39 draws are then exchangeable.
-   - the floor is 0.25. A generator scores it if half of its tables are realistic and the other half lie far from every real table.
-   - it is gated by a floor and never maximized.
-3. The negative control runs the same check on tables that lack a structure, and the check has to fail there:
+   - the floor is 0.25. A generator reaches it if half of its tables are realistic and the other half lie far from every real table.
+   - precision has a floor and is never maximized.
+3. The negative control shows that the gates are not too loose. It runs the check on tables that lack a structure, and the check has to fail there:
    - `dependence='none'` has to fail on the relations between columns. A relation is left out if too few real tables show it to fail the gate.
    - a flat table with group labels assigned at random has to fail on the grouping.
-   - a control is judged by recall. The floor on precision does not have to reject it.
-4. The negative control shows that the gates aren't too loose, the positive control shows they aren't too strict: It replaces each real table by a table drawn from its schema's defaults.
-   - such a table is one more draw of the generator, so a check that fails it is too strict.
+   - it is judged by recall alone. The floor on precision does not have to reject it.
+4. The positive control shows that the gates are not too strict. It replaces each real table by a table drawn from the defaults at its schema, and the check has to pass there:
+   - such a table is just one more draw of the generator.
    - it has to pass recall on every axis, the named gaps included, and the floor on precision.
-5. The two-sample test (C2ST) and the distances are reported, beside the same statistics on two halves of the real tables. The precision is also reported for 3 and for 10 neighbors (to check if decisions are sensitive to the choice of 5 neighbors).
+5. The two-sample test (C2ST) and the distances are reported, beside the same statistics between two halves of the real tables. Precision is also reported at 3 and 10 neighbors, to show whether a verdict depends on the choice of 5.
 6. The real tables are split by their source into a part the hyperprior is fitted on and a part that certifies it. The split has a fixed seed.
 7. A gate, a seed, the split and the list of named gaps change like a default, with an issue first.
 
@@ -79,7 +76,7 @@ The flat preset is certified first, then the grouped one.
 
 | question | chosen | rejected |
 |---|---|---|
-| the claim | recall, a precision floor, a control | recall alone, a C2ST gate, a bar from the first run |
+| the claim | recall, a precision floor, two controls | recall alone, a C2ST gate, a bar from the first run |
 | the measuring code | TabDGP's own, for both samples | MixedBench's measurer, a copy of it |
 | the unit | one vector per dataset | rows per column beside it |
 | y's statistics | a column's | a linear R², a refit by lme4 |
@@ -88,7 +85,7 @@ The flat preset is certified first, then the grouped one.
 | recall | paired ranks | a pooled band |
 | a model's y | outside the fidelity checks | a check of its own |
 | precision | the reach, compared within a pair | a real table among the neighbors, improved precision, density, α-precision, one threshold |
-| the reach's distance | ranks among the real tables, every axis alike, 5 neighbors | pooled ranks, a weight per block, a robust scale, Mahalanobis |
+| the reach's distance | percentiles among the real tables, every axis alike, 5 neighbors | pooled ranks, a weight per block, a robust scale, Mahalanobis |
 | the floor | 0.25 | the noise below 0.5 |
 
 1. **The claim:**
@@ -99,7 +96,7 @@ The flat preset is certified first, then the grouped one.
 2. **The measuring code:**
    - MixedBench's measurer needs a registry row and a grouped table, so it cannot measure a set of flat, survival or item-response tables.
    - A copy has to reproduce the registry's measured files, which float32 columns and a second coding make fragile.
-   - With one measure for both samples, the two implementations do not need to agree.
+   - With one measure for both samples, no two implementations have to agree.
 3. **The unit:**
    - The columns of one dataset are not independent, so a null over rows per column would not hold.
    - The maximum keeps a quirk that sits in one column of several.
@@ -124,16 +121,16 @@ The flat preset is certified first, then the grouped one.
    - Density has an expected value of 1, but it is unbounded and noisy at a few hundred tables (see Naeem et al., 2020).
    - α-precision needs an embedding that is trained on the real tables (see Alaa et al., 2022).
    - One threshold for all tables is set by the oddest real tables, so a wide generator passes it at a common schema (see Mind the Gap?, arXiv 2605.06343).
-   - The few hundred real tables are a sparse sample. The reach of a real table grows with the sparsity as much as the reach of its draws, so their comparison is unaffected.
-   - Tables from one source resemble each other, and a generated table has no such sibling. The own source is therefore left out.
+   - The few hundred real tables lie far apart. That lengthens a real table's reach as much as its draws', so their comparison is unaffected.
+   - Tables from one source resemble each other, and a generated table has no such sibling. A table's own source is therefore left out.
    - The calibrated value of 0.5 holds for any distance and any number of neighbors, so both were chosen on the measured tables (option 10).
 10. **The reach's distance:**
     - The candidates were compared on the real flat tables inside the default sizes and on simulated tables with a known fault, by checks that were fixed before the run (#97, `experiments/fidelity/distance.py`). The score of the defaults was not among the checks.
-    - Ranks pooled over real and generated tables (ADR 0008) take their scale from the generator, which supplies 39 of 40 tables. A real table's code moved by 0.12 on average between two generators, so they were not measured on one scale. Where the draws pile up on one value, the real tables are squeezed together and every draw lies far from them.
-    - Ranks among the real tables from other sources are the same for every generator, and they come from the tables that the neighbors come from. The two codings agree on 4 of a table's 5 neighbors, so they differ in the size of the gaps.
-    - A weight per block of axes counts y's 21 axes as much as the relations' 12. It scored like the equal weight per axis and needs a list of blocks. The experiment keeps it as a second reading.
+    - Ranks pooled over real and generated tables (ADR 0008) take their scale from the generator, which supplies 39 of 40 tables. A real table's code moved by 0.12 on average between two generators, so they were not measured on one scale.
+    - Percentiles among the real tables from other sources are the same for every generator. The two codings agree on 4 of a table's 5 neighbors and differ in the size of the gaps.
+    - A weight per block of axes counts y's 21 axes as much as the relations' 12. It scored like the equal weight per axis and needs a list of blocks.
     - A robust scale per axis with a Euclidean distance is the design of Structural Coverage (arXiv 2609.06912). One heavy-tailed axis then decides the distance, and `dependence='none'` scored 0.52 against 0.54 for the defaults.
-    - A Mahalanobis distance was not sharper on the measured tables. Most tables lack whole blocks and y's types exclude each other, so the covariance exists only pairwise and is indefinite. The score of the defaults moved from 0.36 to 0.57 with the shrinkage and the cost of a missing axis.
+    - A Mahalanobis distance needs a covariance, but most tables lack whole blocks, so it exists only pairwise and is indefinite. It was not sharper, and the score of the defaults moved from 0.36 to 0.57 with the shrinkage and the cost of a missing axis.
     - With 1 to 50 neighbors, and with the mean, the median or the largest of their distances, `dependence='none'` always scored below the defaults. More neighbors react more to a generator that is too wide and less to weakened relations, and 5 react to both. The mean reacted at least as much as the other two. 5 neighbors are also the choice of Naeem et al. (2020) and of Mind the Gap?.
 11. **The floor:**
     - The defaults are matched to real tables and then widened, so they are wider than the real tables on purpose. A floor at the noise below 0.5 would reject them.
