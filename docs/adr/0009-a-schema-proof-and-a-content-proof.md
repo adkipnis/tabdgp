@@ -49,7 +49,7 @@ The flat preset is certified first, then the grouped one.
    - a calibrated generator leaves 5 % outside, and the gate adds a tolerance for the sampling noise.
    - the mean rank is reported. It is 0.5 when the draws are centered on the real tables.
    - an axis above the gate is a named gap, which the test lists by name. The list may only shrink.
-2. Precision is the share of generated tables that lie at least as near to the real tables as the real table they were drawn for, on every axis at once:
+2. Precision is the share of generated tables that are at least as close to the real tables as their own real table:
    - a table's reach is its mean distance to the 5 nearest real tables from other sources.
    - the distance between two tables is their mean absolute difference over the axes.
    - on each axis a table is coded by its rank among the real tables from other sources, which is the share of them below its value.
@@ -62,9 +62,12 @@ The flat preset is certified first, then the grouped one.
    - `dependence='none'` has to fail on the relations between columns. A relation is left out if too few real tables show it to fail the gate.
    - a flat table with group labels assigned at random has to fail on the grouping.
    - a control is judged by recall. The floor on precision does not have to reject it.
-4. The two-sample test (C2ST) and the distances are reported, beside the same statistics on two halves of the real tables. The precision is also reported for 3 and for 10 neighbors.
-5. The real tables are split by their source into a part the hyperprior is fitted on and a part that certifies it. The split has a fixed seed.
-6. A gate, a seed, the split and the list of named gaps change like a default, with an issue first.
+4. The negative control shows that the gates aren't too loose, the positive control shows they aren't too strict: It replaces each real table by a table drawn from its schema's defaults.
+   - such a table is one more draw of the generator, so a check that fails it is too strict.
+   - it has to pass recall on every axis, the named gaps included, and the floor on precision.
+5. The two-sample test (C2ST) and the distances are reported, beside the same statistics on two halves of the real tables. The precision is also reported for 3 and for 10 neighbors (to check if decisions are sensitive to the choice of 5 neighbors).
+6. The real tables are split by their source into a part the hyperprior is fitted on and a part that certifies it. The split has a fixed seed.
+7. A gate, a seed, the split and the list of named gaps change like a default, with an issue first.
 
 ### The order
 
@@ -134,15 +137,15 @@ The flat preset is certified first, then the grouped one.
     - With 1 to 50 neighbors, and with the mean, the median or the largest of their distances, `dependence='none'` always scored below the defaults. More neighbors react more to a generator that is too wide and less to weakened relations, and 5 react to both. The mean reacted at least as much as the other two. 5 neighbors are also the choice of Naeem et al. (2020) and of Mind the Gap?.
 11. **The floor:**
     - The defaults are matched to real tables and then widened, so they are wider than the real tables on purpose. A floor at the noise below 0.5 would reject them.
-    - Below 0.25 most of a training corpus could be unlike real tables. The half is a judgment.
+    - Below 0.25 most of a training corpus could be unlike real tables. That half of the tables suffices is a judgment.
     - The number of neighbors and the summary of their distances move a score by about 0.05, so the floor is not read more finely than that.
     - A table with independent covariates still resembles real tables in its sizes, its columns' shapes and y. `dependence='none'` scored 0.28 and 0.31 on the two parts, which is why a control is judged by recall.
-    - The floor has no named gaps. If a preset's defaults score below it, the defaults change or the floor does (decision 6 of the gates).
+    - The floor has no named gaps. If a preset's defaults score below it, the defaults change or the floor does (decision 7 of the gates).
 
 ## Consequences
 
 - **Blind spots:** no axis can fail on two properties of real tables, so neither is a named gap:
-  - count covariates, since a real column of numbers is read as continuous.
+  - count covariates. Every real column of numbers is read as continuous, so no real table shows one.
   - how well the covariates predict y together.
 - **The stated columns:** the override is public, since a study with a fixed design (e.g. a power analysis) states its columns too (#91).
 - **`fidelity`:** gains the paired ranks and the precision. Its containment stays for two unpaired samples.
