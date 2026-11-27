@@ -4,13 +4,13 @@ pipeline:
 ---------
 the covariates and the outcome
 -> the sizes: rows, design columns, columns, type shares, levels   _measureSizes
+-> a statistic over one type's columns as its median and maximum   _aggregate
 -> each covariate's shape statistics, by its type                  _measureShape, _measureColumn
    (a coded column's level shares, another column's moments)       _measureLevels, _measureMarginal
--> per type, a statistic's median and maximum over its columns     _aggregate
 -> each covariate coded for its relations                          _codeColumn, _rankAverage
 -> each covariate's largest relation with another one              _measureRelations, _relatePair
 -> the condition index of the design, each covariate as its span   _measureConditionIndex
--> the leverage: Mardia's kurtosis of the columns' normal scores    _measureLeverage, _scoreNormal
+-> the leverage: Mardia's kurtosis of the normal scores            _measureLeverage, _scoreNormal
 -> y's shape statistics and its largest relation with a covariate  _measureOutcome
 -> the vector in AXES' order, NaN where the table lacks an axis    measure
 """
@@ -31,8 +31,8 @@ from tabdgp.scm import LeveledType
 
 TYPES: tuple[ColumnType, ...] = get_args(ColumnType)
 
-# a column's shape statistics by its type
-MOMENTS = [
+# a continuous or count column's shape statistics
+MARGINAL_STATISTICS = [
     'skewness',
     'excess_kurtosis',
     'outlier_share',
@@ -41,9 +41,10 @@ MOMENTS = [
     'mode_share',
     'bound_excess',
 ]
+# a column's shape statistics by its type
 STATISTICS: dict[ColumnType, list[str]] = {
-    'continuous': MOMENTS,
-    'count': [*MOMENTS, 'dispersion'],
+    'continuous': MARGINAL_STATISTICS,
+    'count': [*MARGINAL_STATISTICS, 'dispersion'],
     # a binary column's largest level share is its majority, whose maximum finds a rare indicator
     'binary': ['largest_level_share'],
     'categorical': ['largest_level_share', 'smallest_level_share'],
@@ -127,11 +128,19 @@ def _measureSizes(rows: int, metadata: dict[str, Column]) -> dict[str, float]:
     return sizes
 
 
+def _aggregate(name: str, values: list[float], signed: bool = False) -> dict[str, float]:
+    """A statistic over one type's columns: its median and its maximum, none without a column."""
+    if not values:
+        return {}
+    largest = np.max(np.abs(values)) if signed else np.max(values)
+    return {f'{name}_median': float(np.median(values)), f'{name}_max': float(largest)}
+
+
 def _measureShape(columns: dict[str, np.ndarray], metadata: dict[str, Column]) -> dict[str, float]:
     """Each type's shape statistics over its columns."""
     shape: dict[str, float] = {}
     for type, statistics in STATISTICS.items():
-        measured = []
+        measured: list[dict[str, float]] = []
         for name, column in metadata.items():
             if column.type == type:
                 measured.append(_measureColumn(columns[name], column))
@@ -168,7 +177,7 @@ def _measureMarginal(values: np.ndarray, type: ColumnType) -> dict[str, float]:
     q1, q3 = np.quantile(values, [0.25, 0.75])
     iqr = q3 - q1
     outside = (values < q1 - 1.5 * iqr) | (values > q3 + 1.5 * iqr)  # (n,)
-    _, counts = np.unique(values, return_counts=True)  # (u,) in the values' order
+    _, counts = np.unique(values, return_counts=True)  # (u,) from the smallest value up
     # the larger end's share beyond the 1/u of a typical value, so that ties alone leave no pile
     end_share = int(max(counts[0], counts[-1])) / rows
     statistics = {
@@ -183,16 +192,6 @@ def _measureMarginal(values: np.ndarray, type: ColumnType) -> dict[str, float]:
     if type == 'count':
         statistics['dispersion'] = float(m2 / mean)
     return statistics
-
-
-def _aggregate(name: str, values: list[float], signed: bool = False) -> dict[str, float]:
-    """A statistic over the columns of one type: its median and its maximum, none without a column.
-    A signed statistic's maximum is its largest absolute value.
-    """
-    if not values:
-        return {}
-    largest = np.max(np.abs(values)) if signed else np.max(values)
-    return {f'{name}_median': float(np.median(values)), f'{name}_max': float(largest)}
 
 
 # -------------------------------------------------------------------------------------
@@ -230,7 +229,7 @@ def _measureRelations(coded: list[np.ndarray], metadata: dict[str, Column]) -> d
     largest = np.nanmax(relations, axis=1)  # (x,)
     measured: dict[str, float] = {}
     for type in TYPES:
-        values = []
+        values: list[float] = []
         for i, column in enumerate(metadata.values()):
             if column.type == type:
                 values.append(float(largest[i]))
@@ -239,8 +238,9 @@ def _measureRelations(coded: list[np.ndarray], metadata: dict[str, Column]) -> d
 
 
 def _relatePair(a: np.ndarray, b: np.ndarray) -> float:
-    """|ρ| of two ranked columns, the correlation ratio η of a ranked column's ranks over
-    a categorical's levels, and Cramér's V of two categoricals: each |ρ| at two levels.
+    """|ρ| of two ranked columns,
+    the correlation ratio η of a ranked column's ranks over a categorical's levels,
+    and Cramér's V of two categoricals: each |ρ| at two levels.
     """
     rows = len(a)
     match a.ndim, b.ndim:
@@ -289,25 +289,26 @@ def _findTolerance(singular: np.ndarray, shape: tuple[int, ...]) -> float:
 def _measureLeverage(
     columns: dict[str, np.ndarray], metadata: dict[str, Column]
 ) -> dict[str, float]:
-    """Mardia's kurtosis of the continuous and count columns' normal scores over its normal value
-    r(r + 2), at the scores' rank r: how far a few rows lie from the rest jointly.
+    """Mardia's kurtosis of the continuous and count columns' normal scores,
+    over its normal value r(r + 2) at the scores' rank r:
+    how far a few rows lie from the rest jointly.
     """
     # the normal scores leave out each column's marginal, which its own statistics measure
-    scores = []
+    score_columns: list[np.ndarray] = []
     for name, column in metadata.items():
         if column.type in get_args(MarginalType):
-            scores.append(_scoreNormal(columns[name]))
+            score_columns.append(_scoreNormal(columns[name]))
     # a single column has no joint extremes
-    if len(scores) < 2:
+    if len(score_columns) < 2:
         return {}
-    design = np.stack(scores, axis=1)  # (n, x)
-    centered = design - design.mean(axis=0)  # (n, x)
+    scores = np.stack(score_columns, axis=1)  # (n, x)
+    centered = scores - scores.mean(axis=0)  # (n, x)
     basis, singular, _ = np.linalg.svd(centered, full_matrices=False)  # (n, x), (x,)
     # a monotone function of another column has its scores and adds no rank
     basis = basis[:, singular > _findTolerance(singular, centered.shape)]  # (n, r)
     rank = basis.shape[1]
     # each row's squared Mahalanobis distance under the covariance by n (Mardia 1970, b₂,ₚ)
-    distances = len(design) * np.sum(basis**2, axis=1)  # (n,)
+    distances = len(scores) * np.sum(basis**2, axis=1)  # (n,)
     return {'leverage': float(np.mean(distances**2) / (rank * (rank + 2)))}
 
 
